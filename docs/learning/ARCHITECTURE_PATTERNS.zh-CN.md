@@ -40,6 +40,21 @@ surveyed: 2026-06-24 又用 8 个独立 agent 地毯式扫了 notes/review/harne
 
 ---
 
+# 第 0 课：架构总纲 —— 依赖向下 + EventBus 横向
+
+> 这是统领全局的"骨架力学"，A1/A3/A4/B2 都长在它上面。两条正交的力。
+
+- **是什么**：两条互相垂直的规则。①**纵向：依赖永远向下**——上层可 `import` 下层，下层绝不能反过来 import 上层（编译期约束）。②**横向：EventBus 贯穿各层**——运行时模块靠"发事件/听事件"通信，不靠互相调用。
+- **这项目怎么用**：
+  - 纵向被 **CI 硬性强制**：`.dependency-cruiser.cjs` 四条 `severity:"error"` 规则——`no-core-to-app`（core 不许依赖 app）、`no-core-to-client`（core 不许依赖 client）、`no-api-to-client`（api 不许依赖 client）、`no-circular`（禁循环）。违规即红灯。ARCHITECTURE.md:92 原则："stores and runtime layers should not depend on UI concerns."
+  - 横向由 EventBus 实现：EventBus 住在 `src/core/events/event-bus.ts`（很低的层）。底层 `moveCard` `emit(COLUMN_TRANSITION)`，上层 Orchestrator/SSE `on(...)` 监听——两者之间**没有任何 import 互指**，只是都依赖了那个低层 EventBus。
+- **核心洞察（最该记住）**：**编译期依赖(import)必须向下；运行期通信(事件)可朝任何方向流，包括向上。EventBus 就是"让运行期通信摆脱编译期依赖"的机制。** 于是 `taskStore` 代码里永不出现 UI 的名字（编译期解耦），但它的完成事件运行时确实流到了 UI（运行期连通）——鱼与熊掌兼得。
+- **你以后怎么用**：① 项目开头就划层 + 配依赖检查工具（dependency-cruiser/ArchUnit/NetArchTest）焊死方向，架构靠红灯维持不靠自觉。② 黄金分界：**import 向下，事件随意**——发现"底层要通知上层"时，别 import 上层，改用事件。③ EventBus 自己要放在足够低的层，否则制造循环依赖。
+- **学习笔记（用你自己的话补充）**：_（待填）_
+- **状态**：已掌握 ✅
+
+---
+
 # Part A — 架构模式（七把武器）
 
 ## 模式 1：依赖倒置 + 接口化 Store
@@ -50,8 +65,9 @@ surveyed: 2026-06-24 又用 8 个独立 agent 地毯式扫了 notes/review/harne
   - `createInMemorySystem()`（`:70`）全用 `new InMemoryXxxStore()`；生产换成 `Pg*` / SQLite 实现，业务代码不动。
   - 三种存储模式由环境切换：`DATABASE_URL`→Postgres，`ROUTA_DB_DRIVER=sqlite`→SQLite，否则内存。
   - Rust 端对称：`crates/routa-core/src/state.rs` 的 `AppStateInner` 同样字段。
-- **你以后怎么用**：任何"将来可能换实现"的东西（DB、缓存、外部 API、文件存储）都先定义接口。好处：测试全内存跑、部署可换后端、业务零改动。这是六边形架构的"端口"。
-- **状态**：未学
+- **你以后怎么用**：任何"将来可能换实现"的东西（DB、缓存、外部 API、文件存储）都先定义接口。好处：测试全内存跑、部署可换后端、业务零改动。这是六边形架构的"端口"。**注意度**：只有"会变/要测试替换"的边界才值得抽接口，纯内部工具函数别包接口（过度设计）。
+- **学习笔记（用你自己的话补充）**：_（待填）_
+- **状态**：已掌握 ✅
 
 ## 模式 2：协议适配 / 防腐层（ACP & MCP）
 
@@ -236,7 +252,8 @@ surveyed: 2026-06-24 又用 8 个独立 agent 地毯式扫了 notes/review/harne
 
 | # | 模式/纪律 | 状态 |
 |---|---|---|
-| A1 | 依赖倒置 + 接口化 Store | 未学 |
+| 0 | 架构总纲（依赖向下 + EventBus 横向） | 已掌握 ✅ |
+| A1 | 依赖倒置 + 接口化 Store | 已掌握 ✅ |
 | A2 | 协议适配 / 防腐层（四层桥接） | 未学 |
 | A3 | 事件驱动 / EventBus（含 WaitGroup/优先级） | 未学 |
 | A4 | 服务容器 / 集中装配 | 未学 |
