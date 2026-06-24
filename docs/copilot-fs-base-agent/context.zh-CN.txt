@@ -1,0 +1,152 @@
+现在我已经全面理解了。以下是完整分析：
+
+---
+
+## 协作任务功能 — 架构深度解析
+
+### 1. 文件地图
+
+| 层 | 文件 | 用途 |
+|-------|------|---------|
+| **模型** | [src/core/models/note.ts](src/core/models/note.ts) | `Note` 接口、`NoteType`（"spec" / "task" / "general"）、带有 `taskStatus`、`assignedAgentIds`、`linkedTaskId` 的 `NoteMetadata` |
+| **模型** | [src/core/models/task.ts](src/core/models/task.ts) | 带有 `TaskStatus` 枚举的 `Task` 接口 |
+| **存储** | [src/core/store/note-store.ts](src/core/store/note-store.ts) | `NoteStore` 接口 + `InMemoryNoteStore` — 以 `${workspaceId}:${noteId}` 为键 |
+| **存储** | [src/core/store/task-store.ts](src/core/store/task-store.ts) | `TaskStore` 接口 + `InMemoryTaskStore` — 具备依赖感知的 `findReadyTasks()` |
+| **工具** | [src/core/tools/note-tools.ts](src/core/tools/note-tools.ts) | `NoteTools` 类 — 通过 MCP 暴露的 CRUD + `setNoteContent` + `convertTaskBlocks` |
+| **编排** | [src/core/orchestration/task-block-parser.ts](src/core/orchestration/task-block-parser.ts) | 服务端 `@@@task` 块解析器（提取标题、通过 `##` 标题提取各小节） |
+| **MCP 执行器** | [src/core/mcp/mcp-tool-executor.ts](src/core/mcp/mcp-tool-executor.ts) | 将 `set_note_content` 路由到 `noteTools.setNoteContent()` |
+| **广播** | [src/core/notes/note-event-broadcaster.ts](src/core/notes/note-event-broadcaster.ts) | `NoteEventBroadcaster` 单例 — 通过 SSE 广播 `note:created / note:updated / note:deleted` |
+| **API** | [src/app/api/notes/route.ts](src/app/api/notes/route.ts) | REST 端点：GET 列表/获取、POST 创建/更新、DELETE |
+| **API** | [src/app/api/notes/events/route.ts](src/app/api/notes/events/route.ts) | 用于实时笔记变更事件的 SSE 端点 |
+| **API** | [src/app/api/acp/route.ts](src/app/api/acp/route.ts) | 会话创建（`session/new`）、CRAFTER Agent 派生、ROUTA 编排注册 |
+| **Hook** | [src/client/hooks/use-notes.ts](src/client/hooks/use-notes.ts) | `useNotes()` — 获取、CRUD、带自动重连的 SSE 订阅 |
+| **Hook** | [src/client/hooks/use-acp.ts](src/client/hooks/use-acp.ts) | `useAcp()` — ACP 客户端生命周期、会话管理、提示词发送 |
+| **组件** | [src/client/components/collaborative-task-editor.tsx](src/client/components/collaborative-task-editor.tsx) | `CollaborativeTaskEditor` — 带行内编辑、CRDT 徽标、并发控制的实时任务列表 |
+| **组件** | [src/client/components/task-panel.tsx](src/client/components/task-panel.tsx) | `TaskPanel` + `CraftersView` — 展示已解析的 `@@@task` 块和 CRAFTER Agent 聊天记录 |
+| **工具函数** | [src/client/utils/task-block-parser.ts](src/client/utils/task-block-parser.ts) | 客户端 `@@@task` 解析器（用于聊天面板检测） |
+| **页面** | [src/app/[workspaceId]/[sessionId]/session-page-client.tsx](src/app/%5BworkspaceId%5D/%5BsessionId%5D/session-page-client.tsx) | 主会话页面 — 把所有部分串联起来 |
+
+---
+
+### 2. `set_note_content` 的工作方式
+
+流程如下：
+
+1. **Agent 调用 MCP 工具** `set_note_content`，传入 `{noteId, content, title?, workspaceId}`
+2. **[MCP 工具执行器](src/core/mcp/mcp-tool-executor.ts#L205)** 路由到 `noteTools.setNoteContent()`
+3. **[NoteTools.setNoteContent()](src/core/tools/note-tools.ts#L108)** 执行以下操作：
+   - 从 `NoteStore` 获取笔记（当 `noteId === "spec"` 时自动创建）
+   - 更新 `content`，可选更新 `title`，设置 `updatedAt`
+   - 通过 `NoteStore.save()` 保存（在 CRDT 存储中会调用广播器）
+   - **自动转换 `@@@task` 块**：如果该笔记是 spec 笔记（或 `autoConvertTasks` 为 true），则调用 `convertTaskBlocks()`：
+     - 使用[服务端解析器](src/core/orchestration/task-block-parser.ts)解析 `@@@task` 块
+     - 对每个解析出的任务：在 `TaskStore` 中创建一条 `Task` 记录 + 在 `NoteStore` 中创建一条类型为 `"task"` 的 `Note`
+     - 将源笔记中的 `@@@task` 块替换为 `- [ ] [Title](task://noteId)` 链接
+   - 返回 `{ noteId, tasksCreated, tasks: [{taskId, noteId, title}] }`
+
+4. **API 路由** [/api/notes POST](src/app/api/notes/route.ts) 调用 `system.noteBroadcaster.notifyUpdated()` 向所有 SSE 客户端广播
+5. **客户端 `useNotes` hook** [接收 SSE 事件](src/client/hooks/use-notes.ts#L214) 并更新 React 状态
+
+---
+
+### 3. 会话创建与存储
+
+[/api/acp route.ts](src/app/api/acp/route.ts#L145) 中的**会话创建流程**：
+
+1. 客户端通过 `useAcp` hook 调用 `acp.createSession()` → JSON-RPC `session/new`
+2. ACP 路由判定 Provider 类型（claude-code-sdk、claude CLI 或标准 ACP）
+3. 通过 `AcpProcessManager` 派生相应的 Agent 进程
+4. 对于 **ROUTA 角色**：额外创建一条编排器 Agent 记录，注册通知/会话处理器
+5. 通过 `HttpSessionStore.upsertSession()` 持久化会话（开发环境用内存，serverless 环境额外用 Postgres）
+6. 支持**幂等键（idempotency keys）**以防止重复会话
+7. 返回 `{sessionId, provider, role, routaAgentId}`
+
+**CRAFTER 会话**在任务委派期间创建（而非由用户直接创建）：
+- `handleExecuteTask` / `handleExecuteNoteTask` 调用 MCP 工具 `delegate_task_to_agent`，传入 `specialist: "CRAFTER"`
+- 编排器派生一个角色为 `"CRAFTER"` 的子会话（[第 458 行](src/app/api/acp/route.ts#L458)）
+- 在客户端创建一个 `CrafterAgent` 对象，包含 `{id, sessionId, taskId, taskTitle, status, messages[]}`
+
+**存储主要在内存中** — `InMemoryNoteStore`、`InMemoryTaskStore`、`HttpSessionStore`。Postgres 持久化作为 serverless 环境下的次级存储存在。
+
+---
+
+### 4. 协作任务如何展示
+
+[session-page-client.tsx](src/app/%5BworkspaceId%5D/%5BsessionId%5D/session-page-client.tsx#L1342) 中的右侧边栏会按条件渲染：
+
+```tsx
+{hasCollabNotes ? (
+  <CollaborativeTaskEditor ... />   // Notes-backed tasks
+) : (
+  <TaskPanel ... />                 // Parsed @@@task blocks from chat
+)}
+```
+
+任务展示有**两条路径**：
+
+| 路径 | 来源 | 组件 | 触发条件 |
+|------|--------|-----------|---------|
+| **基于笔记** | `useNotes()` SSE 流 | `CollaborativeTaskEditor` | 当 Agent 调用 `set_note_content` 创建任务笔记时 |
+| **聊天解析** | Agent 响应中的 `@@@task` 块 | `TaskPanel` | 当聊天面板通过客户端解析器检测到 `@@@task` 块时 |
+
+`CollaborativeTaskEditor` 展示：
+- **头部**：任务数量、"Execute All" 按钮、在线/离线指示器、CRDT 徽标
+- **并发控制**：在 1 个和 2 个并行 Agent 之间切换
+- **Spec 笔记**（可折叠）：带 markdown 渲染的 spec 文档
+- **任务卡片**：每张卡片带状态图标（PENDING/IN_PROGRESS/COMPLETED/FAILED）、标题、内容小节（Objective/Scope/Inputs/Outputs/Definition of Done）、带防抖自动保存的行内编辑器
+- **CRAFTERs 视图**：为每个派生的 CRAFTER Agent 提供页签，并展示流式聊天记录
+
+---
+
+### 5. 并发实现
+
+并发在 [session-page-client.tsx](src/app/%5BworkspaceId%5D/%5BsessionId%5D/session-page-client.tsx) 中管理：
+
+**状态**：`const [concurrency, setConcurrency] = useState(1);` — UI 在 1 和 2 之间切换。
+
+**执行**（[第 949 行](src/app/%5BworkspaceId%5D/%5BsessionId%5D/session-page-client.tsx#L949) 的 `handleExecuteAllNoteTasks`）：
+
+```typescript
+if (effectiveConcurrency <= 1) {
+  // Sequential: await each task one by one
+  for (const note of pendingNotes) {
+    const agent = await handleExecuteNoteTask(note.id);
+    if (agent) setActiveCrafterId(agent.id);
+  }
+} else {
+  // Parallel: process in batches of `effectiveConcurrency`
+  const queue = [...pendingNotes];
+  while (queue.length > 0) {
+    const batch = queue.splice(0, effectiveConcurrency);
+    const results = await Promise.allSettled(
+      batch.map((n) => handleExecuteNoteTask(n.id))
+    );
+    // Select first successful agent from batch
+  }
+}
+```
+
+`handleExecuteAllTasks`（聊天解析路径）也存在相同的模式。并发数上限为 `Math.min(requestedConcurrency, items.length)`。
+
+**单任务执行**（`handleExecuteNoteTask`）：
+1. 将笔记标记为 `IN_PROGRESS`
+2. 调用 MCP `create_task` → 获得 `mcpTaskId`
+3. 调用 MCP `delegate_task_to_agent` → 获得 `agentId` + `childSessionId`
+4. 在本地创建 `CrafterAgent` 记录
+5. 子 Agent 通过 SSE 更新流 → 路由到正确的 `CrafterAgent.messages[]` 数组
+
+---
+
+### 6. 状态管理模式
+
+| 模式 | 用法 |
+|---------|-------|
+| **React hooks（useState/useCallback）** | `SessionPageClient` 中的所有状态 — `routaTasks`、`crafterAgents`、`activeCrafterId`、`concurrency`、`taskPanelMode` |
+| **自定义 hooks** | `useNotes()` — 封装获取 + SSE + CRUD；`useAcp()` — 封装 ACP 客户端生命周期；`useWorkspaces()`；`useSkills()` |
+| **SSE（Server-Sent Events）** | 通过 `NoteEventBroadcaster` + `useNotes` 中的 `EventSource` 实现实时笔记更新；通过 `BrowserAcpClient.onUpdate()` 实现 ACP 会话更新 |
+| **用于跨渲染状态的 Refs** | `mcpSessionRef`（MCP 会话 ID）、`lastChildUpdateIndexRef`（增量 SSE 更新处理）、`sessionMetadataLoadedRef`（去重）、`pendingPromptSentRef` |
+| **单例存储** | `InMemoryNoteStore`、`InMemoryTaskStore`、`NoteEventBroadcaster` — 通过 `getRoutaSystem()` 和 `getNoteEventBroadcaster()` 提供的全局实例 |
+| **无外部状态库** | 无 Redux/Zustand/Jotai — 所有状态都是提升到页面组件的本地 React 状态，并作为 props 传递 |
+| **Prop drilling** | `SessionPageClient` 将回调/状态向下传递给 `CollaborativeTaskEditor`、`TaskPanel`、`CraftersView`、`ChatPanel` |
+
+该架构遵循**中心辐射（hub-and-spoke）**模式，其中 `SessionPageClient` 是协调所有子系统（ACP 会话、MCP 工具、Notes SSE、任务执行）的中央枢纽。
