@@ -18,6 +18,7 @@
 
 按 koda 施工相位组织,解剖 Routa 各层设计。行为语义的 canonical 是 koda 的 `docs/contracts/` 规约,此处解剖文档仅作教学与导引。
 
+- `koda-replication/BUILD_ORDER.md` — **解读/施工总纲**:8 相依赖拓扑（0-7）+ 每相文件清单（指向本仓库源码）+ 施工规则
 - `koda-replication/phase0-analysis.md` — Phase 0（类型底座 + EventBus）设计解剖
 
 ## 给在本仓库工作的 agent / 协作者
