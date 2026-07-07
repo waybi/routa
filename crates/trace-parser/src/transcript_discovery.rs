@@ -233,12 +233,28 @@ mod tests {
             .iter()
             .all(|root| root.kind == TranscriptSessionSource::QoderProjects));
 
-        let augment_only = discover_transcript_session_roots_for_client(Some("auggie"));
+        // Route through the overrides variant so discovery reads the tempdir
+        // roots created above instead of the real HOME (which makes the test
+        // depend on the developer machine having ~/.qoder, ~/.augment, etc.).
+        let claude_config = home.join(".claude");
+        let augment_only = discover_transcript_session_roots_with_overrides_and_client(
+            Some(&home),
+            Some(&claude_config),
+            Some(&qoder_root),
+            Some(&augment_root),
+            Some("auggie"),
+        );
         assert!(augment_only
             .iter()
             .all(|root| root.kind == TranscriptSessionSource::AugmentSessions));
 
-        let all = discover_transcript_session_roots_for_client(Some("all"));
+        let all = discover_transcript_session_roots_with_overrides_and_client(
+            Some(&home),
+            Some(&claude_config),
+            Some(&qoder_root),
+            Some(&augment_root),
+            Some("all"),
+        );
         assert!(all
             .iter()
             .any(|root| root.kind == TranscriptSessionSource::Codex));
