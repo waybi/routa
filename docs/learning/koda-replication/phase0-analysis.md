@@ -7,6 +7,20 @@
 >
 > **符号约定**：`k` = **变更传播比**（Change Propagation Ratio）——一项设计决策变化时需要连锁修改的文件数。k = 1 代表改一处即可（理想），k = N 代表霰弹式修改（Shotgun Surgery）。全文用 k 值度量变更放大效应，工厂函数、EventBus、纯函数映射等决策的核心目标就是把变更传播比从 N 降到 1。
 
+## 目录
+
+- [「你在这里」锚点](#anchor-anchor)
+- [总体业务场景](#anchor-scene)
+- [问题 1：词汇不统一](#anchor-q1)
+- [问题 2：通知链断裂](#anchor-q2)
+- [问题 3：并发冲突](#anchor-q3)
+- [问题 4：状态映射散落](#anchor-q4)
+- [问题 5：协调逻辑膨胀](#anchor-q5)
+- [五个可迁移模式](#anchor-patterns)
+- [一句话带走](#anchor-takeaway)
+
+<a id="anchor-anchor"></a>
+
 ## 「你在这里」锚点
 
 ```
@@ -24,7 +38,21 @@ Routa 全局施工图:
             ~/Desktop/my/routa/src/core/events/   2 个文件
 ```
 
+**Phase 0 只做一件事：搭建领域模型。** 14 个 `interface` + 工厂函数定义"这个系统里有哪些东西，长什么样，怎么造"；EventBus 定义"这些东西之间怎么互相通知"。前者是静态词汇表，后者是动态通知管道。
+
+以下 5 个问题，是 Phase 0 作为地基必须回答的。全文用 `k`（变更传播比）度量每个设计决策的变更放大效应，核心目标是把 k 从 N 降到 1。
+
+| 问题 | 核心矛盾 | 解决方案 |
+|------|---------|---------|
+| 1. 词汇不统一 | 同一概念（Task）在 API、看板、工具三个模块各自手写定义，字段名漂移、默认值散落、双后端（TS/Rust）语义漂移 | 14 个 `interface` + 14 个 `createXxx()` 工厂函数，六边形架构把领域模型放最内圈 |
+| 2. 通知链断裂 | 拖了 card 到 Dev 列后，四个下游模块没人知道发生了什么 | `EventBus` + `preSubscribe` + `WaitGroup`，发布-订阅解耦 |
+| 3. 并发冲突 | 多个 agent 同时操作同一张 card 时可能冲突 | 不在 Phase 0 解决，交给 Phase 2 的 Worker/Store 层用乐观锁处理 |
+| 4. 状态映射散落 | 同一个 `if-else` 状态转换逻辑在 3 个地方重复写 | 纯函数映射表（`TASK_STATUS_TRANSITIONS`），单一真相源 |
+| 5. 协调逻辑膨胀 | 「等 N 个子任务完成」的逻辑在 orchestrator 和 kanban 各写一份 | `WaitGroup` 抽象，把等待/协调逻辑从业务代码中提取出来 |
+
 ---
+
+<a id="anchor-scene"></a>
 
 ## 总体业务场景
 
@@ -47,7 +75,9 @@ Routa 是一个多 AI Agent 协作平台。一个典型的使用场景：
 
 ---
 
-## 问题 1：词汇不统一 — 同一个概念,三个模块各自定义
+<a id="anchor-q1"></a>
+
+## 问题 1：词汇不统一
 
 ### 业务场景：一条 card 创建链路穿过三个模块
 
@@ -92,6 +122,8 @@ function buildPrompt(task: any) {
 
 `task.column ?? task.columnId` 这条 fallback 链暴露了一个事实：历史上这个字段叫 `column`，某次重构改成了 `columnId`，但所有写过 `task.column` 的地方没人敢删——因为没人能确认所有消费方都改了。每改一次字段名，就多一条 fallback 链，永远不会缩短。
 
+**堵法：`interface` 是整份代码库对 Task 的唯一理解。** api 层、kanban 层、tools 层全部 `import type { Task } from "@/core/models"`。字段名只有一个——`columnId`，TypeScript 编译器强制执行，你写了 `task.column` 但 interface 里只有 `columnId`，编译直接报错。fallback 链没有存在的理由。
+
 **后果 2：默认值散落在 17 个消费文件中。** 当前代码库里，`createTask` 被 17 个文件 import。如果有朝一日 `labels` 的默认值从 `[]` 改成 `["untriaged"]`——在没有工厂函数的情况下——这 17 个文件中每个手写了 `labels ?? []` 的地方都要改：
 
 ```
@@ -107,6 +139,8 @@ src/core/orchestration/orchestrator.ts
 
 **改漏一个不会报错。** TypeScript 不会告诉你"这个文件的 labels 默认值还是旧的"。没有编译错误、没有 lint 警告、不会 crash。前端可能一直显示旧标签，直到用户发现问题。
 
+**堵法：`createTask()` 工厂里 `labels: params.labels ?? []` 只写一次。** 17 个消费方不再自己兜底——它们信任工厂，因为它们不构造 Task，只消费 Task。改默认值从 `[]` 到 `["untriaged"]`：改 `createTask` 一行，k = 1。之前是 17 个文件，k = 17。
+
 **后果 3：双后端漂移——TypeScript 侧和 Rust 侧各自定义了 Task。** 这是最致命的问题。
 
 Routa 有两套后端：
@@ -121,17 +155,33 @@ Routa 有两套后端：
 - TypeScript 侧 `TaskStatus` 有 7 个值：`PENDING | IN_PROGRESS | REVIEW_REQUIRED | COMPLETED | NEEDS_FIX | BLOCKED | CANCELLED`
 - Rust 侧 `TaskStatus` 必须和它一模一样。如果哪天 TypeScript 侧加了 `IN_QA`，Rust 侧忘记同步 → parity test 不会报错（新值在 Rust 侧会被反序列化为 `serde` 的默认值/未知变体），前端在桌面版看到的 Task 状态是错的。
 
+**堵法：三道防线，不是一道。** `interface Task` 是合约原文，Rust 侧 `task.rs` 是翻译而不是独立定义；`#[serde(rename_all = "camelCase")]` 堵字段名不一致（TS 驼峰 → Rust 蛇形 → JSON 驼峰）；CI parity test 堵语义漂移（新增枚举值/字段 → 序列化输出不一致 → CI 红，合并被挡）。
+
 **没有六边形架构的话，这条链路的总改动面**：新增一个 `Task.evidenceSummary` 字段 → TypeScript 侧 `interface Task` + `createTask` + 17 个消费方（含测试 mock）+ Rust 侧 `struct Task` + Rust 侧所有反序列化点 → k ≈ 25+。这不是"改起来有点累"，而是"大概率漏改"。
+
+**堵法：工厂函数 + 编译器强制，k 降到 ~4。** 新增字段只需改 4 处，而且 TypeScript 编译器当安全网——`createTask` 返回类型是 `Task`，interface 加了字段但工厂没返回 → 编译报错「Property is missing」。17 个消费方不需要改，因为它们不构造 Task，只消费 Task。之前是 17 个消费方各自构造 Task 对象字面量，所以每个都要改。
+
+**三个腐烂点，各自违反了一条不同的设计原则：**
+
+| 腐烂 | 违反的原则 | 具体表现 |
+|------|-----------|---------|
+| 字段名漂移 | 没有单一真相源 | 三个模块各自定义 Task，没有统一出处 |
+| 默认值散落 | 变化没有封装 | 构造逻辑重复在 17 个文件，改默认值 = 改 17 处 |
+| 双后端漂移 | 没有编译器安全网 | 人肉对比 TS 和 Rust 的类型定义，漏改无声 |
+
+反过来，`interface` 建立单一真相源，`createXxx()` 封装变化，parity test + 编译器检查建立安全网——三个机制对号入座，原则先行，机制落地。
+
+但三个机制不是各自孤立的技巧，它们能成立是因为同一个架构前提——**领域模型被放在最内圈，零外部依赖，所有人依赖它**。这个前提就是六边形架构。
 
 ### 为什么需要六边形架构
 
-Routa 的 ADR 0001（`docs/adr/0001-dual-backend-semantic-parity.md`）记录了核心约束：
+六边形架构不是在解决某一个具体腐烂，而是定义了"谁可以依赖谁"的规则。Routa 的 ADR 0001（`docs/adr/0001-dual-backend-semantic-parity.md`）记录了核心约束：
 
 > Routa.js ships as both a web app (Next.js) and a desktop app (Tauri + Rust/Axum). They must share the same domain model vocabulary.
 
-**同一个产品，两套技术栈，但 Task/Agent/Kanban/Workspace 的概念不能有差异。**
+**同一个产品，两套技术栈，但 Task/Agent/Kanban/Workspace 的概念不能有差异。** 这本质上是"车同轨，书同文"——`interface` 是轨距（双后端必须对齐），枚举和字段名是文字（同一个词不能各写各的）。
 
-六边形架构的核心主张是：把领域模型放在最内圈（Phase 0），让它零外部依赖，所有人依赖它。Web 后端和桌面后端都从同一份接口定义出发，不存在"各自主理解的 Task"。
+六边形架构的核心主张是：把领域模型放在最内圈（Phase 0），让它零外部依赖，所有人依赖它。Web 后端和桌面后端都从同一份接口定义出发，不存在"各自主理解的 Task"。`interface` 之所以能当单一真相源，是因为它被放在所有人依赖的位置；`createXxx()` 之所以能封装变化，是因为消费方统一从工厂入口拿对象，而不是各自构造；parity test 之所以有效，是因为 TS 侧的 interface 是合约原文，Rust 侧只是翻译。
 
 **六边形全貌**：
 
@@ -1263,553 +1313,125 @@ Routa 对此没有技术手段阻止（ESLint `no-object-literal-type-assertion`
 
 ---
 
-## 问题 2：通知链断裂 — 拖了 card，四个下游模块没有一个人知道
+<a id="anchor-q2"></a>
 
-### 业务场景：一条拖拽动作穿过五层之后断掉了
+## 问题 2：通知链断裂
 
-回到开头那个看板场景。用户把 card-5「做一个登录页面」从 Todo 列拖进 Dev 列：
+### 业务场景
 
-```
-浏览器 onDragEnd  →  PUT /api/tasks/card-5  →  column-transition.ts  →  workflow-orchestrator.ts  →  background-worker.ts
-       │                        │                        │                          │                            │
-   拖拽结束           更新 DB columnId      检测到列变了，应该     查 Dev 列有 automation,     轮询到新 BackgroundTask,
-                      改为 "dev"            发射 COLUMN_TRANSITION   应该创建 BackgroundTask      应该启动 CRAFTER agent
-                      返回 200 OK           事件通知下游模块         并启动 Agent                 开始编码
-                                                │
-                                          ❌ 这里断了！
-                                    column-transition.ts 完全不知道
-                                    有人在等这个事件
-```
+用户把 card-5 从 Todo 拖到 Dev 列。`emitColumnTransition`（`src/core/kanban/column-transition.ts:28`）发出 `COLUMN_TRANSITION` 事件。真实下游是 `KanbanWorkflowOrchestrator`（`workflow-orchestrator.ts:220` 用 `on` 订阅了它，收到后启动 Column Agent）。将来可能还要加审计日志、Slack 通知等更多下游。`emitColumnTransition` 和它们之间**没有任何直接函数调用**——全靠 EventBus 通信。
 
-**三个关键事实**：
+一句话锁定问题：**发事件的人，该不该知道谁在收？** 答案是不该。下面两种耦合，都是"让 emit 方知道下游"埋的雷——一个静态、一个动态。
 
-1. `column-transition.ts`（`src/core/kanban/column-transition.ts`）是真实的 Routa 文件——它负责检测到 card 的 `columnId` 变了，然后发射 `COLUMN_TRANSITION` 事件
-2. `workflow-orchestrator.ts`（`src/core/kanban/workflow-orchestrator.ts`）是另一个真实文件——它订阅了 `COLUMN_TRANSITION`，收到事件后检查目标列的自动化配置，创建 BackgroundTask，启动 Agent
-3. 这两者之间**没有直接的函数调用关系**。它们通过 EventBus 通信。如果 column-transition 不知道 EventBus 的存在，或者 workflow-orchestrator 没注册订阅——card 移动了，Agent 永远不会启动。
+### 两种耦合
 
-### 如果不管它：四个具体的腐烂后果
-
-**后果 1：emit 方被迫 import 所有下游。** 没有 EventBus 时，column-transition.ts 需要直接调用所有"卡移动后要做的事"：
+**腐烂 1：空间耦合 — emit 方被迫 import 所有下游。** 没有 EventBus 时，`emitColumnTransition` 必须亲自 import 并调用每一个下游：
 
 ```typescript
-// ❌ column-transition.ts 变成了一个上帝函数
+// ❌ emitColumnTransition 变成上帝函数：它认识每一个下游
 import { workflowOrchestrator } from "./workflow-orchestrator";
-import { taskStore } from "../store/task-store";
-import { agentRegistry } from "../acp/agent-registry";
-import { auditLogger } from "../audit/audit-logger";       // 又加一个
-import { slackNotifier } from "../integrations/slack";      // 又加一个
+import { auditLogger } from "../audit/audit-logger";
+import { slackNotifier } from "../integrations/slack";
 
-function onCardMoved(card: Task, fromCol: string, toCol: string) {
-  taskStore.updateStatus(card.id, columnIdToTaskStatus(toCol));
-  workflowOrchestrator.triggerAutomation(card, toCol);
-  agentRegistry.assignAgent(card.assignedProvider, card);
-  auditLogger.log("card_moved", { cardId: card.id, from: fromCol, to: toCol });
-  slackNotifier.notify(`Card ${card.title} moved to ${toCol}`);
-  // 每加一个下游 → 回来改这个文件 → 文件越来越大 → 每次改动都可能引入 bug
+function emitColumnTransition(data) {
+  workflowOrchestrator.triggerAutomation(data);
+  auditLogger.log("card_moved", data);
+  slackNotifier.notify(`Card moved to ${data.toColumnId}`);
 }
 ```
 
-**后果 2：顺序隐式依赖。** 如果 `taskStore.updateStatus` 写在 `workflowOrchestrator.triggerAutomation` 前面——先更新 DB 再触发自动化，刚好能工作。但哪天有人调整了顺序（"优化"了一下代码）→ 可能变成先触发自动化再更新 DB → Agent 读到的是旧的 columnId → 创建到错误列的 card → 用户看到 card 在 Dev 列但 Agent 在 Review 列开始工作。
+一个"发看板通知"的函数，被迫依赖编排器、审计、Slack SDK 三个八竿子打不着的模块——看板逻辑和 Slack 焊死在一起，连单测 `emitColumnTransition` 都得把三个下游全 mock 一遍。
 
-**后果 3：时序竞态——Agent 还没就绪，事件已经发出了。** 多 Agent 场景的特殊问题：
-
-```
-时间线:
-  12:00:00  用户拖 card → eventBus.emit(COLUMN_TRANSITION)
-  12:00:01  系统决定给这张 card 分配 Agent
-  12:00:02  Agent 进程启动完成
-  12:00:03  Agent 调用 eventBus.subscribe([COLUMN_TRANSITION])
-
-→ 00 秒发出的事件 → 03 秒才有人订阅 → 事件已经丢了！
-→ Agent 永远收不到 COLUMN_TRANSITION，不知道有 card 等它处理
-→ 这类 bug 的特征：不是每次必现，取决于进程启动速度
-→ 极难复现，极难调试
-```
-
-**后果 4：新增下游必须回改上游。** 假设需求："每次 card 移动，发一条 Slack 通知"。传统方案：加一个新的 `import { slackNotifier }` → 回 `column-transition.ts` 改代码。一个月后 Slack 换了 Teams → 又回来改。一年后加了 12 个下游 → `column-transition.ts` 的 import 列表 15 行 → 完全不可维护。
-
-### 为什么用 EventBus — 三个方案推演
-
-面对这个场景，Routa 试过三种方案：
+**堵法：EventBus 当中间人，emit 方只管发。**
 
 ```typescript
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 A: 直接调用 — column-transition 直接 import 所有下游
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ 简单直接，一看就懂
-// ❌ emit 方知道所有下游 — 每次加新下游要改 emit 方
-// ❌ 下游必须已经启动 — 时序竞态无法解决
-// ❌ 投递顺序 = import 顺序 — 不可控
-// → 适用: 2 个下游, 永远不变。Routa 的场景不满足。
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 B: Redis Pub/Sub — 把事件投递外包给消息队列
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ 成熟稳定，有持久化
-// ❌ 桌面版（Tauri + Rust/SQLite）不能假设用户装了 Redis
-// ❌ 每个 emit 增加 1-5ms I/O 延迟
-// ❌ WaitGroup 需要在 Redis 里维护状态 — 与 emit 不在同一个事务里，可能不一致
-// → 适用: 纯服务端 SaaS。Routa 需要双后端零外部依赖。
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 C: 进程内 EventBus（4 个 Map）— Routa 的选择
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ emit 方不知道谁在监听 — 加新下游 0 改动 emit 方
-// ✅ pendingEvents 缓冲 — Agent 没就绪事件不丢
-// ✅ 零 I/O — 4 个 Map 在内存，无网络开销，桌面版立即可用
-// ❌ 崩溃丢事件 — 重启后订阅簿没了（可接受，见"权"镜头）
-// ❌ 不支持跨进程 — 桌面版不需要，Web 版目前单进程 OK
-```
-
-三个机制各自解决一个后果：
-
-| 机制 | 解决后果 # | 原理 |
-|------|:---:|------|
-| **pendingEvents（缓冲队列）** | 3（时序竞态） | Agent 没就绪时事件暂存队列，就绪后 drain 一次性取走——一个不丢 |
-| **preSubscribe（双通道）** | 3（时序竞态的另一面） | handler 通道兜注册后、subscription 通道兜注册前——两个方向都覆盖 |
-| **WaitGroup（after_all）** | 问题 5 的膨胀 | "等 N 个 Agent 完成"的基础设施放在 EventBus，Orchestrator 只写业务回调 |
-
-### 代码落地：4 个 Map 的真实时序推演
-
-**先看 EventBus 的骨架——4 个 Map 各自管什么事：**
-
-```typescript
-// src/core/events/event-bus.ts — 307 行零外部依赖的事件引擎
-export class EventBus {
-  // Map 1: 临时监听器。key = 监听 ID，value = 回调函数。
-  //         单次使用 — 事件来了→resolve Promise→自删。
-  //         "我是 ROUTA-1，我正在 await 一个事件，事件来了就 resolve"
-  private handlers = new Map<string, EventHandler>();
-
-  // Map 2: Agent 订阅簿。key = 订阅 ID, value = {agentId, eventTypes[], priority}。
-  //         长生命周期 — Agent 创建时注册，Agent 注销时删。
-  //         "我是 workflow-orchestrator，我对 COLUMN_TRANSITION / AGENT_COMPLETED / AGENT_FAILED 感兴趣"
-  private subscriptions = new Map<string, EventSubscription>();
-
-  // Map 3: 每 Agent 的事件缓冲队列。key = Agent ID, value = 暂存事件数组。
-  //         Agent 没就绪时事件在这里排队。就绪后 drainPendingEvents 一次性取走
-  private pendingEvents = new Map<string, AgentEvent[]>();
-
-  // Map 4: fan-out / gather 协调。key = 组 ID, value = {expected[], completed Set, onComplete}。
-  //         "ROUTA 在等 CRAFTER-A, B, C 三个都完成"
-  private waitGroups = new Map<string, WaitGroup>();
+// ✅ emitColumnTransition 只认识 EventBus，不知道下游是谁
+function emitColumnTransition(eventBus, data) {
+  eventBus.emit({ type: AgentEventType.COLUMN_TRANSITION, data });
+  // 发完收工。谁在听、听了干什么，与它无关。
 }
 ```
 
-**这四个 Map 如果用一句话概括**：handlers 管"一次性等等看"、subscriptions 管"长期感兴趣"、pendingEvents 管"先存着别丢"、waitGroups 管"等齐了再叫我"。
-
----
-
-**现在回到同一个场景 — 用户把 card-5 从 Todo 拖进 Dev，ROUTA 在等 3 个子 Agent 完成**。我们用这个场景跟踪四个 Map 里的真实数据变化。
-
-**场景设定**：系统启动后，以下模块已经注册了自己的订阅：
-
-- `workflow-orchestrator` 订阅了 `[COLUMN_TRANSITION, AGENT_COMPLETED, AGENT_FAILED]`（关心 card 移动和 Agent 完成——长生命周期）
-- `ROUTA-1`（协调者）订阅了 `[AGENT_COMPLETED, PERMISSION_REQUESTED]`（关心子 Agent 的进度——长生命周期）
-- `ROUTA-1` 通过 `preSubscribe` 注册了一个临时 handler——它在等 `CRAFTER-A` 的 `AGENT_COMPLETED` 事件。`preSubscribe` 返回了 `{ promise }`，ROUTA 正在 `await promise`。
-
-**初始状态 — 四个 Map 的内容**：
-
-```
-handlers Map:                           subscriptions Map:
-┌──────────────────────────────┐       ┌───────────────────────────────────┐
-│ "pre-subscribe-PERM-REQ"  →  │       │ "sub-orchestrator" → {            │
-│   handler(event) {           │       │   agentId: "orchestrator",        │
-│     if AGENT_COMPLETED →     │       │   eventTypes: [COLUMN_TRANSITION, │
-│       resolvePromise(event)  │       │       AGENT_COMPLETED,            │
-│   }                          │       │       AGENT_FAILED],              │
-└──────────────────────────────┘       │   priority: 5                     │
-                                       │ }                                 │
-pendingEvents Map: (空)                │                                   │
-┌──────────────────────────────┐       │ "sub-routa-1" → {                 │
-│ (还没有任何 Agent 发事件)      │       │   agentId: "ROUTA-1",            │
-└──────────────────────────────┘       │   eventTypes: [AGENT_COMPLETED,    │
-                                           PERMISSION_REQUESTED],          │
-waitGroups Map: (空)                      │   priority: 10                  │
-┌──────────────────────────────┐       │ }                                 │
-│ (ROUTA 还没创建 WaitGroup)    │       │                                   │
-└──────────────────────────────┘       │ "sub-pre-perm" → {                 │
-                                       │   agentId: "ROUTA-1",              │
-                                       │   eventTypes: [AGENT_COMPLETED],   │
-                                       │   oneShot: true,                   │
-                                       │   priority: 10                     │
-                                       │ }  ← preSubscribe 同时注册了这条订阅 │
-                                       └───────────────────────────────────┘
-```
-
-说明：`preSubscribe` 一上来就在两个 Map 里各插了一条——handlers 里插了一个 handler（通道 1），subscriptions 里插了一条 oneShot 订阅（通道 2）。两条通道覆盖注册前/后的全时间线，保证事件无论在哪一刻到达都不会丢。
-
----
-
-**时刻 1 — 用户拖 card-5 进 Dev 列，`column-transition.ts` 调 `eventBus.emit(...)`**
-
-```
-column-transition.ts 调用:
-  eventBus.emit({
-    type: AgentEventType.COLUMN_TRANSITION,
-    agentId: "system",
-    workspaceId: "ws-abc",
-    data: { cardId: "card-5", fromColumnId: "todo", toColumnId: "dev", boardId: "board-1" },
-    timestamp: new Date(),
-  });
-```
-
-**emit 内部逐个处理三个 Map**：
-
-**第 1 步 — handlers Map**：
-
-遍历 `handlers` 的所有值。当前只有一个 handler — `"pre-subscribe-PERM-REQ"` 注册的 handler。这个 handler 只关心 `AGENT_COMPLETED` 事件。当前事件是 `COLUMN_TRANSITION` → 不匹配 → **跳过**。handlers Map 不变。
-
-**第 2 步 — subscriptions Map + pendingEvents Map**：
-
-对 subscriptions 里的每条订阅，检查 `eventTypes` 是否包含 `COLUMN_TRANSITION`：
-
-```
-遍历 "sub-orchestrator":
-  eventTypes 包含 COLUMN_TRANSITION ✓ → 匹配！
-  → pendingEvents["orchestrator"] 之前为空 → 创建 [事件1]
-
-遍历 "sub-routa-1":
-  eventTypes = [AGENT_COMPLETED, PERMISSION_REQUESTED]
-  COLUMN_TRANSITION 不在里面 → 跳过
-
-遍历 "sub-pre-perm":
-  eventTypes = [AGENT_COMPLETED]
-  COLUMN_TRANSITION 不在里面 → 跳过
-```
-
-**第 2 步结束后，pendingEvents Map 变了**：
-
-```
-pendingEvents Map: (第 2 步后的状态)
-┌──────────────────────────────────────┐
-│ "orchestrator" → [                   │
-│   { type: COLUMN_TRANSITION,         │
-│     data: { cardId: "card-5",        │
-│       fromColumnId: "todo",          │
-│       toColumnId: "dev" } },         │  ← 事件 1 在这里排队
-│ ]                                    │
-│ "ROUTA-1" → (还是空的)               │ ← 没有路由到它
-└──────────────────────────────────────┘
-```
-
-**第 3 步 — waitGroups Map**：`COLUMN_TRANSITION` 不是终态事件（只有 AGENT_COMPLETED / AGENT_FAILED / AGENT_TIMEOUT / REPORT_SUBMITTED 是终态）→ **跳过**。waitGroups Map 不变（还是空的）。
-
----
-
-**时刻 2 — workflow-orchestrator 就绪后取事件**
-
-```
-workflow-orchestrator.ts 调用:
-  const events = eventBus.drainPendingEvents("orchestrator");
-  // → 返回 [事件1]
-```
-
-**drainPendingEvents 内部**：
+下游各自向 EventBus 注册，`emitColumnTransition` 一个都不认识（真实代码，`workflow-orchestrator.ts:220`）：
 
 ```typescript
-const events = this.pendingEvents.get("orchestrator") ?? [];
-// → 拿到 [事件1]
-this.pendingEvents.delete("orchestrator");
-// → pendingEvents["orchestrator"] 被清空
-return events;
-```
-
-**pendingEvents Map 变了**：
-
-```
-pendingEvents Map: (drain 后的状态)
-┌──────────────────────────────────────┐
-│ "ROUTA-1" → (还是空的)               │
-│ "orchestrator" 已被 delete — 不存在了 │
-└──────────────────────────────────────┘
-```
-
-**workflow-orchestrator 拿到事件 1 后做的事**：解析 `toColumnId: "dev"` → 查 board 配置 → Dev 列有 `automation.enabled = true` → 创建 BackgroundTask → 启动 CRAFTER agent。这是一整条链，但 column-transition.ts 完全不知道。
-
----
-
-**时刻 3 — ROUTA 创建 WaitGroup，等 3 个子 Agent 完成**
-
-```
-ROUTA 调用:
-  eventBus.createWaitGroup({
-    id: "grp-login-page",
-    parentAgentId: "ROUTA-1",
-    expectedAgentIds: [],   // ← 先空着，子 Agent 还没创建
-    onComplete: (group) => { aggregateResults(group); },
-  });
-```
-
-**waitGroups Map 的内容**：
-
-```
-waitGroups Map:
-┌─────────────────────────────────────────────┐
-│ "grp-login-page" → {                        │
-│   id: "grp-login-page",                     │
-│   parentAgentId: "ROUTA-1",                 │
-│   expectedAgentIds: [],                      │  ← 空 — 子 Agent 还没创建
-│   completedAgentIds: Set {},                 │  ← 空
-│   onComplete: aggregateResults              │
-│ }                                           │
-└─────────────────────────────────────────────┘
-```
-
-**后续 — 3 个子 Agent 陆续创建并追加**：
-
-```
-eventBus.addToWaitGroup("grp-login-page", "CRAFTER-A");
-// → expectedAgentIds = ["CRAFTER-A"]
-
-eventBus.addToWaitGroup("grp-login-page", "CRAFTER-B");
-// → expectedAgentIds = ["CRAFTER-A", "CRAFTER-B"]
-
-eventBus.addToWaitGroup("grp-login-page", "CRAFTER-C");
-// → expectedAgentIds = ["CRAFTER-A", "CRAFTER-B", "CRAFTER-C"]
-```
-
-**waitGroups Map 更新后**：
-
-```
-waitGroups Map:
-┌─────────────────────────────────────────────┐
-│ "grp-login-page" → {                        │
-│   expectedAgentIds: ["CRAFTER-A",            │
-│       "CRAFTER-B", "CRAFTER-C"],             │
-│   completedAgentIds: Set {},                 │  ← 还是空 — 没一个完成
-│ }                                           │
-└─────────────────────────────────────────────┘
-```
-
----
-
-**时刻 4 — CRAFTER-A 完成工作，emit AGENT_COMPLETED**
-
-```
-CRAFTER-A 的 ACP 适配器调用:
-  eventBus.emit({
-    type: AgentEventType.AGENT_COMPLETED,
-    agentId: "CRAFTER-A",
-    workspaceId: "ws-abc",
-    data: { sessionId: "sess-1", summary: "Login form done" },
-    timestamp: new Date(),
-  });
-```
-
-**emit 内部逐个处理三个 Map**：
-
-**第 1 步 — handlers Map**：
-
-遍历 handlers。`"pre-subscribe-PERM-REQ"` 的 handler 检查 `eventTypes.includes(AGENT_COMPLETED)` → ✓ 匹配！→ `resolvePromise(event)` → Promise 被 resolve → `await promise` 的 ROUTA 收到事件 → `this.off(handlerKey)` → **handler 被移除**。
-
-```
-handlers Map: (第 1 步后的状态)
-┌──────────────────────────────┐
-│ (空 — preSubscribe 的 handler 已 resolve 后自删) │
-└──────────────────────────────┘
-```
-
-**第 2 步 — subscriptions Map + pendingEvents Map**：
-
-```
-遍历 "sub-orchestrator":
-  eventTypes 包含 AGENT_COMPLETED ✓ → 匹配！
-  → 事件推入 pendingEvents["orchestrator"]
-
-遍历 "sub-routa-1":
-  eventTypes 包含 AGENT_COMPLETED ✓ → 匹配！
-  → 事件推入 pendingEvents["ROUTA-1"]
-
-遍历 "sub-pre-perm" (preSubscribe 同时注册的):
-  eventTypes 包含 AGENT_COMPLETED ✓ → 匹配！
-  → 事件推入 pendingEvents["ROUTA-1"]
-  → oneShot = true → 标记为待删除
-```
-
-**pendingEvents Map 变了**：
-
-```
-pendingEvents Map: (第 2 步后的状态)
-┌──────────────────────────────────────┐
-│ "orchestrator" → [                   │
-│   { type: AGENT_COMPLETED,           │
-│     agentId: "CRAFTER-A" }           │
-│ ]                                    │
-│ "ROUTA-1" → [                        │
-│   { type: AGENT_COMPLETED,           │
-│     agentId: "CRAFTER-A" },          │
-│   { type: AGENT_COMPLETED,           │
-│     agentId: "CRAFTER-A" },          │
-│ ]                                    │
-└──────────────────────────────────────┘
-```
-
-**subscriptions Map 变了**：
-
-```
-subscriptions Map: (第 2 步后的状态)
-┌───────────────────────────────────┐
-│ "sub-orchestrator" → { ... }      │  ← 长生命周期，不变
-│ "sub-routa-1" → { ... }           │  ← 长生命周期，不变
-│ "sub-pre-perm" → 已被删除          │  ← oneShot = true → emit 后自动删
-└───────────────────────────────────┘
-```
-
-**第 3 步 — waitGroups Map**：
-
-`AGENT_COMPLETED` 是终态事件 → 触发 `checkWaitGroups("CRAFTER-A")`：
-
-```typescript
-// checkWaitGroups 内部：
-for (const [groupId, group] of this.waitGroups.entries()) {
-  // 只有 "grp-login-page" 这一个 WaitGroup
-  if (group.expectedAgentIds.includes("CRAFTER-A")) {
-    // ✓ 包含！→ completedAgentIds 加 1
-    group.completedAgentIds.add("CRAFTER-A");
-    // → completedAgentIds = Set { "CRAFTER-A" }
-    // → size = 1, expected = 3 → 还没完 → 不触发 onComplete
+// ✅ 每个下游自己 on 注册，彼此也互不相识
+eventBus.on("orchestrator", (event) => {
+  if (event.type === AgentEventType.COLUMN_TRANSITION) {
+    // 查目标列的自动化配置，启动 Column Agent
   }
+});
+```
+
+| 之前 | 之后 |
+|------|------|
+| `emitColumnTransition` import 编排器 / 审计 / Slack | 只 import EventBus，不知道下游存在 |
+| 单测要 mock 三个下游 | 单测只需断言 `emit` 被调用一次（真实写法，`agent-trigger.test.ts:740`） |
+
+---
+
+**腐烂 2：演化耦合 — 每加一个下游，都要回改 emit 方。** 空间耦合的动态版：就算今天只有一个下游，只要"发通知"和"处理通知"焊在一起，明天加需求就得回来动这个函数。
+
+产品说"card 移动时发一条 Slack 通知"。没有 EventBus 时：
+
+```typescript
+// ❌ 回到 emitColumnTransition，加 import、加调用
+import { slackNotifier } from "../integrations/slack";  // 新增一行 import
+function emitColumnTransition(data) {
+  workflowOrchestrator.triggerAutomation(data);
+  slackNotifier.notify(`Card moved to ${data.toColumnId}`);  // 新增一行调用
 }
 ```
 
+一年后 12 个下游 → `emitColumnTransition` 的 import 列表 15 行，每次加需求都在同一个函数上动刀 → 每次都可能碰坏已经在跑的逻辑。
+
+**堵法：新下游自己 `on` 注册，emit 方一行不碰。**
+
+```typescript
+// ✅ 加 Slack 通知：新建文件，自己订阅，emitColumnTransition 零改动
+eventBus.on("slack-notifier", (event) => {
+  if (event.type === AgentEventType.COLUMN_TRANSITION) {
+    slack.send(`Card moved to ${event.data.toColumnId}`);
+  }
+});
 ```
-waitGroups Map:
-┌─────────────────────────────────────────────┐
-│ "grp-login-page" → {                        │
-│   expectedAgentIds: ["CRAFTER-A",            │
-│       "CRAFTER-B", "CRAFTER-C"],             │
-│   completedAgentIds: Set { "CRAFTER-A" },    │
-│ }                                           │  ← size 1 < 3 → 没触发 onComplete
-└─────────────────────────────────────────────┘
-```
+
+| 之前 | 之后 |
+|------|------|
+| 加下游 → 回改 `emitColumnTransition` | 加下游 → 新模块自己 `on`，上游零改动 |
+| 变更集中在一个越来越肥的函数 | 变更分散到各下游自己的文件 |
 
 ---
 
-**时刻 5 — CRAFTER-B 失败，CRAFTER-C 完成**（同一时间线稍后）
+### 总结
 
-CRAFTER-B 调用 `emit(AGENT_FAILED, agentId: "CRAFTER-B")` → checkWaitGroups 执行 → `completedAgentIds` 加 1 → Set { "CRAFTER-A", "CRAFTER-B" } → size = 2, 还是 < 3。
-
-CRAFTER-C 调用 `emit(AGENT_COMPLETED, agentId: "CRAFTER-C")` → checkWaitGroups 执行 → `completedAgentIds` 加 1 → Set { "CRAFTER-A", "CRAFTER-B", "CRAFTER-C" } → size = 3 ≥ 3 → **onComplete 触发！**
-
-```
-→ aggregateResults(group) 执行
-→ this.waitGroups.delete("grp-login-page")
-```
-
-```
-waitGroups Map:
-┌──────────────────────────┐
-│ (空 — "grp-login-page" 已 delete) │
-└──────────────────────────┘
-```
-
----
-
-### 四个 Map 总结：如果去餐厅吃饭
-
-如果用去餐厅吃饭来比喻 EventBus：
-
-| Map | 餐厅比喻 | 技术角色 |
-|-----|---------|---------|
-| `handlers` | 服务员：「做好了叫我一声」你答应后服务员就忘了 | 一次性回调，resolve 后自删 |
-| `subscriptions` | 餐厅常客：「以后有新菜就告诉我」只要不搬家一直有效 | 长生命周期订阅簿 |
-| `pendingEvents` | 前台暂存柜：「顾客还没到，餐先放这儿保温」顾客到了取走 | Agent 没就绪时暂存事件 |
-| `waitGroups` | 团购：「6 个人到齐了才能进」到了 6 个 → 带位 | 等 N 个完成 → 触发回调 |
-
-**如果缺了任何一个 Map**：
-
-| 缺了谁 | 会发生什么 |
-|--------|-----------|
-| 缺 `handlers` | preSubscribe 无法 await → Agent 必须轮询 pendingEvents |
-| 缺 `subscriptions` | emit 不知道该发给谁 → 所有 Agent 都得自己做 poll |
-| 缺 `pendingEvents` | Agent 启动前的事件全丢 → 间歇性 bug，极难复现 |
-| 缺 `waitGroups` | Orchestrator 手动维护 DelegationGroup（见问题 5）→ 两份实现 |
-
-### 之前 vs 之后
-
-| 场景 | 之前 | 之后 |
+| 耦合 | 堵法 | 机制 |
 |------|------|------|
-| `column-transition.ts` 发事件 | import 3 个下游模块，按顺序手动调 | import EventBus → `emit(event)` → 发完收工。不知道谁在听 |
-| 新增「审计日志」 | 回 `column-transition.ts` 加 import + 调用 | 新建 `audit-logger.ts` → `subscribe` + `drain` → 老模块 0 改动 |
-| Agent 没就绪时事件到达 | 直接丢失 → 间歇性 bug | `pendingEvents` 暂存 → Agent 就绪后 drain 取走 → 零丢失 |
-| ROUTA 等 3 个子 Agent | 手动计数器 + Set + Promise.all | `createWaitGroup` + 3 次 `addToWaitGroup` → 自动触发 `onComplete` |
+| 空间耦合（emit 方 import 所有下游） | EventBus 当中间人 | `emit` + `on` |
+| 演化耦合（加下游回改 emit 方） | 新模块自己订阅 | `on` |
 
-### 五镜头判断
+本质是**发布-订阅解耦**：生产者不 import 消费者，消费者不 import 生产者，双方只依赖 EventBus 和事件类型。事件类型是稳定的（"card 移动"这个概念不会变），下游列表是变化的（今天 3 个，明天 5 个）。稳定的部分焊成契约，变化的部分只影响新模块自己。
 
-**分（边界怎么画）** — EventBus 内部有两条完全独立的通路，它们虽然共享一个 `emit` 调用，但互不影响：
+> **一个前提**：`on` 是"推"模式——`emit` 时同步直达每个已注册的 handler（`event-bus.ts:110-117`）。它成立的前提是**下游在 emit 之前已经 `on` 好**。进程内模块（编排器、审计）在系统启动时就注册了，天然满足。但如果下游是独立生命周期、可能晚于 emit 才就绪的 **Agent**，推模式就会漏事件——那需要另一套"拉"模式（`subscribe` + `pendingEvents` 缓冲 + `drainPendingEvents` 自取），是问题 5 协调场景的主题，这里不展开。
 
-```
-通路 A — 事件投递:     通路 B — Agent 协调:
-  handlers Map            waitGroups Map
-  subscriptions Map       
-  pendingEvents Map       
+### 设计原则
 
-两者在同一 emit 调用中先后执行:
-  emit(event):
-    第 1 步 → handlers  (通路 A)
-    第 2 步 → subscriptions → pendingEvents (通路 A)
-    第 3 步 → waitGroups (通路 B，仅终态事件触发)
+**分（谁管什么）** — `emitColumnTransition` 只管"card 移动了"这件事，不管"移动之后要干嘛"。下游只管"我关心的事件来了怎么处理"，不管事件从哪来。双方互不认识。
 
-  try-catch 保证: 通路 B 的 onComplete 抛错不影响通路 A 继续投递
-```
+**稳（改了谁）** — 加一个下游：新模块自己 `on`，`emitColumnTransition` 改 0 行。加一种事件类型：`AgentEventType` 枚举加一个值，emit/on 代码一行不动。变化只影响"新增"，碰不到既有代码。
 
-**稳（变化怎么封）** — 三个典型变化的封口全部在 `event-bus.ts` 内：
+**向（谁依赖谁）** — 所有箭头指向 EventBus，EventBus 不 import 任何业务模块。箭头只进不出，换数据库、换 AI 厂商、换前端框架，EventBus 纹丝不动。
 
-```
-变化 1 — 新增 AGENT_PAUSED 终态事件:
-  → event-bus.ts emit 第 3 步条件判断加一行 event.type === AGENT_PAUSED
-  → k = 1。所有 emit 点和 listener 自动感知
+**约（怎么定规矩）** — 规矩就两样：`AgentEventType` 枚举（有哪些事件类型）+ `AgentEvent`（事件长什么样）。`data` 字段故意用宽松类型，不锁死每种事件的 payload 形状——牺牲一点类型安全，换取"新增事件类型不改接口"的扩展性。
 
-变化 2 — 底层存储换 Redis:
-  → 4 个 Map → Redis 命令。改动面在 event-bus.ts 一个文件
-  → 外部通过 emit/subscribe/drain 操作，不接触存储
+**权（代价换什么）** — `emit` 同步跑完所有 handler，一个慢的会拖累后面。但换来了零延迟、零中间件、桌面版立即可用。Routa 的判断：进程内通知场景，简单和零依赖的价值大于"可靠投递"。
 
-变化 3 — WaitGroup 加超时:
-  → checkWaitGroups 加一行 if(group.elapsed > timeout) {...}
-  → 所有使用方自动获得超时保护
-```
-
-**向（依赖怎么流）** — event-bus.ts 的真实 import：
-
-```
-event-bus.ts:
-  import { AgentEventType, EventSubscription, WaitGroup } from 自身
-  (0 个外部 import — 不 import store/acp/kanban/api/app 的任何模块)
-
-消费方:
-  column-transition.ts       → import { EventBus } from "../events/event-bus"
-  workflow-orchestrator.ts   → import { EventBus } from "../events/event-bus"
-  background-worker.ts       → import { EventBus } from "../events/event-bus"
-
-  ❌ 永远不会: event-bus.ts → import { TaskStore } from "../store/task-store"
-     → 换数据库要改 EventBus → 箭头被反转，耦合开始
-```
-
-**约（协作契约怎么定）** — `AgentEvent.data` 为什么是 `Record<string, unknown>` 而非更严格的 Union Type：
-
-23 种事件类型各有完全不同的 payload。Union Type 会让新增事件类型必须改契约签名——限制了扩展性。牺牲类型安全性（消费方自己做 `as` 断言），换取「新增事件类型不改契约」的扩展性。这是**有意的模糊**。
-
-**权（代价怎么选）** — 崩溃丢事件 vs 持久化开销：
-
-```
-EventBus 的 4 个 Map 全在内存:
-  ✅ 零 I/O — emit 纯同步操作（除非 handler 内部做异步）
-  ✅ 桌面版立即可用 — 不需要装任何中间件
-  ❌ 崩溃全丢 — handlers/subscriptions/pendingEvents/waitGroups 全部清空
-
-Routa 的判断:
-  不需要持久化。因为:
-  ① 持久化事件 → Store 层（Phase 1）的职责，EventBus 只负责通知
-  ② 已发出的事件 → Agent 重启后自然重新产生（Agent 状态机从 Store 恢复）
-  ③ WaitGroup 丢失 → BackgroundWorker 超时兜底 → Agent FAILED 触发替代路径
-
-  307 行零依赖引擎 = 牺牲持久性 × 换取零 I/O + 跨平台运行
-```
 
 ---
 
-## 问题 3：并发冲突 — 为什么不在 Phase 0 解决（每层只解决自己能解决的问题）
+<a id="anchor-q3"></a>
+
+## 问题 3：并发冲突
 
 ### 业务场景：两张 card 同时拖进 Dev 列
 
@@ -1904,467 +1526,144 @@ export function createTask(params: {...}): Task {
 
 ---
 
-## 问题 4：状态映射散落 — 同一个 if-else 写了 3 遍
+<a id="anchor-q4"></a>
 
-### 业务场景：一条 card 拖拽穿过三个地方需要列映射
+## 问题 4：状态映射散落
 
-### 业务场景：一条 card 拖拽穿过三个地方需要列映射
+### 业务场景
 
-Routa 的看板有 6 列：backlog → todo → dev → review → done → blocked。每列对应确定的任务状态：
+看板有 6 列，每列对应一个任务状态。这组映射关系在三个地方需要用到：
 
 ```
-backlog  →  TaskStatus.PENDING             ("待处理")
-todo     →  TaskStatus.PENDING             ("待处理")
-dev      →  TaskStatus.IN_PROGRESS         ("进行中")
-review   →  TaskStatus.REVIEW_REQUIRED     ("待审查")
-done     →  TaskStatus.COMPLETED           ("已完成")
-blocked  →  TaskStatus.BLOCKED             ("已阻塞")
+backlog  →  PENDING        ("待处理")
+todo     →  PENDING        ("待处理")
+dev      →  IN_PROGRESS    ("进行中")
+review   →  REVIEW_REQUIRED("待审查")
+done     →  COMPLETED      ("已完成")
+blocked  →  BLOCKED        ("已阻塞")
 ```
 
-这组映射关系在**三个完全不同的地方**需要用到：
+1. **API 层**：用户创建 card 指定 `columnId: "dev"` → 需要推断 `status: IN_PROGRESS`
+2. **Kanban 引擎**：card 从 dev 拖到 review → 需要更新 `status: REVIEW_REQUIRED`
+3. **前端渲染**：`columnId: "dev"` → 显示中文标签"进行中"
 
-1. **API handler**（`src/app/api/tasks/route.ts`）：用户 POST 新建 card 指定 `columnId: "dev"` → 需要推断 `status: IN_PROGRESS`
-2. **Kanban 引擎**（`src/core/kanban/column-transition.ts`）：card 从 dev 拖到 review → 需要更新 `TaskStore` 中的 `status: REVIEW_REQUIRED`
-3. **前端渲染**（`src/client/components/TaskCard.tsx`）：根据 `columnId: "dev"` 显示中文标签「进行中」
+### 腐烂
 
-三个文件，同一套映射。但历史上有段时间，三份 if-else 是各自手写的。
+三个文件各自手写同一套 if-else。假设新增一个 "QA" 列：
 
-### 如果不管它：三个散落的维护点
+| 文件 | 需要改什么 | 漏改的后果 |
+|------|-----------|-----------|
+| `api/tasks/route.ts` | 加 `"qa" → IN_QA` | POST 创建的 card 状态不对 |
+| `column-transition.ts` | 加 `"qa" → IN_QA` | 拖进 QA 列后状态不更新，自动化不触发 |
+| 前端 `TaskCard.tsx` | 加 `"qa" → "测试中"` | UI 一直显示"待处理" |
 
-假设新增一个 "QA" 列（映射到 `TaskStatus.IN_QA`）：
+**改漏一个不会报错。** 不会 crash，不会 500，告警触发不了。只能靠用户发现——"为什么 QA 列的 card 一直显示待处理"。
 
-| 文件 | 之前写的 | 需要改 | 漏改的后果 |
-|------|---------|--------|-----------|
-| `api/tasks/route.ts` | `if (colId === "dev") ...` | 加 `"qa" → IN_QA` | POST 创建的 card 状态不对 |
-| `column-transition.ts` | `switch(columnId) { case "dev": ... }` | 加 `"qa" → IN_QA` | 拖进 QA 列后状态不更新 → 自动化不触发 |
-| 前端 `TaskCard.tsx` | `{ "dev": "进行中", ... }` | 加 `"qa" → "测试中"` | UI 显示「待处理」而非「测试中」 |
+### 堵法
 
-**改漏一个不会报错。** 前端可能一直显示「待处理」，系统不会 crash、不会 500——任何告警都触发不了。这种 bug 只能靠人工发现，用户等几个月才反馈「为什么 QA 列的 card 一直显示待处理」。
-
-### 设计决策：纯函数族 vs 配置驱动 vs 数据库
-
-三种方案的推演：
+把映射收口到一个纯函数，三个消费方都 import 同一个函数。
 
 ```typescript
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 A: 纯函数 switch-case — Routa 的选择
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ TypeScript 穷举检查 — 新增枚举值时 tsc 提醒漏了 case
-// ✅ 零运行时开销 — 6 个 case，O(1)，无 I/O
-// ✅ 一眼看全 — 打开 kanban.ts 就看到所有映射
-// ❌ 列预设 — 用户不能在运行时创建新列
-// → 适用: 列是预设的、有限的、变化极慢的
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 B: JSON/YAML 配置文件
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ 运行时可变 — 非开发人员也能改
-// ❌ 配置和代码分离 — 改了 config 不知道哪个函数受影响
-// ❌ 需加载、解析、缓存 — 多一层基础设施
-// → 适用: 列是用户可创建的、数量会增长的
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 方案 C: 数据库存储
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ 无限列 — 运行时 UI 增删
-// ❌ 每次映射查库 → I/O 开销 → 需缓存策略
-// ❌ 缓存失效 → 看到的映射是旧的 → 更难调试
-// → 适用: SaaS 多租户、每租户自定义列
-```
-
-Routa 当前 6 列不变 → 方案 A 最优。升级触发信号：① 用户能自建列 → 方案 B ② switch-case 超 20 个 case → 方案 B ③ 多租户不同列 → 方案 C。在触发信号出现之前，纯函数就是最优解。
-
-### 代码落地：4 个纯函数 + 1 个调用方
-
-`src/core/models/kanban.ts:319-373` — 四个纯函数组成映射族。每个函数标注了「谁会调它」和「为什么需要它」：
-
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════
-// 映射 1：列 ID → TaskStatus
-// 使用者: api/tasks/route.ts, tools/kanban-tools.ts (创建 card 时推断状态)
-// 参数 columnId 可选 — 不传默认 "backlog"
-// ══════════════════════════════════════════════════════════════════════════════
+// ✅ 一份映射，三个地方用
 export function columnIdToTaskStatus(columnId?: string): TaskStatus {
   switch ((columnId ?? "backlog").toLowerCase()) {
-    case "dev":     return TaskStatus.IN_PROGRESS;
-    case "review":  return TaskStatus.REVIEW_REQUIRED;
-    case "blocked": return TaskStatus.BLOCKED;
-    case "done":    return TaskStatus.COMPLETED;
-    default:        return TaskStatus.PENDING;    // "backlog", "todo", 或未知列
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 映射 2：列 Stage → TaskStatus
-// 使用者: resolveTaskStatusForBoardColumn (见映射 3)
-// 和映射 1 的区别: 参数是 KanbanColumnStage 枚举而非 string → 编译期保证合法
-// ══════════════════════════════════════════════════════════════════════════════
-export function columnStageToTaskStatus(stage?: KanbanColumnStage): TaskStatus {
-  switch (stage ?? "backlog") {
-    case "dev":     return TaskStatus.IN_PROGRESS;
-    case "review":  return TaskStatus.REVIEW_REQUIRED;
-    case "blocked": return TaskStatus.BLOCKED;
-    case "done":    return TaskStatus.COMPLETED;
-    default:        return TaskStatus.PENDING;
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 映射 3：聚合函数 — 外部最常用的入口
-// 使用者: column-transition.ts (card 移动时更新状态)
-// 自动决定: 如果传了 columns → 走 stage 映射；如果只有 columnId → 走 ID 映射
-// Pick<KanbanColumn, "id" | "stage"> 而非完整 14 字段 → 测试 mock 只需 2 字段
-// ══════════════════════════════════════════════════════════════════════════════
-export function resolveTaskStatusForBoardColumn(
-  columns: Pick<KanbanColumn, "id" | "stage">[] = [],
-  columnId?: string,
-): TaskStatus {
-  const column = columns.find((entry) => entry.id === columnId);
-  if (column) return columnStageToTaskStatus(column.stage);   // 有列信息 → 走 stage
-  return columnIdToTaskStatus(columnId);                       // 没列信息 → 走 ID fallback
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 映射 4：反向映射 — TaskStatus → 列 ID
-// 使用者: workflow-orchestrator (自动化移动 card 时，「IN_PROGRESS 应该在哪列？」)
-// 参数兼容枚举值或 API 序列化后的 string → 防御式输入处理
-// ══════════════════════════════════════════════════════════════════════════════
-export function taskStatusToColumnId(status: TaskStatus | string | undefined): string {
-  switch ((status ?? TaskStatus.PENDING).toString().toUpperCase()) {
-    case TaskStatus.IN_PROGRESS:     return "dev";
-    case TaskStatus.REVIEW_REQUIRED: return "review";
-    case TaskStatus.BLOCKED:         return "blocked";
-    case TaskStatus.COMPLETED:       return "done";
-    default:                         return "backlog";  // PENDING, CANCELLED, NEEDS_FIX
+    case "backlog":
+    case "todo":
+      return TaskStatus.PENDING;
+    case "dev":
+      return TaskStatus.IN_PROGRESS;
+    case "review":
+      return TaskStatus.REVIEW_REQUIRED;
+    case "done":
+      return TaskStatus.COMPLETED;
+    case "blocked":
+      return TaskStatus.BLOCKED;
+    default:
+      return TaskStatus.PENDING;
   }
 }
 ```
 
-**调用方怎么用** — `resolveTaskStatusForBoardColumn` 是最常用入口：
+API 层、Kanban 引擎、前端全部 `import { columnIdToTaskStatus }`。新增 "QA" 列 → 改这一个函数 → 三个消费方自动生效。
 
-```typescript
-// column-transition.ts — card 从 X 列拖到 Y 列
-const newStatus = resolveTaskStatusForBoardColumn(board.columns, toColumnId);
-// → board.columns 有 14 个字段但函数只 Pick 了 id + stage → 松弛输入
-// → 不传 columns 也行 → 回退到 columnIdToTaskStatus
-await taskStore.updateStatus(task.id, newStatus);
-```
+| 之前 | 之后 |
+|------|------|
+| 三个文件各自手写 if-else | 一个函数，三个地方 import |
+| 加一列 → 改 3 个文件，漏改无声 | 加一列 → 改 1 个函数 |
+| 三个地方的映射可能不一致 | 不可能不一致 |
 
-**新增 "QA" 列的改动面对比**：
+### 本质
 
-```
-❌ 散落维护时:
-  api/tasks/route.ts      → 改 1 处
-  column-transition.ts    → 改 1 处
-  TaskCard.tsx            → 改 1 处
-  → k = 3（可能漏，漏了不报错）
-
-✅ 纯函数收敛时:
-  kanban.ts → 4 个函数各加 1 个 case + 常量数组 → k = 5（同一文件内）
-  所有调用方自动生效 → tsc 检查枚举覆盖
-```
-
-**封闭映射验证**：`taskStatusToColumnId(columnIdToTaskStatus("qa")) === "qa"`，往返不丢信息。
-
-### 五镜头判断
-
-以下五镜头已完全展开，不用差异点压缩。
-
-**分** — 边界线在「数据转换规则」和「使用数据的地方」之间。映射从三个目录（api/、kanban/、client/）收口到 `models/kanban.ts` 一个文件。消费方只知道 `columnIdToTaskStatus("dev") → IN_PROGRESS`，不需要知道映射怎么算的。
-
-**稳** — 三种变化的封口都在 `kanban.ts` 内：新增列 → 4 个函数 + 常量数组（5 处，同一文件）；列名变更 → 4 个 case label（4 处）；映射关系变 → 4 个 case return 值（4 处）。所有变化传播比 k ≤ 5，同一文件内。
-
-**向** — `kanban.ts → import { TaskStatus } from "./task"`（运行时）与 `task.ts → import type { TaskCreationSource } from "../kanban/"`（编译时擦除）。双向引用但 `import type` 保证无运行时循环。
-
-**约** — `resolveTaskStatusForBoardColumn` 用 `Pick<KanbanColumn, "id" | "stage">` 而非完整 `KanbanColumn`（14 字段）。松弛输入 = 降低测试 mock 成本 = 降低消费方门槛。与问题 2 中 `AgentEvent.data` 用 `Record<string, unknown>` 同一思路。
-
-**权** — 纯函数 vs 配置驱动的边界：当前 6 列预设、变化极慢 → 纯函数最优。升级触发信号：用户能自建列 / switch-case 超 20 个 case / 多租户不同列。触发信号出现前，纯函数就是最优解。
-
-**封闭映射验证**：
-
-```typescript
-// 往返测试 — Routa 当前未将此测试落地 src/ 中，往返一致性由 switch-case 穷举 + 审查保证
-// 如需加固，应加入 src/core/models/__tests__/kanban.test.ts：
-for (const colId of ["backlog", "todo", "dev", "review", "done", "blocked"]) {
-  const status = columnIdToTaskStatus(colId);
-  const back = taskStatusToColumnId(status);
-  assert(back === colId, `往返映射失败: ${colId} → ${status} → ${back}`);
-}
+**单一真相源**，和问题 1 的 `interface Task` 同一个原理。不同的只是这次"知识"不是"Task 长什么样"，而是"列和状态怎么对应"。把散落的 if-else 收口到一个函数里，所有人从同一个地方拿答案。
 
 ---
 
-## 问题 5：协调逻辑膨胀 — 同一个「等 N 个完成」的逻辑出现在两份代码里
+<a id="anchor-q5"></a>
 
-### 业务场景：ROUTA 拆了 3 个子任务，想等它们都完成再继续
+## 问题 5：协调逻辑膨胀
 
-ROUTA agent 调用 `delegate_task_to_agent` 工具，把「做一个登录页面」拆成 3 个子任务：
+### 业务场景
 
-```
-ROUTA-1: "做一个登录页面" → 拆成三个子任务:
-  CRAFTER-A:  写登录页 UI
-  CRAFTER-B:  写登录 API
-  CRAFTER-C:  写单元测试
+ROUTA agent 把"做一个登录页面"拆成 3 个子任务，分别交给 CRAFTER-A、B、C。ROUTA 指定 `waitMode: "after_all"` —— 三个都完成后，我才能聚合结果，继续推进。
 
-ROUTA-1 指定 waitMode: "after_all" — 三个都完成后，我才能聚合结果、推进下一步
-```
+这个需求的核心是一个基础原语：**启动 N 个异步任务 → 等全部完成 → 触发回调。**
 
-这个需求的核心是一个基础原语：**启动 N 个异步任务 → 等全部完成（无论成功还是失败）→ 触发回调**。
+### 腐烂
 
-### 痛点：Routa 真实代码里这个原语被复制了两份
+这个原语在 Routa 真实代码里被写了两份，几乎一模一样。
 
-两份代码分别在两个文件里，**几乎一模一样**：
+**EventBus 里有一份 `WaitGroup`**：`id`、`expectedAgentIds[]`、`completedAgentIds Set`、`onComplete` 回调。
 
-**位置 1：EventBus 的 `WaitGroup`** — 在 `src/core/events/event-bus.ts` 里，作为 EventBus 的内置机制。
-
-**位置 2：Orchestrator 的 `DelegationGroup`** — 在 `src/core/orchestration/orchestrator.ts` 里，Orchestrator 内部自己定义的一套：
+**Orchestrator 里也有一份 `DelegationGroup`**：`groupId`、`childAgentIds[]`、`completedAgentIds Set`、完成后的处理逻辑写死在 `wakeParent` 里。
 
 ```typescript
-// orchestrator.ts:117-123 — 和 WaitGroup 结构几乎相同
+// orchestrator.ts — 和 EventBus 的 WaitGroup 结构几乎相同，但字段名不同
 interface DelegationGroup {
   groupId: string;
   parentAgentId: string;
-  parentSessionId: string;          // ← WaitGroup 没有这个字段
-  childAgentIds: string[];          // ← WaitGroup 叫 expectedAgentIds
+  parentSessionId: string;
+  childAgentIds: string[];          // WaitGroup 叫 expectedAgentIds
   completedAgentIds: Set<string>;
-  // WaitGroup 还有 onComplete 回调 — DelegationGroup 没有（写死在 wakeParent 里）
+  // WaitGroup 有 onComplete 回调 — DelegationGroup 没有，写死在 wakeParent 里
 }
-
-// orchestrator.ts:231-234 — 两个 Map 手动管理
-private delegationGroups = new Map<string, DelegationGroup>();
-private activeGroupByAgent = new Map<string, string>();
 ```
 
-**创建逻辑写在 `delegateTaskWithSpawn` 内部**：
+两份代码，字段名不同，完成后的处理方式不同，但干的是同一件事。加超时功能 → 要改两个地方。改"等齐了"的判断逻辑 → 要改两个地方。
+
+### 堵法
+
+把"等 N 个完成"的通用逻辑留在 EventBus 的 `WaitGroup` 里，Orchestrator 删掉自己的 `DelegationGroup`，改用 `WaitGroup`。
 
 ```typescript
-// orchestrator.ts:718-733 — 每次委派子任务时自己创建组、自己管理
-if (waitMode === "after_all") {
-  let groupId = this.activeGroupByAgent.get(callerAgentId);
-  if (!groupId) {
-    groupId = `delegation-group-${uuidv4()}`;
-    this.delegationGroups.set(groupId, {
-      groupId, parentAgentId, parentSessionId,
-      childAgentIds: [], completedAgentIds: new Set(),
-    });
-  }
-  const group = this.delegationGroups.get(groupId)!;
-  group.childAgentIds.push(agentId);
-}
+// ✅ Orchestrator 不再自己数人头，交给 EventBus
+eventBus.createWaitGroup({
+  expectedAgentIds: ["CRAFTER-A", "CRAFTER-B", "CRAFTER-C"],
+  onComplete: () => { aggregateResults(); }
+});
+
+// 子 Agent 逐个完成时，EventBus 自动数人头
+// CRAFTER-A 完成 → completedAgentIds 加 1 → 1/3，不够
+// CRAFTER-B 完成 → completedAgentIds 加 1 → 2/3，不够
+// CRAFTER-C 完成 → completedAgentIds 加 1 → 3/3，够了 → 自动触发 onComplete
 ```
 
-**检查逻辑写在 `handleChildCompletion` 内部**：
+Orchestrator 不再维护计数器、不再遍历检查、不再手动清理。它只做业务相关的事：决定等谁、等齐了干嘛。数人头的活交给 EventBus。
 
-```typescript
-// orchestrator.ts:1298-1317 — 每次子 Agent 完成时自己遍历、自己计数、自己清理
-for (const [groupId, group] of this.delegationGroups.entries()) {
-  if (group.childAgentIds.includes(childAgentId)) {
-    group.completedAgentIds.add(childAgentId);
-    if (group.completedAgentIds.size >= group.childAgentIds.length) {
-      await this.wakeParent(record, groupId);      // ← onComplete 写死了
-      this.delegationGroups.delete(groupId);
-      this.activeGroupByAgent.delete(record.parentAgentId);
-    }
-    return;
-  }
-}
-```
+| 之前 | 之后 |
+|------|------|
+| 两份实现：WaitGroup + DelegationGroup | 一份实现：WaitGroup |
+| 加超时 → 改两个地方 | 改 WaitGroup 一个地方 |
+| Orchestrator 既管业务逻辑又管计数 | Orchestrator 只管业务，EventBus 管计数 |
 
-### 这暴露什么问题：基础设施和业务逻辑混在一起
+### 本质
 
-两份代码不是在解决不同的问题——它们是**同一个问题的两个副本**。两个结构对比：
-
-| | EventBus WaitGroup | Orchestrator DelegationGroup |
-|---|---|---|
-| 数据结构 | `{id, expectedAgentIds[], completedAgentIds Set, onComplete}` | `{groupId, childAgentIds[], completedAgentIds Set, ...}` 无回调 |
-| 创建 | `createWaitGroup({...})` | 在 `delegateTaskWithSpawn` 内部手动 new Map |
-| 追加 | `addToWaitGroup(id, agentId)` | `group.childAgentIds.push(agentId)` |
-| 检查 | `checkWaitGroups` 在 emit 时自动触发 | `handleChildCompletion` 内部手写 for 循环 |
-| 清理 | `delete(groupId)` | `delete(groupId)` + `delete(activeGroupByAgent)` |
-
-**将来某个需求来了（如"WaitGroup 加 30 秒超时"）——两份代码都要改，而且很可能改得不一样。**
-
-**更深的问题：概念的混淆。** Orchestrator 的业务是「子 Agent 完成了，接下来做什么（聚合结果、更新状态、发通知）」。**但 Orchestrator 不应该负责「怎么检查子 Agent 完成了没有（计数器、Set、Map 管理、清理逻辑）」**——前者是业务，后者是基础设施。
-
-### 设计决策：WaitGroup 和 preSubscribe 作为协调整原语
-
-**WaitGroup** 抽象「等 N 个异步单元全部完成」。**preSubscribe** 抽象「先占位、异步等一个事件，支持取消」。两个都放在 EventBus——因为它们和 emit/subscribe 共享同一套 Map 和事件通道。
-
-### 代码落地：WaitGroup + preSubscribe 两个原语
-
-**WaitGroup 数据结构**（`src/core/events/event-bus.ts:72-78`）：
-
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════
-// WaitGroup — "等 N 个 Agent 完成"的通用原语
-// 和 Orchestrator 的 DelegationGroup 的区别:
-//   ① 有 onComplete 回调（业务方注册，WaitGroup 不关心回调内容）
-//   ② expectedAgentIds 可以在创建后动态追加（addToWaitGroup）
-//   ③ checkWaitGroups 在 emit 时自动触发（不需要 Orchestrator 手写 for 循环）
-// ══════════════════════════════════════════════════════════════════════════════
-export interface WaitGroup {
-  id: string;
-  parentAgentId: string;          // 谁在等 — 如 "ROUTA-1"
-  expectedAgentIds: string[];     // 等谁 — 如 ["CRAFTER-A", "CRAFTER-B"]
-  completedAgentIds: Set<string>; // 已完成 — Set 天然去重，重复 event 不重复计数
-  onComplete?: (group: WaitGroup) => void;
-}
-```
-
-**创建 + 动态追加**（`event-bus.ts:188-211`）：
-
-```typescript
-createWaitGroup(params): void {
-  this.waitGroups.set(params.id, {
-    id: params.id,
-    parentAgentId: params.parentAgentId,
-    expectedAgentIds: params.expectedAgentIds ?? [],  // 可以一开始填好，也可以空着后面追加
-    completedAgentIds: new Set(),
-    onComplete: params.onComplete,
-  });
-}
-
-addToWaitGroup(groupId: string, agentId: string): void {
-  const group = this.waitGroups.get(groupId);
-  if (group && !group.expectedAgentIds.includes(agentId)) {
-    group.expectedAgentIds.push(agentId);  // 运行时动态追加—子 Agent 数量不固定
-  }
-}
-```
-
-**检查逻辑 — 不需要 Orchestrator 手写**（`event-bus.ts:230-254`）：
-
-```typescript
-// emit 第 3 步自动调用 — 终态事件触发检查
-private checkWaitGroups(completedAgentId: string): void {
-  for (const [groupId, group] of this.waitGroups.entries()) {
-    if (group.expectedAgentIds.includes(completedAgentId)) {
-      group.completedAgentIds.add(completedAgentId);  // Set 去重
-
-      if (group.completedAgentIds.size >= group.expectedAgentIds.length) {
-        if (group.onComplete) {
-          try { group.onComplete(group); } catch (err) { console.error(...); }
-          // ↑ try-catch 保证某个 WaitGroup 的 onComplete 炸了不影响其他 WaitGroup
-        }
-        this.waitGroups.delete(groupId);  // 触发后自动清理 — 不泄漏
-      }
-    }
-  }
-}
-```
-
-**preSubscribe 双通道**（`event-bus.ts:263-306`）— 解决"Agent 在等一个还不知道什么时候到达的事件"：
-
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════
-// preSubscribe — "我先占个位，事件来了告诉我。万一事件已经来了，也告诉我。"
-//
-// 双通道设计解决时序竞态:
-//   通道 1 (handler)     — 事件在注册之后到达 → handler 立刻 resolve Promise
-//   通道 2 (subscription) — 事件在注册之前到达 → 已在 pendingEvents 里，drain 时取走
-//
-// 返回 { dispose, promise }: 调用方可以 await promise 或 Promise.race 加超时
-// ══════════════════════════════════════════════════════════════════════════════
-preSubscribe(params): { dispose: () => void; promise: Promise<AgentEvent> } {
-  let resolvePromise: (event: AgentEvent) => void;
-  const promise = new Promise<AgentEvent>((resolve) => { resolvePromise = resolve; });
-
-  // 通道 1: 直接 handler — 事件在注册之后到达
-  const handler: EventHandler = (event) => {
-    if (params.excludeSelf !== false && event.agentId === params.agentId) return;
-    if (!params.eventTypes.includes(event.type)) return;
-    resolvePromise!(event);
-    this.off(handlerKey);
-  };
-  this.on(handlerKey, handler);
-
-  // 通道 2: Agent 订阅 — 事件在注册之前到达（已在 pendingEvents 队列里）
-  this.subscribe({
-    id: params.id, agentId: params.agentId,
-    eventTypes: params.eventTypes,
-    excludeSelf: params.excludeSelf ?? true,  // 防死循环: Agent 不收到自己发的事件
-    oneShot: true, priority: params.priority ?? 10,
-  });
-
-  const dispose = () => { this.off(handlerKey); this.unsubscribe(params.id); };
-  return { dispose, promise };
-}
-```
-
-**双通道时间线**：
-
-```
-                  事件到达时间线
-          ←── 注册前 ──│── 注册后 ──→
-
-通道 1 (handler):       ✗ 收不到         ✓ 立刻 resolve Promise
-通道 2 (subscription):  ✓ 已在 pendingEvents 队列里，drain 时取走
-
-→ 无论事件在什么时候到达，至少有一条通道能收到
-→ 这就是 "preSubscribe" 的 pre 的含义: 订阅发生在事件可能到达之前
-```
-
-### 运作链路
-
-```
-① ROUTA 创建 WaitGroup:
-   createWaitGroup({ id: "grp-login-page", expectedAgentIds: [], onComplete: aggregateResults })
-
-② 子 Agent 陆续创建:
-   addToWaitGroup("grp-login-page", "CRAFTER-A")
-   addToWaitGroup("grp-login-page", "CRAFTER-B")
-   addToWaitGroup("grp-login-page", "CRAFTER-C")
-
-③ 子 Agent 陆续完成（emit AGENT_COMPLETED/AGENT_FAILED → emit 第 3 步自触发）:
-   CRAFTER-A → emit → checkWaitGroups → size = 1, 1 < 3 → 继续等
-   CRAFTER-B → emit → checkWaitGroups → size = 2, 2 < 3 → 继续等
-   CRAFTER-C → emit → checkWaitGroups → size = 3 ≥ 3 → onComplete 触发
-   → aggregateResults(group) → waitGroups.delete("grp-login-page")
-
-④ 如果 CRAFTER-B 失败:
-   emit(AGENT_FAILED) → checkWaitGroups 仍然执行
-   → onComplete 内 completedAgentIds vs expectedAgentIds → 知道谁成功、谁失败
-```
-
-### 之前 vs 之后
-
-| 之前（Orchestrator 手动维护 ~60 行） | WaitGroup / preSubscribe（~10 行调用） |
-|---|---|
-| `DelegationGroup` interface 自己定义 + 两个 Map | `WaitGroup` — EventBus 内一份 |
-| `for...group.childAgentIds.includes` 手动遍历 | `checkWaitGroups` emit 自动触发 |
-| 手动 `delete(groupId)` + `delete(activeGroupByAgent)` | `delete(groupId)` 一次清 |
-| `new Promise(...)` + `Promise.all([p1,p2,p3])` | `createWaitGroup` + `addToWaitGroup` 动态追加 |
-| 如果子 Agent 数量动态变 → 重写协调 | `addToWaitGroup` 随时追加 |
-
-### 五镜头判断
-
-**分** — 边界线在「怎么等」和「等完了干什么」之间。WaitGroup 负责前一半（在 EventBus），Orchestrator 负责后一半（`onComplete: aggregateResults`）。这条边界是整篇文档最核心的「基础设施 vs 业务」分离。
-  
-**稳** — 给 WaitGroup 加超时：在 Orchestrator 手动维护时需改 `delegationGroups.set` + `handleCompletion` 两处（k = 2）。统一后在 `event-bus.ts` 的 `checkWaitGroups` 加一行超时判断（k = 1），所有使用方自动获得保护。
-
-**向** — `orchestrator.ts → event-bus.ts`。EventBus 不知道 Orchestrator 的存在。与问题 2 的依赖方向一致。
-
-**约** — `preSubscribe` 返回 `{ dispose, promise }`。四个关键契约：① `excludeSelf` 默认 true（防死循环）② `priority` 默认 10（高于普通订阅的 0）③ `dispose()` 双通道一起清理 ④ `oneShot: true` 自动移除。调用方可 `Promise.race` 自行加超时——WaitGroup 不强制超时策略。
-
-**权** — 崩溃丢 WaitGroup → ROUTA 永远等不到回调。三层兜底：① WaitGroup 不保证可靠性（刻意简化）② BackgroundWorker 超时兜底（BackgroundTask 超时 → emit AGENT_FAILED → 触发替代路径）③ Orchestrator 手动检查（"X 分钟后还没聚合 → 重新分配"）。98% 可靠 + 2% 兜底在其他层补。
+**基础设施和业务逻辑分离。** "等 N 个异步单元完成"是通用基础设施，应该放在 EventBus 里，所有需要这个能力的模块共用。Orchestrator 是业务逻辑——它决定"等谁"和"等齐了干嘛"，但不应该自己实现"怎么数人头"。
 
 ---
 
-## Phase 0 全景清单
+<a id="anchor-patterns"></a>
 
-| 解决的问题 | 设计决策 | 模式 | 代码位置 |
-|-----------|---------|------|---------|
-| 词汇不统一 | 14 个 `interface` + 14 个 `createXxx` 工厂函数 | 工厂 / Builder-light | `models/*.ts` |
-| 通知链断裂 | 4 个 Map 构成的 pub/sub 引擎 | 观察者 / 端口 | `event-bus.ts:82-307` |
-| 时序不确定性 | `preSubscribe` 双通道（handler + subscription） | Observer + Future | `event-bus.ts:263-306` |
-| fan-out/gather 协调 | `WaitGroup` after_all | Barrier | `event-bus.ts:188-254` |
-| 状态映射散落 | 4 个双向映射纯函数 | 纯函数映射族 | `kanban.ts:319-373` |
-| 常量被意外修改 | `cloneKanbanColumns` 深克隆 | 不可变 | `kanban.ts:207-232` |
-| 入口数据脏 | `normalizeTaskContextSearchSpec` 系列 | Normalizer | `task.ts:332-386` |
-| 并发冲突 | 不在 Phase 0 解决 | 留给 Phase 5 | — |
-
----
-
-## 你以后怎么用 — 五个可迁移模式
+## 五个可迁移模式
 
 学 Routa 的目标不是「记住 Routa 怎么写的」，而是**把模式镜头装上，下个项目里一眼认出同一种形状**。
 
@@ -2426,86 +1725,98 @@ preSubscribe(params): { dispose: () => void; promise: Promise<AgentEvent> } {
 
 ### 模式 3：纯函数映射族 — 收口散落的 if-else
 
-**触发信号**：你的项目里两个枚举/类型之间有固定的映射关系，而且散落在 2+ 个文件中各自维护一套 if-else / switch。典型场景：状态码 ↔ 文案、角色 ↔ 权限、列 ↔ 分类。
+**是什么**：两个东西之间有固定的对应关系（比如"看板列"对应"任务状态"），这个关系在多个地方需要用到。不要在每个地方手写一套 if-else，而是写一个纯函数，所有人调同一个函数。
 
-**可迁移配方**：
+```typescript
+// ❌ 三个文件各自手写映射
+// api/tasks/route.ts
+if (columnId === "dev") status = "IN_PROGRESS";
+else if (columnId === "review") status = "REVIEW_REQUIRED";
 
+// column-transition.ts
+switch (columnId) {
+  case "dev": return "IN_PROGRESS";
+  case "review": return "REVIEW_REQUIRED";
+}
+
+// 前端 TaskCard.tsx
+{ "dev": "进行中", "review": "待审查" }
 ```
-1. 定义 N 个纯函数，每个函数覆盖一个方向
-   - 正向映射：A → B
-   - 反向映射：B → A
-   - 聚合函数：接收额外上下文（如 board columns），内部决定走哪条分支
-2. 所有函数放在同一个文件里，和映射相关的常量（如 DEFAULT_COLUMNS）放一起
-3. 所有调用方不写 if-else，只调函数
-4. 测试写往返一致性：f⁻¹(f(x)) === x
+
+```typescript
+// ✅ 一个纯函数，所有人调
+export function columnIdToTaskStatus(columnId: string): TaskStatus {
+  switch (columnId) {
+    case "dev": return TaskStatus.IN_PROGRESS;
+    case "review": return TaskStatus.REVIEW_REQUIRED;
+    // ...
+  }
+}
+
+// 三个地方全部 import { columnIdToTaskStatus }
 ```
 
-**注意度 / 别过度**：
-- ✅ 枚举是预设的、有限的、变化极慢的 → 纯函数 switch-case
-- ✅ 映射逻辑需要 TypeScript 穷举检查做安全网 → switch-case 比 if-else 好（编译器会提醒缺分支）
-- ❌ 枚举值可能被用户运行时动态创建（如自定义列）→ 升级为配置驱动 / 数据库存储
-- ❌ 映射关系每天都在变 → 配置驱动，不要写死在代码里
-
-**判断升级的边界**：当你在 switch-case 里加了第 20 个 case，或者产品经理说「用户要能自己加列」→ 从纯函数升级到查配置表。不然就留在纯函数里。
+新增一个 "QA" 列 → 改这个函数一处 → 三个消费方自动生效。
 
 ---
 
-### 模式 4：WaitGroup（after_all）— fan-out/gather 协调
+### 模式 4：WaitGroup（after_all）— 等 N 个异步任务全部完成
 
-**触发信号**：你的代码里出现「启动 N 个异步任务 → 等全部完成 → 聚合结果」。你发现自己手动维护计数器（`let completed = 0`）+ Set + `if (completed >= N)` + listener 注册/注销。如果 N 的数量是动态决定的（运行时才知道有几个子任务），这个模式就更必要了。
+**是什么**：你启动了 N 个异步任务，需要等全部完成后再继续。不要自己维护计数器 + Set + 检查逻辑，用 WaitGroup 帮你数人头。
 
-**可迁移配方**：
+```typescript
+// ❌ 自己数人头
+let completed = 0;
+const expected = 3;
+const completedIds = new Set();
 
+function onAgentComplete(agentId) {
+  completedIds.add(agentId);
+  completed++;
+  if (completed >= expected) {
+    aggregateResults();  // 终于齐了
+  }
+}
+// 问题：加超时 → 自己写。加动态追加 → 自己写。别的模块也要用 → 复制一份。
 ```
-1. 定义 WaitGroup 结构：id + 等谁 + expectedIds[] + completedIds: Set + onComplete
-2. createWaitGroup(params) — 创建组，可以一开始就填好 expectedIds
-3. addToWaitGroup(id, unitId) — 支持运行时动态追加（N 不固定）
-4. 当每个单元完成时 → markComplete(unitId)
-5. markComplete 内部：if completedIds.size >= expectedIds.length → onComplete
-6. onComplete 触发后自动 delete → 不泄漏
+
+```typescript
+// ✅ WaitGroup 帮你数
+eventBus.createWaitGroup({
+  expectedAgentIds: ["CRAFTER-A", "CRAFTER-B", "CRAFTER-C"],
+  onComplete: () => { aggregateResults(); }
+});
+
+// 每次有 Agent 完成 → EventBus 自动更新计数
+// 3/3 够了 → 自动触发 onComplete
+// 你不需要写计数器、Set、检查逻辑
 ```
-
-**注意度 / 别过度**：
-- ✅ 子单元数量动态 → WaitGroup（`addToWaitGroup` 随时追加）
-- ✅ 子单元可能在不同时间完成、有人失败 → WaitGroup（失败也是一种完成）
-- ❌ N 固定且创建时就知道 → `Promise.all()` 足够，别引入 WaitGroup
-- ❌ 需要 any-completed（竞速模式），谁先到用谁的 → `Promise.race`，不是 WaitGroup
-- ❌ 需要超时策略 → WaitGroup 不管超时，超时逻辑放在调用层
-
-**Routa 给的一个教训**：不要在自己的业务模块里重新实现 WaitGroup。如果你发现有一个 `DelegationGroup` 和 EventBus 的 `WaitGroup` 几乎一模一样 → 那大概率是该抽出来的基础设施，不是你业务代码里该自己维护的状态。
 
 ---
 
-### 模式 5：六边形架构的落地节奏 —「先冻结类型，再填实现」
+### 模式 5：六边形架构的落地节奏 — "先冻结类型，再填实现"
 
-**触发信号**：你的项目要支持多套基础设施（如两个数据库、两种 AI 提供商、Web + CLI 两个入口）。你不想让核心业务逻辑因为换基础设施而大面积改动。
-
-**可迁移配方**：
+**是什么**：不是一口气建完整个系统，而是先把领域模型（interface + 工厂函数）定死，然后一层一层往外填实现。每层只依赖内层，不跨层。
 
 ```
-Phase 0 — 纯类型底座:
-  1. 定义所有领域模型（interface + enum + 工厂函数）
-  2. 定义跨模块通信契约（EventBus 接口）
-  3. 验证：npx tsc --noEmit 通过，models/ 不 import 任何外部模块
+Phase 0：定义 Task/Agent/Kanban 的 interface + 工厂函数 + EventBus
+         → npx tsc --noEmit 通过，零外部依赖 ✓
 
-Phase 1 — 接口层:
-  1. 定义端口接口（Store / Adapter / ...），只写签名
-  2. 实现 in-memory 参考实现（方便测试和快速启动）
+Phase 1：定义 Store 接口（TaskStore、AgentStore），只写签名，不连数据库
+         → 用 InMemory 实现跑通基本流程 ✓
 
-Phase 2+ — 逐层填实现:
-  1. 每次只依赖上一层的接口，不跨层 import
-  2. 每层完成时 tsc --noEmit + 该层的测试都通过
+Phase 2：BackgroundWorker 调度循环，依赖 Phase 1 的 Store 接口
+         → 不关心 Store 后面是 Postgres 还是 SQLite ✓
+
+Phase 3+：逐层填 ACP 适配、Kanban 引擎、API 路由、前端页面
+         → 每层只依赖上一层的接口，不跨层 import ✓
 ```
 
-**注意度 / 别过度**：
-- ✅ 多后端 / 多数据源 / 可能换技术栈的项目 → 值得建六边形
-- ✅ 多人并行施工，需要硬契约防止接口漂移 → 先定 Phase 0 的 interface
-- ❌ 只有 1 个后端 + 1 个数据库 + 2 个人的项目 → 过度架构。直接写，别建六边形
-- ❌ 「也许未来会换数据库」→ 不是建六边形的理由。等真的需要换的时候再抽象
-
-**Routa 给的关键判断**：六边形的成本是接口层（Store 接口、Adapter 接口）的维护。收益是换实现时核心 0 改动。**只有当 k（换实现时需要改的文件数）> 2N 时，六边形才划得来**。Routa 因为双后端这个硬约束，k = 每次改字段要改两套后端 → 六边形是刚需，不是炫技。
+**关键纪律**：下一层不完，上一层不动。Phase 0 编译没通过，Phase 1 不开工。每一层都是可独立验证的。
 
 ---
+
+<a id="anchor-takeaway"></a>
 
 ## 一句话带走
 
