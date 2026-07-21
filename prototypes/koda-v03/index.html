@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Koda · 产品原型 v0.3</title>
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <aside class="sidebar" aria-label="侧栏">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">K</div>
+        <div>
+          <div class="brand-name">Koda</div>
+          <div class="brand-sub">本地 AI 开发工厂</div>
+        </div>
+      </div>
+
+      <button class="nav-item inbox-trigger" id="inboxBtn" type="button">
+        <span class="nav-left">
+          <span class="nav-icon">🔔</span>
+          <span>收件箱</span>
+        </span>
+        <span class="badge" id="inboxBadge">0</span>
+      </button>
+
+      <div class="section-label">项目</div>
+      <div class="project-list" id="projectList"></div>
+      <button class="ghost-btn add-project" type="button" disabled title="原型未开放">＋ 添加项目</button>
+
+      <div class="sidebar-foot">
+        <button class="nav-item" id="settingsNavBtn" type="button">
+          <span class="nav-left">
+            <span class="nav-icon">⚙</span>
+            <span>设置</span>
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <section class="main-shell">
+      <header class="tabbar" id="tabbar"></header>
+      <main class="content" id="content"></main>
+      <footer class="statusbar" id="statusbar"></footer>
+    </section>
+
+    <div class="inbox-panel hidden" id="inboxPanel" role="dialog" aria-label="收件箱">
+      <div class="inbox-head">
+        <div>
+          <div class="panel-title">收件箱</div>
+          <div class="panel-sub">只打扰四类事：待验收 / 求助 / 失败 / 成本</div>
+        </div>
+        <button class="icon-btn" id="inboxClose" type="button" aria-label="关闭">✕</button>
+      </div>
+      <div class="inbox-list" id="inboxList"></div>
+    </div>
+
+    <div class="drawer-scrim hidden" id="drawerScrim"></div>
+    <aside class="drawer hidden" id="cardDrawer" aria-label="卡片详情"></aside>
+
+    <div class="toast-host" id="toastHost" aria-live="polite"></div>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
