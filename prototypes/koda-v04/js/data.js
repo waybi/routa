@@ -635,7 +635,10 @@ export function createInitialState() {
     cards,
     inbox,
     inboxOpen: false,
-    tabs: [{ id: 'board', kind: 'board', title: 'koda · 看板', closable: false }],
+    tabs: [
+      { id: 'board', kind: 'board', title: 'koda · 看板', closable: false },
+      { id: 'accept', kind: 'accept', title: '验收台', closable: false },
+    ],
     activeTabId: 'board',
     drawer: { open: false, cardId: null, tab: 'overview', full: false },
     acceptSelectedId: null,

@@ -250,7 +250,7 @@ export function renderBoard(state) {
       ? colCards.map((c) => cardView(c, draggable)).join('')
       : `<div class="col-empty">${col.id === 'DONE' ? '还没有完成的卡' : '空'}</div>`;
     const headExtra = col.human
-      ? `<button class="col-accept-btn ${awaiting ? 'pulse' : ''}" data-act="accept" ${!awaiting ? 'disabled style="opacity:.45"' : ''}>进入验收台${awaiting ? ` ${awaiting}` : ''}</button>`
+      ? `<button class="col-accept-btn ${awaiting ? 'pulse' : ''}" data-act="accept" title="即使队列为空也可进入验收台">进入验收台${awaiting ? ` ${awaiting}` : ''}</button>`
       : col.hint
         ? `<span class="col-hint">${col.hint}</span>`
         : col.bot

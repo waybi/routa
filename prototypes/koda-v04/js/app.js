@@ -694,11 +694,22 @@ document.addEventListener('click', (e) => {
       state.activeTabId = 'settings';
       render();
       break;
-    case 'tab':
+    case 'tab': {
       state.activeTabId = id;
       state.drawer.open = false;
+      const t = state.tabs.find((x) => x.id === id);
+      if (t && t.kind === 'accept') {
+        state.rejectOpen = false;
+        if (!state.acceptSelectedId) {
+          const aw = state.cards.filter(
+            (c) => c.projectId === state.activeProjectId && c.state === 'AWAITING_ACCEPTANCE'
+          );
+          state.acceptSelectedId = aw[0]?.id || null;
+        }
+      }
       render();
       break;
+    }
     case 'tab-close': closeTab(id); break;
     case 'accept': openAccept(); break;
     case 'accept-select':
