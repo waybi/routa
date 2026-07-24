@@ -1,11 +1,11 @@
 ---
 title: 泳道经验记忆：Routa 怎么越用越"聪明"
-prerequisite: specialist-persona-system.zh-CN.md
+prerequisite: 05-specialist-persona-system.zh-CN.md
 ---
 
 # 泳道经验记忆：Routa 怎么越用越"聪明"
 
-> 接着 [Specialist 人设体系](specialist-persona-system.zh-CN.md) 深入。
+> 接着 [Specialist 人设体系](05-specialist-persona-system.zh-CN.md) 深入。
 > 前五篇讲清了"Agent 怎么被叫来干活、干的是什么角色"。
 > 本文讲最后一块拼图：**Agent 带着什么"前人经验"开工——以及这些经验从哪来、怎么注入。**
 >
@@ -468,9 +468,9 @@ board 级别还有 `KanbanHistoryMemoryPolicy` 策略开关。
 
 ## 延伸阅读
 
-- [Kanban 自动化深潜](kanban-automation-deep-dive.zh-CN.md) — 记忆注入所在的编排流程
-- [Agent 触发与 ACP 桥梁](agent-trigger-and-acp-bridge.zh-CN.md) — `buildTaskPrompt()` 怎么拼装记忆
-- [系统骨架导览](routa-architecture-tour.zh-CN.md) — 全景地图
+- [Kanban 自动化深潜](02-kanban-automation-deep-dive.zh-CN.md) — 记忆注入所在的编排流程
+- [Agent 触发与 ACP 桥梁](03-agent-trigger-and-acp-bridge.zh-CN.md) — `buildTaskPrompt()` 怎么拼装记忆
+- [系统骨架导览](01-routa-architecture-tour.zh-CN.md) — 全景地图
 
 ## 30 秒记忆版
 

@@ -1,11 +1,11 @@
 ---
 title: Agent 触发与 ACP 桥梁：从"叫人干活"到真实 AI 进程
-prerequisite: kanban-automation-deep-dive.zh-CN.md
+prerequisite: 02-kanban-automation-deep-dive.zh-CN.md
 ---
 
 # Agent 触发与 ACP 桥梁：从"叫人干活"到真实 AI 进程
 
-> 接着 [Kanban 自动化深潜](kanban-automation-deep-dive.zh-CN.md) 的断点深入。
+> 接着 [Kanban 自动化深潜](02-kanban-automation-deep-dive.zh-CN.md) 的断点深入。
 > 上一篇停在 `triggerAssignedTaskAgent` 这个函数调用——"叫人来干活"到底怎么落地还是黑箱。
 > 本文打开这个黑箱，讲清楚三件事：
 > 1. 怎么拼出喂给 Agent 的 prompt（信封里装什么）
@@ -567,8 +567,8 @@ prompt 本身就是 Agent 的行为约束边界。
   "为什么所有 Provider 都归一化到 ACP"的架构决策
 - [ADR-0005: Specialist Externalization](../adr/0005-specialist-externalization.md) ——
   角色人设为什么是外部 Markdown+YAML 文件
-- [Kanban 自动化深潜](kanban-automation-deep-dive.zh-CN.md) —— 本文的前置
-- [系统骨架导览](routa-architecture-tour.zh-CN.md) —— 全景地图
+- [Kanban 自动化深潜](02-kanban-automation-deep-dive.zh-CN.md) —— 本文的前置
+- [系统骨架导览](01-routa-architecture-tour.zh-CN.md) —— 全景地图
 
 ## 后续可深入的方向
 
