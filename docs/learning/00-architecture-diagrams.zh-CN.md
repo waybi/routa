@@ -475,3 +475,82 @@ sequenceDiagram
 
     WO->>UI: 卡片进 Done ✅
 ```
+
+---
+
+## 图 10：七层端到端完整流程（表现层 → 门禁验收）
+
+对应 [01-系统骨架导览](01-routa-architecture-tour.zh-CN.md) 第 5 节的动线描述
+
+```mermaid
+sequenceDiagram
+    box rgb(227,242,253) 表现层
+        actor U as 用户
+        participant UI as 看板 UI
+    end
+
+    box rgb(232,245,233) 领域层
+        participant EB as EventBus
+        participant WO as Workflow<br/>Orchestrator
+        participant Q as Session Queue
+    end
+
+    box rgb(243,229,245) 协议层
+        participant ACP as ACP 协议<br/>session/new<br/>session/prompt
+    end
+
+    box rgb(252,228,236) 运行时
+        participant PA as Provider Adapter<br/>normalize()
+        participant Agent as AI CLI 进程<br/>Claude/OpenCode/Kimi
+    end
+
+    box rgb(255,243,224) 存储层
+        participant Trace as Trace 存储<br/>JSONL / DB
+    end
+
+    box rgb(224,242,241) 实时层
+        participant SSE as SSE 推送
+    end
+
+    box rgb(245,245,245) 门禁层
+        participant TG as Transition Gates<br/>三层门禁
+    end
+
+    Note over U,UI: ① 表现层：拖卡
+    U->>UI: 拖卡片 Todo → Dev
+
+    Note over EB,Q: ② 领域层：泳道自动化
+    UI->>EB: emitColumnTransition
+    EB->>WO: handleColumnTransition
+    WO->>WO: 确定 specialist + provider
+    WO->>Q: enqueue (并发控制)
+
+    Note over ACP: ③ 协议层：ACP spawn
+    Q->>ACP: session/new → sessionId
+    ACP->>ACP: 加载 Specialist prompt
+    ACP->>ACP: session/prompt → 发送结构化工作包
+
+    Note over PA,Agent: ④ 运行时：真实进程
+    ACP->>Agent: 启动 AI CLI 进程
+    Agent->>PA: 原始输出（各 Provider 格式不同）
+    PA->>PA: normalize() → NormalizedSessionUpdate
+
+    Note over Trace: ⑤ 存储：trace 记录
+    PA->>Trace: 写入 session 消息 + 工具调用 + 文件变更
+
+    Note over SSE: ⑥ 实时：SSE 回推
+    PA->>SSE: 推送 NormalizedSessionUpdate
+    SSE->>UI: 你看到 Agent 在干什么
+
+    Agent->>EB: AGENT_COMPLETED
+    EB->>WO: handleAgentCompletion
+    WO->>WO: autoAdvanceOnSuccess → 推到 Review/Done
+
+    Note over TG: ⑦ 门禁：GATE 验收
+    WO->>TG: evaluateTransitionGates
+    TG->>TG: checklist ✅ human approval ✅
+    TG->>TG: commit ✅ clean worktree ✅ PR-ready ✅
+    TG->>TG: screenshot ✅ test_results ✅
+    TG-->>WO: 全通过 → 放行
+    WO->>UI: 卡片进 Done ✅
+```
