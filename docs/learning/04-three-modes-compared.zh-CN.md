@@ -1,11 +1,11 @@
 ---
 title: 三种编排模式：同一条血管，三个不同的心脏
-prerequisite: agent-trigger-and-acp-bridge.zh-CN.md
+prerequisite: 03-agent-trigger-and-acp-bridge.zh-CN.md
 ---
 
 # 三种编排模式：同一条血管，三个不同的心脏
 
-> 接着 [Agent 触发与 ACP 桥梁](agent-trigger-and-acp-bridge.zh-CN.md) 深入。
+> 接着 [Agent 触发与 ACP 桥梁](03-agent-trigger-and-acp-bridge.zh-CN.md) 深入。
 > 前三篇从 Kanban 一条路打通了"卡片→编排器→队列→ACP→Provider→归一化"的完整链路。
 > 本文把视角拉回全景，**对比三种模式怎么走不同的路但最终汇入同一条血管**。
 >
@@ -397,9 +397,9 @@ Kanban 不用这套——它用 EventBus 事件
 
 ## 延伸阅读
 
-- [系统骨架导览](routa-architecture-tour.zh-CN.md) — 全景地图
-- [Kanban 自动化深潜](kanban-automation-deep-dive.zh-CN.md) — Kanban 路径的完整细节
-- [Agent 触发与 ACP 桥梁](agent-trigger-and-acp-bridge.zh-CN.md) — 三条路共用的 ACP 基础设施
+- [系统骨架导览](01-routa-architecture-tour.zh-CN.md) — 全景地图
+- [Kanban 自动化深潜](02-kanban-automation-deep-dive.zh-CN.md) — Kanban 路径的完整细节
+- [Agent 触发与 ACP 桥梁](03-agent-trigger-and-acp-bridge.zh-CN.md) — 三条路共用的 ACP 基础设施
 
 ## 30 秒记忆版
 

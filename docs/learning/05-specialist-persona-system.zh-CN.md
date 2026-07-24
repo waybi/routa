@@ -1,11 +1,11 @@
 ---
 title: Specialist 人设体系：Agent 的"角色说明书"怎么运作
-prerequisite: three-modes-compared.zh-CN.md
+prerequisite: 04-three-modes-compared.zh-CN.md
 ---
 
 # Specialist 人设体系：Agent 的"角色说明书"怎么运作
 
-> 接着[三种模式对比](three-modes-compared.zh-CN.md)深入。
+> 接着[三种模式对比](04-three-modes-compared.zh-CN.md)深入。
 > 前四篇里反复出现 ROUTA / CRAFTER / GATE / DEVELOPER 这些角色名，
 > 以及"加载 specialist""拼 system prompt"这些操作。本文打开这个体系，讲清楚：
 > 1. 一个 specialist 文件长什么样
@@ -315,6 +315,6 @@ Routa 的多语言不是 i18n key-value 翻译，而是**文件级覆盖**——
 ## 延伸阅读
 
 - [ADR-0005: Specialist Externalization](../adr/0005-specialist-externalization.md) — 设计决策
-- [三种模式对比](three-modes-compared.zh-CN.md) — Specialist 在三种模式里怎么被使用
-- [Agent 触发与 ACP 桥梁](agent-trigger-and-acp-bridge.zh-CN.md) — Specialist prompt 怎么注入 ACP
-- [系统骨架导览](routa-architecture-tour.zh-CN.md) — 全景地图
+- [三种模式对比](04-three-modes-compared.zh-CN.md) — Specialist 在三种模式里怎么被使用
+- [Agent 触发与 ACP 桥梁](03-agent-trigger-and-acp-bridge.zh-CN.md) — Specialist prompt 怎么注入 ACP
+- [系统骨架导览](01-routa-architecture-tour.zh-CN.md) — 全景地图

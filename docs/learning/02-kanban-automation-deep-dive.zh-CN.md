@@ -1,11 +1,11 @@
 ---
 title: Kanban 自动化：从卡片挪动到 Agent 干活，一条血管到底
-prerequisite: routa-architecture-tour.zh-CN.md
+prerequisite: 01-routa-architecture-tour.zh-CN.md
 ---
 
 # Kanban 自动化：从卡片挪动到 Agent 干活，一条血管到底
 
-> 接着[系统骨架导览](routa-architecture-tour.zh-CN.md)的方向 B 深入。
+> 接着[系统骨架导览](01-routa-architecture-tour.zh-CN.md)的方向 B 深入。
 > 假设你已经知道 Routa 的三种模式、三个角色和全景分层；本文只聚焦
 > **Kanban 模式下，一张卡片从位置变化到 Agent 干活再到门禁验收的完整机制**。
 >
@@ -460,7 +460,7 @@ code_diff     → 要有代码变更记录
   交付门禁策略决策
 - [`docs/operational/kanban-transition-gates.zh-CN.md`](../operational/kanban-transition-gates.zh-CN.md) ——
   转换门禁字段与语义详解
-- [系统骨架导览](routa-architecture-tour.zh-CN.md) —— 全景地图（本文的前置）
+- [系统骨架导览](01-routa-architecture-tour.zh-CN.md) —— 全景地图（本文的前置）
 
 ## 后续可深入的方向
 
