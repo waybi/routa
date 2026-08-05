@@ -154,6 +154,16 @@ describe("acp-presets", () => {
     });
   });
 
+  it("declares CLAUDE_CODE_BIN as the claude binary override hook", () => {
+    // Regression guard: lets Routa point Claude Code at a wrapper binary
+    // (e.g. a local gateway launcher) via env, without editing source. The
+    // override name must NOT be CLAUDE_BIN, which such launchers use to find
+    // the real claude — reusing it would make the wrapper invoke itself.
+    const claude = getPresetById("claude");
+    expect(claude?.envBinOverride).toBe("CLAUDE_CODE_BIN");
+    expect(claude?.command).toBe("claude");
+  });
+
   it("converts and fetches registry presets with distribution metadata", async () => {
     const manual = registryAgentToPreset(
       {
