@@ -28,8 +28,8 @@ export type ModelTierType = "fast" | "balanced" | "smart";
 export const PROVIDER_MODEL_TIERS: Record<string, Record<string, string>> = {
   claude: {
     fast: "haiku-4.5",
-    balanced: "sonnet-4.5",
-    smart: "opus-4.6",
+    balanced: "sonnet-5",
+    smart: "opus-4.8",
   },
   claudeCodeSdk: {
     fast: "claude-3-5-haiku-20241022",
