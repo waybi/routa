@@ -1058,6 +1058,7 @@ export function buildClaudeCodeConfig(
         command: "claude",
         args: [],
         description: "Anthropic Claude Code (native ACP support)",
+        envBinOverride: "CLAUDE_CODE_BIN",
         nonStandardApi: true,
     };
 

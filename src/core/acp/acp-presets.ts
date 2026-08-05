@@ -202,6 +202,10 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     command: "claude",
     args: [],
     description: "Anthropic Claude Code (native ACP support)",
+    // Allows pointing Claude Code at a wrapper binary (e.g. a local gateway
+    // launcher) without editing source. Must differ from the launcher's own
+    // CLAUDE_BIN to avoid the wrapper recursively invoking itself.
+    envBinOverride: "CLAUDE_CODE_BIN",
     nonStandardApi: true,
     capabilities: ["mcp_tool", "code_generation", "file_operations", "web_search", "image_analysis"],
     supportedRoles: [AgentRole.ROUTA, AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
