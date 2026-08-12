@@ -246,7 +246,7 @@ describe("AcpProcessManager", () => {
       _extraEnv?: Record<string, string>,
       _allowedTools?: string[],
       providerId = "claude",
-      model = "claude-opus-4-8",
+      model = "claude-opus-5",
       effort = "max",
     ) => ({
       command: providerId === "cc-haha" ? "claude-haha" : "claude",
@@ -413,7 +413,7 @@ describe("AcpProcessManager", () => {
       undefined,
       undefined,
       "claude",
-      "claude-opus-4-8",
+      "claude-opus-5",
       "max",
     );
 
@@ -424,7 +424,7 @@ describe("AcpProcessManager", () => {
       undefined,
       undefined,
       "claude",
-      "claude-opus-4-8",
+      "claude-opus-5",
       "max",
     );
   });

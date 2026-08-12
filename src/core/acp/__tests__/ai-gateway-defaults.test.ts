@@ -14,7 +14,7 @@ describe("AI Gateway defaults", () => {
     expect(resolveClaudeGatewayModel(undefined)).toBe(
       process.env.ROUTA_DEFAULT_MODEL?.trim() || DEFAULT_AI_GATEWAY_MODEL,
     );
-    expect(resolveClaudeGatewayModel("claude-opus-4-8")).toBe("claude-opus-4-8");
+    expect(resolveClaudeGatewayModel("claude-opus-5")).toBe("claude-opus-5");
     expect(resolveClaudeGatewayModel("claude-opus-4.8")).toBe("claude-opus-4-8");
     expect(resolveClaudeGatewayEffort(undefined)).toBe(
       process.env.ROUTA_CLAUDE_EFFORT?.trim() || process.env.CLAUDE_CODE_EFFORT?.trim() || DEFAULT_AI_GATEWAY_EFFORT,
@@ -26,7 +26,7 @@ describe("AI Gateway defaults", () => {
     expect(resolveClaudeGatewayBaseUrl("http://127.0.0.1:7357")).toBe("http://127.0.0.1:7357");
 
     expect(DEFAULT_AI_GATEWAY_BASE_URL).toBe("http://127.0.0.1:7357");
-    expect(DEFAULT_AI_GATEWAY_MODEL).toBe("claude-opus-4-8");
+    expect(DEFAULT_AI_GATEWAY_MODEL).toBe("claude-opus-5");
     expect(DEFAULT_AI_GATEWAY_EFFORT).toBe("max");
   });
 });
