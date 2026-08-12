@@ -1,5 +1,6 @@
 import { getHttpSessionStore, type SessionUpdateNotification } from "@/core/acp/http-session-store";
-import { getPresetById } from "@/core/acp/acp-presets";
+import { isClaudeStreamJsonProvider } from "@/core/acp/acp-presets";
+import { resolveClaudeGatewayModel } from "@/core/acp/claude-code-process";
 import { isServerlessEnvironment } from "@/core/acp/api-based-providers";
 import { getDockerDetector } from "@/core/acp/docker/detector";
 import { DEFAULT_DOCKER_AGENT_IMAGE } from "@/core/acp/docker/utils";
@@ -341,7 +342,7 @@ async function ensurePromptSessionExists(args: {
   }
 
   const cwd = recoveredSession?.cwd ?? (params.cwd as string | undefined) ?? process.cwd();
-  const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "opencode";
+  const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "claude";
   const provider = (params.provider as string | undefined) ?? recoveredSession?.provider ?? defaultProvider;
   const workspaceId = requireWorkspaceId(params.workspaceId) ?? recoveredSession?.workspaceId;
   if (!workspaceId) {
@@ -360,8 +361,7 @@ async function ensurePromptSessionExists(args: {
   const modelArgs = buildProviderModelArgs(provider, recoveredSession?.model ?? storedSession?.model);
 
   try {
-    const preset = getPresetById(provider);
-    const isClaudeCode = preset?.nonStandardApi === true || provider === "claude";
+    const isClaudeCode = isClaudeStreamJsonProvider(provider);
     const isClaudeCodeSdk = provider === "claude-code-sdk";
     const isOpencodeSdk = provider === "opencode-sdk";
     const isDockerOpenCode = provider === "docker-opencode";
@@ -435,6 +435,8 @@ async function ensurePromptSessionExists(args: {
         role,
         undefined,
         allowedNativeTools,
+        provider,
+        resolveClaudeGatewayModel(recoveredSession?.model ?? storedSession?.model),
       );
     } else if (isCodex) {
       try {
@@ -940,6 +942,7 @@ export async function handleSessionPrompt({
         });
       }
       const restartRole = restartRecord.role ?? "CRAFTER";
+      const restartProvider = restartRecord.provider ?? "claude";
       const restartToolMode = restartRecord.toolMode;
       const restartMcpProfile = restartRecord.mcpProfile;
       const restartAllowedNativeTools = restartRecord.allowedNativeTools;
@@ -959,6 +962,8 @@ export async function handleSessionPrompt({
           restartRole,
           undefined,
           restartAllowedNativeTools,
+          restartProvider,
+          resolveClaudeGatewayModel(restartRecord.model),
         );
         console.log(`[ACP Route] Restarted Claude Code process for session ${sessionId}`);
       } catch (restartErr) {

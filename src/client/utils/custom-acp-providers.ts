@@ -21,7 +21,7 @@ export interface CustomAcpProvider {
   description?: string;
 }
 
-export const DEFAULT_VISIBLE_PROVIDER_IDS = ["codex", "claude", "opencode", "kimi"] as const;
+export const DEFAULT_VISIBLE_PROVIDER_IDS = ["claude", "cc-haha", "codex", "opencode", "kimi"] as const;
 
 function getLocalStorage(): Storage | null {
   if (typeof window === "undefined") return null;

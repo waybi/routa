@@ -48,6 +48,7 @@ describe("Provider Adapter Factory", () => {
 
   it("handles hyphenated provider names", () => {
     expect(getProviderAdapter("claude-code").getBehavior().type).toBe("claude");
+    expect(getProviderAdapter("cc-haha").getBehavior().type).toBe("claude");
     expect(getProviderAdapter("open-code").getBehavior().type).toBe("opencode");
   });
 });

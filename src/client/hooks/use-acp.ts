@@ -50,6 +50,14 @@ const BUILTIN_PROVIDER_FALLBACKS: AcpProviderInfo[] = [
     source: "static",
   },
   {
+    id: "cc-haha",
+    name: "Claude Code Haha",
+    description: "Claude Code Haha desktop CLI (Claude-compatible stream-json)",
+    command: "claude-haha",
+    status: "checking",
+    source: "static",
+  },
+  {
     id: "opencode",
     name: "OpenCode",
     description: "OpenCode AI coding agent",
@@ -123,13 +131,13 @@ function getInitialProviderFallbacks(): AcpProviderInfo[] {
 
 export function loadSelectedAcpProvider(): string {
   if (typeof window === "undefined" || !window.localStorage) {
-    return "opencode";
+    return "claude";
   }
   try {
     const stored = window.localStorage.getItem(ACP_SELECTED_PROVIDER_STORAGE_KEY)?.trim();
-    return stored || "opencode";
+    return stored || "claude";
   } catch {
-    return "opencode";
+    return "claude";
   }
 }
 
@@ -265,7 +273,7 @@ export function useAcp(baseUrl: string = ""): UseAcpState & UseAcpActions {
     updates: [],
     providers: getInitialProviderFallbacks(),
     // Always use SSR-safe default; useEffect below hydrates from localStorage
-    selectedProvider: "opencode",
+    selectedProvider: "claude",
     loading: false,
     error: null,
     authError: null,
@@ -275,7 +283,7 @@ export function useAcp(baseUrl: string = ""): UseAcpState & UseAcpActions {
   // Hydrate selectedProvider from localStorage after mount to avoid SSR mismatch
   useEffect(() => {
     const persisted = loadSelectedAcpProvider();
-    if (persisted !== "opencode") {
+    if (persisted !== "claude") {
       setState((s) => ({ ...s, selectedProvider: persisted }));
     }
   }, []);
