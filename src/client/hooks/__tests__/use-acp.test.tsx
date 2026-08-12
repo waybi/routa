@@ -77,7 +77,7 @@ describe("useAcp selected provider persistence", () => {
   });
 
   it("round-trips the selected provider through localStorage", () => {
-    expect(loadSelectedAcpProvider()).toBe("opencode");
+    expect(loadSelectedAcpProvider()).toBe("claude");
 
     saveSelectedAcpProvider("codex");
 
