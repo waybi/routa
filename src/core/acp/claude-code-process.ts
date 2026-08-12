@@ -1,5 +1,5 @@
 import type { NotificationHandler, JsonRpcMessage } from "@/core/acp/protocol-types";
-import { AcpAgentPreset, resolveCommand } from "@/core/acp/acp-presets";
+import { AcpAgentPreset, getPresetById, normalizeProviderPresetId, resolveCommand } from "@/core/acp/acp-presets";
 import { awaitProcessReady, needsShell } from "@/core/acp/utils";
 import type { IProcessHandle } from "@/core/platform/interfaces";
 import { getServerBridge } from "@/core/platform";
@@ -126,6 +126,10 @@ export interface ClaudeCodeProcessConfig {
     allowedTools?: string[];
     /** MCP config JSON strings (passed via --mcp-config) */
     mcpConfigs?: string[];
+    /** Model id passed as --model (e.g. claude-opus-4-8 via AI Gateway) */
+    model?: string;
+    /** Effort level passed as --effort (e.g. max) */
+    effort?: string;
 }
 
 /**
@@ -198,13 +202,20 @@ export class ClaudeCodeProcess {
      * Spawn the Claude Code process with stream-json mode.
      */
     async start(): Promise<void> {
-        const { command, cwd, env, displayName, permissionMode, allowedTools, mcpConfigs } = this._config;
+        const { command, cwd, env, displayName, permissionMode, allowedTools, mcpConfigs, model, effort } = this._config;
 
         const cmd = [command, "-p"];
         cmd.push("--output-format", "stream-json");
         cmd.push("--input-format", "stream-json");
         cmd.push("--include-partial-messages"); // Enable streaming of partial message chunks
         cmd.push("--verbose");
+
+        if (model?.trim()) {
+            cmd.push("--model", model.trim());
+        }
+        if (effort?.trim()) {
+            cmd.push("--effort", effort.trim());
+        }
 
         // Default to bypassPermissions so ALL tools (including MCP tools) are auto-approved.
         // With acceptEdits, only file-edit tools are auto-approved;
@@ -1042,6 +1053,54 @@ function extractToolResultText(content: ClaudeContent): string {
 
 // ─── Config Builder ────────────────────────────────────────────────────
 
+/** Default AI Gateway (RunAI) Anthropic-compatible endpoint. */
+export const DEFAULT_AI_GATEWAY_BASE_URL = "http://127.0.0.1:7357";
+
+/** Default model on AI Gateway RunAI Anthropic lane. */
+export const DEFAULT_AI_GATEWAY_MODEL = "claude-opus-4-8";
+
+/** Default Claude effort tier for gateway sessions. */
+export const DEFAULT_AI_GATEWAY_EFFORT = "max";
+
+export function resolveClaudeGatewayBaseUrl(explicit?: string): string {
+    const fromExplicit = explicit?.trim();
+    if (fromExplicit) return fromExplicit;
+    const fromEnv = process.env.ANTHROPIC_BASE_URL?.trim();
+    if (fromEnv) return fromEnv;
+    return DEFAULT_AI_GATEWAY_BASE_URL;
+}
+
+function normalizeClaudeGatewayModelId(modelId: string): string {
+    const trimmed = modelId.trim();
+    switch (trimmed) {
+        case "claude-opus-4.8":
+        case "opus-4.8":
+        case "opus4.8":
+        case "claude-opus-4_8":
+            return "claude-opus-4-8";
+        default:
+            return trimmed;
+    }
+}
+
+export function resolveClaudeGatewayModel(explicit?: string): string {
+    const fromExplicit = explicit?.trim();
+    if (fromExplicit) return normalizeClaudeGatewayModelId(fromExplicit);
+    // Prefer Routa-specific override, then fall back to gateway default.
+    // Do not inherit ambient ANTHROPIC_MODEL (may point at other lanes like grok).
+    const fromRouta = process.env.ROUTA_DEFAULT_MODEL?.trim();
+    if (fromRouta) return normalizeClaudeGatewayModelId(fromRouta);
+    return DEFAULT_AI_GATEWAY_MODEL;
+}
+
+export function resolveClaudeGatewayEffort(explicit?: string): string {
+    const fromExplicit = explicit?.trim();
+    if (fromExplicit) return fromExplicit;
+    const fromEnv = process.env.ROUTA_CLAUDE_EFFORT?.trim() || process.env.CLAUDE_CODE_EFFORT?.trim();
+    if (fromEnv) return fromEnv;
+    return DEFAULT_AI_GATEWAY_EFFORT;
+}
+
 /**
  * Build a ClaudeCodeProcessConfig from the claude preset.
  */
@@ -1051,30 +1110,48 @@ export function buildClaudeCodeConfig(
     permissionMode?: string,
     extraEnv?: Record<string, string>,
     allowedTools?: string[],
+    providerId: string = "claude",
+    model?: string,
+    effort?: string,
 ): ClaudeCodeProcessConfig {
-    const preset: AcpAgentPreset = {
-        id: "claude",
-        name: "Claude Code",
-        command: "claude",
-        args: [],
-        description: "Anthropic Claude Code (native ACP support)",
-        envBinOverride: "CLAUDE_CODE_BIN",
-        nonStandardApi: true,
-    };
+    const normalizedProviderId = normalizeProviderPresetId(providerId);
+    const resolvedPreset = getPresetById(normalizedProviderId);
+    const preset: AcpAgentPreset = resolvedPreset
+        ? { ...resolvedPreset, nonStandardApi: true }
+        : {
+            id: "claude",
+            name: "Claude Code",
+            command: "claude",
+            args: [],
+            description: "Anthropic Claude Code (native ACP support)",
+            envBinOverride: "CLAUDE_CODE_BIN",
+            nonStandardApi: true,
+        };
 
     const command = resolveCommand(preset);
+    const resolvedModel = resolveClaudeGatewayModel(model);
+    const resolvedEffort = resolveClaudeGatewayEffort(effort);
+    const resolvedBaseUrl = resolveClaudeGatewayBaseUrl(extraEnv?.ANTHROPIC_BASE_URL);
+
+    const env: Record<string, string> = {
+        ...(extraEnv ?? {}),
+        ANTHROPIC_BASE_URL: extraEnv?.ANTHROPIC_BASE_URL?.trim() || resolvedBaseUrl,
+        ANTHROPIC_MODEL: extraEnv?.ANTHROPIC_MODEL?.trim() || resolvedModel,
+    };
 
     return {
         preset,
         command,
         cwd,
-        env: extraEnv,
-        displayName: "Claude Code",
+        env,
+        displayName: preset.name,
         permissionMode: permissionMode ?? "bypassPermissions",
         // Enable Skill tool so Claude Code CLI can discover and use skills
         // from .claude/skills/ and ~/.claude/skills/ directories
         allowedTools: allowedTools ?? ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
         mcpConfigs: mcpConfigs ?? [],
+        model: resolvedModel,
+        effort: resolvedEffort,
     };
 }
 

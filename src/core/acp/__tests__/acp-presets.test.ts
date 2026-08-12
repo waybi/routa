@@ -117,6 +117,8 @@ import {
   getStandardPresets,
   registryAgentToPreset,
   syncPresetsWithRegistry,
+  isClaudeStreamJsonProvider,
+  normalizeProviderPresetId,
 } from "../acp-presets";
 
 describe("acp-presets", () => {
@@ -145,6 +147,7 @@ describe("acp-presets", () => {
     expect(getDefaultPreset().id).toBe("opencode");
     expect(getStandardPresets().every((preset) => !preset.nonStandardApi)).toBe(true);
     expect(ACP_AGENT_PRESETS.some((preset) => preset.id === "claude" && preset.nonStandardApi)).toBe(true);
+    expect(ACP_AGENT_PRESETS.some((preset) => preset.id === "cc-haha" && preset.nonStandardApi)).toBe(true);
   });
 
   it("declares CLAUDE_CODE_BIN as the claude binary override hook", () => {
@@ -155,6 +158,21 @@ describe("acp-presets", () => {
     const claude = getPresetById("claude");
     expect(claude?.envBinOverride).toBe("CLAUDE_CODE_BIN");
     expect(claude?.command).toBe("claude");
+  });
+
+  it("exposes cc-haha as a Claude-compatible stream-json provider", () => {
+    const haha = getPresetById("cc-haha");
+    expect(haha).toMatchObject({
+      id: "cc-haha",
+      command: "claude-haha",
+      envBinOverride: "CLAUDE_HAHA_BIN",
+      nonStandardApi: true,
+    });
+    expect(getPresetById("claude-haha")?.id).toBe("cc-haha");
+    expect(normalizeProviderPresetId("cchaha")).toBe("cc-haha");
+    expect(isClaudeStreamJsonProvider("cc-haha")).toBe(true);
+    expect(isClaudeStreamJsonProvider("claude")).toBe(true);
+    expect(isClaudeStreamJsonProvider("opencode")).toBe(false);
   });
 
   it("converts and fetches registry presets with distribution metadata", async () => {

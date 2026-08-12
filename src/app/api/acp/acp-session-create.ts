@@ -1,11 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAcpProcessManager } from "@/core/acp/processer";
 import { getHttpSessionStore } from "@/core/acp/http-session-store";
-import { getPresetById } from "@/core/acp/acp-presets";
 import { isServerlessEnvironment } from "@/core/acp/api-based-providers";
 import { isOpencodeServerConfigured } from "@/core/acp/opencode-sdk-adapter";
 import { getDockerDetector, DEFAULT_DOCKER_AGENT_IMAGE } from "@/core/acp/docker";
 import { isClaudeCodeSdkConfigured } from "@/core/acp/claude-code-sdk-adapter";
+import { isClaudeStreamJsonProvider } from "@/core/acp/acp-presets";
+import { resolveClaudeGatewayModel } from "@/core/acp/claude-code-process";
 import type { AgentInstanceConfig } from "@/core/acp/agent-instance-factory";
 import { initRoutaOrchestrator } from "@/core/orchestration/orchestrator-singleton";
 import { getRoutaSystem } from "@/core/routa-system";
@@ -264,7 +265,7 @@ export async function handleSessionNew({
     ? p.boardId.trim()
     : undefined;
 
-  const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "opencode";
+  const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "claude";
   const requestedProvider = (p.provider as string | undefined);
   const provider = specialistId === "team-agent-lead" &&
     (requestedProvider ?? specialist?.defaultProvider ?? defaultProvider) === "opencode" &&
@@ -275,7 +276,7 @@ export async function handleSessionNew({
   const modeId = (p.modeId as string | undefined) ?? (p.mode as string | undefined);
   const role = (p.role as string | undefined)?.toUpperCase() ?? specialist?.role;
   const parentSessionId = (p.parentSessionId as string | undefined) || undefined;
-  const model = (p.model as string | undefined) ?? specialist?.model;
+  let model = (p.model as string | undefined) ?? specialist?.model;
   let sandboxId = (p.sandboxId as string | undefined)?.trim() || undefined;
   const toolMode = p.toolMode === "full"
     ? "full"
@@ -353,8 +354,10 @@ export async function handleSessionNew({
   const manager = getAcpProcessManager();
   const forwardSessionUpdate = createSessionUpdateForwarder(store, sessionId);
 
-  const preset = getPresetById(provider);
-  const isClaudeCode = preset?.nonStandardApi === true || provider === "claude";
+  const isClaudeCode = isClaudeStreamJsonProvider(provider);
+  if (isClaudeCode) {
+    model = resolveClaudeGatewayModel(model);
+  }
   const isWorkspaceAgent = isWorkspaceProvider(provider);
   const isClaudeCodeSdk = provider === "claude-code-sdk";
   const isOpencodeSdk = provider === "opencode-sdk";
@@ -667,6 +670,7 @@ export async function handleSessionNew({
         );
       } else if (isClaudeCode) {
         const mcpConfigs = await buildMcpConfigForClaude(workspaceId, sessionId, resolvedToolMode, resolvedMcpProfile);
+        const claudeModel = model;
         acpSessionId = await manager.createClaudeSession(
           sessionId,
           cwd,
@@ -676,6 +680,8 @@ export async function handleSessionNew({
           role,
           undefined,
           resolvedAllowedNativeTools,
+          provider,
+          claudeModel,
         );
       } else if (customCommand) {
         console.log(`[ACP Route] Using custom provider: ${provider}`);

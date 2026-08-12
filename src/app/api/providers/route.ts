@@ -155,8 +155,10 @@ async function getLocalProviders(shouldCheck = false): Promise<ProviderInfo[]> {
 
   // Non-serverless: show all CLI-based providers
   const allPresets = [...getStandardPresets()];
-  const claudePreset = getPresetById("claude");
-  if (claudePreset) allPresets.push(claudePreset);
+  for (const providerId of ["claude", "cc-haha"] as const) {
+    const preset = getPresetById(providerId);
+    if (preset) allPresets.push(preset);
+  }
 
   if (shouldCheck) {
     // Check availability in parallel

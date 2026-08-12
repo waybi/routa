@@ -553,14 +553,19 @@ export class AcpProcessManager {
         role?: string,
         extraEnv?: Record<string, string>,
         allowedNativeTools?: string[],
+        providerId: string = "claude",
+        model?: string,
+        effort?: string,
     ): Promise<string> {
         // In serverless environments, use Claude Code SDK adapter
-        if (shouldUseClaudeCodeSdkAdapter()) {
+        // only for the stock Claude provider — cc-haha is a local CLI.
+        if (providerId === "claude" && shouldUseClaudeCodeSdkAdapter()) {
             return this.createClaudeCodeSdkSession(
                 sessionId,
                 cwd,
                 onNotification,
                 {
+                    model,
                     allowedNativeTools,
                     mcpServers: parseMcpServersFromConfigs(mcpConfigs),
                 },
@@ -574,7 +579,16 @@ export class AcpProcessManager {
         const permissionMode = role === "ROUTA"
             ? "bypassPermissions"
             : mapClaudeModeToPermissionMode(modeId);
-        const config = buildClaudeCodeConfig(cwd, mcpConfigs, permissionMode, extraEnv, allowedNativeTools);
+        const config = buildClaudeCodeConfig(
+            cwd,
+            mcpConfigs,
+            permissionMode,
+            extraEnv,
+            allowedNativeTools,
+            providerId,
+            model,
+            effort,
+        );
         const proc = new ClaudeCodeProcess(config, onNotification);
 
         await proc.start();
@@ -587,7 +601,7 @@ export class AcpProcessManager {
         this.claudeProcesses.set(sessionId, {
             process: proc,
             acpSessionId,
-            presetId: "claude",
+            presetId: config.preset.id,
             createdAt: new Date(),
         });
 

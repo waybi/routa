@@ -9,6 +9,8 @@
  * LocalWorker delegates to AcpProcessManager — it does NOT replace it.
  */
 
+import { isClaudeStreamJsonProvider } from "@/core/acp/acp-presets";
+import { resolveClaudeGatewayModel } from "@/core/acp/claude-code-process";
 import os from "os";
 import type { BackgroundTask } from "@/core/models/background-task";
 import { createWorkspaceSessionSandbox } from "@/core/sandbox/permissions";
@@ -106,6 +108,7 @@ export class LocalWorker implements Worker {
         "kimi",
         "kiro",
         "claude",
+        "cc-haha",
         "claude-code-sdk",
         "workspace",
         "workspace-agent",
@@ -114,11 +117,18 @@ export class LocalWorker implements Worker {
 
       let acpSessionId: string;
 
-      if (task.agentId === "claude") {
+      if (isClaudeStreamJsonProvider(task.agentId)) {
         acpSessionId = await manager.createClaudeSession(
           sessionId,
           cwd,
           noopNotification,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          task.agentId,
+          resolveClaudeGatewayModel(),
         );
       } else if (task.agentId === "claude-code-sdk") {
         acpSessionId = await manager.createClaudeCodeSdkSession(

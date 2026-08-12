@@ -90,10 +90,11 @@ function resolveModelFromTier(
   provider?: string,
 ): string | undefined {
   // Map provider IDs to PROVIDER_MODEL_TIERS keys
+  const normalized = provider?.toLowerCase();
   const providerKey =
-    provider === "claude-code-sdk"
+    normalized === "claude-code-sdk"
       ? "claudeCodeSdk"
-      : provider === "claude"
+      : normalized === "claude" || normalized === "cc-haha" || normalized === "claude-haha" || normalized === "cchaha"
         ? "claude"
         : provider ?? "claudeCodeSdk";
 

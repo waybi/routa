@@ -118,6 +118,12 @@ export {
 export {
   ClaudeCodeProcess,
   buildClaudeCodeConfig,
+  resolveClaudeGatewayModel,
+  resolveClaudeGatewayBaseUrl,
+  resolveClaudeGatewayEffort,
+  DEFAULT_AI_GATEWAY_BASE_URL,
+  DEFAULT_AI_GATEWAY_MODEL,
+  DEFAULT_AI_GATEWAY_EFFORT,
   type ClaudeCodeProcessConfig,
 } from "@/core/acp/claude-code-process";
 

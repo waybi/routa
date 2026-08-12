@@ -52,6 +52,7 @@ import {
 
 export type McpSupportedProvider =
   | "claude"
+  | "cc-haha"
   | "auggie"
   | "opencode"
   | "codex"
@@ -87,9 +88,19 @@ export interface McpSetupResult {
 // ─── Public API ────────────────────────────────────────────────────────
 
 function normalizeProviderIdForMcp(providerId: string): string {
-  return providerId.endsWith("-registry")
+  const withoutRegistry = providerId.endsWith("-registry")
     ? providerId.slice(0, -"-registry".length)
     : providerId;
+  switch (withoutRegistry) {
+    case "claude-code":
+    case "claudecode":
+      return "claude";
+    case "claude-haha":
+    case "cchaha":
+      return "cc-haha";
+    default:
+      return withoutRegistry;
+  }
 }
 
 export function providerSupportsMcp(providerId: string): boolean {
@@ -97,7 +108,7 @@ export function providerSupportsMcp(providerId: string): boolean {
   if (baseId === "codex-acp") {
     return true;
   }
-  const supported: McpSupportedProvider[] = ["claude", "auggie", "opencode", "codex", "gemini", "kimi", "copilot", "qoder"];
+  const supported: McpSupportedProvider[] = ["claude", "cc-haha", "auggie", "opencode", "codex", "gemini", "kimi", "copilot", "qoder"];
   return supported.includes(baseId as McpSupportedProvider);
 }
 
@@ -241,6 +252,7 @@ export async function ensureMcpForProvider(
     case "auggie":
       return await ensureMcpForAuggie(mcpEndpoint, cfg.workspaceId, customServers);
     case "claude":
+    case "cc-haha":
       return await ensureMcpForClaude(mcpEndpoint, cfg.workspaceId, customServers);
     case "codex":
       return await ensureMcpForCodex(mcpEndpoint, customServers, cfg.cwd);

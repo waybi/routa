@@ -239,7 +239,28 @@ describe("AcpProcessManager", () => {
     shouldUseOpencodeAdapterMock.mockReturnValue(false);
     shouldUseClaudeCodeSdkAdapterMock.mockReturnValue(false);
     buildConfigFromPresetMock.mockResolvedValue({ bin: "opencode" });
-    buildClaudeCodeConfigMock.mockReturnValue({ command: "claude" });
+    buildClaudeCodeConfigMock.mockImplementation((
+      _cwd?: string,
+      _mcpConfigs?: string[],
+      _permissionMode?: string,
+      _extraEnv?: Record<string, string>,
+      _allowedTools?: string[],
+      providerId = "claude",
+      model = "claude-opus-4-8",
+      effort = "max",
+    ) => ({
+      command: providerId === "cc-haha" ? "claude-haha" : "claude",
+      model,
+      effort,
+      preset: {
+        id: providerId,
+        name: providerId === "cc-haha" ? "Claude Code Haha" : "Claude Code",
+        command: providerId === "cc-haha" ? "claude-haha" : "claude",
+        args: [],
+        description: "test",
+        nonStandardApi: true,
+      },
+    }));
     mapClaudeModeToPermissionModeMock.mockReturnValue("acceptEdits");
     getDefaultRoutaMcpConfigMock.mockReturnValue({ type: "http" });
     buildAcpHttpMcpServersMock.mockReturnValue([
@@ -337,9 +358,75 @@ describe("AcpProcessManager", () => {
       "bypassPermissions",
       { BAR: "baz" },
       ["Bash"],
+      "claude",
+      undefined,
+      undefined,
     );
     expect(manager.getClaudeProcess("claude-session")).toBeDefined();
     expect(manager.isClaudeSession("claude-session")).toBe(true);
+  });
+
+
+  it("creates a Claude-compatible cc-haha session with the selected provider id", async () => {
+    mapClaudeModeToPermissionModeMock.mockReturnValue("acceptEdits");
+    const manager = new AcpProcessManager();
+
+    const acpSessionId = await manager.createClaudeSession(
+      "haha-session",
+      "/repo",
+      vi.fn(),
+      ["mcp-json"],
+      "acceptEdits",
+      "CRAFTER",
+      { FOO: "1" },
+      ["Read"],
+      "cc-haha",
+    );
+
+    expect(acpSessionId).toBe("haha-session");
+    expect(buildClaudeCodeConfigMock).toHaveBeenCalledWith(
+      "/repo",
+      ["mcp-json"],
+      "acceptEdits",
+      { FOO: "1" },
+      ["Read"],
+      "cc-haha",
+      undefined,
+      undefined,
+    );
+    expect(manager.getClaudeProcess("haha-session")).toBeDefined();
+    expect(manager.isClaudeSession("haha-session")).toBe(true);
+  });
+
+
+  it("passes explicit model through to Claude config builder", async () => {
+    mapClaudeModeToPermissionModeMock.mockReturnValue("acceptEdits");
+    const manager = new AcpProcessManager();
+
+    await manager.createClaudeSession(
+      "gateway-session",
+      "/repo",
+      vi.fn(),
+      [],
+      "acceptEdits",
+      "CRAFTER",
+      undefined,
+      undefined,
+      "claude",
+      "claude-opus-4-8",
+      "max",
+    );
+
+    expect(buildClaudeCodeConfigMock).toHaveBeenCalledWith(
+      "/repo",
+      [],
+      "acceptEdits",
+      undefined,
+      undefined,
+      "claude",
+      "claude-opus-4-8",
+      "max",
+    );
   });
 
   it("lists and kills sessions across all managed transport types", async () => {

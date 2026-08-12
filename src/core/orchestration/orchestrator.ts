@@ -15,6 +15,8 @@
  * This enables the full Coordinator → Implementor → Verifier lifecycle.
  */
 
+import { isClaudeStreamJsonProvider } from "@/core/acp/acp-presets";
+import { resolveClaudeGatewayModel } from "@/core/acp/claude-code-process";
 import { v4 as uuidv4 } from "uuid";
 import * as fs from "fs";
 import * as path from "path";
@@ -821,7 +823,7 @@ export class RoutaOrchestrator {
     parentSessionId: string,
     workspaceId?: string,
   ): Promise<{ sandboxId?: string }> {
-    const isClaudeCode = provider === "claude";
+    const isClaudeCode = isClaudeStreamJsonProvider(provider);
     const isClaudeCodeSdk = provider === "claude-code-sdk";
     const isNativeWorkspaceAgent = isWorkspaceProvider(provider);
 
@@ -947,7 +949,13 @@ export class RoutaOrchestrator {
         sessionId,
         cwd,
         notificationHandler,
-        [mcpConfigJson]
+        [mcpConfigJson],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        provider,
+        resolveClaudeGatewayModel(),
       );
 
       // Watch for .report_to_parent_*.json files in the cwd

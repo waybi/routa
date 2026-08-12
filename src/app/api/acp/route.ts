@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
 
       if (method === "session/new") {
         const provider = ((params ?? {}) as Record<string, unknown>).provider as string | undefined;
-        const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "opencode";
+        const defaultProvider = isServerlessEnvironment() ? "claude-code-sdk" : "claude";
         const effectiveProvider = provider ?? defaultProvider;
         if (runnerUrl && shouldUseRunnerForProvider(effectiveProvider)) {
           const forwardedResponse = await proxyRequestToRunner(request, {
@@ -896,8 +896,10 @@ export async function POST(request: NextRequest) {
     // Merges static presets with dynamically-loaded ACP Registry agents.
     if (method === "_providers/list") {
       const allPresets = [...getStandardPresets()];
-      const claudePreset = getPresetById("claude");
-      if (claudePreset) allPresets.push(claudePreset);
+      for (const providerId of ["claude", "cc-haha"] as const) {
+        const preset = getPresetById(providerId);
+        if (preset) allPresets.push(preset);
+      }
 
       type ProviderEntry = {
         id: string;

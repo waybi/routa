@@ -212,6 +212,20 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     preferredTier: ModelTier.SMART,
     resume: { supported: true, mode: "replay", supportsFork: true, supportsList: false },
   },
+  // Claude Code Haha (cc-haha) is Claude-compatible: same stream-json CLI protocol.
+  {
+    id: "cc-haha",
+    name: "Claude Code Haha",
+    command: "claude-haha",
+    args: [],
+    description: "Claude Code Haha desktop CLI (Claude-compatible stream-json)",
+    envBinOverride: "CLAUDE_HAHA_BIN",
+    nonStandardApi: true,
+    capabilities: ["mcp_tool", "code_generation", "file_operations", "web_search", "image_analysis"],
+    supportedRoles: [AgentRole.ROUTA, AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
+    preferredTier: ModelTier.SMART,
+    resume: { supported: true, mode: "replay", supportsFork: true, supportsList: false },
+  },
   // Workspace Agent runs natively via Vercel AI SDK (no external CLI)
   {
     id: "workspace",
@@ -227,10 +241,36 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
 ] as const;
 
 /**
+ * Normalize provider aliases to the canonical preset id when one exists.
+ */
+export function normalizeProviderPresetId(id: string): string {
+  switch (id.toLowerCase()) {
+    case "claude-code":
+    case "claudecode":
+      return "claude";
+    case "claude-haha":
+    case "cchaha":
+      return "cc-haha";
+    default:
+      return id;
+  }
+}
+
+/**
+ * Providers that speak Claude Code's stream-json protocol (not standard ACP).
+ */
+export function isClaudeStreamJsonProvider(providerId?: string | null): boolean {
+  if (!providerId) return false;
+  const normalized = normalizeProviderPresetId(providerId);
+  return normalized === "claude" || normalized === "cc-haha";
+}
+
+/**
  * Get a preset by its ID.
  */
 export function getPresetById(id: string): AcpAgentPreset | undefined {
-  return ACP_AGENT_PRESETS.find((p) => p.id === id);
+  const normalized = normalizeProviderPresetId(id);
+  return ACP_AGENT_PRESETS.find((p) => p.id === normalized);
 }
 
 /**
