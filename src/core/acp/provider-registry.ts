@@ -30,12 +30,12 @@ export const PROVIDER_MODEL_TIERS: Record<string, Record<string, string>> = {
     // AI Gateway (RunAI) model ids
     fast: "claude-haiku-4-5",
     balanced: "claude-sonnet-5",
-    smart: "claude-opus-4-8",
+    smart: "claude-opus-5",
   },
   "cc-haha": {
     fast: "claude-haiku-4-5",
     balanced: "claude-sonnet-5",
-    smart: "claude-opus-4-8",
+    smart: "claude-opus-5",
   },
   claudeCodeSdk: {
     fast: "claude-3-5-haiku-20241022",

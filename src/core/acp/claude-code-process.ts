@@ -126,7 +126,7 @@ export interface ClaudeCodeProcessConfig {
     allowedTools?: string[];
     /** MCP config JSON strings (passed via --mcp-config) */
     mcpConfigs?: string[];
-    /** Model id passed as --model (e.g. claude-opus-4-8 via AI Gateway) */
+    /** Model id passed as --model (e.g. claude-opus-5 via AI Gateway) */
     model?: string;
     /** Effort level passed as --effort (e.g. max) */
     effort?: string;
@@ -1057,7 +1057,7 @@ function extractToolResultText(content: ClaudeContent): string {
 export const DEFAULT_AI_GATEWAY_BASE_URL = "http://127.0.0.1:7357";
 
 /** Default model on AI Gateway RunAI Anthropic lane. */
-export const DEFAULT_AI_GATEWAY_MODEL = "claude-opus-4-8";
+export const DEFAULT_AI_GATEWAY_MODEL = "claude-opus-5";
 
 /** Default Claude effort tier for gateway sessions. */
 export const DEFAULT_AI_GATEWAY_EFFORT = "max";
