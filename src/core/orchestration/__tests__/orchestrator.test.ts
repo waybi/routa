@@ -276,7 +276,7 @@ describe("RoutaOrchestrator", () => {
     expect(system.tools.createAgent).not.toHaveBeenCalled();
   });
 
-  it("writes delegation memory under the caller session cwd when the child runs elsewhere", async () => {
+  it("writes delegation memory under the caller session cwd when the child runs in a subdirectory", async () => {
     const { orchestrator, task } = createOrchestratorFixture();
     getSessionMock.mockImplementation((sessionId: string) =>
       sessionId === "caller-session" ? { cwd: "/workspace/parent-repo" } : undefined,
@@ -290,12 +290,12 @@ describe("RoutaOrchestrator", () => {
       callerSessionId: "caller-session",
       workspaceId: task.workspaceId,
       specialist: "crafter",
-      cwd: "/workspace/child-repo",
+      cwd: "/workspace/parent-repo/child-package",
     });
 
     expect(result.success).toBe(true);
     expect(AgentMemoryWriterMock).toHaveBeenCalledWith("/workspace/parent-repo");
-    expect(AgentMemoryWriterMock).toHaveBeenCalledWith("/workspace/child-repo");
+    expect(AgentMemoryWriterMock).toHaveBeenCalledWith("/workspace/parent-repo/child-package");
     expect(recordDelegationMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: "caller-session",
@@ -329,6 +329,48 @@ describe("RoutaOrchestrator", () => {
     expect(AgentMemoryWriterMock).toHaveBeenCalledWith("/workspace/child-repo");
     expect(recordDelegationMock).not.toHaveBeenCalled();
     expect(recordChildSessionStartMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("scopes the child agent to the caller session repository when the caller passes an unrelated cwd", async () => {
+    const { orchestrator, task } = createOrchestratorFixture();
+    (orchestrator as unknown as { spawnChildAgent: () => Promise<{ sandboxId?: string }> }).spawnChildAgent =
+      vi.fn(async () => ({ sandboxId: "sandbox-1" }));
+    getSessionMock.mockReturnValue({ cwd: "/workspace/selected-repo" });
+
+    const result = await orchestrator.delegateTaskWithSpawn({
+      taskId: task.id,
+      callerAgentId: "caller-agent",
+      callerSessionId: "caller-session",
+      workspaceId: task.workspaceId,
+      specialist: "crafter",
+      // Coordinators cannot know the selected repository and often pass their
+      // own process cwd, which previously leaked into the spawned child.
+      cwd: "/workspace/coordinator-repo",
+    });
+
+    expect(result.success).toBe(true);
+    expect(orchestrator.getChildAgents("caller-agent")[0]?.cwd).toBe("/workspace/selected-repo");
+  });
+
+  it("keeps a caller cwd nested inside the session repository", async () => {
+    const { orchestrator, task } = createOrchestratorFixture();
+    (orchestrator as unknown as { spawnChildAgent: () => Promise<{ sandboxId?: string }> }).spawnChildAgent =
+      vi.fn(async () => ({ sandboxId: "sandbox-1" }));
+    getSessionMock.mockReturnValue({ cwd: "/workspace/selected-repo" });
+
+    const result = await orchestrator.delegateTaskWithSpawn({
+      taskId: task.id,
+      callerAgentId: "caller-agent",
+      callerSessionId: "caller-session",
+      workspaceId: task.workspaceId,
+      specialist: "crafter",
+      cwd: "/workspace/selected-repo/packages/core",
+    });
+
+    expect(result.success).toBe(true);
+    expect(orchestrator.getChildAgents("caller-agent")[0]?.cwd).toBe(
+      "/workspace/selected-repo/packages/core",
+    );
   });
 
   it("creates after_all delegation groups and assigns roster metadata for team leads", async () => {
