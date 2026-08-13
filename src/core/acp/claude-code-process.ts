@@ -266,7 +266,13 @@ export class ClaudeCodeProcess {
             env: {
                 ...process.env, // inherit parent PATH and other env vars
                 ...env,         // allow extra/override vars
+                // Pin every directory hint to the session's repository. Desktop
+                // hosts (e.g. Claude Code Haha) export CALLER_DIR/PWD/OLDPWD for
+                // their own project, and the CLI prefers CALLER_DIR over the spawn
+                // cwd — leaking them silently runs the agent in the host's repo.
+                CALLER_DIR: cwd,
                 PWD: cwd,
+                OLDPWD: cwd,
             },
             detached: false,
             // On Windows, batch files (.cmd/.bat) cannot be spawned directly —

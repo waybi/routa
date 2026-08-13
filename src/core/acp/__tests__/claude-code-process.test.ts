@@ -102,6 +102,37 @@ describe("ClaudeCodeProcess", () => {
     vi.useRealTimers();
   });
 
+  it("overrides host directory env vars so the child cannot inherit the caller's project", async () => {
+    vi.useFakeTimers();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+    // Claude Code hosts inject CALLER_DIR/OLDPWD pointing at the host session's
+    // project. Leaking them makes the CLI ignore the cwd we asked for.
+    vi.stubEnv("CALLER_DIR", "/host/project");
+    vi.stubEnv("OLDPWD", "/host/project");
+
+    const process = createProcess();
+    const startPromise = process.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await startPromise;
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "claude",
+      expect.anything(),
+      expect.objectContaining({
+        cwd: "/tmp",
+        env: expect.objectContaining({
+          CALLER_DIR: "/tmp",
+          PWD: "/tmp",
+          OLDPWD: "/tmp",
+        }),
+      }),
+    );
+
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
   it("fails startup when the spawned process has no pid", async () => {
     const fakeProcess = new FakeProcess();
     fakeProcess.pid = undefined;
