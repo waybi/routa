@@ -151,6 +151,12 @@ export class AcpProcess {
                 ...process.env,
                 ...env,
                 NODE_NO_READLINE: "1",
+                // Pin directory hints to this agent's repository; desktop hosts
+                // export CALLER_DIR/PWD/OLDPWD for their own project and some
+                // CLIs prefer those over the spawn cwd.
+                CALLER_DIR: cwd,
+                PWD: cwd,
+                OLDPWD: cwd,
             },
             detached: false,
             // On Windows, batch files (.cmd/.bat) cannot be spawned directly —
