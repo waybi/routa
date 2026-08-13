@@ -315,6 +315,25 @@ export class RoutaOrchestrator {
     return getHttpSessionStore().getSession(sessionId)?.cwd ?? fallbackCwd;
   }
 
+  /**
+   * Resolve the working directory for a spawned child agent.
+   *
+   * The repository selected for the caller session is authoritative: coordinators
+   * cannot know it and otherwise pass their own process cwd, which silently spawns
+   * children against the wrong repository. A caller-supplied cwd is only honoured
+   * when it stays inside that repository (monorepo subdirectories).
+   */
+  private resolveDelegationCwd(callerSessionId: string, requestedCwd?: string): string {
+    const sessionCwd = getHttpSessionStore().getSession(callerSessionId)?.cwd;
+    if (!sessionCwd) return requestedCwd ?? this.config.defaultCwd;
+    if (!requestedCwd) return sessionCwd;
+
+    const relative = path.relative(sessionCwd, requestedCwd);
+    const insideSessionRepo =
+      relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    return insideSessionRepo ? requestedCwd : sessionCwd;
+  }
+
   private hasKnownSessionId(sessionId: string): boolean {
     return sessionId.trim().length > 0 && sessionId !== "unknown";
   }
@@ -548,7 +567,7 @@ export class RoutaOrchestrator {
         ? this.config.defaultCrafterProvider
         : this.config.defaultGateProvider);
 
-    const cwd = params.cwd ?? this.config.defaultCwd;
+    const cwd = this.resolveDelegationCwd(callerSessionId, params.cwd);
 
     // 4. Create agent record with delegation depth metadata
     const agentName = `${specialistConfig.id}-${task.title
