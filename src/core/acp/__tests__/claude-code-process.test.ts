@@ -87,8 +87,6 @@ describe("ClaudeCodeProcess", () => {
         "--include-partial-messages",
         "--verbose",
         "--dangerously-skip-permissions",
-        "--disallowed-tools",
-        "AskUserQuestion",
         "--allowedTools",
         "Read,Write",
         "--mcp-config",
@@ -98,6 +96,12 @@ describe("ClaudeCodeProcess", () => {
         cwd: "/tmp",
       }),
     );
+
+    // arrayContaining is a loose match, so assert the absence explicitly:
+    // AskUserQuestion must stay enabled or the team/chat question UI goes dead.
+    const spawnArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(spawnArgs).not.toContain("--disallowed-tools");
+    expect(spawnArgs).not.toContain("AskUserQuestion");
 
     vi.useRealTimers();
   });

@@ -233,8 +233,10 @@ export class ClaudeCodeProcess {
             cmd.push("--permission-mode", effectivePermissionMode);
         }
 
-        // Disallow interactive questions (we auto-approve via permission mode)
-        cmd.push("--disallowed-tools", "AskUserQuestion");
+        // AskUserQuestion stays enabled: permission prompts are already handled by
+        // --dangerously-skip-permissions above, and the team/chat UI renders the
+        // question with clickable options (AskUserQuestionBubble →
+        // respondToUserInputForSession). The SDK adapter allows it too.
 
         // Add allowed tools for auto-approval
         if (allowedTools && allowedTools.length > 0) {
