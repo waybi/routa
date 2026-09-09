@@ -16,13 +16,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getA2ATaskBridge, A2ATask } from "@/core/a2a";
 import { getRoutaSystem } from "@/core/routa-system";
 import { AgentRole } from "@/core/models/agent";
+import {
+  A2AAuthorityError,
+  a2aAuthorityProblem,
+  requireA2ARequestAuthority,
+} from "../request-authority";
 
 export const dynamic = "force-dynamic";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version, A2A-Session-Id",
 };
 
 export async function OPTIONS() {
@@ -73,7 +78,8 @@ export async function POST(request: NextRequest) {
     }
 
     const userPrompt = textParts.join("\n");
-    const workspaceId = (body.metadata?.workspaceId as string) ?? null;
+    const authority = requireA2ARequestAuthority(request, body.metadata?.workspaceId);
+    const workspaceId = authority.workspaceId;
     const contextId = message.contextId as string | undefined;
 
     // Create a Routa agent for this request
@@ -87,31 +93,26 @@ export async function POST(request: NextRequest) {
     // Create the task in the bridge first
     const a2aTask = bridge.createTask({
       userPrompt,
-      workspaceId: workspaceId ?? undefined,
+      workspaceId,
       contextId,
     });
 
-    // Try to create a Routa agent if we have a workspaceId
-    if (workspaceId) {
-      try {
-        const agentResult = await system.tools.createAgent({
-          name: `a2a-agent-${a2aTask.id.slice(0, 8)}`,
-          role,
-          workspaceId,
-        });
+    try {
+      const agentResult = await system.tools.createAgent({
+        name: `a2a-agent-${a2aTask.id.slice(0, 8)}`,
+        role,
+        workspaceId,
+      });
 
-        if (agentResult.success && agentResult.data) {
-          const agentData = agentResult.data as { agentId: string };
-          // Link the Routa agent to the A2A task
-          bridge.linkAgent(a2aTask.id, agentData.agentId);
-        }
-      } catch (err) {
-        console.warn("[A2A] Failed to create Routa agent:", err);
-        // Continue - the A2A task is still created
+      if (agentResult.success && agentResult.data) {
+        const agentData = agentResult.data as { agentId: string };
+        bridge.linkAgent(a2aTask.id, agentData.agentId);
       }
+    } catch (err) {
+      console.warn("[A2A] Failed to create Routa agent:", err);
     }
 
-    const updatedTask = bridge.getTask(a2aTask.id) ?? a2aTask;
+    const updatedTask = bridge.getTask(a2aTask.id, workspaceId) ?? a2aTask;
 
     if (action === "stream") {
       return handleStreamResponse(updatedTask);
@@ -123,6 +124,11 @@ export async function POST(request: NextRequest) {
       { headers: CORS_HEADERS }
     );
   } catch (error) {
+    if (error instanceof A2AAuthorityError) {
+      const response = a2aAuthorityProblem(error);
+      Object.entries(CORS_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
+      return response;
+    }
     console.error("[A2A message] Error:", error);
     return NextResponse.json(
       {

@@ -31,7 +31,7 @@ export async function testNotes(): Promise<TestResult[]> {
         workspaceId: "default",
         type: "general",
       });
-      assert(status === 200 || status === 201, `Expected 200 or 201, got ${status}`);
+      assertStatus(status, 201);
       const d = data as Record<string, unknown>;
       assertHasField(d, "note");
       const note = d.note as Record<string, unknown>;

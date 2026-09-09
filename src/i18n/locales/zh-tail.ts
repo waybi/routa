@@ -347,7 +347,7 @@ export const zhTail: TailTranslationDictionarySections = {
 
   // A2A 页面
   a2aPage: {
-    workspaceIdOptional: "工作区 ID（可选）",
+    sessionIdRequired: "A2A 会话 ID（必填）",
     describeWhatYouNeed: "描述你的需求…",
   },
 

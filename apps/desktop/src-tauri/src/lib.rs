@@ -15,6 +15,9 @@ use tokio::sync::RwLock;
 mod pty;
 pub use pty::{pty_create, pty_kill, pty_list, pty_read, pty_resize, pty_write, PtyState};
 
+mod system_proxy;
+use system_proxy::{build_download_http_client, build_registry_http_client};
+
 // System tray module
 mod tray;
 pub use tray::GitHubRepo;
@@ -171,8 +174,11 @@ async fn fetch_acp_registry(state: State<'_, AcpState>) -> Result<AcpRegistry, S
         }
     }
 
-    // Fetch from CDN
-    let response = reqwest::get(ACP_REGISTRY_URL)
+    // Fetch from CDN (with macOS system proxy support)
+    let client = build_registry_http_client()?;
+    let response = client
+        .get(ACP_REGISTRY_URL)
+        .send()
         .await
         .map_err(|e| format!("Failed to fetch registry: {e}"))?;
 
@@ -215,8 +221,11 @@ async fn install_acp_agent(
     let registry = match registry {
         Some(r) => r,
         None => {
-            // Fetch if not cached
-            let response = reqwest::get(ACP_REGISTRY_URL)
+            // Fetch if not cached (with macOS system proxy support)
+            let client = build_registry_http_client()?;
+            let response = client
+                .get(ACP_REGISTRY_URL)
+                .send()
                 .await
                 .map_err(|e| format!("Failed to fetch registry: {e}"))?;
             response
@@ -268,9 +277,10 @@ async fn install_acp_agent(
                 .get_binary_info(&platform)
                 .ok_or_else(|| format!("No binary available for platform: {platform}"))?;
 
+            let http_client = build_download_http_client()?;
             let exe_path = state
                 .binary_manager
-                .install_binary(&agent_id, &version, binary_info)
+                .install_binary_with_client(&http_client, &agent_id, &version, binary_info)
                 .await?;
 
             state

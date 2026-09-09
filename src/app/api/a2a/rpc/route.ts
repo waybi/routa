@@ -14,6 +14,11 @@ import { getHttpSessionStore } from "@/core/acp/http-session-store";
 import { getRoutaSystem } from "@/core/routa-system";
 import { getA2ATaskBridge } from "@/core/a2a";
 import { AgentRole } from "@/core/models/agent";
+import {
+  A2AAuthorityError,
+  type A2ARequestAuthority,
+  requireA2ARequestAuthority,
+} from "../request-authority";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +49,6 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = (await request.json()) as JsonRpcRequest;
-    const sessionId = request.nextUrl.searchParams.get("sessionId");
 
     // Validate that body is an object
     if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -85,8 +89,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle method routing
-    const result = await handleA2aMethod(body.method, body.params, sessionId, sessionStore, system);
+    const authority = ["method_list", "initialize"].includes(body.method)
+      ? undefined
+      : requireA2ARequestAuthority(
+          request,
+          getClaimedWorkspaceId(body.method, body.params),
+        );
+
+    const result = await handleA2aMethod(
+      body.method,
+      body.params,
+      authority,
+      sessionStore,
+      system,
+    );
 
     return NextResponse.json(
       {
@@ -101,9 +117,16 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error("A2A RPC error:", error);
-    const code = (error as { code?: number }).code ?? -32603;
+    if (!(error instanceof A2AAuthorityError)) {
+      console.error("A2A RPC error:", error);
+    }
+    const code = error instanceof A2AAuthorityError
+      ? error.rpcCode
+      : (error as { code?: number }).code ?? -32603;
     const isNotFound = code === -32001;
+    const status = error instanceof A2AAuthorityError
+      ? error.status
+      : isNotFound ? 404 : 500;
     return NextResponse.json(
       {
         jsonrpc: "2.0",
@@ -114,9 +137,10 @@ export async function POST(request: NextRequest) {
         },
       } as JsonRpcResponse,
       {
-        status: isNotFound ? 404 : 500,
+        status,
         headers: {
           "Access-Control-Allow-Origin": "*",
+          ...(status === 401 ? { "WWW-Authenticate": "A2A-Session" } : {}),
         },
       }
     );
@@ -127,18 +151,20 @@ export async function POST(request: NextRequest) {
  * GET /api/a2a/rpc - Server-Sent Events stream for session notifications
  */
 export async function GET(request: NextRequest) {
-  const sessionId = request.nextUrl.searchParams.get("sessionId");
-  
-  if (!sessionId) {
-    return new NextResponse("Missing sessionId parameter", { status: 400 });
+  let authority: A2ARequestAuthority;
+  try {
+    authority = requireA2ARequestAuthority(request);
+  } catch (error) {
+    if (error instanceof A2AAuthorityError) {
+      return new NextResponse(error.message, {
+        status: error.status,
+        headers: error.status === 401 ? { "WWW-Authenticate": "A2A-Session" } : undefined,
+      });
+    }
+    throw error;
   }
-
+  const { sessionId } = authority;
   const sessionStore = getHttpSessionStore();
-  const session = sessionStore.getSession(sessionId);
-
-  if (!session) {
-    return new NextResponse(`Session ${sessionId} not found`, { status: 404 });
-  }
 
   // Create SSE stream
   const encoder = new TextEncoder();
@@ -197,7 +223,7 @@ export async function GET(request: NextRequest) {
 async function handleA2aMethod(
   method: string,
   params: unknown,
-  sessionId: string | null,
+  authority: A2ARequestAuthority | undefined,
   sessionStore: ReturnType<typeof getHttpSessionStore>,
   system: ReturnType<typeof getRoutaSystem>
 ): Promise<unknown> {
@@ -230,7 +256,6 @@ async function handleA2aMethod(
   if (method === "SendMessage") {
     const p = params as Record<string, unknown>;
     const message = p.message as Record<string, unknown> | undefined;
-    const metadata = p.metadata as Record<string, unknown> | undefined;
 
     if (!message || typeof message !== "object") {
       throw new Error("Invalid params: 'message' is required");
@@ -246,28 +271,25 @@ async function handleA2aMethod(
       throw new Error("Invalid params: message must contain at least one text part");
     }
 
-    const workspaceId = (metadata?.workspaceId as string) || "";
+    const workspaceId = requireAuthority(authority).workspaceId;
     const contextId = (message.contextId as string) || undefined;
     const bridge = getA2ATaskBridge();
 
     // Create A2A task
     const task = bridge.createTask({ userPrompt, workspaceId, contextId });
 
-    // Optionally create a Routa agent if workspaceId is present
-    if (workspaceId) {
-      try {
-        const result = await system.tools.createAgent({
-          name: `A2A: ${userPrompt.slice(0, 60)}`,
-          role: AgentRole.ROUTA,
-          workspaceId,
-        });
-        if (result.success && result.data) {
-          const agentId = (result.data as { agentId: string }).agentId;
-          bridge.linkAgent(task.id, agentId);
-        }
-      } catch (err) {
-        console.error("Failed to create Routa agent for A2A task:", err);
+    try {
+      const result = await system.tools.createAgent({
+        name: `A2A: ${userPrompt.slice(0, 60)}`,
+        role: AgentRole.ROUTA,
+        workspaceId,
+      });
+      if (result.success && result.data) {
+        const agentId = (result.data as { agentId: string }).agentId;
+        bridge.linkAgent(task.id, agentId);
       }
+    } catch (err) {
+      console.error("Failed to create Routa agent for A2A task:", err);
     }
 
     return { task };
@@ -279,7 +301,7 @@ async function handleA2aMethod(
       throw new Error("Invalid params: 'id' is required");
     }
     const bridge = getA2ATaskBridge();
-    const task = bridge.getTask(p.id);
+    const task = bridge.getTask(p.id, requireAuthority(authority).workspaceId);
     if (!task) {
       throw Object.assign(new Error(`Task not found: ${p.id}`), { code: -32001 });
     }
@@ -289,23 +311,22 @@ async function handleA2aMethod(
   if (method === "ListTasks") {
     const p = (params as Record<string, unknown>) || {};
     const bridge = getA2ATaskBridge();
+    const workspaceId = requireAuthority(authority).workspaceId;
 
     // Sync existing Routa agents into the bridge before listing
-    if (typeof p.workspaceId === "string" && p.workspaceId) {
-      try {
-        const agents = await system.tools.listAgents(p.workspaceId);
-        if (Array.isArray(agents)) {
-          for (const agent of agents) {
-            bridge.registerAgentAsTask(agent as Parameters<typeof bridge.registerAgentAsTask>[0]);
-          }
+    try {
+      const agents = await system.tools.listAgents(workspaceId);
+      if (Array.isArray(agents)) {
+        for (const agent of agents) {
+          bridge.registerAgentAsTask(agent as Parameters<typeof bridge.registerAgentAsTask>[0]);
         }
-      } catch (err) {
-        console.error("Failed to sync Routa agents:", err);
       }
+    } catch (err) {
+      console.error("Failed to sync Routa agents:", err);
     }
 
     const allTasks = bridge.listTasks({
-      workspaceId: typeof p.workspaceId === "string" ? p.workspaceId : undefined,
+      workspaceId,
       contextId: typeof p.contextId === "string" ? p.contextId : undefined,
       state: typeof p.status === "string" ? p.status : undefined,
     });
@@ -323,7 +344,7 @@ async function handleA2aMethod(
       throw new Error("Invalid params: 'id' is required");
     }
     const bridge = getA2ATaskBridge();
-    const cancelled = bridge.cancelTask(p.id);
+    const cancelled = bridge.cancelTask(p.id, requireAuthority(authority).workspaceId);
     if (!cancelled) {
       throw Object.assign(new Error(`Task not found: ${p.id}`), { code: -32001 });
     }
@@ -348,11 +369,12 @@ async function handleA2aMethod(
 
   // Route to appropriate handler based on method prefix
   if (method.startsWith("session/")) {
-    // Session methods require sessionId
-    if (!sessionId) {
-      throw new Error("Session ID required for session methods");
-    }
-    return handleSessionMethod(method, params, sessionId, sessionStore);
+    return handleSessionMethod(
+      method,
+      params,
+      requireAuthority(authority).sessionId,
+      sessionStore,
+    );
   }
 
   // Coordination methods - use explicit list instead of prefix matching
@@ -364,7 +386,12 @@ async function handleA2aMethod(
   ];
 
   if (coordinationMethods.includes(method)) {
-    return handleCoordinationMethod(method, params, system);
+    return handleCoordinationMethod(
+      method,
+      params,
+      system,
+      requireAuthority(authority).workspaceId,
+    );
   }
 
   throw new Error(`Unknown method: ${method}`);
@@ -405,7 +432,8 @@ async function handleSessionMethod(
 async function handleCoordinationMethod(
   method: string,
   params: unknown,
-  system: ReturnType<typeof getRoutaSystem>
+  system: ReturnType<typeof getRoutaSystem>,
+  workspaceId: string,
 ): Promise<unknown> {
   const tools = system.tools;
 
@@ -416,8 +444,7 @@ async function handleCoordinationMethod(
 
   switch (method) {
     case "list_agents": {
-      const p = params as { workspaceId?: string };
-      return await tools.listAgents(p.workspaceId || "");
+      return await tools.listAgents(workspaceId);
     }
 
     case "create_agent": {
@@ -434,7 +461,7 @@ async function handleCoordinationMethod(
       return await tools.createAgent({
         name: p.name,
         role: p.role,
-        workspaceId: typeof p.workspaceId === "string" ? p.workspaceId : "",
+        workspaceId,
       });
     }
 
@@ -494,7 +521,26 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version, A2A-Session-Id",
     },
   });
+}
+
+function requireAuthority(authority: A2ARequestAuthority | undefined): A2ARequestAuthority {
+  if (!authority) {
+    throw new A2AAuthorityError("A2A session authority is required", 401, -32002);
+  }
+  return authority;
+}
+
+function getClaimedWorkspaceId(method: string, params: unknown): unknown {
+  if (!params || typeof params !== "object" || Array.isArray(params)) return undefined;
+  const record = params as Record<string, unknown>;
+  if (method === "SendMessage") {
+    const metadata = record.metadata;
+    return metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>).workspaceId
+      : undefined;
+  }
+  return record.workspaceId;
 }

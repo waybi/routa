@@ -1375,7 +1375,7 @@ paths:
                 modelTier:
                   $ref: "#/components/schemas/ModelTier"
       responses:
-        "200":
+        "201":
           description: Created agent
           content:
             application/json:
@@ -2067,7 +2067,16 @@ paths:
                   $ref: "#/components/schemas/NoteMetadata"
       responses:
         "200":
-          description: Created/updated note
+          description: Updated note
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  note:
+                    $ref: "#/components/schemas/Note"
+        "201":
+          description: Created note
           content:
             application/json:
               schema:
@@ -2210,7 +2219,7 @@ paths:
                   additionalProperties:
                     type: string
       responses:
-        "200":
+        "201":
           description: Created workspace
           content:
             application/json:
@@ -3800,10 +3809,23 @@ paths:
   /api/a2a/sessions:
     get:
       operationId: listA2aSessions
-      summary: List A2A sessions
+      summary: Get the A2A session selected by server-side session authority
+      parameters:
+        - name: sessionId
+          in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
+          schema:
+            type: string
       responses:
         "200":
           description: Sessions
+        "401":
+          description: Missing or invalid session authority
 
   /api/a2a/card:
     get:
@@ -3816,7 +3838,18 @@ paths:
   /api/a2a/rpc:
     post:
       operationId: a2aRpc
-      summary: A2A JSON-RPC
+      summary: A2A JSON-RPC; task and coordination methods require session authority
+      parameters:
+        - name: sessionId
+          in: query
+          description: ACP session capability; required for non-discovery methods when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -3826,12 +3859,22 @@ paths:
       responses:
         "200":
           description: JSON-RPC response
+        "401":
+          description: Missing or invalid session authority
+        "403":
+          description: Caller workspace metadata conflicts with session authority
     get:
       operationId: a2aRpcSse
       summary: A2A SSE stream
       parameters:
         - name: sessionId
           in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
           schema:
             type: string
       responses:
@@ -3839,6 +3882,8 @@ paths:
           description: SSE stream
           content:
             text/event-stream: {}
+        "401":
+          description: Missing or invalid session authority
 
   # ── Git ──
   /api/git/refs:
@@ -7083,6 +7128,17 @@ paths:
     post:
       operationId: sendA2AMessage
       summary: Send a message via the A2A protocol
+      parameters:
+        - name: sessionId
+          in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -7092,14 +7148,33 @@ paths:
       responses:
         "200":
           description: Message sent
+        "401":
+          description: Missing or invalid session authority
+        "403":
+          description: Caller workspace metadata conflicts with session authority
 
   /api/a2a/tasks:
     get:
       operationId: listA2ATasks
-      summary: List A2A tasks
+      summary: List A2A tasks within the session-authorized workspace
+      parameters:
+        - name: sessionId
+          in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
+          schema:
+            type: string
       responses:
         "200":
           description: Task list
+        "401":
+          description: Missing or invalid session authority
+        "403":
+          description: Requested workspace conflicts with session authority
 
   /api/a2a/tasks/{id}:
     get:
@@ -7111,9 +7186,23 @@ paths:
           required: true
           schema:
             type: string
+        - name: sessionId
+          in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
+          schema:
+            type: string
       responses:
         "200":
           description: Task detail
+        "401":
+          description: Missing or invalid session authority
+        "404":
+          description: Task is absent or outside the authorized workspace
     post:
       operationId: updateA2ATask
       summary: Update / respond to an A2A task
@@ -7121,6 +7210,16 @@ paths:
         - name: id
           in: path
           required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: query
+          description: ACP session capability; required when A2A-Session-Id is absent
+          schema:
+            type: string
+        - name: A2A-Session-Id
+          in: header
+          description: ACP session capability; preferred over the query parameter
           schema:
             type: string
       requestBody:
@@ -7131,6 +7230,10 @@ paths:
       responses:
         "200":
           description: Updated
+        "401":
+          description: Missing or invalid session authority
+        "404":
+          description: Task is absent or outside the authorized workspace
 
   # ── RPC discovery (Rust) ──
   /api/rpc/methods:

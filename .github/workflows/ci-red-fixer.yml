@@ -40,6 +40,8 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
       ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
       ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514' }}
+      BOT_NAME: 'github-actions[bot]'
+      BOT_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_REPOSITORY: ${{ github.repository }}
 
@@ -93,8 +95,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "${BOT_NAME}"
+          git config user.email "${BOT_EMAIL}"
 
       - name: Skip repair (No API Key)
         if: env.ANTHROPIC_API_KEY == '' && github.event.inputs.dry_run != 'true'
@@ -188,5 +190,5 @@ jobs:
           - Source run: ${SOURCE_RUN_URL}
           - Repair run: ${REPAIR_RUN_URL}
 
-          Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          Co-authored-by: ${BOT_NAME} <${BOT_EMAIL}>"
           git push origin "HEAD:${TARGET_BRANCH}"

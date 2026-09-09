@@ -32,8 +32,7 @@ export async function testAgents(): Promise<TestResult[]> {
         workspaceId: "default",
         modelTier: "FAST",
       });
-      // Both backends should return 200 or 201
-      assert(status === 200 || status === 201, `Expected 200 or 201, got ${status}`);
+      assertStatus(status, 201);
       const d = data as Record<string, unknown>;
 
       // Rust returns { agentId, agent }, Next.js returns { agentId, ... }

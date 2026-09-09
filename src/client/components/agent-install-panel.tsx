@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import { isTauriRuntime, desktopAwareFetch } from "@/client/utils/diagnostics";
+import { resolveApiPath } from "@/client/config/backend";
 import { useTranslation } from "@/i18n";
 import { Search, Bot } from "lucide-react";
 
@@ -127,6 +128,11 @@ async function tauriInvoke<T>(command: string, args?: Record<string, unknown>): 
   throw new Error("Tauri invoke not available - not running in Tauri environment");
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : fallback;
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 interface AgentInstallPanelProps {
@@ -198,8 +204,8 @@ export function AgentInstallPanel({ embedded = false }: AgentInstallPanelProps) 
           setRuntimeAvailability({ npx: true, uvx: true });
         } else {
           // Web: Use API routes
-          const url = refresh ? "/api/acp/registry?refresh=true" : "/api/acp/registry";
-          const res = await fetch(url);
+          const url = resolveApiPath(refresh ? "/api/acp/registry?refresh=true" : "/api/acp/registry");
+          const res = await desktopAwareFetch(url);
           if (!res.ok) throw new Error(`Failed to fetch registry: ${res.status}`);
           const data: RegistryResponse = await res.json();
           setAgents(data.agents);
@@ -207,7 +213,7 @@ export function AgentInstallPanel({ embedded = false }: AgentInstallPanelProps) 
           setRuntimeAvailability(data.runtimeAvailability);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : t.agents.failedToLoad);
+        setError(getErrorMessage(err, t.agents.failedToLoad));
       } finally {
         setLoading(false);
       }
@@ -253,7 +259,7 @@ export function AgentInstallPanel({ embedded = false }: AgentInstallPanelProps) 
         }
         await fetchAgents();
       } catch (err) {
-        setError(err instanceof Error ? err.message : t.agents.installFailed);
+        setError(getErrorMessage(err, t.agents.installFailed));
       } finally {
         setInstallingAgents((prev) => {
           const next = new Set(prev);
@@ -287,7 +293,7 @@ export function AgentInstallPanel({ embedded = false }: AgentInstallPanelProps) 
         }
         await fetchAgents();
       } catch (err) {
-        setError(err instanceof Error ? err.message : t.agents.uninstallFailed);
+        setError(getErrorMessage(err, t.agents.uninstallFailed));
       } finally {
         setInstallingAgents((prev) => {
           const next = new Set(prev);

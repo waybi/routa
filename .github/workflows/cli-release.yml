@@ -12,6 +12,11 @@ on:
         required: false
         default: true
         type: boolean
+    secrets:
+      NPM_TOKEN:
+        required: false
+      ROUTA_GITHUB_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       version:

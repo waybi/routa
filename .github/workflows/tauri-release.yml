@@ -7,6 +7,29 @@ on:
         description: "Semver version to release, ex: 0.2.4"
         required: true
         type: string
+    secrets:
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_API_KEY:
+        required: false
+      APPLE_API_ISSUER:
+        required: false
+      APPLE_API_KEY_CONTENT:
+        required: false
+      KEYCHAIN_PASSWORD:
+        required: false
+      ROUTA_GITHUB_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       version:

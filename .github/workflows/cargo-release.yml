@@ -12,6 +12,9 @@ on:
         required: false
         default: false
         type: boolean
+    secrets:
+      CRATE_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       version:

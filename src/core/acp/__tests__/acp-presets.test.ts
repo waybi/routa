@@ -175,6 +175,13 @@ describe("acp-presets", () => {
     expect(isClaudeStreamJsonProvider("opencode")).toBe(false);
   });
 
+  it("starts Kimi Code CLI through its ACP subcommand", () => {
+    expect(getPresetById("kimi")).toMatchObject({
+      command: "kimi",
+      args: ["acp"],
+    });
+  });
+
   it("converts and fetches registry presets with distribution metadata", async () => {
     const manual = registryAgentToPreset(
       {

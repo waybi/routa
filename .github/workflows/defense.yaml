@@ -166,7 +166,7 @@ jobs:
         run: |
           # Check that all emails are valid format
           INVALID=$(git log "$RANGE" --format="%ae" 2>/dev/null | \
-            grep -vE "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$" || true)
+            grep -vE "^[][a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$" || true)
 
           if [ -n "$INVALID" ]; then
             echo "⚠️  Warning: Invalid email formats detected:"

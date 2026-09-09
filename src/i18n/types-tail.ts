@@ -351,7 +351,7 @@ export interface TailTranslationDictionarySections {
 
   // A2A Page
   a2aPage: {
-    workspaceIdOptional: string;
+    sessionIdRequired: string;
     describeWhatYouNeed: string;
   };
 

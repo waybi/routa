@@ -89,11 +89,21 @@ struct CreateNoteRequest {
 async fn create_or_update_note(
     State(state): State<AppState>,
     Json(body): Json<CreateNoteRequest>,
-) -> Result<Json<serde_json::Value>, ServerError> {
+) -> Result<(axum::http::StatusCode, Json<serde_json::Value>), ServerError> {
     let workspace_id = body.workspace_id.unwrap_or_else(|| "default".to_string());
     let note_id = body
         .note_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let status = if state
+        .note_store
+        .get(&note_id, &workspace_id)
+        .await?
+        .is_some()
+    {
+        axum::http::StatusCode::OK
+    } else {
+        axum::http::StatusCode::CREATED
+    };
 
     let metadata = body.metadata.unwrap_or(NoteMetadata {
         note_type: body
@@ -113,7 +123,7 @@ async fn create_or_update_note(
     );
 
     state.note_store.save(&note).await?;
-    Ok(Json(serde_json::json!({ "note": note })))
+    Ok((status, Json(serde_json::json!({ "note": note }))))
 }
 
 /// DELETE /api/notes?noteId=xxx&workspaceId=xxx  (Next.js compatible)

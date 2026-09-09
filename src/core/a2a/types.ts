@@ -2,7 +2,34 @@
  * A2A Types - Shared types for A2A protocol communication
  */
 
-import type { AgentCard } from "@a2a-js/sdk";
+export interface AgentCardSkill {
+  id: string;
+  name: string;
+  description: string;
+  tags?: string[];
+  examples?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}
+
+export interface AgentCard {
+  name: string;
+  description: string;
+  protocolVersion: string;
+  version: string;
+  url: string;
+  documentationUrl?: string;
+  preferredTransport?: string;
+  additionalInterfaces?: Array<{ url: string; transport: string }>;
+  capabilities: {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+  };
+  defaultInputModes: string[];
+  defaultOutputModes: string[];
+  skills: AgentCardSkill[];
+}
 
 // ─── JSON-RPC 2.0 Types ────────────────────────────────────────────────────────
 
@@ -168,7 +195,3 @@ export class A2AInvalidCardError extends A2AOutboundError {
     this.name = "A2AInvalidCardError";
   }
 }
-
-// ─── Re-exports ────────────────────────────────────────────────────────────────
-
-export type { AgentCard };

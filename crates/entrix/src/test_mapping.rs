@@ -459,6 +459,10 @@ impl AutoTestResolver for TypeScriptResolver {
             candidates.insert(parent.join("__tests__").join(format!("{stem}.spec.{ext}")));
             candidates.insert(parent.join("tests").join(format!("{stem}.test.{ext}")));
             candidates.insert(parent.join("tests").join(format!("{stem}.spec.{ext}")));
+            if let Some(ancestor) = parent.parent() {
+                candidates.insert(ancestor.join("__tests__").join(format!("{stem}.test.{ext}")));
+                candidates.insert(ancestor.join("__tests__").join(format!("{stem}.spec.{ext}")));
+            }
         }
 
         ResolverOutcome {

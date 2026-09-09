@@ -120,6 +120,17 @@ async function testContractIntegrity(): Promise<TestResult[]> {
     })
   );
 
+  results.push(
+    await runTest("Contract: undeclared response statuses are rejected", async () => {
+      const result = validateOperationResponse("createTask", 200, {});
+      assert(!result.valid, "Expected an undeclared HTTP 200 response to be rejected");
+      assert(
+        result.errors.some((error) => error.includes("does not declare an HTTP 200 response")),
+        `Expected an undeclared-status error, got: ${result.errors.join(", ")}`
+      );
+    })
+  );
+
   return results;
 }
 
@@ -136,8 +147,8 @@ async function testWorkspaceSchema(): Promise<TestResult[]> {
       assertMatchesOperationRequest("createWorkspace", reqBody);
 
       const { status, data } = await api("POST", "/api/workspaces", reqBody);
-      assert(status === 200 || status === 201, `Expected 200/201, got ${status}`);
-      assertMatchesOperationResponse("createWorkspace", 200, data);
+      assertStatus(status, 201);
+      assertMatchesOperationResponse("createWorkspace", 201, data);
 
       const d = data as Record<string, unknown>;
       if (d.workspace) {
@@ -198,8 +209,8 @@ async function testAgentSchema(): Promise<TestResult[]> {
         workspaceId: "default",
         modelTier: "FAST",
       });
-      assert(status === 200 || status === 201, `Expected 200/201, got ${status}`);
-      assertMatchesOperationResponse("createAgent", 200, data);
+      assertStatus(status, 201);
+      assertMatchesOperationResponse("createAgent", 201, data);
 
       const d = data as Record<string, unknown>;
       if (d.agent) {
@@ -299,8 +310,8 @@ async function testTaskSchema(): Promise<TestResult[]> {
         objective: "Test that schema validation works",
         workspaceId: "default",
       });
-      assert(status === 200 || status === 201, `Expected 200/201, got ${status}`);
-      assertMatchesOperationResponse("createTask", 200, data);
+      assertStatus(status, 201);
+      assertMatchesOperationResponse("createTask", 201, data);
 
       const d = data as Record<string, unknown>;
       if (d.task) {
@@ -389,8 +400,8 @@ async function testNoteSchema(): Promise<TestResult[]> {
         workspaceId: "default",
         type: "general",
       });
-      assert(status === 200 || status === 201, `Expected 200/201, got ${status}`);
-      assertMatchesOperationResponse("createOrUpdateNote", 200, data);
+      assertStatus(status, 201);
+      assertMatchesOperationResponse("createOrUpdateNote", 201, data);
 
       const d = data as Record<string, unknown>;
       if (d.note) {

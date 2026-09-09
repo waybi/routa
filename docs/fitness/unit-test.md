@@ -19,11 +19,13 @@ metrics:
     pattern: "Tests\\s+(\\d+)\\s+passed"
     hard_gate: true
     tier: normal
+    timeout_seconds: 900
 
   - name: ts_test_coverage
     command: npm run test:cov:ts 2>&1
     tier: normal
     description: "Vitest V8 line coverage must stay at or above 80%."
+    timeout_seconds: 900
 
   - name: rust_test_pass
     command: cargo test --workspace --exclude routa-desktop 2>&1
@@ -31,6 +33,7 @@ metrics:
     serial: true
     hard_gate: true
     tier: normal
+    timeout_seconds: 900
 
   - name: graph_test_radius_probe
     command: entrix graph test-radius --json
@@ -77,6 +80,10 @@ metrics:
 ## 规则清单（逐项可验）
 
 ### 单元测试（`routa-core`）
+- [x] ACP provider 启动参数契约
+  - status: `VERIFIED`
+  - required: 内置 provider 的命令与参数在 TypeScript/Rust 双后端保持一致；Kimi 使用 `kimi acp` 子命令
+  - evidence: `src/core/acp/__tests__/acp-presets.test.ts`, `crates/routa-core/src/acp/mod.rs`
 - [ ] store: workspace
   - status: `TODO`
   - required: CRUD、查询过滤、归档状态一致性

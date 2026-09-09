@@ -96,7 +96,7 @@ struct CreateAgentResponse {
 async fn create_agent(
     State(state): State<AppState>,
     Json(body): Json<CreateAgentRequest>,
-) -> Result<Json<CreateAgentResponse>, ServerError> {
+) -> Result<(axum::http::StatusCode, Json<CreateAgentResponse>), ServerError> {
     let role = AgentRole::from_str(&body.role)
         .ok_or_else(|| ServerError::BadRequest(format!("Invalid role: {}", body.role)))?;
     let model_tier = body.model_tier.as_deref().and_then(ModelTier::from_str);
@@ -116,10 +116,13 @@ async fn create_agent(
 
     state.agent_store.save(&agent).await?;
 
-    Ok(Json(CreateAgentResponse {
-        agent_id: agent.id.clone(),
-        agent,
-    }))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(CreateAgentResponse {
+            agent_id: agent.id.clone(),
+            agent,
+        }),
+    ))
 }
 
 async fn delete_agent(

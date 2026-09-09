@@ -174,7 +174,11 @@ export function getOperationResponseValidator(
       if (op.operationId !== operationId) continue;
 
       const responseObj = op.responses?.[statusStr];
-      if (!responseObj) return null;
+      if (!responseObj) {
+        throw new Error(
+          `Operation "${operationId}" does not declare an HTTP ${statusStr} response`
+        );
+      }
 
       const schema = responseObj.content?.["application/json"]?.schema;
       if (!schema) return null;
@@ -188,7 +192,7 @@ export function getOperationResponseValidator(
     }
   }
 
-  return null;
+  throw new Error(`Operation "${operationId}" not found in api-contract.yaml`);
 }
 
 /**

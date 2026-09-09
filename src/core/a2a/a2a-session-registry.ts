@@ -5,8 +5,8 @@
  * Integrates with HttpSessionStore to expose ACP sessions as A2A endpoints.
  */
 
-import { AgentCard } from "@a2a-js/sdk";
 import { getHttpSessionStore, RoutaSessionRecord } from "../acp/http-session-store";
+import type { AgentCard } from "./types";
 
 export interface A2aSessionInfo {
   id: string;
@@ -92,7 +92,8 @@ export class A2aSessionRegistry {
   }
 
   /**
-   * Generate an A2A AgentCard for the Routa platform (A2A SDK v0.3.x compatible)
+   * Generate Routa's legacy v0.3 AgentCard wire shape while the SDK v1
+   * compatibility layer supports staged protocol migration.
    */
   generateAgentCard(baseUrl: string): AgentCard {
     return {

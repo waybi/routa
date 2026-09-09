@@ -164,6 +164,7 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     id: "kimi",
     name: "Kimi",
     command: "kimi",
+    // Kimi Code CLI exposes ACP as a subcommand. The removed legacy form was `kimi --acp`.
     args: ["acp"],
     description: "Moonshot AI's Kimi CLI",
     envBinOverride: "KIMI_BIN",

@@ -353,7 +353,7 @@ export const enTail: TailTranslationDictionarySections = {
 
   // A2A Page
   a2aPage: {
-    workspaceIdOptional: "Workspace ID (optional)",
+    sessionIdRequired: "A2A session ID (required)",
     describeWhatYouNeed: "Describe what you need…",
   },
 

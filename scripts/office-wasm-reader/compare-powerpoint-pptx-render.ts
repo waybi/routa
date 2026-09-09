@@ -10,6 +10,7 @@ import { chromium, type Browser, type Page } from "playwright";
 import sharp from "sharp";
 
 type ReaderMode = "routa" | "walnut";
+type SharpOverlayOptions = Parameters<ReturnType<typeof sharp>["composite"]>[0][number];
 
 type SlideDiff = {
   averageDelta: number;
@@ -569,7 +570,7 @@ async function writeContactSheet(slides: SlideDiff[], outputPath: string): Promi
   const rowHeight = labelHeight + cellHeight;
   const width = cellWidth * 3 + gap * 2;
   const height = rowHeight * slides.length;
-  const composites: sharp.OverlayOptions[] = [];
+  const composites: SharpOverlayOptions[] = [];
 
   for (const [index, slide] of slides.entries()) {
     const top = index * rowHeight;

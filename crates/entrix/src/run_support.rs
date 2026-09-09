@@ -266,7 +266,7 @@ fn probe_test_mapping(repo_root: &Path, changed_files: &[String], _base: &str) -
         test_mapping::TestMappingAnalysisOptions {
             base: _base,
             build_mode: ReviewBuildMode::Auto,
-            use_graph: true,
+            use_graph: false,
         },
     );
     let source_file_count = report.mappings.len();

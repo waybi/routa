@@ -76,8 +76,8 @@ if echo "$AUTHOR_NAME" | grep -qiE "^(routa test|test|placeholder|example user)$
   exit 1
 fi
 
-# Validate email format (basic check)
-if ! echo "$AUTHOR_EMAIL" | grep -qE "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"; then
+# Validate email format (basic check). GitHub bot noreply addresses include [bot].
+if ! echo "$AUTHOR_EMAIL" | grep -qE "^[][a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"; then
   echo "❌ COMMIT BLOCKED: Invalid email format"
   echo "   Found: $AUTHOR_EMAIL"
   exit 1

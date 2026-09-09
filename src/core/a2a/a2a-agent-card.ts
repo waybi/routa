@@ -2,8 +2,8 @@
  * A2A Agent Card Fetching - Utilities for fetching and validating A2A Agent Cards
  */
 
-import type { AgentCard } from "@a2a-js/sdk";
 import {
+  type AgentCard,
   A2AInvalidCardError,
   A2ANetworkError,
   A2AOutboundClientOptions,

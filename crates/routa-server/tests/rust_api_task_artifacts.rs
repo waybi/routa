@@ -1069,7 +1069,7 @@ async fn api_task_create_applies_a2a_auth_config_headers() {
 }
 
 #[tokio::test]
-async fn api_a2a_rpc_supports_spec_task_methods() {
+async fn api_a2a_rpc_exposes_methods_but_requires_session_authority_for_tasks() {
     let fixture = ApiFixture::new().await;
 
     let method_list = fixture
@@ -1115,35 +1115,10 @@ async fn api_a2a_rpc_supports_spec_task_methods() {
         .send()
         .await
         .expect("send message request");
-    assert_eq!(send_message.status(), StatusCode::OK);
-    let send_json: Value = send_message.json().await.expect("decode send message");
-    let task_id = send_json["result"]["task"]["id"]
-        .as_str()
-        .expect("task id")
-        .to_string();
+    assert_eq!(send_message.status(), StatusCode::UNAUTHORIZED);
+    let error_json: Value = send_message.json().await.expect("decode authority error");
     assert_eq!(
-        send_json["result"]["task"]["status"]["state"].as_str(),
-        Some("submitted")
-    );
-
-    tokio::time::sleep(Duration::from_millis(300)).await;
-
-    let get_task = fixture
-        .client
-        .post(fixture.endpoint("/api/a2a/rpc"))
-        .json(&json!({
-            "jsonrpc": "2.0",
-            "id": "3",
-            "method": "GetTask",
-            "params": { "id": task_id }
-        }))
-        .send()
-        .await
-        .expect("get task request");
-    assert_eq!(get_task.status(), StatusCode::OK);
-    let get_task_json: Value = get_task.json().await.expect("decode get task");
-    assert_eq!(
-        get_task_json["result"]["task"]["status"]["state"].as_str(),
-        Some("completed")
+        error_json["error"].as_str(),
+        Some("A2A session authority is required")
     );
 }

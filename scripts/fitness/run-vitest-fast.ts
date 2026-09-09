@@ -2,8 +2,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 const DEFAULT_BASE_REF_CANDIDATES = ["origin/main", "main", "origin/master", "master"] as const;
 const RELEVANT_PREFIXES = ["src/", "scripts/", "tests/"] as const;
+// Dependency manifest changes are covered by audit/typecheck gates; treating them
+// as Vitest inputs expands fast tier into a near-full suite and regularly exceeds
+// the fast gate budget.
 const RELEVANT_EXACT_FILES = new Set([
-  "package.json",
   "vitest.config.ts",
   "vitest.setup.ts",
   "tsconfig.json",
@@ -116,7 +118,7 @@ function run(): number {
     `Running incremental Vitest against ${baseRef} for ${relevantChanges.length} relevant changed files.`,
   );
 
-  const result = spawnSync("npx", ["vitest", "run", "--changed", baseRef, "--passWithNoTests"], {
+  const result = spawnSync("npx", ["vitest", "related", ...relevantChanges, "--run", "--passWithNoTests"], {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: "pipe",

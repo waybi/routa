@@ -11,7 +11,6 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
-import type { AgentCard } from "@a2a-js/sdk";
 import type {
   A2ATask,
   A2AMessage,
@@ -19,6 +18,7 @@ import type {
 } from "./a2a-task-bridge";
 import type {
   A2AOutboundClientOptions,
+  AgentCard,
   GetTaskParams,
   GetTaskResult,
   JsonRpcRequest,

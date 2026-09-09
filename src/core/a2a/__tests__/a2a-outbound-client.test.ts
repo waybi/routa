@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { A2AOutboundClient, getA2AOutboundClient } from "../a2a-outbound-client";
 import { fetchAgentCard, validateAgentCard } from "../a2a-agent-card";
-import type { AgentCard } from "@a2a-js/sdk";
+import type { AgentCard } from "../types";
 import {
   A2ATimeoutError,
   A2ANetworkError,

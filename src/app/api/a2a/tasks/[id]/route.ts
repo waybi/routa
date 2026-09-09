@@ -10,13 +10,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getA2ATaskBridge } from "@/core/a2a";
+import {
+  A2AAuthorityError,
+  a2aAuthorityProblem,
+  requireA2ARequestAuthority,
+} from "../../request-authority";
 
 export const dynamic = "force-dynamic";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version, A2A-Session-Id",
 };
 
 export async function OPTIONS() {
@@ -34,8 +39,22 @@ export async function GET(
   const { id } = await params;
   const action = request.nextUrl.searchParams.get("action");
   const bridge = getA2ATaskBridge();
+  let workspaceId: string;
+  try {
+    workspaceId = requireA2ARequestAuthority(
+      request,
+      request.nextUrl.searchParams.get("workspaceId"),
+    ).workspaceId;
+  } catch (error) {
+    if (error instanceof A2AAuthorityError) {
+      const response = a2aAuthorityProblem(error);
+      Object.entries(CORS_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
+      return response;
+    }
+    throw error;
+  }
 
-  const task = bridge.getTask(id);
+  const task = bridge.getTask(id, workspaceId);
 
   if (!task) {
     return NextResponse.json(
@@ -147,7 +166,11 @@ export async function POST(
   }
 
   try {
-    const task = bridge.cancelTask(id);
+    const workspaceId = requireA2ARequestAuthority(
+      request,
+      request.nextUrl.searchParams.get("workspaceId"),
+    ).workspaceId;
+    const task = bridge.cancelTask(id, workspaceId);
     if (!task) {
       return NextResponse.json(
         {
@@ -162,6 +185,11 @@ export async function POST(
     }
     return NextResponse.json(task, { headers: CORS_HEADERS });
   } catch (err) {
+    if (err instanceof A2AAuthorityError) {
+      const response = a2aAuthorityProblem(err);
+      Object.entries(CORS_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
+      return response;
+    }
     if (err instanceof Error && err.message === "TaskNotCancelableError") {
       return NextResponse.json(
         {

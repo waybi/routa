@@ -36,7 +36,7 @@ export async function testWorkspaces(): Promise<TestResult[]> {
         repoPath: "/tmp/test-repo",
         branch: "main",
       });
-      assert(status === 200 || status === 201, `Expected 200 or 201, got ${status}`);
+      assertStatus(status, 201);
       const d = data as Record<string, unknown>;
       assertHasField(d, "workspace");
       const ws = d.workspace as Record<string, unknown>;

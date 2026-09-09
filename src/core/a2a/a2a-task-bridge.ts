@@ -111,10 +111,11 @@ export class A2ATaskBridge {
    */
   createTask(params: {
     userPrompt: string;
-    workspaceId?: string;
+    workspaceId: string;
     routaAgentId?: string;
     contextId?: string;
   }): A2ATask {
+    const workspaceId = requireWorkspaceId(params.workspaceId);
     const taskId = uuidv4();
     const contextId = params.contextId ?? uuidv4();
     const messageId = uuidv4();
@@ -138,10 +139,10 @@ export class A2ATaskBridge {
       history: [userMessage],
       artifacts: [],
       metadata: {
-        workspaceId: params.workspaceId,
+        workspaceId,
       },
       _routaAgentId: params.routaAgentId,
-      _workspaceId: params.workspaceId,
+      _workspaceId: workspaceId,
       _userPrompt: params.userPrompt,
     };
 
@@ -207,7 +208,7 @@ export class A2ATaskBridge {
   }): A2ATask {
     // Check if already registered
     for (const [_, record] of this.tasks) {
-      if (record._routaAgentId === agent.id) {
+      if (record._routaAgentId === agent.id && record._workspaceId === agent.workspaceId) {
         // Update status
         const updated = this.updateTaskFromAgent(record.id, agent.status, agent.name);
         if (updated) return updated;
@@ -277,9 +278,11 @@ export class A2ATaskBridge {
   /**
    * Get a task by ID
    */
-  getTask(taskId: string): A2ATask | undefined {
+  getTask(taskId: string, workspaceId: string): A2ATask | undefined {
     const task = this.tasks.get(taskId);
-    return task ? this.toPublicTask(task) : undefined;
+    return task?._workspaceId === requireWorkspaceId(workspaceId)
+      ? this.toPublicTask(task)
+      : undefined;
   }
 
   /**
@@ -290,12 +293,13 @@ export class A2ATaskBridge {
   }
 
   /**
-   * List all tasks, optionally filtered by workspaceId or contextId
+   * List tasks within the required workspace authority scope.
    */
-  listTasks(filter?: { workspaceId?: string; contextId?: string; state?: string }): A2ATask[] {
+  listTasks(filter: { workspaceId: string; contextId?: string; state?: string }): A2ATask[] {
+    const workspaceId = requireWorkspaceId(filter?.workspaceId);
     const results: A2ATask[] = [];
     for (const task of this.tasks.values()) {
-      if (filter?.workspaceId && task._workspaceId !== filter.workspaceId) continue;
+      if (task._workspaceId !== workspaceId) continue;
       if (filter?.contextId && task.contextId !== filter.contextId) continue;
       if (filter?.state && task.status.state !== filter.state) continue;
       results.push(this.toPublicTask(task));
@@ -320,9 +324,9 @@ export class A2ATaskBridge {
   /**
    * Cancel a task
    */
-  cancelTask(taskId: string): A2ATask | undefined {
+  cancelTask(taskId: string, workspaceId: string): A2ATask | undefined {
     const task = this.tasks.get(taskId);
-    if (!task) return undefined;
+    if (!task || task._workspaceId !== requireWorkspaceId(workspaceId)) return undefined;
 
     const terminal = ["completed", "failed", "canceled", "rejected"];
     if (terminal.includes(task.status.state)) {
@@ -357,6 +361,14 @@ export class A2ATaskBridge {
   get size(): number {
     return this.tasks.size;
   }
+}
+
+function requireWorkspaceId(workspaceId: string | undefined): string {
+  const normalized = workspaceId?.trim();
+  if (!normalized) {
+    throw new Error("workspaceId is required");
+  }
+  return normalized;
 }
 
 // ─── Singleton ───────────────────────────────────────────────────────────────

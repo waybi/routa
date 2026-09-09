@@ -133,7 +133,7 @@ async fn api_workspace_and_note_flow() {
         .send()
         .await
         .expect("create workspace");
-    assert_eq!(create_workspace.status(), StatusCode::OK);
+    assert_eq!(create_workspace.status(), StatusCode::CREATED);
 
     let created_workspace: Value = create_workspace
         .json()
@@ -183,7 +183,7 @@ async fn api_workspace_and_note_flow() {
         .send()
         .await
         .expect("create note");
-    assert_eq!(note_response.status(), StatusCode::OK);
+    assert_eq!(note_response.status(), StatusCode::CREATED);
 
     let note_json: Value = note_response
         .json()
@@ -861,7 +861,7 @@ async fn api_agent_flow_with_validation() {
         .send()
         .await
         .expect("create agent");
-    assert_eq!(created_agent.status(), StatusCode::OK);
+    assert_eq!(created_agent.status(), StatusCode::CREATED);
 
     let created: Value = created_agent.json().await.expect("decode created agent");
     let agent_id = created["agent"]["id"]
@@ -1419,7 +1419,7 @@ async fn api_mcp_tools_injects_workspace_from_header_when_args_omit_it() {
         .send()
         .await
         .expect("create workspace");
-    assert_eq!(create_workspace.status(), StatusCode::OK);
+    assert_eq!(create_workspace.status(), StatusCode::CREATED);
     let created_workspace: Value = create_workspace
         .json()
         .await

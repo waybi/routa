@@ -1220,6 +1220,7 @@ pub fn get_presets() -> Vec<AcpPreset> {
             id: "kimi".to_string(),
             name: "Kimi".to_string(),
             command: "kimi".to_string(),
+            // Kimi Code CLI exposes ACP as a subcommand; `kimi --acp` was removed.
             args: vec!["acp".to_string()],
             description: "Moonshot AI's Kimi CLI".to_string(),
             env_bin_override: None,
@@ -1407,6 +1408,17 @@ mod tests {
             qoder.args,
             vec!["--acp".to_string(), "--experimental-mcp-load".to_string()]
         );
+    }
+
+    #[test]
+    fn static_kimi_preset_uses_acp_subcommand() {
+        let kimi = get_presets()
+            .into_iter()
+            .find(|preset| preset.id == "kimi")
+            .expect("kimi preset");
+
+        assert_eq!(kimi.command, "kimi");
+        assert_eq!(kimi.args, vec!["acp".to_string()]);
     }
 
     #[tokio::test]

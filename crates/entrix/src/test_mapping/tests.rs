@@ -42,6 +42,36 @@ fn typescript_resolver_marks_changed_when_matching_test_is_also_dirty() {
 }
 
 #[test]
+fn typescript_resolver_finds_parent_tests_directory() {
+    let temp = tempdir().expect("tempdir");
+    let repo_root = temp.path();
+    fs::create_dir_all(repo_root.join("scripts/fitness")).expect("create source dir");
+    fs::create_dir_all(repo_root.join("scripts/__tests__")).expect("create test dir");
+    fs::write(
+        repo_root.join("scripts/fitness/run-vitest-fast.ts"),
+        "export function run() {}\n",
+    )
+    .expect("write source");
+    fs::write(
+        repo_root.join("scripts/__tests__/run-vitest-fast.test.ts"),
+        "test('run', () => {})\n",
+    )
+    .expect("write test");
+
+    let report = analyze_changed_files(
+        repo_root,
+        &["scripts/fitness/run-vitest-fast.ts".to_string()],
+    );
+
+    let mapping = &report.mappings[0];
+    assert_eq!(mapping.status, TestMappingStatus::Exists);
+    assert_eq!(
+        mapping.related_test_files,
+        vec!["scripts/__tests__/run-vitest-fast.test.ts"]
+    );
+}
+
+#[test]
 fn rust_resolver_marks_inline_tests() {
     let temp = tempdir().expect("tempdir");
     let repo_root = temp.path();

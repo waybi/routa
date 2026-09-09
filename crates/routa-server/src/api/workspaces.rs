@@ -78,7 +78,7 @@ struct CreateWorkspaceRequest {
 async fn create_workspace(
     State(state): State<AppState>,
     Json(body): Json<CreateWorkspaceRequest>,
-) -> Result<Json<serde_json::Value>, ServerError> {
+) -> Result<(axum::http::StatusCode, Json<serde_json::Value>), ServerError> {
     let title = body
         .title
         .map(|value| value.trim().to_string())
@@ -87,7 +87,10 @@ async fn create_workspace(
     let ws = Workspace::new(uuid::Uuid::new_v4().to_string(), title, body.metadata);
 
     state.workspace_store.save(&ws).await?;
-    Ok(Json(serde_json::json!({ "workspace": ws })))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(serde_json::json!({ "workspace": ws })),
+    ))
 }
 
 #[derive(Debug, Deserialize)]

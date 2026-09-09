@@ -13,13 +13,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getA2ATaskBridge } from "@/core/a2a";
 import { getRoutaSystem } from "@/core/routa-system";
+import {
+  A2AAuthorityError,
+  a2aAuthorityProblem,
+  requireA2ARequestAuthority,
+} from "../request-authority";
 
 export const dynamic = "force-dynamic";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, A2A-Version, A2A-Session-Id",
 };
 
 export async function OPTIONS() {
@@ -27,35 +32,43 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  const bridge = getA2ATaskBridge();
-  const system = getRoutaSystem();
+  try {
+    const claimedWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+    const authority = requireA2ARequestAuthority(request, claimedWorkspaceId);
+    const bridge = getA2ATaskBridge();
+    const system = getRoutaSystem();
+    const contextId = request.nextUrl.searchParams.get("contextId") ?? undefined;
+    const statusFilter = request.nextUrl.searchParams.get("status") ?? undefined;
+    const pageSize = Math.min(
+      parseInt(request.nextUrl.searchParams.get("pageSize") ?? "50"),
+      100
+    );
 
-  const workspaceId = request.nextUrl.searchParams.get("workspaceId") ?? undefined;
-  const contextId = request.nextUrl.searchParams.get("contextId") ?? undefined;
-  const statusFilter = request.nextUrl.searchParams.get("status") ?? undefined;
-  const pageSize = Math.min(
-    parseInt(request.nextUrl.searchParams.get("pageSize") ?? "50"),
-    100
-  );
+    await syncRoutaAgentsToBridge(bridge, system, authority.workspaceId);
 
-  // Sync existing Routa agents into the bridge (so they appear as A2A tasks)
-  await syncRoutaAgentsToBridge(bridge, system, workspaceId);
+    const tasks = bridge.listTasks({
+      workspaceId: authority.workspaceId,
+      contextId,
+      state: statusFilter,
+    }).slice(0, pageSize);
 
-  const tasks = bridge.listTasks({
-    workspaceId,
-    contextId,
-    state: statusFilter,
-  }).slice(0, pageSize);
-
-  return NextResponse.json(
-    {
-      tasks,
-      totalSize: tasks.length,
-      pageSize,
-      nextPageToken: "",
-    },
-    { headers: { "Cache-Control": "no-store", ...CORS_HEADERS } }
-  );
+    return NextResponse.json(
+      {
+        tasks,
+        totalSize: tasks.length,
+        pageSize,
+        nextPageToken: "",
+      },
+      { headers: { "Cache-Control": "no-store", ...CORS_HEADERS } }
+    );
+  } catch (error) {
+    if (error instanceof A2AAuthorityError) {
+      const response = a2aAuthorityProblem(error);
+      Object.entries(CORS_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
+      return response;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -64,26 +77,10 @@ export async function GET(request: NextRequest) {
 async function syncRoutaAgentsToBridge(
   bridge: ReturnType<typeof getA2ATaskBridge>,
   system: ReturnType<typeof getRoutaSystem>,
-  workspaceId?: string
+  workspaceId: string
 ) {
   try {
-    // If we have a specific workspaceId, sync just that workspace
-    // Otherwise, try to catch agents from all workspaces
-    const workspaceIds: string[] = workspaceId ? [workspaceId] : [];
-
-    if (!workspaceId) {
-      // Try to fetch workspaces from store
-      try {
-        const ws = await system.workspaceStore.list();
-        if (ws) {
-          workspaceIds.push(...ws.map((w: { id: string }) => w.id));
-        }
-      } catch {
-        // workspaceStore might not support listAll
-      }
-    }
-
-    for (const wsId of workspaceIds) {
+    for (const wsId of [workspaceId]) {
       const result = await system.tools.listAgents(wsId);
       if (result.success && Array.isArray(result.data)) {
         for (const agent of result.data as Array<{

@@ -144,7 +144,7 @@ export default function A2APage() {
   const [tasks, setTasks] = useState<A2ATask[]>([]);
   const [selectedTask, setSelectedTask] = useState<A2ATask | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
+  const [sessionId, setSessionId] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -161,10 +161,16 @@ export default function A2APage() {
 
   // ── Fetch Tasks ──
   const fetchTasks = useCallback(async () => {
+    const authoritySessionId = sessionId.trim();
+    if (!authoritySessionId) {
+      setTasks([]);
+      return;
+    }
     setLoadingTasks(true);
     try {
-      const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : "";
-      const r = await desktopAwareFetch(`/api/a2a/tasks${qs}`);
+      const r = await desktopAwareFetch("/api/a2a/tasks", {
+        headers: { "A2A-Session-Id": authoritySessionId },
+      });
       if (r.ok) {
         const data = await r.json();
         setTasks(Array.isArray(data.tasks) ? data.tasks : []);
@@ -174,7 +180,7 @@ export default function A2APage() {
     } finally {
       setLoadingTasks(false);
     }
-  }, [workspaceId]);
+  }, [sessionId]);
 
   useEffect(() => {
     fetchTasks();
@@ -205,12 +211,15 @@ export default function A2APage() {
             role: "user",
             parts: [{ text: prompt.trim() }],
           },
-          metadata: workspaceId ? { workspaceId } : {},
+          metadata: {},
         },
       };
       const r = await desktopAwareFetch("/api/a2a/rpc", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "A2A-Session-Id": sessionId.trim(),
+        },
         body: JSON.stringify(body),
       });
       const data = await r.json();
@@ -274,9 +283,9 @@ export default function A2APage() {
             <form onSubmit={handleSend} className="space-y-3">
               <input
                 type="text"
-                placeholder={t.a2aPage.workspaceIdOptional}
-                value={workspaceId}
-                onChange={(e) => setWorkspaceId(e.target.value)}
+                placeholder={t.a2aPage.sessionIdRequired}
+                value={sessionId}
+                onChange={(e) => setSessionId(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
               />
               <textarea
@@ -296,7 +305,7 @@ export default function A2APage() {
                 <p className="text-xs text-slate-400 dark:text-slate-500">⌘↵ to send</p>
                 <button
                   type="submit"
-                  disabled={sending || !prompt.trim()}
+                  disabled={sending || !prompt.trim() || !sessionId.trim()}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition-colors"
                 >
                   {sending ? (
