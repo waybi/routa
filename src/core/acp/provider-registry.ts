@@ -48,6 +48,12 @@ export const PROVIDER_MODEL_TIERS: Record<string, Record<string, string>> = {
     balanced: "balanced",
     smart: "smart",
   },
+  dsh: {
+    // DSH via local AI Gateway (claude-pool lane for quota resilience)
+    fast: "claude-sonnet-5",
+    balanced: "claude-opus-4-6",
+    smart: "claude-opus-5-pool",
+  },
 };
 
 // ─── Compound Model ID Utilities ───────────────────────────────────────────
