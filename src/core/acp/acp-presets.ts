@@ -227,6 +227,18 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     preferredTier: ModelTier.SMART,
     resume: { supported: true, mode: "replay", supportsFork: true, supportsList: false },
   },
+  {
+    id: "dsh",
+    name: "DeepSeek Harness",
+    command: "dsh",
+    args: ["--profile", "acp"],
+    description: "DeepSeek Harness agent via ACP stdio",
+    envBinOverride: "DSH_BIN",
+    capabilities: ["mcp_tool", "code_generation", "file_operations", "web_search", "image_analysis"],
+    supportedRoles: [AgentRole.ROUTA, AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
+    preferredTier: ModelTier.SMART,
+    resume: { supported: true, mode: "replay", supportsFork: false, supportsList: true },
+  },
   // Workspace Agent runs natively via Vercel AI SDK (no external CLI)
   {
     id: "workspace",
