@@ -1261,6 +1261,101 @@ describe("KanbanTab manual run provider selection", () => {
       }));
     });
   });
+
+  it("auto-persists the frontend provider when the board has no stored autoProviderId", async () => {
+    const unsetProviderBoard: KanbanBoardInfo = {
+      ...board,
+      autoProviderId: undefined,
+      columns: [
+        {
+          id: "backlog",
+          name: "Backlog",
+          position: 0,
+          stage: "backlog",
+          automation: {
+            enabled: true,
+            role: "CRAFTER",
+            specialistId: "backlog-refiner",
+            specialistName: "Backlog Refiner",
+            transitionType: "entry",
+          },
+        },
+      ],
+    };
+    const acp = {
+      connected: true,
+      sessionId: null,
+      updates: [],
+      providers: [],
+      selectedProvider: "dsh",
+      loading: false,
+      error: null,
+      authError: null,
+      dockerConfigError: null,
+      connect: vi.fn(),
+      createSession: vi.fn(),
+      resumeSession: vi.fn(),
+      forkSession: vi.fn(),
+      selectSession: vi.fn(),
+      setProvider: vi.fn(),
+      setMode: vi.fn(),
+      prompt: vi.fn(),
+      promptSession: vi.fn(),
+      respondToUserInput: vi.fn(),
+      respondToUserInputForSession: vi.fn(),
+      writeTerminal: vi.fn(),
+      resizeTerminal: vi.fn(),
+      cancel: vi.fn(),
+      disconnect: vi.fn(),
+      clearAuthError: vi.fn(),
+      clearDockerConfigError: vi.fn(),
+      listProviderModels: vi.fn(),
+    } satisfies Partial<UseAcpState & UseAcpActions> as UseAcpState & UseAcpActions;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "PATCH" && url === "/api/kanban/boards/board-1") {
+        return {
+          ok: true,
+          json: async () => ({ board: { ...unsetProviderBoard, autoProviderId: "dsh" } }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${init?.method ?? "GET"} ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <KanbanTab
+        workspaceId="workspace-1"
+        boards={[unsetProviderBoard]}
+        tasks={[createTask("task-1", "Story One")]}
+        sessions={[]}
+        providers={[
+          { id: "dsh", name: "DeepSeek Harness", description: "DSH provider", command: "dsh", status: "available" },
+        ]}
+        specialists={[{ id: "backlog-refiner", name: "Backlog Refiner", role: "CRAFTER" }]}
+        codebases={[]}
+        onRefresh={vi.fn()}
+        acp={acp}
+        onAgentPrompt={vi.fn()}
+      />,
+    );
+
+    // No user interaction: merely rendering the board must persist the
+    // frontend-selected provider so server-side lane automation can read it.
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/kanban/boards/board-1", expect.objectContaining({
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoProviderId: "dsh" }),
+      }));
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+    );
+    expect(patchCalls).toHaveLength(1);
+  });
 });
 
 describe("KanbanCardDetail changes tab", () => {
