@@ -30,7 +30,7 @@ vi.mock("@/core/acp/processer", () => ({
   }),
 }));
 
-vi.mock("@/app/api/canvas/route", () => ({
+vi.mock("@/app/api/canvas/canvas-artifact-service", () => ({
   createCanvasArtifact: createCanvasArtifactMock,
 }));
 
