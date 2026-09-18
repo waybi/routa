@@ -85,7 +85,14 @@ function HomePageContent() {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
 
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem("routa.desktop.last-workspace-id") || null;
+    } catch {
+      return null;
+    }
+  });
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"providers" | "roles" | "specialists" | undefined>(undefined);
   const [preferredMode, setPreferredMode] = useState<OnboardingMode | null>(null);
@@ -118,8 +125,11 @@ function HomePageContent() {
       return;
     }
 
-    if (!activeWorkspaceId && workspacesHook.workspaces.length > 0) {
-      setActiveWorkspaceId(workspacesHook.workspaces[0].id);
+    if (workspacesHook.workspaces.length > 0) {
+      // If no workspace selected, or the restored workspace no longer exists, fall back to the first one
+      if (!activeWorkspaceId || !workspacesHook.workspaces.some((ws) => ws.id === activeWorkspaceId)) {
+        setActiveWorkspaceId(workspacesHook.workspaces[0].id);
+      }
     }
   }, [activeWorkspaceId, searchParams, workspacesHook.workspaces]);
 
