@@ -28,6 +28,8 @@ import {
   refreshExecutionBinding,
 } from "@/core/acp/execution-backend";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
+import { getModelForProvider, PROVIDER_MODEL_TIERS } from "@/core/acp/provider-registry";
+import { ModelTier } from "@/core/models/agent";
 import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
 import { pendingAcpCreations } from "@/core/acp/pending-acp-creations";
 import { buildFeatureTreeSpecPromptSection } from "@/core/spec/feature-tree-spec-resource-contract";
@@ -726,6 +728,24 @@ export async function handleSessionNew({
           },
         );
       } else {
+        // Resolve tier-based model for providers that support it (e.g. dsh).
+        // If no explicit model was requested, derive one from the specialist's
+        // defaultModelTier and the provider's tier→model mapping.
+        let resolvedModel = model;
+        let dshModelEnv: Record<string, string> | undefined;
+        if (!resolvedModel && specialist?.defaultModelTier && PROVIDER_MODEL_TIERS[provider]) {
+          const tierKey = specialist.defaultModelTier === ModelTier.FAST
+            ? "fast"
+            : specialist.defaultModelTier === ModelTier.BALANCED
+              ? "balanced"
+              : "smart";
+          resolvedModel = getModelForProvider(provider, tierKey);
+        }
+        // For DSH provider, pass the resolved model via environment variable
+        // so the DSH ACP profile can pick it up dynamically.
+        if (provider === "dsh" && resolvedModel) {
+          dshModelEnv = { DSH_ACP_MODEL: resolvedModel };
+        }
         const extraArgs = buildProviderModelArgs(provider, model);
         acpSessionId = await manager.createSession(
           sessionId,
@@ -734,7 +754,7 @@ export async function handleSessionNew({
           provider,
           modeId,
           extraArgs,
-          undefined,
+          dshModelEnv,
           workspaceId,
           resolvedToolMode,
           resolvedMcpProfile,
