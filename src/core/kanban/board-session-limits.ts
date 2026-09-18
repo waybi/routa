@@ -1,4 +1,4 @@
-const DEFAULT_KANBAN_SESSION_CONCURRENCY_LIMIT = 1;
+const DEFAULT_KANBAN_SESSION_CONCURRENCY_LIMIT = 5;
 
 function metadataKey(boardId: string): string {
   return `kanbanSessionConcurrencyLimit:${boardId}`;
