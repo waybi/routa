@@ -10,17 +10,18 @@ type SearchParams = {
   repoPath?: string | string[];
 };
 
-export default function FitnessSettingsPage({ searchParams }: { searchParams: SearchParams }) {
+export default async function FitnessSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
   const query = new URLSearchParams();
-  const workspaceId = Array.isArray(searchParams.workspaceId)
-    ? searchParams.workspaceId[0]
-    : searchParams.workspaceId;
-  const codebaseId = Array.isArray(searchParams.codebaseId)
-    ? searchParams.codebaseId[0]
-    : searchParams.codebaseId;
-  const repoPath = Array.isArray(searchParams.repoPath)
-    ? searchParams.repoPath[0]
-    : searchParams.repoPath;
+  const workspaceId = Array.isArray(params.workspaceId)
+    ? params.workspaceId[0]
+    : params.workspaceId;
+  const codebaseId = Array.isArray(params.codebaseId)
+    ? params.codebaseId[0]
+    : params.codebaseId;
+  const repoPath = Array.isArray(params.repoPath)
+    ? params.repoPath[0]
+    : params.repoPath;
 
   if (workspaceId) query.set("workspaceId", workspaceId);
   if (codebaseId) query.set("codebaseId", codebaseId);
