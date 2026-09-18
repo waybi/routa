@@ -392,11 +392,36 @@ export function KanbanTab({
     }
   }, [acp, board?.autoProviderId, persistBoardAutoProvider]);
 
+  const ensureBoardAutoProviderPersisted = useCallback(async () => {
+    if (!board?.id || !boardAutoProviderId || board.autoProviderId === boardAutoProviderId) {
+      return;
+    }
+    await persistBoardAutoProvider(boardAutoProviderId);
+  }, [board?.autoProviderId, board?.id, boardAutoProviderId, persistBoardAutoProvider]);
+
+  // Auto-persist board provider on mount / when the resolved value drifts from
+  // what's stored in workspace metadata.  This is a belt-and-suspenders fallback;
+  // individual actions that trigger server-side automation also await the persist
+  // synchronously before proceeding.
+  useEffect(() => {
+    void ensureBoardAutoProviderPersisted().catch((error) => {
+      console.error("[kanban] Failed to auto-persist board provider:", error);
+    });
+  }, [ensureBoardAutoProviderPersisted]);
+
   const handleAgentSubmit = useCallback(async () => {
     if (!agentInput.trim() || !onAgentPrompt || agentLoading) return;
 
     setAgentLoading(true);
     try {
+      // Best-effort: persisting the board provider must not block session
+      // creation.  A failure here only means lane automation may fall back to
+      // the stored provider — losing the user's prompt would be worse.
+      try {
+        await ensureBoardAutoProviderPersisted();
+      } catch (error) {
+        console.error("[kanban] Failed to persist board provider before agent submit:", error);
+      }
       const planningPrompt = buildKanbanTaskAgentPrompt({
         workspaceId,
         boardId: selectedBoardId ?? defaultBoardId ?? "default",
@@ -426,6 +451,7 @@ export function KanbanTab({
     }
   }, [
     boardAutoProviderId,
+    ensureBoardAutoProviderPersisted,
     agentInput,
     agentLoading,
     defaultBoardId,
@@ -854,13 +880,6 @@ export function KanbanTab({
     openAgentPanel(result.sessionId);
     return result.sessionId;
   }, [acp, agentSessionId, boardAutoProviderId, defaultCodebase?.repoPath, openAgentPanel, workspaceId]);
-
-  const ensureBoardAutoProviderPersisted = useCallback(async () => {
-    if (!board?.id || !boardAutoProviderId || board.autoProviderId === boardAutoProviderId) {
-      return;
-    }
-    await persistBoardAutoProvider(boardAutoProviderId);
-  }, [board?.autoProviderId, board?.id, boardAutoProviderId, persistBoardAutoProvider]);
 
   const syncTaskDetailFromUrl = useCallback(() => {
     const urlState = getKanbanUrlState();
@@ -1717,6 +1736,7 @@ export function KanbanTab({
   const moveTask = useCallback(async (taskId: string, targetColumnId: string) => {
     const movingTask = localTasks.find((task) => task.id === taskId);
     if (!movingTask) return;
+
     await ensureBoardAutoProviderPersisted();
     setMoveError(null);
     setMoveBlockedState(null);
