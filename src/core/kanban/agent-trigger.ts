@@ -403,6 +403,13 @@ export function buildTaskPrompt(
         "If the current description is missing or has invalid canonical YAML, first call `update_card` with the full corrected description containing exactly one canonical ```yaml``` story contract.",
         "`update_card` comments, progress notes, and completion summaries do not satisfy this contract gate; the YAML must be persisted in the description before `move_card`.",
         "Do not call `move_card` until the canonical YAML parses cleanly and satisfies the required schema.",
+        "The required schema is a ```yaml``` block with a `story:` root containing: "
+          + "version (number), language (string), title (string), problem_statement (string), "
+          + "user_value (string), acceptance_criteria (list of {id: string, text: string, testable: boolean}), "
+          + "constraints_and_affected_areas (string list), "
+          + "dependencies_and_sequencing ({independent_story_check: \"pass\"|\"fail\", depends_on: [] or [\"card-id\", ...], unblock_condition: string}), "
+          + "out_of_scope (string list), "
+          + "invest ({independent|negotiable|valuable|estimable|small|testable}: {status: \"pass\"|\"fail\"|\"warning\", reason: string}).",
         "Todo and downstream lanes will not silently repair malformed canonical YAML. Regenerate it in Backlog before retrying.",
         "",
       ]
@@ -472,6 +479,11 @@ export function buildTaskPrompt(
           : "Missing fields: none",
         summaryContext.storyReadiness.missing.length > 0
           ? "If fields are missing, call `update_task` to fill the structured task fields before you retry `move_card`. Do not rely on `update_card` description/comment text to satisfy this gate."
+            + " Field format reference: scope = a single string summarizing what is in/out of scope;"
+            + " acceptanceCriteria = string[] where each entry starts with an AC id (e.g. \"AC1: ...\");"
+            + " verificationCommands = string[] of shell commands with expected exit codes;"
+            + " testCases = string[] of one-line test case descriptions;"
+            + " verificationPlan = a single string describing the overall verification approach."
           : "Structured story fields already satisfy the current move gate.",
         `Checks: scope=${summaryContext.storyReadiness.checks.scope ? "present" : "missing"}, `
           + `acceptanceCriteria=${summaryContext.storyReadiness.checks.acceptanceCriteria ? "present" : "missing"}, `
