@@ -7,7 +7,7 @@ import {
   type SessionUpdateNotification,
 } from "@/core/acp/http-session-store";
 import { getAcpProcessManager } from "@/core/acp/processer";
-import { createCanvasArtifact } from "../route";
+import { createCanvasArtifact } from "../canvas-artifact-service";
 import { getRoutaSystem } from "@/core/routa-system";
 import { ensureMcpForProvider } from "@/core/acp/mcp-setup";
 import { getDefaultRoutaMcpConfig } from "@/core/acp/mcp-config-generator";
