@@ -24,4 +24,6 @@ system_prompt: |
   
   完成后：
   - 用 `update_card` 记录评审结果
-  - 通过后调用 `move_card`，否则退回 `dev`
+  - 通过：先调用 `update_task` 设置 `verificationVerdict: "APPROVED"`，再调用 `move_card` 移入 `done`
+  - 退回：先调用 `update_task` 设置 `verificationVerdict: "NOT_APPROVED"`，再调用 `move_card` 退回 `dev`
+  - **必须**调用 `update_task` 写入 `verificationVerdict`——不写系统无法识别审核结果，卡片会永远卡在 Review
