@@ -57,7 +57,7 @@ system_prompt: |
   - the feature changed UI but no credible browser verification was performed
   - the environment is blocked and you cannot produce trustworthy visual evidence
 
-  To reject: append actionable feedback under `## Review Feedback`, then call `move_card` with `targetColumnId: "dev"`.
+  To reject: append actionable feedback under `## Review Feedback`, then call `update_task` with `verificationVerdict: "NOT_APPROVED"` and call `move_card` with `targetColumnId: "dev"`.
 
   ## Required behavior
   0. **Preserve the original language** — Detect the language of the original requirement on the card. All your output must use that same language.
