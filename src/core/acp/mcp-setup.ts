@@ -105,7 +105,7 @@ function normalizeProviderIdForMcp(providerId: string): string {
 
 export function providerSupportsMcp(providerId: string): boolean {
   const baseId = normalizeProviderIdForMcp(providerId);
-  if (baseId === "codex-acp") {
+  if (baseId === "codex-acp" || baseId === "dsh") {
     return true;
   }
   const supported: McpSupportedProvider[] = ["claude", "cc-haha", "auggie", "opencode", "codex", "gemini", "kimi", "copilot", "qoder"];
@@ -260,6 +260,13 @@ export async function ensureMcpForProvider(
       return {
         mcpConfigs: [],
         summary: "codex-acp: ACP mcpServers only",
+      };
+    case "dsh":
+      // DSH receives MCP servers via the ACP session/new mcpServers parameter,
+      // not via config-file injection. Same mechanism as codex-acp.
+      return {
+        mcpConfigs: [],
+        summary: "dsh: ACP mcpServers only",
       };
     case "gemini":
       return await ensureMcpForGemini(mcpEndpoint, customServers);

@@ -46,6 +46,7 @@ describe("mcp-setup file-based providers", () => {
 
     expect(providerSupportsMcp("claude-registry")).toBe(true);
     expect(providerSupportsMcp("codex-acp")).toBe(true);
+    expect(providerSupportsMcp("dsh")).toBe(true);
     expect(providerSupportsMcp("qoder")).toBe(true);
     expect(providerSupportsMcp("unknown-provider")).toBe(false);
     expect(getMcpStatus("claude-registry", ["{}"])).toEqual({
@@ -124,6 +125,20 @@ describe("mcp-setup file-based providers", () => {
     expect(result.mcpConfigs).toEqual([]);
     expect(result.providerArgs).toBeUndefined();
     expect(result.summary).toBe("codex-acp: ACP mcpServers only");
+  });
+
+  it("reports dsh as ACP mcpServers only", async () => {
+    const { ensureMcpForProvider } = await import("../mcp-setup");
+
+    const result = await ensureMcpForProvider("dsh", {
+      routaServerUrl: "http://127.0.0.1:3000",
+      includeCustomServers: false,
+      cwd: "/workspace/topbi",
+    });
+
+    expect(result.mcpConfigs).toEqual([]);
+    expect(result.providerArgs).toBeUndefined();
+    expect(result.summary).toBe("dsh: ACP mcpServers only");
   });
 
   it("adds and removes qoder MCP servers through the qodercli lifecycle", async () => {

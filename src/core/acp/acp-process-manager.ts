@@ -162,7 +162,9 @@ export class AcpProcessManager {
         }
 
         const baseConfig = getDefaultRoutaMcpConfig(workspaceId, sessionId, toolMode, mcpProfile, serverUrlOverride);
-        if (presetId === "codex-acp") {
+        // Providers that receive MCP servers purely via the ACP session/new
+        // mcpServers parameter — no config-file injection needed.
+        if (presetId === "codex-acp" || presetId === "dsh") {
             this.mcpSessionCleanups.delete(sessionId);
             return {
                 acpMcpServers: buildAcpHttpMcpServers(baseConfig) as unknown as Array<Record<string, unknown>>,
