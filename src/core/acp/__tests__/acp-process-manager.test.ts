@@ -591,6 +591,40 @@ describe("AcpProcessManager", () => {
     ]);
   });
 
+  it("injects ACP mcpServers for DSH sessions via the acpMcpServers path", async () => {
+    const manager = new AcpProcessManager();
+
+    await manager.createSession(
+      "session-dsh",
+      "/repo",
+      vi.fn(),
+      "dsh",
+      undefined,
+      undefined,
+      undefined,
+      "ws-1",
+      "full",
+      "kanban-planning",
+    );
+
+    // DSH takes the early-return acpMcpServers path (same as codex-acp) —
+    // no file-based ensureMcpForProvider call.
+    expect(ensureMcpForProviderMock).not.toHaveBeenCalledWith("dsh", expect.anything());
+    expect(getDefaultRoutaMcpConfigMock).toHaveBeenCalledWith("ws-1", "session-dsh", "full", "kanban-planning", undefined);
+    expect(buildAcpHttpMcpServersMock).toHaveBeenCalledWith({ type: "http" });
+    expect(buildConfigFromPresetMock).toHaveBeenCalledWith(
+      "dsh",
+      "/repo",
+      undefined,
+      undefined,
+      undefined,
+    );
+    // The routa-coordination MCP server is passed via session/new mcpServers
+    expect((acpInstances[0]?.newSession as ReturnType<typeof vi.fn>)?.mock.calls[0]?.[1]).toEqual([
+      { name: "routa-coordination", type: "http", url: "http://localhost/api/mcp", headers: [] },
+    ]);
+  });
+
   it("routes explicit opencode-sdk sessions to the direct api adapter when no server url is set", async () => {
     const manager = new AcpProcessManager();
     getOpencodeServerUrlMock.mockReturnValue(null);
