@@ -288,12 +288,13 @@ Current ADRs:
 | [0004](./adr/0004-kanban-driven-automation.md) | Kanban lanes trigger ACP sessions with queued concurrency |
 | [0005](./adr/0005-specialist-externalization.md) | Specialists as Markdown+YAML with priority loading |
 | [0006](./adr/0006-orchestration-shell-pattern.md) | Complex files use thin shell + domain hooks structure |
+| [0007](./adr/0007-kanban-delivery-transition-policies.md) | Kanban transition delivery gates are column policies enforced across UI and MCP |
 
 ## Related Documents
 
 - Product/API index: [docs/product-specs/FEATURE_TREE.md](./product-specs/FEATURE_TREE.md)
 - Architecture decisions: [docs/adr/](./adr/)
 - Design intent: [docs/design-docs/](./design-docs/)
-- Coding style: [docs/coding-style.md](./coding-style)
+- Coding style: [docs/coding-style.md](./coding-style.md)
 - Repository operating contract: `AGENTS.md` (repo root)
 - [MCP Spec](https://modelcontextprotocol.io/) · [ACP Spec](https://github.com/agentclientprotocol/typescript-sdk) · [A2A Spec](https://a2aprotocol.ai/)
