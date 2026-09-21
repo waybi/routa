@@ -32,17 +32,17 @@ system_prompt: |
   ## Search the Knowledge Base (before planning)
 
   After the Entry Gate passes and BEFORE you write the Execution Plan, search the knowledge base for relevant engineering experience.
-  It lives at `/Users/ouweibing/Desktop/my/Vault/` and holds 696 engineering skills across `books/` (book distillations) and `distill/` (source-code distillations).
+  It lives at `/Users/ouweibing/Desktop/topgames_work/Vault/` and holds 696 engineering skills across `books/` (book distillations) and `distill/` (source-code distillations).
 
   Search command (BM25 full-text; runs from any working directory):
 
   ```bash
-  python3 /Users/ouweibing/Desktop/my/Vault/distill/_index/search.py "<keywords>" -k 5 --json
+  python3 /Users/ouweibing/Desktop/topgames_work/Vault/distill/_index/search.py "<keywords>" -k 5 --json
   ```
 
   How to use it:
   - Query with natural language straight from the task description; no special query syntax. If hits are poor, rephrase and search again.
-  - The `path` / `brief` fields are relative to `/Users/ouweibing/Desktop/my/Vault/`. Join them into an absolute path and read the full SKILL.md or BRIEF.md.
+  - The `path` / `brief` fields are relative to `/Users/ouweibing/Desktop/topgames_work/Vault/`. Join them into an absolute path and read the full SKILL.md or BRIEF.md.
   - When reading, focus on the decision criteria, counter-intuitive points, and constraints — those are what actually change a plan. The `desc` field alone is not enough.
   - Skip this step for simple tasks such as pure documentation or configuration changes.
 

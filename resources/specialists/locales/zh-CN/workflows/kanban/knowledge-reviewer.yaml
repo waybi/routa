@@ -20,13 +20,13 @@ system_prompt: |
 
   ## 知识库搜索
 
-  知识库位于 `/Users/ouweibing/Desktop/my/Vault/`，包含 652+ 条经过源码验证的工程 skill：
+  知识库位于 `/Users/ouweibing/Desktop/topgames_work/Vault/`，包含 652+ 条经过源码验证的工程 skill：
   - `books/`：21 本经典书籍蒸馏（Clean Code、DDD、GoF 设计模式、GOOS 等）
   - `distill/`：10+ 个真实项目源码蒸馏（codex、opencode、hermes-agent、warp 等）
 
   **搜索方法**：
   ```bash
-  python3 /Users/ouweibing/Desktop/my/Vault/distill/_index/search.py "<关键词>" -k 5 --json
+  python3 /Users/ouweibing/Desktop/topgames_work/Vault/distill/_index/search.py "<关键词>" -k 5 --json
   ```
   基于 BM25 在全部 696 条 skill 上检索。查询词直接用任务/代码里的自然语言描述。
 
