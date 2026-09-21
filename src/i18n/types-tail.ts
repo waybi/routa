@@ -252,6 +252,7 @@ export interface TailTranslationDictionarySections {
     typeCreateSession: string;
     connectFirst: string;
     availableAuthMethods: string;
+    working: string;
   };
 
   // GitHub Webhook Panel

@@ -7,10 +7,12 @@ const {
   mockVisibleMessages,
   mockSetMessagesBySession,
   mockFetchSessions,
+  mockChatMessagesState,
 } = vi.hoisted(() => ({
   mockVisibleMessages: [] as Array<Record<string, unknown>>,
   mockSetMessagesBySession: vi.fn(),
   mockFetchSessions: vi.fn(),
+  mockChatMessagesState: { isSessionRunning: false },
 }));
 
 vi.mock("@/i18n", () => ({
@@ -22,6 +24,7 @@ vi.mock("@/i18n", () => ({
         connectFirst: "Connect first",
         authRequiredTitle: "Authentication required",
         availableAuthMethods: "Available auth methods",
+        working: "Working...",
         viewToggle: {
           chat: "Chat",
           trace: "Trace",
@@ -71,7 +74,7 @@ vi.mock("../chat-panel/hooks", () => ({
     visibleMessages: mockVisibleMessages,
     sessions: [],
     sessionModeById: {},
-    isSessionRunning: false,
+    isSessionRunning: mockChatMessagesState.isSessionRunning,
     checklistItems: [],
     fileChangesState: { files: new Map(), totalAdded: 0, totalRemoved: 0 },
     usageInfo: null,
@@ -87,6 +90,7 @@ describe("ChatPanel session targeting", () => {
     mockVisibleMessages.splice(0, mockVisibleMessages.length);
     mockSetMessagesBySession.mockReset();
     mockFetchSessions.mockReset();
+    mockChatMessagesState.isSessionRunning = false;
   });
 
   it("dismisses stale permission cards when the server reports no pending interactive request", async () => {
@@ -281,6 +285,130 @@ describe("ChatPanel session targeting", () => {
 
     expect(screen.queryByText("stderr line")).toBeNull();
     expect(screen.getByText("Done")).toBeTruthy();
+  });
+
+  it("shows a working indicator while the session is running and hides it when idle", () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    mockVisibleMessages.splice(0, mockVisibleMessages.length, {
+      id: "user-1",
+      role: "user",
+      content: "do the thing",
+      timestamp: new Date(),
+    });
+    mockChatMessagesState.isSessionRunning = true;
+
+    const makeAcp = (loading: boolean) => ({
+      connected: true,
+      sessionId: "session-123",
+      updates: [],
+      providers: [],
+      selectedProvider: "codex",
+      loading,
+      error: null,
+      authError: null,
+      dockerConfigError: null,
+      connect: vi.fn(),
+      createSession: vi.fn(),
+      resumeSession: vi.fn(),
+      forkSession: vi.fn(),
+      selectSession: vi.fn(),
+      setProvider: vi.fn(),
+      setMode: vi.fn(),
+      prompt: vi.fn(),
+      promptSession: vi.fn(async () => {}),
+      respondToUserInput: vi.fn(),
+      respondToUserInputForSession: vi.fn(),
+      writeTerminal: vi.fn(),
+      resizeTerminal: vi.fn(),
+      cancel: vi.fn(),
+      disconnect: vi.fn(),
+      clearAuthError: vi.fn(),
+      clearDockerConfigError: vi.fn(),
+      listProviderModels: vi.fn(),
+    } satisfies Partial<UseAcpState & UseAcpActions> as UseAcpState & UseAcpActions);
+
+    const { unmount } = render(
+      <ChatPanel
+        acp={makeAcp(false)}
+        activeSessionId="session-123"
+        onEnsureSession={vi.fn(async () => "session-123")}
+        onSelectSession={vi.fn(async () => {})}
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-working-indicator")).toBeTruthy();
+    expect(screen.getByText("Working...")).toBeTruthy();
+    unmount();
+
+    // Idle session (not running, not loading) → no indicator
+    mockChatMessagesState.isSessionRunning = false;
+    render(
+      <ChatPanel
+        acp={makeAcp(false)}
+        activeSessionId="session-123"
+        onEnsureSession={vi.fn(async () => "session-123")}
+        onSelectSession={vi.fn(async () => {})}
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("chat-working-indicator")).toBeNull();
+  });
+
+  it("shows the working indicator while a prompt is in flight before any stream update", () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    mockVisibleMessages.splice(0, mockVisibleMessages.length, {
+      id: "user-1",
+      role: "user",
+      content: "do the thing",
+      timestamp: new Date(),
+    });
+    // isSessionRunning stays false — only acp.loading is true (prompt sent,
+    // no streaming update received yet). This is the "looks stuck" window.
+    const acp = {
+      connected: true,
+      sessionId: "session-123",
+      updates: [],
+      providers: [],
+      selectedProvider: "codex",
+      loading: true,
+      error: null,
+      authError: null,
+      dockerConfigError: null,
+      connect: vi.fn(),
+      createSession: vi.fn(),
+      resumeSession: vi.fn(),
+      forkSession: vi.fn(),
+      selectSession: vi.fn(),
+      setProvider: vi.fn(),
+      setMode: vi.fn(),
+      prompt: vi.fn(),
+      promptSession: vi.fn(async () => {}),
+      respondToUserInput: vi.fn(),
+      respondToUserInputForSession: vi.fn(),
+      writeTerminal: vi.fn(),
+      resizeTerminal: vi.fn(),
+      cancel: vi.fn(),
+      disconnect: vi.fn(),
+      clearAuthError: vi.fn(),
+      clearDockerConfigError: vi.fn(),
+      listProviderModels: vi.fn(),
+    } satisfies Partial<UseAcpState & UseAcpActions> as UseAcpState & UseAcpActions;
+
+    render(
+      <ChatPanel
+        acp={acp}
+        activeSessionId="session-123"
+        onEnsureSession={vi.fn(async () => "session-123")}
+        onSelectSession={vi.fn(async () => {})}
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-working-indicator")).toBeTruthy();
   });
 
   it("disables the Canvas prompt action while the composer is disconnected", () => {

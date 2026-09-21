@@ -254,6 +254,7 @@ export const enTail: TailTranslationDictionarySections = {
     typeCreateSession: "Type a message to auto-create a session...",
     connectFirst: "Connect first...",
     availableAuthMethods: "Available authentication methods:",
+    working: "Working...",
   },
 
   // GitHub Webhook Panel
