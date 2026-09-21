@@ -467,6 +467,8 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
     queued: "排队中",
     starting: "启动中",
     live: "在线",
+    working: "运行中",
+    completed: "已完成",
     failed: "失败",
     idle: "空闲",
     syncIssue: "同步问题",

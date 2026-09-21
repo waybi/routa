@@ -470,6 +470,10 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     queued: string;
     starting: string;
     live: string;
+    /** Agent is actively producing output right now. */
+    working: string;
+    /** The run reached a terminal completed state. */
+    completed: string;
     failed: string;
     idle: string;
     syncIssue: string;

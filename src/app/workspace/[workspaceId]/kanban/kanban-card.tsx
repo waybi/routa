@@ -11,6 +11,11 @@ import { formatArtifactLabel, resolveKanbanTransitionArtifacts } from "@/core/ka
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
+import {
+  cardRunStatusLabelKey,
+  cardRunStatusTone,
+  resolveCardRunStatus,
+} from "./kanban-card-status";
 import { GripVertical, Trash2 } from "lucide-react";
 
 
@@ -91,32 +96,6 @@ function getPrioritySizeLabel(priority?: string) {
     default:
       return "M";
   }
-}
-
-function getSessionTone(sessionStatus?: "connecting" | "ready" | "error", queuePosition?: number) {
-  if (queuePosition) {
-    return "bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40";
-  }
-
-  switch (sessionStatus) {
-    case "ready":
-      return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40";
-    case "error":
-      return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-900/40";
-    case "connecting":
-      return "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:ring-sky-900/40";
-    default:
-      return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5";
-  }
-}
-
-function getStatusLabel(sessionStatus?: "connecting" | "ready" | "error", queuePosition?: number) {
-  // Note: This returns English status keys; they will be overridden in the component
-  if (queuePosition) return `queued`;
-  if (sessionStatus === "connecting") return "starting";
-  if (sessionStatus === "ready") return "live";
-  if (sessionStatus === "error") return "failed";
-  return "idle";
 }
 
 function getSyncTone(
@@ -242,10 +221,13 @@ function KanbanCardSurface({
   const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
   const priorityTone = getPriorityTone(task.priority);
   const prioritySizeLabel = getPrioritySizeLabel(task.priority);
+  // Folds acpStatus together with the lane-session record so the badge can
+  // distinguish "agent is producing output" from "process alive but parked".
+  const runStatus = resolveCardRunStatus({ task, acpStatus: sessionStatus, queuePosition });
+  const statusLabel = cardRunStatusLabelKey(runStatus);
   const sessionTone = isTerminalCard
     ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40"
-    : getSessionTone(sessionStatus, queuePosition);
-  const statusLabel = getStatusLabel(sessionStatus, queuePosition);
+    : cardRunStatusTone(runStatus);
   const resolvedStatusLabel = isTerminalCard
     ? t.kanban.done
     : queuePosition
