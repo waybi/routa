@@ -15,36 +15,19 @@ const LIST_OMITTED_FIELDS: &[&str] = &[
     "contextSearchSpec",
 ];
 
-/// Lane-session fields the board keeps.
+/// Lane-session fields the board columns keep.
 ///
-/// `objective` is deliberately absent: it duplicated the card objective per
-/// run and no client reads it.
+/// A card can accumulate a dozen runs, so every field is paid for per run per
+/// card. The columns need session identity and run liveness; specialist/step
+/// labels, `cwd`, and `objective` belong to the detail panel, which reads the
+/// hydrated task.
 const LIST_LANE_SESSION_FIELDS: &[&str] = &[
     "sessionId",
-    "routaAgentId",
-    "worktreeId",
-    "cwd",
     "columnId",
-    "columnName",
-    "stepId",
-    "stepIndex",
-    "stepName",
-    "provider",
-    "role",
-    "specialistId",
-    "specialistName",
-    "transport",
-    "externalTaskId",
-    "contextId",
-    "attempt",
-    "loopMode",
-    "completionRequirement",
-    "lastActivityAt",
-    "recoveredFromSessionId",
-    "recoveryReason",
     "status",
     "startedAt",
     "completedAt",
+    "lastActivityAt",
 ];
 
 /// Objective budget for the list projection; must match

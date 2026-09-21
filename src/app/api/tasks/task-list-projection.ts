@@ -22,40 +22,26 @@ const LIST_OMITTED_FIELDS = [
 ] as const;
 
 /**
- * Lane-session fields the board keeps.
+ * Lane-session fields the board columns keep.
  *
- * Everything here is read by the columns: card run status
- * (`status` / `lastActivityAt` / `startedAt`), the lane/step chips, and
- * session selection. `objective` is deliberately absent — it duplicated the
- * card objective per run and was the single largest contributor to the
- * payload (1.4 MB of 3.3 MB), and no client reads it.
+ * A card can accumulate a dozen runs, so every field here is paid for per
+ * run per card. The columns need exactly two things: which session belongs
+ * to the card (`sessionId`, plus `columnId` for lane chips) and whether it is
+ * working right now (`status` / `startedAt` / `lastActivityAt` / `completedAt`,
+ * consumed by resolveCardRunStatus).
+ *
+ * Everything else — `cwd`, `objective`, specialist/step labels, worktree and
+ * transport identifiers — is rendered by the detail panel and the activity
+ * bar, both of which read the hydrated task. `objective` alone was 1.4 MB of
+ * the original 3.3 MB.
  */
 const LIST_LANE_SESSION_FIELDS = [
   "sessionId",
-  "routaAgentId",
-  "worktreeId",
-  "cwd",
   "columnId",
-  "columnName",
-  "stepId",
-  "stepIndex",
-  "stepName",
-  "provider",
-  "role",
-  "specialistId",
-  "specialistName",
-  "transport",
-  "externalTaskId",
-  "contextId",
-  "attempt",
-  "loopMode",
-  "completionRequirement",
-  "lastActivityAt",
-  "recoveredFromSessionId",
-  "recoveryReason",
   "status",
   "startedAt",
   "completedAt",
+  "lastActivityAt",
 ] as const;
 
 /**
