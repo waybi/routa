@@ -4,6 +4,7 @@ import { I18nProvider } from "@/i18n";
 import { ThemeInitializer } from "@/client/components/theme-initializer";
 import { ToastProvider } from "@/client/components/toast";
 import { NotificationProvider } from "@/client/components/notification-center";
+import { ConfirmDialogProvider } from "@/client/components/confirm-dialog";
 
 export const metadata: Metadata = {
   title: "Routa - Multi-Agent Coordinator",
@@ -47,7 +48,9 @@ export default function RootLayout({
         <ThemeInitializer />
         <I18nProvider>
           <NotificationProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+            </ToastProvider>
           </NotificationProvider>
         </I18nProvider>
       </body>

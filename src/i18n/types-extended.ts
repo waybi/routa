@@ -1003,6 +1003,11 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     removeBranchLabel: string;
     removeBranchConfirm: string;
     removeBranchesFailed: string;
+    // Git working-tree confirmations (previously hardcoded English)
+    discardChangesConfirm: string;
+    pullCommitsConfirm: string;
+    rebaseBranchConfirm: string;
+    resetBranchConfirm: string;
     selectWorktreesHint: string;
     selectedWorktrees: string;
     noWorktrees: string;
