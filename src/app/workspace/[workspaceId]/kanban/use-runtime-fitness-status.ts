@@ -6,7 +6,24 @@ import { resolveApiPath } from "@/client/config/backend";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import type { RuntimeFitnessStatusResponse } from "@/core/fitness/runtime-status-types";
 
-const RUNTIME_FITNESS_POLL_MS = 5_000;
+/**
+ * Background poll cadence. Fitness status is a status-bar indicator, not
+ * something the user is watching tick; 5 s was pure overhead on a route that
+ * took 3.2 s to answer on first call.
+ */
+const RUNTIME_FITNESS_POLL_MS = 15_000;
+
+/**
+ * Floor between two fetches from any trigger.
+ *
+ * `refreshSignal` changes on every `kanban:changed` SSE event *and* on each
+ * step of the post-action refresh burst (1 s / 4 s / 8 s / 12 s). While an
+ * agent writes comments those pile up, and each one used to fire its own
+ * request — the measured symptom was 8 calls in ~6 s on an idle-looking
+ * board. Collapsing them here keeps the "refresh soon after an action"
+ * behavior without the stampede.
+ */
+const RUNTIME_FITNESS_MIN_FETCH_INTERVAL_MS = 5_000;
 
 type UseRuntimeFitnessStatusOptions = {
   workspaceId: string;
@@ -41,6 +58,11 @@ export function useRuntimeFitnessStatus({
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const inFlightRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
+  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Lets the throttle's trailing timer call the latest fetchStatus without
+  // making fetchStatus depend on itself.
+  const fetchStatusRef = useRef<((options?: { force?: boolean }) => Promise<void>) | null>(null);
   const { t } = useTranslation();
   const loadErrorMessage = t.kanban.fitnessLoadError;
 
@@ -57,12 +79,33 @@ export function useRuntimeFitnessStatus({
     return serialized.length > 0 ? serialized : null;
   }, [codebaseId, repoPath, workspaceId]);
 
-  const fetchStatus = useCallback(async (options?: { signal?: AbortSignal; showLoading?: boolean }) => {
+  const fetchStatus = useCallback(async (options?: {
+    signal?: AbortSignal;
+    showLoading?: boolean;
+    /** Skips the throttle; used by the explicit user-facing refresh(). */
+    force?: boolean;
+  }) => {
     if (!enabled || !queryString || inFlightRef.current) {
       return;
     }
 
+    if (!options?.force) {
+      const elapsed = Date.now() - lastFetchAtRef.current;
+      if (elapsed < RUNTIME_FITNESS_MIN_FETCH_INTERVAL_MS) {
+        // Schedule a single trailing fetch so the last signal in a burst is
+        // still reflected, instead of dropping it.
+        if (!trailingTimerRef.current) {
+          trailingTimerRef.current = setTimeout(() => {
+            trailingTimerRef.current = null;
+            void fetchStatusRef.current?.({ force: true });
+          }, RUNTIME_FITNESS_MIN_FETCH_INTERVAL_MS - elapsed);
+        }
+        return;
+      }
+    }
+
     inFlightRef.current = true;
+    lastFetchAtRef.current = Date.now();
     if (options?.showLoading) {
       setLoading(true);
     }
@@ -90,6 +133,17 @@ export function useRuntimeFitnessStatus({
       }
     }
   }, [enabled, loadErrorMessage, queryString]);
+
+  useEffect(() => {
+    fetchStatusRef.current = fetchStatus;
+  }, [fetchStatus]);
+
+  useEffect(() => () => {
+    if (trailingTimerRef.current) {
+      clearTimeout(trailingTimerRef.current);
+      trailingTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!enabled || !queryString) {

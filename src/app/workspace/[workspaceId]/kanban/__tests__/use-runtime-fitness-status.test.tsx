@@ -71,4 +71,37 @@ describe("useRuntimeFitnessStatus", () => {
       expect(result.current.error).toBe("Failed to load runtime fitness status");
     });
   });
+
+  it("collapses a burst of refreshSignal changes into a single fetch", async () => {
+    // refreshSignal changes on every kanban:changed event and on each step of
+    // the post-action refresh burst. Without throttling, each one fired its
+    // own request against a route that can take seconds to answer.
+    desktopAwareFetch.mockResolvedValue(okJson({
+      generatedAt: "2026-04-15T00:00:00.000Z",
+      repoRoot: "/tmp/repo",
+      hasRunning: false,
+      latest: null,
+      modes: [],
+    }));
+
+    const { rerender } = renderHook(
+      ({ signal }: { signal: number }) => useRuntimeFitnessStatus({
+        workspaceId: "workspace-1",
+        codebaseId: "codebase-1",
+        isPageVisible: false,
+        refreshSignal: signal,
+      }),
+      { initialProps: { signal: 0 } },
+    );
+
+    await waitFor(() => expect(desktopAwareFetch).toHaveBeenCalledTimes(1));
+
+    for (let signal = 1; signal <= 5; signal += 1) {
+      rerender({ signal });
+    }
+
+    // The initial load is the only request that gets through; the burst is
+    // coalesced behind the minimum interval.
+    await waitFor(() => expect(desktopAwareFetch).toHaveBeenCalledTimes(1));
+  });
 });

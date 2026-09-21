@@ -73,6 +73,41 @@ export interface KanbanTabContentProps {
   fitnessWorkbenchModalProps: FitnessWorkbenchModalProps;
 }
 
+/**
+ * Placeholder columns for the window between mount and the boards fetch
+ * settling. Keeps the board area occupied so the layout does not jump, and
+ * makes it obvious that data is still on the way.
+ */
+function KanbanBoardSkeleton({ label }: { label: string }) {
+  return (
+    <div
+      className="flex flex-1 gap-3 overflow-hidden px-4 py-2"
+      data-testid="kanban-board-skeleton"
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      {[0, 1, 2, 3].map((column) => (
+        <div
+          key={column}
+          className="flex w-64 shrink-0 flex-col gap-2 rounded-2xl border border-slate-200/60 bg-white p-3 dark:border-[#1c1f2e] dark:bg-[#12141c]"
+        >
+          <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          {[0, 1].map((card) => (
+            <div
+              key={card}
+              className="space-y-2 rounded-xl border border-slate-100 p-3 dark:border-[#1c1f2e]"
+            >
+              <div className="h-3 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-3 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function KanbanTabHeaderActionSlot({
   board,
   onAgentPrompt,
@@ -184,6 +219,7 @@ export function KanbanTabContent({
   statusBarProps,
   fitnessWorkbenchModalProps,
 }: KanbanTabContentProps) {
+  const { t } = useTranslation();
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
   };
@@ -208,12 +244,20 @@ export function KanbanTabContent({
   );
 
   if (!headerProps.board || !boardSurfaceProps || !taskDetailOverlayProps) {
+    // Boards arrive asynchronously. Claiming "no board" during that window is
+    // wrong and alarming, so show a skeleton until the fetch settles and only
+    // then state the empty case.
+    const boardsSettled = headerProps.boards.length > 0;
     return (
       <div className="flex h-full flex-col space-y-2">
         <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
-        <div className="rounded-2xl border border-gray-200/60 bg-white p-6 text-sm text-gray-500 dark:border-[#1c1f2e] dark:bg-[#12141c] dark:text-gray-400">
-          No board available yet.
-        </div>
+        {boardsSettled ? (
+          <div className="rounded-2xl border border-gray-200/60 bg-white p-6 text-sm text-gray-500 dark:border-[#1c1f2e] dark:bg-[#12141c] dark:text-gray-400">
+            {t.kanban.noBoardAvailable}
+          </div>
+        ) : (
+          <KanbanBoardSkeleton label={t.common.loading} />
+        )}
       </div>
     );
   }
