@@ -1,6 +1,6 @@
 # 卡片详情新增「人话版」Tab：读取时生成人类可读摘要
 
-状态：方案已定，待实现（生成时机一项待拍板）
+状态：已实现（2026-09-21）；生成时机取选项 A（打开 Tab 按需生成 + 缓存）
 日期：2026-09-21
 来源：分析 RunAI Coder 回答风格后的移植方案讨论（DSH 会话「分析 RunAI Coder 回答风格」）
 
@@ -89,3 +89,20 @@
 
 - 组件测试跟随 `src/app/workspace/[workspaceId]/kanban/__tests__/` 现有模式（kanban-tab-detail-and-prompts.test.tsx）。
 - 用本工作区一张真实的重度 agent 卡（如「错误路径复走查：转发降级与入口按钮落地后补测场景」）做前后可读性对照。
+
+## 实现记录（2026-09-21）
+
+| 步骤 | 落点 |
+|---|---|
+| Tab + i18n | `src/app/workspace/[workspaceId]/kanban/kanban-card-detail.tsx`（`humanReadable` 排在概览之后）；`src/i18n/locales/{zh,en}-extended.ts` + `src/i18n/types-extended.ts` 的 `kanbanDetail.humanReadable*` |
+| 确定性渲染 | `src/core/kanban/task-human-summary.ts` `extractTaskHumanSummaryFacts`（复用 `parseCanonicalStory`，浏览器可直接调用，无 LLM） |
+| 摘要端点 + 缓存 | `src/app/api/tasks/[taskId]/human-summary/route.ts`（GET 只读缓存 / POST 命中则返回、否则生成）；缓存为文件 `~/.routa/task-summaries/<taskId>.<lang>.json`（`ROUTA_TASK_SUMMARY_DIR` 可覆盖），键=描述 sha256，不改任务表 |
+| 总结器提示词 | `buildTaskHumanSummaryPrompt`（zh/en 各一份文风规则，固定四段 JSON 版式） |
+| 过时角标 / 重新生成 | `src/app/workspace/[workspaceId]/kanban/kanban-human-readable-panel.tsx`（hash 不一致显示角标，不自动重生成；按钮 `force:true`） |
+| 黑名单 lint | `lintTaskHumanSummary` + `generateTaskHumanSummary` 命中即带反馈重试一次；`evidence[].where` 豁免（它是定位器，允许原样引用「第二轮…」章节标题） |
+
+模型调用复用 `resolveWorkspaceAgentConfig` + `createLanguageModel`（`WORKSPACE_AGENT_PROVIDER` / `WORKSPACE_AGENT_MODEL`），单次 `generateText`，不带工具。
+
+验收结果（本机 dev server + 卡 `c5320340`，`claude-sonnet-4-5`）：AC1 事实层随渲染即出；AC2 首次 POST 47.9s 生成、二次 POST 27ms 命中缓存；AC3 篡改缓存 hash 后 GET 返回 `stale:true`；AC4 生成产物 `lintHits: []`；AC5 组件测试覆盖纯文本老卡。
+
+未做：Rust/Axum 侧（`crates/routa-server`）没有对应端点，桌面静态运行时打开该 Tab 会得到生成失败提示；需要时另开卡补齐。
