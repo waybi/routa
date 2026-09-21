@@ -1186,7 +1186,7 @@ Note: taskId must be a UUID from create_task, not a task name.`,
   private registerMoveCard(server: McpServer) {
     server.tool(
       "move_card",
-      "Move a card to a different column. Use 'dev' when starting work, 'review' for code review, 'done' when complete.",
+      "Move a card to a different column. Use 'dev' when starting work, 'review' for code review, 'done' when complete. Returns a lightweight ack (id, columnId, position, status); it does NOT echo the card. Call get_task if you need the updated card state.",
       {
         cardId: z.string().describe("Card ID"),
         targetColumnId: z.string().describe("Target column ID. Valid columns: 'backlog', 'todo', 'dev' (in progress), 'review', 'blocked', 'done'"),
@@ -1209,7 +1209,7 @@ Note: taskId must be a UUID from create_task, not a task name.`,
   private registerUpdateCard(server: McpServer) {
     server.tool(
       "update_card",
-      "Update card fields (title, description, comment, priority, labels). From dev onward, prefer comment because description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead.",
+      "Update card fields (title, description, comment, priority, labels). From dev onward, prefer comment because description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead. Returns a lightweight ack (id, updatedFields, updatedAt); it does NOT echo the card. Call get_task if you need the updated card state.",
       {
         cardId: z.string().describe("Card ID"),
         title: z.string().optional().describe("New title"),

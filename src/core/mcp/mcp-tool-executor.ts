@@ -1455,7 +1455,7 @@ export function getMcpToolDefinitions(
     },
     {
       name: "update_card",
-      description: "Update a Kanban card's title, description, comment, priority, or labels. From dev onward, use comment for progress notes because the story description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead.",
+      description: "Update a Kanban card's title, description, comment, priority, or labels. From dev onward, use comment for progress notes because the story description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead. Returns a lightweight ack (id, updatedFields, updatedAt); it does NOT echo the card. Call get_task if you need the updated card state.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1471,7 +1471,7 @@ export function getMcpToolDefinitions(
     },
     {
       name: "move_card",
-      description: "Move a Kanban card to a different column. Use 'dev' when starting work, 'review' for code review, 'done' when complete.",
+      description: "Move a Kanban card to a different column. Use 'dev' when starting work, 'review' for code review, 'done' when complete. Returns a lightweight ack (id, columnId, position, status); it does NOT echo the card. Call get_task if you need the updated card state.",
       inputSchema: {
         type: "object",
         properties: {
