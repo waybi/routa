@@ -41,6 +41,7 @@ import { importGitHubItems } from "./kanban-github-import";
 import { getKanbanFileChangesSummary } from "./kanban-file-changes-panel";
 import { KanbanTabContent } from "./kanban-tab-content";
 import { useRuntimeFitnessStatus } from "./use-runtime-fitness-status";
+import { toast } from "@/client/components/toast";
 
 interface SpecialistOption {
   id: string;
@@ -267,6 +268,15 @@ export function KanbanTab({
   // Delete confirmation modal state
   const [deleteConfirmTask, setDeleteConfirmTask] = useState<TaskInfo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Manual card creation in-flight state (Phase 1.3: three-state buttons)
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [createTaskError, setCreateTaskError] = useState<string | null>(null);
+  // Worktree cleanup confirmation when moving a card to Done (replaces window.confirm)
+  const [worktreeCleanupPrompt, setWorktreeCleanupPrompt] = useState<{
+    taskId: string;
+    targetColumnId: string;
+  } | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [moveBlockedState, setMoveBlockedState] = useState<MoveBlockedState | null>(null);
   const [moveBlockedDelegatingTaskId, setMoveBlockedDelegatingTaskId] = useState<string | null>(null);
@@ -440,12 +450,17 @@ export function KanbanTab({
         systemPrompt: planningPrompt,
         taskAdaptiveHarness: buildKanbanTaskAdaptiveHarnessOptions(agentInput, { locale: specialistLanguage, role: "CRAFTER", taskType: "planning" }),
       });
-      if (!sessionId) return;
+      if (!sessionId) {
+        toast.error(t.feedback.agentSessionCreateFailed);
+        return;
+      }
       openAgentPanel(sessionId);
       scheduleKanbanRefreshBurst(onRefresh);
       setAgentInput("");
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("[kanban] Failed to submit Kanban agent prompt:", error);
+      toast.error(t.feedback.agentSessionCreateFailed, { description: message });
     } finally {
       setAgentLoading(false);
     }
@@ -461,6 +476,7 @@ export function KanbanTab({
     openAgentPanel,
     selectedBoardId,
     specialistLanguage,
+    t,
     workspaceId,
   ]);
 
@@ -1521,35 +1537,49 @@ export function KanbanTab({
   }, [localTasks, patchTask]);
 
   async function createTaskCard() {
-    await ensureBoardAutoProviderPersisted();
-    const effectiveCodebaseIds = draft.codebaseIds.length > 0 ? draft.codebaseIds : allCodebaseIds;
-    const response = await desktopAwareFetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        workspaceId,
-        boardId: selectedBoardId ?? defaultBoardId,
-        title: draft.title,
-        objective: draft.objectiveHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
-        testCases: draft.testCases.split("\n").map((item) => item.trim()).filter(Boolean),
-        priority: draft.priority,
-        labels: draft.labels.split(",").map((label) => label.trim()).filter(Boolean),
-        createGitHubIssue: draft.createGitHubIssue,
-        creationSource: "manual",
-        repoPath: effectiveCodebaseIds.length > 0
-          ? codebases.find((codebase) => codebase.id === effectiveCodebaseIds[0])?.repoPath
-          : defaultCodebase?.repoPath,
-        codebaseIds: effectiveCodebaseIds,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error ?? "Failed to create task");
+    if (isCreatingTask) return;
+    setIsCreatingTask(true);
+    setCreateTaskError(null);
+    try {
+      await ensureBoardAutoProviderPersisted();
+      const effectiveCodebaseIds = draft.codebaseIds.length > 0 ? draft.codebaseIds : allCodebaseIds;
+      const response = await desktopAwareFetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          boardId: selectedBoardId ?? defaultBoardId,
+          title: draft.title,
+          objective: draft.objectiveHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+          testCases: draft.testCases.split("\n").map((item) => item.trim()).filter(Boolean),
+          priority: draft.priority,
+          labels: draft.labels.split(",").map((label) => label.trim()).filter(Boolean),
+          createGitHubIssue: draft.createGitHubIssue,
+          creationSource: "manual",
+          repoPath: effectiveCodebaseIds.length > 0
+            ? codebases.find((codebase) => codebase.id === effectiveCodebaseIds[0])?.repoPath
+            : defaultCodebase?.repoPath,
+          codebaseIds: effectiveCodebaseIds,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "Failed to create task");
+      }
+      setLocalTasks((current) => [...current, data.task as TaskInfo]);
+      setDraft({ ...EMPTY_DRAFT, objectiveHtml: "", createGitHubIssue: false });
+      setShowCreateModal(false);
+      toast.success(t.feedback.cardCreated, { description: draft.title });
+      onRefresh();
+    } catch (error) {
+      // Keep the modal open so the draft is not lost, and tell the user why.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[kanban] Failed to create task:", error);
+      setCreateTaskError(message);
+      toast.error(t.feedback.cardCreateFailed, { description: message });
+    } finally {
+      setIsCreatingTask(false);
     }
-    setLocalTasks((current) => [...current, data.task as TaskInfo]);
-    setDraft({ ...EMPTY_DRAFT, objectiveHtml: "", createGitHubIssue: false });
-    setShowCreateModal(false);
-    onRefresh();
   }
 
   async function importGitHubIssues(
@@ -1701,28 +1731,35 @@ export function KanbanTab({
 
   function confirmDeleteTask(task: TaskInfo) {
     setIsDeleting(false);
+    setDeleteError(null);
     setDeleteConfirmTask(task);
   }
 
   async function executeDeleteTask() {
     if (!deleteConfirmTask) return;
 
+    const deletedTitle = deleteConfirmTask.title;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const response = await desktopAwareFetch(`/api/tasks/${encodeURIComponent(deleteConfirmTask.id)}`, {
         method: "DELETE",
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to delete task");
+        throw new Error(typeof data?.error === "string" ? data.error : "Failed to delete task");
       }
       setLocalTasks((current) => current.filter((task) => task.id !== deleteConfirmTask.id));
       setDeleteConfirmTask(null);
       closeTaskDetail();
+      toast.success(t.feedback.cardDeleted, { description: deletedTitle });
       onRefresh();
     } catch (error) {
+      // Keep the modal open so the user can retry — and now actually tell them.
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to delete task:", error);
-      // Keep the modal open so the user can retry.
+      setDeleteError(message);
+      toast.error(t.feedback.cardDeleteFailed, { description: message });
     } finally {
       setIsDeleting(false);
     }
@@ -1731,22 +1768,20 @@ export function KanbanTab({
   function cancelDeleteTask() {
     setDeleteConfirmTask(null);
     setIsDeleting(false);
+    setDeleteError(null);
   }
 
-  const moveTask = useCallback(async (taskId: string, targetColumnId: string) => {
+  const performMoveTask = useCallback(async (
+    taskId: string,
+    targetColumnId: string,
+    shouldCleanupWorktree: boolean,
+  ) => {
     const movingTask = localTasks.find((task) => task.id === taskId);
     if (!movingTask) return;
 
     await ensureBoardAutoProviderPersisted();
     setMoveError(null);
     setMoveBlockedState(null);
-
-    let shouldCleanupWorktree = false;
-    if (targetColumnId === "done" && movingTask.worktreeId) {
-      shouldCleanupWorktree = window.confirm(
-        "This issue has an attached worktree. Clean it up now?"
-      );
-    }
 
     const nextPosition = boardTasks.filter((task) => task.columnId === targetColumnId).length;
     const optimistic = localTasks.map((task) =>
@@ -1813,6 +1848,28 @@ export function KanbanTab({
     patchTask,
     tasks,
   ]);
+
+  // Moving a card with an attached worktree into Done asks first. The prompt is
+  // an in-app dialog (i18n) rather than window.confirm, which blocked the main
+  // thread and shipped hardcoded English.
+  const moveTask = useCallback(async (taskId: string, targetColumnId: string) => {
+    const movingTask = localTasks.find((task) => task.id === taskId);
+    if (!movingTask) return;
+
+    if (targetColumnId === "done" && movingTask.worktreeId) {
+      setWorktreeCleanupPrompt({ taskId, targetColumnId });
+      return;
+    }
+
+    await performMoveTask(taskId, targetColumnId, false);
+  }, [localTasks, performMoveTask]);
+
+  const resolveWorktreeCleanupPrompt = useCallback(async (shouldCleanup: boolean) => {
+    const pending = worktreeCleanupPrompt;
+    setWorktreeCleanupPrompt(null);
+    if (!pending) return;
+    await performMoveTask(pending.taskId, pending.targetColumnId, shouldCleanup);
+  }, [performMoveTask, worktreeCleanupPrompt]);
 
   const delegateMoveBlockedFix = useCallback(async (blocked: MoveBlockedState) => {
     if (!onAgentPrompt || moveBlockedDelegatingTaskId) return;
@@ -2099,10 +2156,15 @@ export function KanbanTab({
     showCreateModal,
     draft,
     setDraft,
-    onClose: () => setShowCreateModal(false),
+    onClose: () => {
+      setShowCreateModal(false);
+      setCreateTaskError(null);
+    },
     onCreate: () => {
       void createTaskCard();
     },
+    creating: isCreatingTask,
+    createError: createTaskError,
     githubAvailable,
     codebases,
     allCodebaseIds,
@@ -2182,8 +2244,19 @@ export function KanbanTab({
   const deleteTaskModalProps = {
     deleteConfirmTask,
     isDeleting,
+    deleteError,
     onCancel: cancelDeleteTask,
     onConfirm: executeDeleteTask,
+  };
+
+  const worktreeCleanupModalProps = {
+    prompt: worktreeCleanupPrompt,
+    onConfirm: () => {
+      void resolveWorktreeCleanupPrompt(true);
+    },
+    onSkip: () => {
+      void resolveWorktreeCleanupPrompt(false);
+    },
   };
 
   const blockedTask = moveBlockedState
@@ -2255,6 +2328,7 @@ export function KanbanTab({
       deleteCodebaseModalProps={deleteCodebaseModalProps}
       replaceAllReposModalProps={replaceAllReposModalProps}
       deleteTaskModalProps={deleteTaskModalProps}
+      worktreeCleanupModalProps={worktreeCleanupModalProps}
       moveBlockedModalProps={moveBlockedModalProps}
       statusBarProps={statusBarProps}
       fitnessWorkbenchModalProps={fitnessWorkbenchModalProps}

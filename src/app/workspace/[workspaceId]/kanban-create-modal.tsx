@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Loader2 } from "lucide-react";
 import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { useTranslation } from "@/i18n";
 
@@ -32,6 +33,10 @@ interface KanbanCreateModalProps {
   setDraft: React.Dispatch<React.SetStateAction<TaskDraft>>;
   onClose: () => void;
   onCreate: () => void;
+  /** True while the create request is in flight (drives the button's pending state). */
+  creating?: boolean;
+  /** Server-side failure message, rendered inline so the modal never fails silently. */
+  createError?: string | null;
   githubAvailable: boolean;
   codebases: CodebaseData[];
   allCodebaseIds: string[];
@@ -121,6 +126,8 @@ export function KanbanCreateModal({
   setDraft,
   onClose,
   onCreate,
+  creating = false,
+  createError = null,
   githubAvailable,
   codebases,
   allCodebaseIds: _allCodebaseIds,
@@ -129,8 +136,10 @@ export function KanbanCreateModal({
   const canCreate = Boolean(draft.title.trim()) && Boolean(draft.objectiveHtml.replace(/<[^>]*>/g, "").trim());
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-[#1c1f2e] dark:bg-[#12141c]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+      {/* max-h + overflow: on short viewports the footer buttons used to render
+          past the bottom edge and were physically unclickable. */}
+      <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-[#1c1f2e] dark:bg-[#12141c]">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.kanbanCreate.manualTask}</h3>
           <button onClick={onClose} className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
@@ -244,19 +253,32 @@ export function KanbanCreateModal({
           )}
         </div>
 
+        {createError && (
+          <div
+            role="alert"
+            data-testid="kanban-create-error"
+            className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+          >
+            {t.feedback.cardCreateFailed}: {createError}
+          </div>
+        )}
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+            disabled={creating}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
           >
             {t.common.cancel}
           </button>
           <button
             onClick={onCreate}
-            disabled={!canCreate}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+            disabled={!canCreate || creating}
+            data-testid="kanban-create-submit"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {t.kanbanCreate.create}
+            {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+            {creating ? t.feedback.cardCreating : t.kanbanCreate.create}
           </button>
         </div>
       </div>
