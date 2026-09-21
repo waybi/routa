@@ -263,10 +263,15 @@ export function ChatPanel({
     return summary;
   }, [fileChangesState]);
 
+  // Whether the agent is currently processing a turn (prompt in flight or
+  // streaming updates still arriving). Drives the working indicator below the
+  // message stream so users can tell the agent is busy rather than stuck.
+  const isWorking = loading || isSessionRunning;
+
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [visibleMessages]);
+  }, [visibleMessages, isWorking]);
 
   // Fetch sessions on mount and when active session changes
   useEffect(() => {
@@ -664,6 +669,23 @@ export function ChatPanel({
                     onTerminalResize={activeSessionId ? handleTerminalResize : undefined}
                   />
                 ))}
+              {isWorking && (
+                <div
+                  className="flex items-center gap-2 px-1 py-2"
+                  data-testid="chat-working-indicator"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className="flex items-center gap-1" aria-hidden="true">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" />
+                  </span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                    {t.chat.working}
+                  </span>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           </div>

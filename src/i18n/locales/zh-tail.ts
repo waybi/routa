@@ -248,6 +248,7 @@ export const zhTail: TailTranslationDictionarySections = {
     typeCreateSession: "输入消息自动创建会话...",
     connectFirst: "请先连接...",
     availableAuthMethods: "可用的身份验证方式：",
+    working: "正在处理中...",
   },
 
   // GitHub Webhook 面板
