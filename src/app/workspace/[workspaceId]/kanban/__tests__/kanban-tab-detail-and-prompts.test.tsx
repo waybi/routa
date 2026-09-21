@@ -1453,6 +1453,11 @@ describe("KanbanCardDetail repository health", () => {
       />,
     );
 
+    expect(screen.getAllByRole("tab").slice(0, 3).map((tab) => tab.textContent)).toEqual([
+      "Overview",
+      "Plain Language",
+      "Story Readiness",
+    ]);
     expect(screen.getByRole("tab", { name: "Story Readiness" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Story Readiness" }));
     expect(screen.getAllByText("Blocked for Dev").length).toBeGreaterThan(0);
