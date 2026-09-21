@@ -205,8 +205,8 @@ function buildUpdateTaskToolDefinition(mcpProfile?: McpServerProfile) {
   return {
     name: "update_task",
     description: mcpProfile === "kanban-planning"
-      ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, verification verdict, or assignment metadata; use move_card and gate-specific tools for workflow transitions."
-      : "Atomically update structured task fields with optimistic locking. Use this for story-readiness fields such as scope, acceptance criteria, verification commands, and test cases. agentId is optional for Kanban sessions. In backlog planning, only persist contextSearchSpec after repo inspection or feature-tree lookup confirms the feature/files.",
+      ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, verification verdict, or assignment metadata; use move_card and gate-specific tools for workflow transitions. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate."
+      : "Atomically update structured task fields with optimistic locking. Use this for story-readiness fields such as scope, acceptance criteria, verification commands, and test cases. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate. agentId is optional for Kanban sessions. In backlog planning, only persist contextSearchSpec after repo inspection or feature-tree lookup confirms the feature/files.",
     inputSchema: {
       type: "object",
       properties,

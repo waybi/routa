@@ -17,7 +17,6 @@ import { ArtifactStore } from "../store/artifact-store";
 import {
   createKanbanBoard,
   KanbanColumn,
-  KanbanColumnStage,
   columnIdToTaskStatus,
 } from "../models/kanban";
 import type { RoutaSystem } from "../routa-system";
@@ -68,11 +67,10 @@ import {
   buildContractLoopBreakerMessage,
   buildTaskContractReadiness,
   buildTaskContractTransitionErrorFromRules,
-  buildTaskContractUpdateErrorFromRules,
   CONTRACT_GATE_BLOCKED_LABEL,
   countContractGateFailures,
-  resolveCurrentOrNextContractGate,
 } from "../kanban/task-contract-readiness";
+import { evaluateTaskDescriptionWriteGuard } from "../kanban/task-description-write-guard";
 import {
   evaluateKanbanTransitionGates,
   formatKanbanTransitionGateMessage,
@@ -81,7 +79,7 @@ import {
 import { resolveTaskWorktreeTruth } from "../kanban/task-worktree-truth";
 import { filterBacklogContextSearchSpec } from "../kanban/backlog-context-confirmation";
 
-const DESCRIPTION_FROZEN_STAGES = new Set<KanbanColumnStage>(["dev", "review", "blocked", "done"]);
+
 
 type WorkflowOrchestratorSingletonModule =
   typeof import("../kanban/workflow-orchestrator-singleton");
@@ -454,39 +452,27 @@ export class KanbanTools {
       return errorResult(`Card not found: ${params.cardId}`);
     }
 
-    const stage = await this.resolveTaskStage(task);
-    if (params.description !== undefined && stage && DESCRIPTION_FROZEN_STAGES.has(stage)) {
-      return errorResult(
-        `Cannot update card description in ${stage}. The story description is frozen from dev onward; update the comment field instead.`
-      );
-    }
-
-    if (params.description !== undefined && task.boardId) {
-      const board = await this.kanbanBoardStore.get(task.boardId);
-      const contractGate = board
-        ? resolveCurrentOrNextContractGate(board.columns, task.columnId)
-        : null;
-      if (contractGate) {
-        const nextTask = {
-          ...task,
-          objective: params.description,
-        };
-        const contractReadiness = buildTaskContractReadiness(nextTask, contractGate.rules);
-        const contractError = buildTaskContractUpdateErrorFromRules(
-          contractReadiness,
-          contractGate.columnName,
-          contractGate.rules,
-        );
-        if (contractError) {
+    if (params.description !== undefined) {
+      // Shared guard with update_task.objective / HTTP PATCH body.objective:
+      // all aliases of tasks.objective must enforce identical freeze +
+      // contract-gate rules. See task-description-write-guard.ts.
+      const board = task.boardId ? await this.kanbanBoardStore.get(task.boardId) : undefined;
+      const guard = evaluateTaskDescriptionWriteGuard({
+        task,
+        newObjective: params.description,
+        boardColumns: board?.columns,
+      });
+      if (guard.error) {
+        if (guard.contractGate) {
           await this.recordTaskContractGateFailure(
             task,
-            contractError,
-            contractGate.columnName,
-            contractReadiness.loopBreakerThreshold,
+            guard.error,
+            guard.contractGate.columnName,
+            guard.contractGate.readiness.loopBreakerThreshold,
             params.sessionId,
           );
-          return errorResult(contractError);
         }
+        return errorResult(guard.error);
       }
     }
 
@@ -934,16 +920,6 @@ export class KanbanTools {
     };
   }
 
-  private async resolveTaskStage(task: Task): Promise<KanbanColumnStage | undefined> {
-    const columnId = task.columnId ?? "backlog";
-    if (!task.boardId) {
-      return normalizeColumnStage(columnId);
-    }
-
-    const board = await this.kanbanBoardStore.get(task.boardId);
-    return board?.columns.find((column) => column.id === columnId)?.stage ?? normalizeColumnStage(columnId);
-  }
-
   private async promptSession(
     sessionId: string,
     workspaceId: string,
@@ -1163,16 +1139,4 @@ export class KanbanTools {
   }
 }
 
-function normalizeColumnStage(columnId?: string): KanbanColumnStage | undefined {
-  switch ((columnId ?? "backlog").toLowerCase()) {
-    case "backlog":
-    case "todo":
-    case "dev":
-    case "review":
-    case "blocked":
-    case "done":
-      return (columnId ?? "backlog").toLowerCase() as KanbanColumnStage;
-    default:
-      return undefined;
-  }
-}
+
