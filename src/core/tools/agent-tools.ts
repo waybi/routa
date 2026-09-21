@@ -53,6 +53,7 @@ import type { TaskCreationSource } from "../kanban/task-creation-policy";
 import { ToolResult, successResult, errorResult } from './tool-result';
 import { applySandboxPermissionConstraints, SandboxPermissionConstraints } from "../sandbox";
 import { resolveTaskStatusForBoardColumn } from "../models/kanban";
+import { evaluateTaskDescriptionWriteGuard } from "../kanban/task-description-write-guard";
 import { resolveReviewLaneConvergenceTarget } from "../kanban/review-lane-convergence";
 import {
   PermissionStore,
@@ -888,7 +889,27 @@ export class AgentTools {
     const originalColumnId = task.columnId;
     const warnings = new Set<string>();
     if (updates.title) task.title = updates.title;
-    if (updates.objective) task.objective = updates.objective;
+    if (updates.objective && updates.objective !== task.objective) {
+      // `update_task.objective` persists to the same column as
+      // `update_card.description` (`tasks.objective`). Enforce the same
+      // freeze + canonical-contract guards so this alias cannot silently
+      // clobber a gate-validated story description. See
+      // docs/issues/2026-09-21-update-task-objective-clobbers-gated-description.md
+      const board = task.boardId ? await this.kanbanBoardStore?.get(task.boardId) : undefined;
+      const guard = evaluateTaskDescriptionWriteGuard({
+        task,
+        newObjective: updates.objective,
+        boardColumns: board?.columns,
+      });
+      if (guard.error) {
+        return errorResult(
+          `${guard.error} Note: update_task \`objective\` writes the same field as ` +
+          "update_card `description`; use update_card for story-description changes " +
+          "so contract gates stay authoritative.",
+        );
+      }
+      task.objective = updates.objective;
+    }
     if (updates.scope !== undefined) task.scope = updates.scope;
     if (updates.status) {
       const statusUpper = updates.status.toUpperCase() as TaskStatus;
