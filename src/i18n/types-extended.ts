@@ -1575,39 +1575,5 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     usage: string;
   };
 
-  // Transient feedback (toasts) and task lifecycle notifications
-  feedback: {
-    // Generic
-    retry: string;
-    // Kanban card creation
-    cardCreating: string;
-    cardCreated: string;
-    cardCreateFailed: string;
-    // Kanban card deletion
-    cardDeleting: string;
-    cardDeleted: string;
-    cardDeleteFailed: string;
-    // Kanban agent session
-    agentSessionCreating: string;
-    agentSessionCreateFailed: string;
-    agentPromptFailed: string;
-    agentPromptFailedHint: string;
-    // Board settings / provider persistence
-    boardProviderPersistFailed: string;
-    // Worktree cleanup confirm (replaces window.confirm)
-    worktreeCleanupTitle: string;
-    worktreeCleanupBody: string;
-    worktreeCleanupConfirm: string;
-    worktreeCleanupSkip: string;
-    // Task lifecycle notifications
-    taskCompleted: string;
-    taskFailed: string;
-    taskNeedsReview: string;
-    taskBlocked: string;
-    openCard: string;
-    // Browser notification permission
-    notificationsEnabled: string;
-  };
-
   // Message Bubble
 }
