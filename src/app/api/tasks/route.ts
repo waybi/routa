@@ -43,6 +43,7 @@ import {
   buildTaskInvestValidation,
   buildTaskStoryReadiness,
 } from "./task-evidence-summary";
+import { parseTaskListView, projectTasksForList } from "./task-list-projection";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 
@@ -197,6 +198,10 @@ async function getTasks(request: NextRequest) {
   const assignedTo = searchParams.get("assignedTo");
   const expand = new Set(searchParams.getAll("expand").flatMap((value) => value.split(",").map((item) => item.trim())));
   const includeDeliveryReadiness = expand.has("deliveryReadiness");
+  // Board columns render a fraction of the task record; returning everything
+  // made this endpoint 3.3 MB for 8 cards and it is refetched on every
+  // kanban:changed event. Detail data comes from GET /api/tasks/:id.
+  const view = parseTaskListView(searchParams.get("view"));
 
   if (!workspaceId) {
     return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
@@ -225,10 +230,13 @@ async function getTasks(request: NextRequest) {
 
   const serializationSystem = await createTaskSerializationSystem(system, workspaceId, tasks);
 
+  const serialized = await Promise.all(tasks.map((task) =>
+    serializeTask(task, serializationSystem, { includeDeliveryReadiness })
+  ));
+
   return NextResponse.json({
-    tasks: await Promise.all(tasks.map((task) =>
-      serializeTask(task, serializationSystem, { includeDeliveryReadiness })
-    )),
+    tasks: projectTasksForList(serialized as unknown as Array<Record<string, unknown>>, view),
+    view,
   });
 }
 
