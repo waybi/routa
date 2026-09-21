@@ -1673,16 +1673,18 @@ describe("KanbanTab live session tail", () => {
     vi.unstubAllGlobals();
   });
 
-  it("polls active trigger session history and shows the latest tail on the card", async () => {
+  it("polls the lightweight tail endpoint and shows the latest line on the card", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "/api/sessions/session-123/history?consolidated=true") {
+      // The board must not pull full session history for a one-line caption:
+      // that call was ~1 MB per session per tick.
+      if (url === "/api/sessions/session-123/tail") {
         return {
           ok: true,
           json: async () => ({
-            history: [
-              { update: { sessionUpdate: "agent_message", content: { type: "text", text: "Done. Added live tail support." } } },
-            ],
+            sessionId: "session-123",
+            tail: "Done. Added live tail support.",
+            updateType: "agent_message",
           }),
         } as Response;
       }
@@ -1719,7 +1721,7 @@ describe("KanbanTab live session tail", () => {
     );
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-123/history?consolidated=true", { cache: "no-store" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-123/tail", { cache: "no-store" });
       expect(screen.getByTestId("kanban-card-live-tail").textContent).toContain("Added live tail support.");
     });
   });

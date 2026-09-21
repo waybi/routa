@@ -42,25 +42,9 @@ export function extractHistoryText(content: unknown): string | null {
   return null;
 }
 
-export function extractSessionLiveTail(history: unknown): string | null {
-  if (!Array.isArray(history) || history.length === 0) return null;
-
-  for (let index = history.length - 1; index >= 0; index -= 1) {
-    const entry = history[index];
-    if (!entry || typeof entry !== "object") continue;
-    const update = (entry as { update?: unknown }).update;
-    if (!update || typeof update !== "object") continue;
-    const updateRecord = update as Record<string, unknown>;
-    const updateType = updateRecord.sessionUpdate;
-    if (updateType !== "agent_message" && updateType !== "agent_message_chunk" && updateType !== "user_message") {
-      continue;
-    }
-    const text = extractHistoryText(updateRecord.content);
-    if (text) return text.replace(/\s+/g, " ").trim();
-  }
-
-  return null;
-}
+// extractSessionLiveTail lived here and ran client-side over a full history
+// download. The extraction now happens server-side in
+// src/core/session-tail.ts behind GET /api/sessions/:id/tail.
 
 export function getPreferredTaskSessionId(task: TaskInfo | null | undefined): string | null {
   if (!task) return null;

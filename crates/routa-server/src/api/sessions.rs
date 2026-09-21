@@ -17,6 +17,7 @@ use crate::application::sessions::{
     ListSessionsQuery as SessionListQuery, SessionApplicationService,
 };
 use crate::error::ServerError;
+use crate::api::session_tail::extract_session_tail;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -29,6 +30,7 @@ pub fn router() -> Router<AppState> {
                 .delete(delete_session),
         )
         .route("/{session_id}/history", get(get_session_history))
+        .route("/{session_id}/tail", get(get_session_tail))
         .route("/{session_id}/transcript", get(get_session_transcript))
         .route("/{session_id}/reposlide-result", get(get_reposlide_result))
         .route(
@@ -500,6 +502,26 @@ async fn get_session_history(
         .await?;
 
     Ok(Json(serde_json::json!({ "history": result })))
+}
+
+/// GET /api/sessions/{session_id}/tail — Newest message line only.
+///
+/// The Kanban board needs one caption per running card. It used to poll
+/// `history?consolidated=true` (≈1 MB per call) and keep a single line; this
+/// route does the extraction server-side.
+async fn get_session_tail(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ServerError> {
+    let service = SessionApplicationService::new(state);
+    let history = service.get_session_history(&session_id, true).await?;
+    let tail = extract_session_tail(&history);
+
+    Ok(Json(serde_json::json!({
+        "sessionId": session_id,
+        "tail": tail.as_ref().map(|value| value.text.clone()),
+        "updateType": tail.as_ref().map(|value| value.update_type.clone()),
+    })))
 }
 
 /// GET /api/sessions/{session_id}/transcript — Get preferred transcript payload.
