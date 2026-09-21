@@ -467,6 +467,8 @@ export const enExtended: ExtendedTranslationDictionarySections = {
     queued: "Queued",
     starting: "Starting",
     live: "Live",
+    working: "Working",
+    completed: "Completed",
     failed: "Failed",
     idle: "Idle",
     syncIssue: "Sync issue",
