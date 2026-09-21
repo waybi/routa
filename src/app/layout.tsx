@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { I18nProvider } from "@/i18n";
 import { ThemeInitializer } from "@/client/components/theme-initializer";
+import { ToastProvider } from "@/client/components/toast";
+import { NotificationProvider } from "@/client/components/notification-center";
 
 export const metadata: Metadata = {
   title: "Routa - Multi-Agent Coordinator",
@@ -43,7 +45,11 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <ThemeInitializer />
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <NotificationProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </NotificationProvider>
+        </I18nProvider>
       </body>
     </html>
   );
