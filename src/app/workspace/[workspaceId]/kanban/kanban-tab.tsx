@@ -30,7 +30,6 @@ import type { RepoSyncState } from "./kanban-repo-sync-status";
 import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import {
   canSelectTaskSessionInAcp,
-  extractSessionLiveTail,
   getPreferredTaskSessionId,
   isA2ATaskSession,
   resolveKanbanBoardAutoProviderId,
@@ -1104,12 +1103,16 @@ export function KanbanTab({
 
       const updates = await Promise.all(activeLiveSessionIds.map(async (sessionId) => {
         try {
-          const response = await desktopAwareFetch(`/api/sessions/${encodeURIComponent(sessionId)}/history?consolidated=true`,
+          // /tail returns just the newest message line. The previous call
+          // (history?consolidated=true) shipped ~1 MB per session per tick to
+          // render the same single caption.
+          const response = await desktopAwareFetch(`/api/sessions/${encodeURIComponent(sessionId)}/tail`,
             { cache: "no-store" },
           );
           if (!response.ok) return [sessionId, null] as const;
           const payload = await response.json();
-          return [sessionId, extractSessionLiveTail(payload?.history)] as const;
+          const tail = typeof payload?.tail === "string" && payload.tail.trim() ? payload.tail : null;
+          return [sessionId, tail] as const;
         } catch {
           return [sessionId, null] as const;
         }

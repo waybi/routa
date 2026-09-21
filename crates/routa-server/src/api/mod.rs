@@ -40,6 +40,7 @@ pub mod review;
 pub mod rpc;
 pub mod sandbox;
 pub mod schedules;
+pub mod session_tail;
 pub mod sessions;
 pub mod shared_sessions;
 pub mod skills;
