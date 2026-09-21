@@ -435,7 +435,7 @@ export class KanbanTools {
       });
     }
 
-    return successResult(this.taskToCard(task));
+    return successResult(this.taskToMoveAck(task));
   }
 
   async updateCard(params: {
@@ -493,7 +493,13 @@ export class KanbanTools {
     await this.taskStore.save(task);
     this.notifyWorkspaceChanged(task.workspaceId, "task", "updated", task.id);
 
-    return successResult(this.taskToCard(task));
+    return successResult(this.taskToUpdateAck(task, [
+      ...(params.title !== undefined ? ["title"] : []),
+      ...(params.description !== undefined ? ["description"] : []),
+      ...(params.comment !== undefined ? ["comment"] : []),
+      ...(params.priority !== undefined ? ["priority"] : []),
+      ...(params.labels !== undefined ? ["labels"] : []),
+    ]));
   }
 
   async requestPreviousLaneHandoff(params: {
@@ -940,6 +946,35 @@ export class KanbanTools {
       contextSearchSpec: task.contextSearchSpec,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
+    };
+  }
+
+  /**
+   * Lightweight ack for `update_card`.
+   *
+   * Write tools must not echo the card back: card comments are append-only, so
+   * echoing re-injects the whole accumulated comment history into the calling
+   * agent's LLM context on every write (measured at 76 KB / ~20K tokens per
+   * call on a comment-heavy card). Agents that need fresh state call `get_task`.
+   *
+   * Shape is mirrored by the Rust MCP projection in
+   * `crates/routa-server/src/api/mcp_routes/tool_executor/events_kanban.rs`.
+   */
+  private taskToUpdateAck(task: Task, updatedFields: string[]) {
+    return {
+      id: task.id,
+      updatedFields,
+      updatedAt: task.updatedAt,
+    };
+  }
+
+  /** Lightweight ack for `move_card`. See {@link taskToUpdateAck} for rationale. */
+  private taskToMoveAck(task: Task) {
+    return {
+      id: task.id,
+      columnId: task.columnId ?? "backlog",
+      position: task.position,
+      status: task.status,
     };
   }
 

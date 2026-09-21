@@ -1299,17 +1299,12 @@ describe("KanbanTools", () => {
     expect(saved?.comments[1]?.source).toBe("update_card");
     expect(saved?.comments[1]?.agentId).toBe("agent-review-1");
     expect(saved?.comments[1]?.sessionId).toBe("session-review-1");
-    expect(result.data).toMatchObject({
-      comment: "Initial note\n\nSecond note",
-      comments: [
-        { body: "Initial note", source: "legacy_import" },
-        {
-          body: "Second note",
-          source: "update_card",
-          agentId: "agent-review-1",
-          sessionId: "session-review-1",
-        },
-      ],
+    // update_card returns a lightweight ack, never the card itself: echoing
+    // append-only comments re-injects the whole history into the agent context.
+    expect(result.data).toEqual({
+      id: task.id,
+      updatedFields: ["comment"],
+      updatedAt: expect.any(Date),
     });
   });
 
@@ -1394,5 +1389,132 @@ describe("KanbanTools.deleteCard dependency cleanup", () => {
     const yaml = await taskStore.get("dep-yaml-referrer");
     expect(yaml?.objective).toBe("depends_on:\n  - \"dep-card-to-delete\"");
     expect(yaml?.comment).toContain("canonical YAML");
+  });
+
+  // ─── Write-tool ack contract ──────────────────────────────────────────
+  // Write tools must not echo the card: comments are append-only, so echoing
+  // re-injects the accumulated history into the calling agent's LLM context on
+  // every write. Shape is mirrored by the Rust MCP projection in
+  // crates/routa-server/src/api/mcp_routes/tool_executor/events_kanban.rs.
+  // See docs/exec-plans/active/kanban-write-tool-ack-returns.md.
+
+  it("returns a lightweight ack from update_card instead of echoing the card", async () => {
+    const boardStore = new InMemoryKanbanBoardStore();
+    const taskStore = new InMemoryTaskStore();
+    const tools = new KanbanTools(boardStore, taskStore);
+
+    const fatComment = "prior review note\n\n".repeat(500);
+    const task = createTask({
+      id: "task-ack-update",
+      title: "Comment-heavy card",
+      objective: "Stable story body",
+      comment: fatComment,
+      workspaceId: "default",
+      columnId: "review",
+    });
+    await taskStore.save(task);
+
+    const result = await tools.updateCard({
+      cardId: task.id,
+      comment: "New note",
+      priority: "high",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      id: "task-ack-update",
+      updatedFields: ["comment", "priority"],
+      updatedAt: expect.any(Date),
+    });
+
+    // The accumulated comment history must not leak back through the result.
+    const serialized = JSON.stringify(result.data);
+    expect(serialized).not.toContain("prior review note");
+    expect(serialized.length).toBeLessThan(1024);
+
+    // Persistence is unaffected.
+    const saved = await taskStore.get(task.id);
+    expect(saved?.comment).toContain("prior review note");
+    expect(saved?.comment).toContain("New note");
+    expect(saved?.priority).toBe("high");
+  });
+
+  it("reports only the fields that update_card actually changed", async () => {
+    const boardStore = new InMemoryKanbanBoardStore();
+    const taskStore = new InMemoryTaskStore();
+    const tools = new KanbanTools(boardStore, taskStore);
+
+    const task = createTask({
+      id: "task-ack-fields",
+      title: "Backlog card",
+      objective: "Original body",
+      workspaceId: "default",
+      columnId: "backlog",
+    });
+    await taskStore.save(task);
+
+    const result = await tools.updateCard({
+      cardId: task.id,
+      title: "Renamed card",
+      labels: ["urgent"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      id: "task-ack-fields",
+      updatedFields: ["title", "labels"],
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it("returns a lightweight ack from move_card instead of echoing the card", async () => {
+    const boardStore = new InMemoryKanbanBoardStore();
+    const taskStore = new InMemoryTaskStore();
+    const tools = new KanbanTools(boardStore, taskStore);
+
+    const board = createKanbanBoard({
+      id: "board-ack-move",
+      workspaceId: "default",
+      name: "Default Board",
+      isDefault: true,
+      columns: [
+        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
+        { id: "todo", name: "Todo", position: 1, stage: "todo" },
+      ],
+    });
+    await boardStore.save(board);
+
+    const fatComment = "prior review note\n\n".repeat(500);
+    const task = createTask({
+      id: "task-ack-move",
+      title: "Comment-heavy card",
+      objective: "Story body",
+      comment: fatComment,
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "backlog",
+    });
+    await taskStore.save(task);
+
+    const result = await tools.moveCard({
+      cardId: task.id,
+      targetColumnId: "todo",
+      position: 3,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      id: "task-ack-move",
+      columnId: "todo",
+      position: 3,
+      status: expect.any(String),
+    });
+
+    const serialized = JSON.stringify(result.data);
+    expect(serialized).not.toContain("prior review note");
+    expect(serialized.length).toBeLessThan(1024);
+
+    const saved = await taskStore.get(task.id);
+    expect(saved?.columnId).toBe("todo");
   });
 });
