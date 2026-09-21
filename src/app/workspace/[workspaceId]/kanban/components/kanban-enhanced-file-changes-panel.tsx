@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "@/client/components/confirm-dialog";
 import type { KanbanRepoChanges, KanbanFileChangeItem, KanbanTaskChanges, KanbanCommitInfo } from "../kanban-file-changes-types";
 import { KanbanUnstagedSection } from "./kanban-unstaged-section";
 import { KanbanStagedSection } from "./kanban-staged-section";
@@ -38,6 +39,7 @@ export function KanbanEnhancedFileChangesPanel({
   embedded = false,
 }: KanbanEnhancedFileChangesPanelProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [autoCommit, setAutoCommit] = useState(false);
   const [commitModalOpen, setCommitModalOpen] = useState(false);
   const [activeDiffFile, setActiveDiffFile] = useState<KanbanFileChangeItem | null>(null);
@@ -170,15 +172,15 @@ export function KanbanEnhancedFileChangesPanel({
     const selectedFiles = unstagedWithSelection.filter((f) => f.selected).map((f) => f.path);
     if (selectedFiles.length === 0) return;
 
-    // TODO: Add confirmation dialog
-    const confirmed = window.confirm(
-      `Are you sure you want to discard changes to ${selectedFiles.length} file(s)? This cannot be undone.`
-    );
+    const confirmed = await confirm({
+      message: t.kanbanModals.discardChangesConfirm.replace("{count}", String(selectedFiles.length)),
+      destructive: true,
+    });
     if (!confirmed) return;
 
     await discardChanges(selectedFiles);
     setFileSelections({});
-  }, [unstagedWithSelection, discardChanges]);
+  }, [confirm, discardChanges, t.kanbanModals.discardChangesConfirm, unstagedWithSelection]);
 
   const handleCommit = useCallback(async (message: string) => {
     await createCommit(message);
@@ -293,33 +295,33 @@ export function KanbanEnhancedFileChangesPanel({
   }, [exportChanges]);
 
   const handlePull = useCallback(async () => {
-    const confirmed = window.confirm(
-      `Pull commits from remote? This will update your local branch.`
-    );
+    const confirmed = await confirm({ message: t.kanbanModals.pullCommitsConfirm });
     if (!confirmed) return;
 
     await pullCommits();
-  }, [pullCommits]);
+  }, [confirm, pullCommits, t.kanbanModals.pullCommitsConfirm]);
 
   const handleRebase = useCallback(async () => {
     const targetBranch = activeRepo?.targetBranch || "main";
-    const confirmed = window.confirm(
-      `Rebase current branch onto ${targetBranch}? This will rewrite commit history.`
-    );
+    const confirmed = await confirm({
+      message: t.kanbanModals.rebaseBranchConfirm.replace("{branch}", targetBranch),
+      destructive: true,
+    });
     if (!confirmed) return;
 
     await rebaseBranch(targetBranch);
-  }, [rebaseBranch, activeRepo?.targetBranch]);
+  }, [activeRepo?.targetBranch, confirm, rebaseBranch, t.kanbanModals.rebaseBranchConfirm]);
 
   const handleReset = useCallback(async () => {
     const targetBranch = activeRepo?.targetBranch || "main";
-    const confirmed = window.confirm(
-      `Reset to a clean ${targetBranch}? This will discard all local commits and working directory changes.`
-    );
+    const confirmed = await confirm({
+      message: t.kanbanModals.resetBranchConfirm.replace("{branch}", targetBranch),
+      destructive: true,
+    });
     if (!confirmed) return;
 
     await resetBranch(targetBranch, "hard", true);
-  }, [resetBranch, activeRepo?.targetBranch]);
+  }, [activeRepo?.targetBranch, confirm, resetBranch, t.kanbanModals.resetBranchConfirm]);
 
   const handleArchive = useCallback(() => {
     // TODO: Implement archive and create new workspace
