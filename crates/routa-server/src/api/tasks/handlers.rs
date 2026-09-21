@@ -17,6 +17,7 @@ use super::evidence::{
     build_task_run_ledger, ensure_transition_artifacts, serialize_task_with_evidence,
     serialize_tasks_batch,
 };
+use super::list_projection::{parse_task_list_view, project_tasks_for_list};
 
 use crate::api::tasks_automation::{
     auto_create_worktree, resolve_codebase, trigger_assigned_task_agent,
@@ -216,7 +217,15 @@ async fn list_tasks(
     // Use batch serialization to avoid N+1 queries
     let serialized_tasks = serialize_tasks_batch(&state, &tasks).await?;
 
-    Ok(Json(serde_json::json!({ "tasks": serialized_tasks })))
+    // Board columns render a fraction of the task record; the full shape is
+    // available via `?view=full` or `GET /api/tasks/:id`.
+    let view = parse_task_list_view(query.view.as_deref());
+    let projected = project_tasks_for_list(serialized_tasks, view);
+
+    Ok(Json(serde_json::json!({
+        "tasks": projected,
+        "view": view.as_str(),
+    })))
 }
 
 async fn get_task(

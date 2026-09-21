@@ -92,6 +92,22 @@ type MoveBlockedState = {
   missingTaskFields?: string[];
 };
 
+/**
+ * Fields the list projection omits (see src/app/api/tasks/task-list-projection.ts).
+ * They must come from the hydrated detail fetch, not from the board summary.
+ */
+function pickHydratedDetailFields(hydrated: TaskInfo): Partial<TaskInfo> {
+  const detail: Partial<TaskInfo> = {};
+  if (hydrated.comment !== undefined) detail.comment = hydrated.comment;
+  if (hydrated.comments !== undefined) detail.comments = hydrated.comments;
+  if (hydrated.jitContextSnapshot !== undefined) detail.jitContextSnapshot = hydrated.jitContextSnapshot;
+  if (hydrated.verificationReport !== undefined) detail.verificationReport = hydrated.verificationReport;
+  if (hydrated.contextSearchSpec !== undefined) detail.contextSearchSpec = hydrated.contextSearchSpec;
+  // The summary objective is truncated; the hydrated one is authoritative.
+  if (hydrated.objective !== undefined) detail.objective = hydrated.objective;
+  return detail;
+}
+
 class TaskPatchError extends Error {
   storyReadiness?: TaskInfo["storyReadiness"];
   missingTaskFields?: string[];
@@ -215,6 +231,8 @@ export function KanbanTab({
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null); // For card detail view;
+  // taskId -> full record fetched from GET /api/tasks/:id (detail-only fields).
+  const [hydratedTaskDetails, setHydratedTaskDetails] = useState<Record<string, TaskInfo>>({});
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -307,10 +325,24 @@ export function KanbanTab({
     () => Array.from(sessionMap.values()),
     [sessionMap],
   );
-  const activeTask = useMemo(
+  // The board list is served as a slim projection (no comments /
+  // jitContextSnapshot / full objective), so the detail panel hydrates the
+  // full record separately and it is kept here. A list refresh must not
+  // clobber the hydrated copy, hence a cache rather than a merge into
+  // localTasks.
+  const summaryActiveTask = useMemo(
     () => activeTaskId ? localTasks.find((task) => task.id === activeTaskId) ?? null : null,
     [activeTaskId, localTasks],
   );
+  const activeTask = useMemo(() => {
+    if (!activeTaskId) return null;
+    const hydrated = hydratedTaskDetails[activeTaskId];
+    if (!hydrated) return summaryActiveTask;
+    if (!summaryActiveTask) return hydrated;
+    // Summary fields are the fresher ones (they arrive on every SSE refresh);
+    // the hydrated record supplies the detail-only fields underneath.
+    return { ...hydrated, ...summaryActiveTask, ...pickHydratedDetailFields(hydrated) };
+  }, [activeTaskId, hydratedTaskDetails, summaryActiveTask]);
   const preferredActiveTaskSessionId = useMemo(
     () => getPreferredTaskSessionId(activeTask),
     [activeTask],
@@ -575,6 +607,29 @@ export function KanbanTab({
   useEffect(() => {
     setLocalTasks(tasks);
   }, [tasks]);
+
+  // Hydrate the open card's detail-only fields, and re-hydrate when the board
+  // reports the card changed (updatedAt moves on every agent write).
+  const activeTaskUpdatedAt = summaryActiveTask?.updatedAt;
+  useEffect(() => {
+    if (!activeTaskId) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const full = await fetchTaskById(activeTaskId);
+        if (cancelled) return;
+        setHydratedTaskDetails((current) => ({ ...current, [activeTaskId]: full }));
+      } catch (error) {
+        // The summary record still renders; only detail-only fields are missing.
+        console.error("[kanban] Failed to hydrate task detail:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTaskId, activeTaskUpdatedAt, fetchTaskById]);
 
   useEffect(() => {
     setBackfilledSessions((current) => {

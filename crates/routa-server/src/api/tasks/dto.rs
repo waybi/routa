@@ -125,6 +125,9 @@ pub struct ListTasksQuery {
     pub session_id: Option<String>,
     pub status: Option<String>,
     pub assigned_to: Option<String>,
+    /// `summary` (default) returns the slim board projection; `full` returns
+    /// every field. Mirrors the Next backend's `?view=` parameter.
+    pub view: Option<String>,
 }
 
 /// Query params for task file change
