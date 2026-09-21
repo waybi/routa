@@ -33,6 +33,7 @@ import { InMemoryKanbanBoardStore, KanbanBoardStore } from "./store/kanban-board
 import { InMemoryArtifactStore, ArtifactStore } from "./store/artifact-store";
 import { PermissionStore } from "./tools/permission-store";
 import { getKanbanEventBroadcaster } from "./kanban/kanban-event-broadcaster";
+import { setupTaskLifecycleBridge } from "./kanban/task-lifecycle-bridge";
 import { AgentEventType } from "./events/event-bus";
 
 export interface RoutaSystem {
@@ -391,6 +392,13 @@ export function getRoutaSystem(): RoutaSystem {
 
     // Set up EventBus → KanbanEventBroadcaster bridge for file changes
     setupFileChangeBridge(system);
+
+    // Bridge agent lifecycle (completed / failed) onto card-level events so the
+    // UI can notify the user instead of silently refetching.
+    setupTaskLifecycleBridge({
+      eventBus: system.eventBus,
+      taskStore: system.taskStore,
+    });
   }
   return g[GLOBAL_KEY] as RoutaSystem;
 }
