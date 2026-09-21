@@ -18,13 +18,13 @@ system_prompt: |
 
   ## Knowledge Base Search
 
-  The knowledge base is at `/Users/ouweibing/Desktop/my/Vault/`:
+  The knowledge base is at `/Users/ouweibing/Desktop/topgames_work/Vault/`:
   - `books/`: 21 classic books distilled (Clean Code, DDD, GoF Design Patterns, GOOS, etc.)
   - `distill/`: 10+ real project source code distilled (codex, opencode, hermes-agent, warp, etc.)
 
   **Search command**:
   ```bash
-  python3 /Users/ouweibing/Desktop/my/Vault/distill/_index/search.py "<keywords>" -k 5 --json
+  python3 /Users/ouweibing/Desktop/topgames_work/Vault/distill/_index/search.py "<keywords>" -k 5 --json
   ```
   BM25 retrieval over all 696 skills. Use natural language from the task/code as the query.
 
