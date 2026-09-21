@@ -6,12 +6,32 @@ import { resolveApiPath } from "../config/backend";
 
 const FITNESS_INVALIDATE_THROTTLE_MS = 750;
 
+/** Mirrors KanbanTaskLifecycleEvent from the server broadcaster. */
+export interface KanbanTaskLifecyclePayload {
+  type: "kanban:task-lifecycle";
+  workspaceId: string;
+  taskId: string;
+  taskTitle: string;
+  sessionId?: string;
+  phase: "started" | "completed" | "failed" | "blocked" | "needs_review";
+  columnId?: string;
+  lastMessagePreview?: string;
+  source?: "agent" | "user" | "system";
+  timestamp?: string;
+}
+
 interface UseKanbanEventsOptions {
   workspaceId: string;
   onInvalidate: () => void;
+  /** Called when an agent run attached to a card reaches a terminal phase. */
+  onTaskLifecycle?: (event: KanbanTaskLifecyclePayload) => void;
 }
 
-export function useKanbanEvents({ workspaceId, onInvalidate }: UseKanbanEventsOptions): void {
+export function useKanbanEvents({
+  workspaceId,
+  onInvalidate,
+  onTaskLifecycle,
+}: UseKanbanEventsOptions): void {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fitnessInvalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,11 +39,16 @@ export function useKanbanEvents({ workspaceId, onInvalidate }: UseKanbanEventsOp
   const tearingDownRef = useRef(false);
   const hasConnectedOnceRef = useRef(false);
   const onInvalidateRef = useRef(onInvalidate);
+  const onTaskLifecycleRef = useRef(onTaskLifecycle);
   const connectSseRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onInvalidateRef.current = onInvalidate;
   }, [onInvalidate]);
+
+  useEffect(() => {
+    onTaskLifecycleRef.current = onTaskLifecycle;
+  }, [onTaskLifecycle]);
 
   const connectSSE = useCallback(() => {
     if (eventSourceRef.current) {
@@ -48,6 +73,13 @@ export function useKanbanEvents({ workspaceId, onInvalidate }: UseKanbanEventsOp
           return;
         }
         if (data.type === "kanban:changed") {
+          onInvalidateRef.current();
+          return;
+        }
+        if (data.type === "kanban:task-lifecycle") {
+          const lifecycle = data as unknown as KanbanTaskLifecyclePayload;
+          onTaskLifecycleRef.current?.(lifecycle);
+          // A terminal phase also changed the card, so keep the board fresh.
           onInvalidateRef.current();
           return;
         }
