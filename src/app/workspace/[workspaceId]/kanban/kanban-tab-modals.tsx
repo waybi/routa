@@ -1027,11 +1027,14 @@ export function KanbanReplaceAllReposModal({
 export function KanbanDeleteTaskModal({
   deleteConfirmTask,
   isDeleting,
+  deleteError = null,
   onCancel,
   onConfirm,
 }: {
   deleteConfirmTask: TaskInfo | null;
   isDeleting: boolean;
+  /** Server-side failure message; the modal stays open and now says why. */
+  deleteError?: string | null;
   onCancel: () => void;
   onConfirm: () => void | Promise<void>;
 }) {
@@ -1057,6 +1060,15 @@ export function KanbanDeleteTaskModal({
                   {t.kanbanModals.deleteTaskGithubNote} #{deleteConfirmTask.githubNumber} will remain unchanged.
                 </p>
               )}
+              {deleteError && (
+                <p
+                  role="alert"
+                  data-testid="kanban-delete-error"
+                  className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+                >
+                  {t.feedback.cardDeleteFailed}: {deleteError}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-6 flex gap-3">
@@ -1073,6 +1085,64 @@ export function KanbanDeleteTaskModal({
               className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-600"
             >
               {isDeleting ? t.kanbanModals.deleting : t.common.delete}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Asks whether to clean up the attached worktree when a card moves to Done.
+ * Replaces a hardcoded-English `window.confirm`, which also blocked the main
+ * thread while open.
+ */
+export function KanbanWorktreeCleanupModal({
+  prompt,
+  onConfirm,
+  onSkip,
+}: {
+  prompt: { taskId: string; targetColumnId: string } | null;
+  onConfirm: () => void;
+  onSkip: () => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!prompt) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 animate-in fade-in duration-150">
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#1c1f2e] dark:bg-[#12141c] animate-in zoom-in-95 duration-150"
+        data-testid="kanban-worktree-cleanup-modal"
+      >
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/20">
+              <TriangleAlert className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"/>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                {t.feedback.worktreeCleanupTitle}
+              </h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                {t.feedback.worktreeCleanupBody}
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={onSkip}
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:bg-[#191c28]"
+            >
+              {t.feedback.worktreeCleanupSkip}
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            >
+              {t.feedback.worktreeCleanupConfirm}
             </button>
           </div>
         </div>

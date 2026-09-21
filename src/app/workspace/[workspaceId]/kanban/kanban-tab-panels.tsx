@@ -670,6 +670,8 @@ export function KanbanCreateTaskModal({
   setDraft,
   onClose,
   onCreate,
+  creating = false,
+  createError = null,
   githubAvailable,
   codebases,
   allCodebaseIds,
@@ -679,6 +681,8 @@ export function KanbanCreateTaskModal({
   setDraft: Dispatch<SetStateAction<TaskDraft>>;
   onClose: () => void;
   onCreate: () => void;
+  creating?: boolean;
+  createError?: string | null;
   githubAvailable: boolean;
   codebases: CodebaseData[];
   allCodebaseIds: string[];
@@ -691,6 +695,8 @@ export function KanbanCreateTaskModal({
       setDraft={setDraft}
       onClose={onClose}
       onCreate={onCreate}
+      creating={creating}
+      createError={createError}
       githubAvailable={githubAvailable}
       codebases={codebases}
       allCodebaseIds={allCodebaseIds}

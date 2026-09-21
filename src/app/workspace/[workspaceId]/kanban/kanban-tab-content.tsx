@@ -1,7 +1,8 @@
 "use client";
 
 import { type ComponentProps } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { useTranslation } from "@/i18n";
 import { AcpProviderDropdown } from "@/client/components/acp-provider-dropdown";
 import type { KanbanAgentPromptHandler, KanbanBoardInfo } from "../types";
 import { KanbanTabHeader } from "./kanban-tab-header";
@@ -16,6 +17,7 @@ import {
   KanbanDeleteTaskModal,
   KanbanMoveBlockedModal,
   KanbanReplaceAllReposModal,
+  KanbanWorktreeCleanupModal,
 } from "./kanban-tab-modals";
 import type { KanbanCodebaseModalProps } from "./kanban-tab-modals";
 import type { AcpProviderInfo } from "@/client/acp-client";
@@ -30,6 +32,7 @@ type SettingsModalProps = ComponentProps<typeof KanbanSettingsModal>;
 type DeleteCodebaseModalProps = ComponentProps<typeof KanbanDeleteCodebaseModal> & { show: boolean };
 type ReplaceAllReposModalProps = ComponentProps<typeof KanbanReplaceAllReposModal> & { show: boolean };
 type DeleteTaskModalProps = ComponentProps<typeof KanbanDeleteTaskModal>;
+type WorktreeCleanupModalProps = ComponentProps<typeof KanbanWorktreeCleanupModal>;
 type MoveBlockedModalProps = ComponentProps<typeof KanbanMoveBlockedModal>;
 type StatusBarProps = ComponentProps<typeof KanbanStatusBar>;
 type FitnessWorkbenchModalProps = ComponentProps<typeof KanbanFitnessWorkbenchModal>;
@@ -64,6 +67,7 @@ export interface KanbanTabContentProps {
   deleteCodebaseModalProps: DeleteCodebaseModalProps;
   replaceAllReposModalProps: ReplaceAllReposModalProps;
   deleteTaskModalProps: DeleteTaskModalProps;
+  worktreeCleanupModalProps: WorktreeCleanupModalProps;
   moveBlockedModalProps: MoveBlockedModalProps;
   statusBarProps: StatusBarProps;
   fitnessWorkbenchModalProps: FitnessWorkbenchModalProps;
@@ -85,6 +89,8 @@ function KanbanTabHeaderActionSlot({
   agentSessionId,
   openAgentPanel,
 }: KanbanTabHeaderActionProps) {
+  const { t } = useTranslation();
+
   if (!board) {
     return null;
   }
@@ -122,9 +128,17 @@ function KanbanTabHeaderActionSlot({
           <button
             onClick={onAgentSubmit}
             disabled={!agentInput.trim() || agentLoading || disableBoardProvider}
+            data-testid="kanban-agent-submit"
             className="mr-1 inline-flex h-6 shrink-0 items-center gap-1 rounded-md bg-slate-900 px-2 text-[11px] font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:bg-amber-500 dark:hover:bg-amber-400 dark:disabled:bg-[#1a1d29] dark:disabled:text-slate-500"
           >
-            {agentLoading ? "..." : (
+            {agentLoading ? (
+              // Creating an ACP session takes seconds; say what is happening
+              // instead of showing a bare "...".
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                <span>{t.feedback.agentSessionCreating}</span>
+              </>
+            ) : (
               <>
                 <span>{kanbanTaskAgentCopy.send}</span>
                 <ArrowRight className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -165,6 +179,7 @@ export function KanbanTabContent({
   deleteCodebaseModalProps,
   replaceAllReposModalProps,
   deleteTaskModalProps,
+  worktreeCleanupModalProps,
   moveBlockedModalProps,
   statusBarProps,
   fitnessWorkbenchModalProps,
@@ -223,6 +238,7 @@ export function KanbanTabContent({
         <KanbanReplaceAllReposModal {...replaceAllReposModalProps}/>
       )}
       <KanbanDeleteTaskModal {...deleteTaskModalProps}/>
+      <KanbanWorktreeCleanupModal {...worktreeCleanupModalProps}/>
       <KanbanMoveBlockedModal {...moveBlockedModalProps}/>
       <KanbanStatusBar {...statusBarProps}/>
       <KanbanFitnessWorkbenchModal {...fitnessWorkbenchModalProps}/>

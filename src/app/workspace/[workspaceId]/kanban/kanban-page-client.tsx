@@ -27,6 +27,7 @@ import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { resolveKanbanAutomationStep } from "@/core/kanban/effective-task-automation";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import type { KanbanRepoChanges } from "./kanban-file-changes-types";
+import { toast } from "@/client/components/toast";
 
 interface SpecialistOption {
   id: string;
@@ -450,11 +451,16 @@ export function KanbanPageClient() {
     }
 
     void acp.promptSession(result.sessionId, promptText).catch((error) => {
+      // The session exists but the prompt never landed — without this the user
+      // just sees an empty agent panel and no explanation.
       console.error("[kanban] Failed to send Kanban agent prompt:", error);
+      toast.error(t.feedback.agentPromptFailed, {
+        description: t.feedback.agentPromptFailedHint,
+      });
     });
 
     return result.sessionId;
-  }, [acp, codebases, workspaceId]);
+  }, [acp, codebases, t, workspaceId]);
 
   const workspace = workspacesHook.workspaces.find((w) => w.id === workspaceId);
   const activeWorkspaceTitle = workspace?.title ?? (workspaceId === "default" ? t.workspace.defaultWorkspace : workspaceId);

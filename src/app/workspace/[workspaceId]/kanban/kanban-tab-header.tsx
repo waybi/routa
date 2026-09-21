@@ -1,7 +1,7 @@
 import { useTranslation } from "@/i18n";
 import { Select } from "@/client/components/select";
 import type { KanbanBoardInfo } from "../types";
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Columns2, Download, RefreshCw, Settings } from "lucide-react";
 
 
@@ -33,6 +33,20 @@ export function KanbanTabHeader({
   actionSlot,
 }: KanbanTabHeaderProps) {
   const { t } = useTranslation();
+  // `onRefresh` is fire-and-forget upstream, so there is nothing to await.
+  // Spin for a short beat anyway: the click has to *look* acknowledged, which
+  // is the whole complaint this change addresses.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      onRefresh();
+    } finally {
+      setTimeout(() => setRefreshing(false), 600);
+    }
+  }, [onRefresh, refreshing]);
+
   return (
     <div
       className="shrink-0 border-b border-slate-200/70 px-4 py-1.5 dark:border-[#1c1f2e]"
@@ -88,11 +102,19 @@ export function KanbanTabHeader({
             </button>
           )}
           <button
-            onClick={onRefresh}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1f232f] dark:hover:text-slate-200"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            data-testid="kanban-refresh"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-60 dark:text-slate-400 dark:hover:bg-[#1f232f] dark:hover:text-slate-200"
             title={t.common.refresh}
           >
-            <RefreshCw className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <RefreshCw
+              className={`h-4 w-4${refreshing ? " animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            />
           </button>
         </div>
       </div>
