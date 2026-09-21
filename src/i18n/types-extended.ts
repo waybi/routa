@@ -964,6 +964,37 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     addFallbackAgent: string;
     enableAutomaticFallback: string;
     fallbackProviderDefault: string;
+    humanReadable: string;
+    humanReadableHint: string;
+    humanReadableFacts: string;
+    humanReadableFactsHint: string;
+    humanReadableWhat: string;
+    humanReadableWhere: string;
+    humanReadableBlockedNext: string;
+    humanReadableEvidence: string;
+    humanReadableSummary: string;
+    humanReadableGenerate: string;
+    humanReadableRegenerate: string;
+    humanReadableGenerating: string;
+    humanReadableLoading: string;
+    humanReadableStale: string;
+    humanReadableStaleHint: string;
+    humanReadableGeneratedAt: string;
+    humanReadableModel: string;
+    humanReadableBasedOn: string;
+    humanReadableLintHits: string;
+    humanReadableNoSummary: string;
+    humanReadableFailed: string;
+    humanReadableNoYaml: string;
+    humanReadableCurrentLane: string;
+    humanReadableBlocked: string;
+    humanReadableNotBlocked: string;
+    humanReadableDependsOn: string;
+    humanReadableUnblockCondition: string;
+    humanReadableSections: string;
+    humanReadableOpenDescription: string;
+    humanReadableAcTestable: string;
+    humanReadableAcNotTestable: string;
   };
 
   // Kanban modal dialogs

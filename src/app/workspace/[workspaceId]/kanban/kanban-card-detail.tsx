@@ -31,6 +31,7 @@ import { KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-overr
 // Legacy imports - removed, functionality replaced by KanbanTaskGitWorkflowPanel
 // import { TaskFileDiffPreview, TaskCommitDiffPreview, CommitRow } from "./kanban-diff-preview";
 import { StoryReadinessPanel, EvidenceBundlePanel, JitContextPanel, ReviewFeedbackPanel } from "./kanban-detail-panels";
+import { KanbanHumanReadablePanel } from "./kanban-human-readable-panel";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import {
   findSpecialistById,
@@ -75,7 +76,7 @@ export interface KanbanCardDetailProps {
 }
 
 const ROLE_OPTIONS = ["CRAFTER", "ROUTA", "GATE", "DEVELOPER"];
-type KanbanDetailTabId = "overview" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs";
+type KanbanDetailTabId = "overview" | "humanReadable" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs";
 
 const persistedKanbanDetailTabs = new Map<string, KanbanDetailTabId>();
 
@@ -324,12 +325,17 @@ export function KanbanCardDetail({
     ? tabSelection.tab
     : persistedKanbanDetailTabs.get(tabStateKey) ?? "overview";
   const tabListId = `kanban-detail-tabs-${task.id}`;
+  const selectTab = (tab: KanbanDetailTabId) => {
+    persistedKanbanDetailTabs.set(tabStateKey, tab);
+    setTabSelection({ key: tabStateKey, tab });
+  };
   const storyReadinessValue = task.storyReadiness
     ? (task.storyReadiness.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev)
     : null;
   const evidenceValue = getEvidenceStatus(task, t);
   const detailTabs = [
     { id: "overview" as const, label: t.kanbanDetail.overview },
+    { id: "humanReadable" as const, label: t.kanbanDetail.humanReadable },
     { id: "readiness" as const, label: t.kanbanDetail.storyReadiness },
     { id: "execution" as const, label: t.kanbanDetail.execution },
     { id: "jitContext" as const, label: t.kanbanDetail.jitContext },
@@ -510,10 +516,7 @@ export function KanbanCardDetail({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => {
-                    persistedKanbanDetailTabs.set(tabStateKey, tab.id);
-                    setTabSelection({ key: tabStateKey, tab: tab.id });
-                  }}
+                  onClick={() => selectTab(tab.id)}
                   id={tabId}
                   role="tab"
                   aria-selected={active}
@@ -696,6 +699,22 @@ export function KanbanCardDetail({
                 </div>
               </DetailSection>
             </>
+          )}
+
+          {activeTab === "humanReadable" && (
+            <DetailSection
+              title={t.kanbanDetail.humanReadable}
+              description={compactMode ? undefined : t.kanbanDetail.humanReadableHint}
+              compact={compactMode}
+            >
+              <KanbanHumanReadablePanel
+                task={task}
+                boardColumns={boardColumns}
+                specialistLanguage={specialistLanguage}
+                compact={compactMode}
+                onOpenDescription={() => selectTab("overview")}
+              />
+            </DetailSection>
           )}
 
           {activeTab === "readiness" && (
