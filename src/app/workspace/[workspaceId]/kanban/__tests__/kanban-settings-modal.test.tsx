@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { KanbanSettingsModal } from "../kanban-settings-modal";
+import { ConfirmDialogProvider } from "@/client/components/confirm-dialog";
 import type { KanbanBoardInfo } from "../../types";
 
 const defaultHistoryMemoryPolicy = {
@@ -499,30 +500,64 @@ describe("KanbanSettingsModal", () => {
 
   it("clears all cards after confirmation", async () => {
     const onClearAll = vi.fn(async () => {});
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
+    // Confirmation now goes through the in-app dialog rather than
+    // window.confirm, which blocked the main thread and could not be themed.
     render(
-      <KanbanSettingsModal
-        board={board}
-        columnAutomation={{}}
-        availableProviders={[{ id: "claude", name: "Claude Code", description: "Claude Code provider", command: "claude" }]}
-        specialists={[]}
-        specialistLanguage="en"
-        onClose={vi.fn()}
-        onClearAll={onClearAll}
-        onSave={vi.fn(async () => {})}
-      />,
+      <ConfirmDialogProvider>
+        <KanbanSettingsModal
+          board={board}
+          columnAutomation={{}}
+          availableProviders={[{ id: "claude", name: "Claude Code", description: "Claude Code provider", command: "claude" }]}
+          specialists={[]}
+          specialistLanguage="en"
+          onClose={vi.fn()}
+          onClearAll={onClearAll}
+          onSave={vi.fn(async () => {})}
+        />
+      </ConfirmDialogProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Board" }));
     fireEvent.click(screen.getByRole("button", { name: /clear all cards/i }));
 
+    const dialog = await screen.findByTestId("confirm-dialog");
+    expect(dialog.textContent).toContain("Clear all cards from this workspace board?");
+
+    fireEvent.click(screen.getByTestId("confirm-dialog-confirm"));
+
     await waitFor(() => {
-      expect(confirmSpy).toHaveBeenCalledWith("Clear all cards from this workspace board?");
       expect(onClearAll).toHaveBeenCalledTimes(1);
     });
+  });
 
-    confirmSpy.mockRestore();
+  it("does not clear cards when the confirmation is dismissed", async () => {
+    const onClearAll = vi.fn(async () => {});
+
+    render(
+      <ConfirmDialogProvider>
+        <KanbanSettingsModal
+          board={board}
+          columnAutomation={{}}
+          availableProviders={[{ id: "claude", name: "Claude Code", description: "Claude Code provider", command: "claude" }]}
+          specialists={[]}
+          specialistLanguage="en"
+          onClose={vi.fn()}
+          onClearAll={onClearAll}
+          onSave={vi.fn(async () => {})}
+        />
+      </ConfirmDialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    fireEvent.click(screen.getByRole("button", { name: /clear all cards/i }));
+
+    fireEvent.click(await screen.findByTestId("confirm-dialog-cancel"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("confirm-dialog")).toBeNull();
+    });
+    expect(onClearAll).not.toHaveBeenCalled();
   });
 
   it("treats blocked as a manual-only lane when saving", async () => {

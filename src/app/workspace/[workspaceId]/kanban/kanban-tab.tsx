@@ -41,6 +41,7 @@ import { getKanbanFileChangesSummary } from "./kanban-file-changes-panel";
 import { KanbanTabContent } from "./kanban-tab-content";
 import { useRuntimeFitnessStatus } from "./use-runtime-fitness-status";
 import { toast } from "@/client/components/toast";
+import { useConfirm } from "@/client/components/confirm-dialog";
 
 interface SpecialistOption {
   id: string;
@@ -183,6 +184,7 @@ export function KanbanTab({
   onAgentPrompt,
 }: KanbanTabProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const kanbanTaskAgentCopy = getKanbanTaskAgentCopy(specialistLanguage);
   const [localBoards, setLocalBoards] = useState<KanbanBoardInfo[]>(boards);
   const visibleBoards = useMemo(
@@ -1534,24 +1536,26 @@ export function KanbanTab({
   }, [liveBranchInfo, selectedCodebase, t.kanbanModals.removeBranchesFailed]);
 
   const handleDeleteIssueBranch = useCallback(async (branch: string) => {
-    const confirmed = window.confirm(
-      t.kanbanModals.removeBranchConfirm.replace("{branch}", branch),
-    );
+    const confirmed = await confirm({
+      message: t.kanbanModals.removeBranchConfirm.replace("{branch}", branch),
+      destructive: true,
+    });
     if (!confirmed) return;
 
     await deleteIssueBranches([branch]);
-  }, [deleteIssueBranches, t.kanbanModals.removeBranchConfirm]);
+  }, [confirm, deleteIssueBranches, t.kanbanModals.removeBranchConfirm]);
 
   const handleDeleteIssueBranches = useCallback(async (branches: string[]) => {
     if (branches.length === 0) return;
 
-    const confirmed = window.confirm(
-      t.kanbanModals.clearIssueBranchesConfirm.replace("{count}", String(branches.length)),
-    );
+    const confirmed = await confirm({
+      message: t.kanbanModals.clearIssueBranchesConfirm.replace("{count}", String(branches.length)),
+      destructive: true,
+    });
     if (!confirmed) return;
 
     await deleteIssueBranches(branches);
-  }, [deleteIssueBranches, t.kanbanModals.clearIssueBranchesConfirm]);
+  }, [confirm, deleteIssueBranches, t.kanbanModals.clearIssueBranchesConfirm]);
 
   const handleDeleteCodebaseWorktrees = useCallback(async (worktrees: WorktreeInfo[]) => {
     if (worktrees.length === 0) return;

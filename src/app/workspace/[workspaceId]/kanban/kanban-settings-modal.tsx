@@ -15,6 +15,7 @@ import type {
   KanbanHistoryMemoryPolicyInfo,
 } from "../types";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "@/client/components/confirm-dialog";
 import {
   ColumnAutomationWorkspace,
   DEFAULT_DEV_SESSION_SUPERVISION,
@@ -72,6 +73,7 @@ export function KanbanSettingsModal({
   onSave,
 }: KanbanSettingsModalProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const stageTypeOptions = useMemo(() => getStageTypeOptions(t), [t]);
   const initialEditableColumns = useMemo(
     () => board.columns
@@ -393,7 +395,8 @@ export function KanbanSettingsModal({
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm(t.kanban.clearAllConfirm)) return;
+    const confirmed = await confirm({ message: t.kanban.clearAllConfirm, destructive: true });
+    if (!confirmed) return;
     setClearingAll(true);
     try {
       await onClearAll();
