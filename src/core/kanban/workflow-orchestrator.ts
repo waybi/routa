@@ -915,12 +915,19 @@ export class KanbanWorkflowOrchestrator {
       const currentColumn = board.columns.find((column) => column.id === automation.columnId);
       if (!currentColumn) return;
 
+      // Done is a terminal stage — never auto-advance past it.
+      if (currentColumn.stage === "done") return;
+
       const sortedColumns = board.columns
         .slice()
         .sort((left, right) => left.position - right.position);
       const currentIndex = sortedColumns.findIndex((column) => column.id === currentColumn.id);
       const nextColumn = sortedColumns[currentIndex + 1];
       if (!nextColumn) return;
+
+      // Never auto-advance into the blocked lane — it is a recovery lane,
+      // not a normal workflow destination.
+      if (nextColumn.stage === "blocked") return;
 
       task.columnId = nextColumn.id;
       task.status = resolveTaskStatusForBoardColumn(board.columns, nextColumn.id);
