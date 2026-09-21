@@ -7,8 +7,14 @@ mod changes;
 mod dto;
 mod evidence;
 mod handlers;
+mod list_projection;
 
 pub use handlers::router;
+
+pub use list_projection::{
+    parse_task_list_view, project_task_for_list, project_tasks_for_list, TaskListView,
+    LIST_OBJECTIVE_MAX_CHARS,
+};
 
 // Re-export commonly used types
 pub use dto::{
