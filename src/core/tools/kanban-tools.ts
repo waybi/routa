@@ -71,6 +71,7 @@ import {
   countContractGateFailures,
 } from "../kanban/task-contract-readiness";
 import { evaluateTaskDescriptionWriteGuard } from "../kanban/task-description-write-guard";
+import { cleanupDanglingDependencyReferences } from "../kanban/task-dependency-cleanup";
 import {
   evaluateKanbanTransitionGates,
   formatKanbanTransitionGateMessage,
@@ -661,7 +662,29 @@ export class KanbanTools {
     await this.taskStore.delete(cardId);
     this.notifyWorkspaceChanged(task.workspaceId, "task", "deleted", cardId);
 
-    return successResult({ deleted: true, cardId });
+    // Referential cleanup: strip the deleted id from other cards' structured
+    // dependencies and leave an audit comment where canonical YAML still
+    // mentions it, so referrers do not silently dangle.
+    const cleanup = await cleanupDanglingDependencyReferences({
+      deletedTask: task,
+      taskStore: this.taskStore,
+      onTaskUpdated: (updated) =>
+        this.notifyWorkspaceChanged(updated.workspaceId, "task", "updated", updated.id),
+    });
+
+    return successResult({
+      deleted: true,
+      cardId,
+      dependencyCleanup: cleanup,
+      ...(cleanup.yamlMentionTaskIds.length > 0
+        ? {
+            warning:
+              `Deleted card is still mentioned in the canonical YAML of: ` +
+              `${cleanup.yamlMentionTaskIds.join(", ")}. Those stories need a ` +
+              "backlog refresh to repoint or drop the dangling depends_on reference.",
+          }
+        : {}),
+    });
   }
 
   // ─── Column Operations ──────────────────────────────────────────────────
