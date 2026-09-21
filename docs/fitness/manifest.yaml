@@ -12,3 +12,4 @@ evidence_files:
   - docs/fitness/rust-api-test.md
   - docs/fitness/runtime/observability.md
   - docs/fitness/runtime/performance.md
+  - docs/fitness/doc-health.md

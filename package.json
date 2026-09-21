@@ -121,6 +121,7 @@
     "api:validate": "node --import tsx scripts/fitness/validate-api-parity.ts",
     "api:validate:full": "node --import tsx scripts/fitness/validate-api-parity.ts --runtime",
     "docs:specialists:generate": "node --import tsx scripts/docs/generate-specialist-docs.ts --save",
+    "docs:health": "node --import tsx scripts/docs/check-doc-health.ts",
     "snapshots:generate": "node scripts/generate-snapshots.mjs",
     "snapshots:validate": "node scripts/fitness/validate-snapshots.mjs",
     "scripts:test": "vitest run scripts/__tests__",
