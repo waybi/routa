@@ -8,6 +8,7 @@ import { getTaskLaneSession, markTaskLaneSessionStatus } from "./task-lane-histo
 import { resolveCurrentLaneAutomationState } from "./lane-automation-state";
 import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
+import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import {
   enqueueKanbanTaskSession,
   processKanbanColumnTransition,
@@ -228,6 +229,15 @@ export async function reviveMissingEntryAutomations(
       || getKanbanAutomationSteps(automation).length === 0
       || hasLaneSessionForCurrentColumn
     ) {
+      continue;
+    }
+
+    // Respect the circuit breaker: if this card already exceeded the non-dev
+    // automation repeat limit for the current column, do not revive it.
+    // Without this guard every page refresh re-triggers the same doomed
+    // automation, burning sessions and potentially pushing cards into wrong
+    // lanes via side effects.
+    if (hasExceededNonDevAutomationRepeatLimit(task, currentColumnId, column.stage)) {
       continue;
     }
 
