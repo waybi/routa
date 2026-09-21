@@ -146,6 +146,82 @@ fn translate_agent_event_to_kanban_payload(event: &AgentEvent) -> Option<serde_j
     }
 }
 
+/// Truncation budget for `lastMessagePreview`, mirroring
+/// `KANBAN_LIFECYCLE_PREVIEW_MAX_CHARS` on the Next backend.
+const LIFECYCLE_PREVIEW_MAX_CHARS: usize = 120;
+
+fn truncate_lifecycle_preview(text: Option<&str>) -> Option<String> {
+    let normalized = text?.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+    if normalized.chars().count() <= LIFECYCLE_PREVIEW_MAX_CHARS {
+        return Some(normalized);
+    }
+    let mut truncated: String = normalized
+        .chars()
+        .take(LIFECYCLE_PREVIEW_MAX_CHARS - 1)
+        .collect();
+    truncated.push('…');
+    Some(truncated)
+}
+
+/// Projects terminal task events onto the card lifecycle event the UI turns
+/// into a toast / bell entry / OS notification.
+///
+/// `kanban:changed` only means "refetch"; it cannot express "this run
+/// finished", which is why completion never reached the user. Shape must stay
+/// identical to `KanbanTaskLifecycleEvent` in
+/// `src/core/kanban/kanban-event-broadcaster.ts`.
+fn translate_agent_event_to_lifecycle_payload(event: &AgentEvent) -> Option<serde_json::Value> {
+    let phase = match event.event_type {
+        AgentEventType::TaskCompleted | AgentEventType::AgentCompleted => "completed",
+        AgentEventType::TaskFailed | AgentEventType::AgentError => "failed",
+        _ => return None,
+    };
+
+    // Without a card identity there is nothing the UI could link the toast to.
+    let task_id = event.data.get("taskId").and_then(|value| value.as_str())?;
+    let task_title = event
+        .data
+        .get("taskTitle")
+        .and_then(|value| value.as_str())
+        .unwrap_or(task_id);
+
+    let column_id = event
+        .data
+        .get("columnId")
+        .and_then(|value| value.as_str())
+        .or_else(|| event.data.get("newStatus").and_then(|value| value.as_str()));
+
+    let phase = match column_id {
+        Some("review") if phase == "completed" => "needs_review",
+        Some("blocked") if phase == "completed" => "blocked",
+        _ => phase,
+    };
+
+    let preview = truncate_lifecycle_preview(
+        event
+            .data
+            .get("summary")
+            .and_then(|value| value.as_str())
+            .or_else(|| event.data.get("error").and_then(|value| value.as_str())),
+    );
+
+    Some(serde_json::json!({
+        "type": "kanban:task-lifecycle",
+        "workspaceId": event.workspace_id,
+        "taskId": task_id,
+        "taskTitle": task_title,
+        "sessionId": event.data.get("sessionId").and_then(|value| value.as_str()),
+        "phase": phase,
+        "columnId": column_id,
+        "lastMessagePreview": preview,
+        "source": if event.agent_id.is_empty() { "system" } else { "agent" },
+        "timestamp": event.timestamp.to_rfc3339(),
+    }))
+}
+
 async fn is_session_actively_running(state: &AppState, session_id: &str) -> bool {
     if state.acp_manager.get_session(session_id).await.is_some() {
         return true;
@@ -471,6 +547,11 @@ async fn kanban_events(
                 return;
             }
             if let Some(payload) = translate_agent_event_to_kanban_payload(&event) {
+                let _ = tx.send(payload);
+            }
+            // Terminal events emit both: `kanban:changed` keeps the board
+            // fresh, `kanban:task-lifecycle` tells the user it finished.
+            if let Some(payload) = translate_agent_event_to_lifecycle_payload(&event) {
                 let _ = tx.send(payload);
             }
         })
@@ -1026,7 +1107,8 @@ fn strip_board_cards(board: &serde_json::Value) -> serde_json::Value {
 mod tests {
     use super::{
         persisted_session_is_explicitly_terminal, sanitize_stale_current_lane_automation,
-        translate_agent_event_to_kanban_payload, UpdateBoardRequest,
+        translate_agent_event_to_kanban_payload, translate_agent_event_to_lifecycle_payload,
+        UpdateBoardRequest, LIFECYCLE_PREVIEW_MAX_CHARS,
     };
     use chrono::Utc;
     use routa_core::events::{AgentEvent, AgentEventType};
@@ -1114,6 +1196,111 @@ mod tests {
         assert_eq!(payload["action"].as_str(), Some("moved"));
         assert_eq!(payload["resourceId"].as_str(), Some("task-1"));
         assert_eq!(payload["source"].as_str(), Some("user"));
+    }
+
+    #[test]
+    fn translates_task_completed_into_lifecycle_payload() {
+        let event = AgentEvent {
+            event_type: AgentEventType::TaskCompleted,
+            agent_id: "session-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            data: json!({
+                "taskId": "task-1",
+                "taskTitle": "Ship the thing",
+                "sessionId": "session-1",
+                "summary": "  all   green  ",
+            }),
+            timestamp: Utc::now(),
+        };
+
+        let payload =
+            translate_agent_event_to_lifecycle_payload(&event).expect("payload should exist");
+        assert_eq!(payload["type"].as_str(), Some("kanban:task-lifecycle"));
+        assert_eq!(payload["workspaceId"].as_str(), Some("ws-1"));
+        assert_eq!(payload["taskId"].as_str(), Some("task-1"));
+        assert_eq!(payload["taskTitle"].as_str(), Some("Ship the thing"));
+        assert_eq!(payload["phase"].as_str(), Some("completed"));
+        assert_eq!(payload["sessionId"].as_str(), Some("session-1"));
+        // Whitespace is normalized so the preview stays one readable line.
+        assert_eq!(payload["lastMessagePreview"].as_str(), Some("all green"));
+        assert_eq!(payload["source"].as_str(), Some("agent"));
+    }
+
+    #[test]
+    fn maps_review_column_completion_to_needs_review_phase() {
+        let event = AgentEvent {
+            event_type: AgentEventType::TaskCompleted,
+            agent_id: "session-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            data: json!({
+                "taskId": "task-1",
+                "taskTitle": "Ship the thing",
+                "columnId": "review",
+            }),
+            timestamp: Utc::now(),
+        };
+
+        let payload =
+            translate_agent_event_to_lifecycle_payload(&event).expect("payload should exist");
+        assert_eq!(payload["phase"].as_str(), Some("needs_review"));
+    }
+
+    #[test]
+    fn maps_task_failed_to_failed_phase() {
+        let event = AgentEvent {
+            event_type: AgentEventType::TaskFailed,
+            agent_id: "session-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            data: json!({
+                "taskId": "task-1",
+                "taskTitle": "Ship the thing",
+                "error": "provider exploded",
+            }),
+            timestamp: Utc::now(),
+        };
+
+        let payload =
+            translate_agent_event_to_lifecycle_payload(&event).expect("payload should exist");
+        assert_eq!(payload["phase"].as_str(), Some("failed"));
+        assert_eq!(
+            payload["lastMessagePreview"].as_str(),
+            Some("provider exploded")
+        );
+    }
+
+    #[test]
+    fn skips_lifecycle_payload_without_task_identity() {
+        let event = AgentEvent {
+            event_type: AgentEventType::TaskCompleted,
+            agent_id: "session-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            data: json!({ "summary": "no card attached" }),
+            timestamp: Utc::now(),
+        };
+
+        assert!(translate_agent_event_to_lifecycle_payload(&event).is_none());
+    }
+
+    #[test]
+    fn truncates_long_lifecycle_previews() {
+        let long_summary = "x".repeat(400);
+        let event = AgentEvent {
+            event_type: AgentEventType::TaskCompleted,
+            agent_id: "session-1".to_string(),
+            workspace_id: "ws-1".to_string(),
+            data: json!({
+                "taskId": "task-1",
+                "taskTitle": "Ship the thing",
+                "summary": long_summary,
+            }),
+            timestamp: Utc::now(),
+        };
+
+        let payload =
+            translate_agent_event_to_lifecycle_payload(&event).expect("payload should exist");
+        let preview = payload["lastMessagePreview"].as_str().expect("preview");
+        assert_eq!(preview.chars().count(), LIFECYCLE_PREVIEW_MAX_CHARS);
+        assert!(preview.ends_with('…'));
     }
 
     #[test]
