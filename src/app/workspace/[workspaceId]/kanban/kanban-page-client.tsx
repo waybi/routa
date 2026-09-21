@@ -28,6 +28,7 @@ import { resolveKanbanAutomationStep } from "@/core/kanban/effective-task-automa
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import { toast } from "@/client/components/toast";
+import { useTaskLifecycleNotifications } from "./use-task-lifecycle-notifications";
 
 interface SpecialistOption {
   id: string;
@@ -369,9 +370,20 @@ export function KanbanPageClient() {
     handleRefresh();
   }, [handleRefresh]);
 
+  const handleOpenTaskFromNotification = useCallback((taskId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("taskId", taskId);
+    router.push(`${url.pathname}${url.search}`);
+  }, [router]);
+
+  const handleTaskLifecycle = useTaskLifecycleNotifications({
+    onOpenTask: handleOpenTaskFromNotification,
+  });
+
   useKanbanEvents({
     workspaceId,
     onInvalidate: handleKanbanInvalidate,
+    onTaskLifecycle: handleTaskLifecycle,
   });
 
   useEffect(() => {

@@ -3,6 +3,7 @@
 import { DockerStatusIndicator } from "./docker-status-indicator";
 import { LanguageSwitcher } from "./language-switcher";
 import { McpStatusIndicator } from "./mcp-status-indicator";
+import { NotificationBell } from "./notification-center";
 import { ThemeSwitcher } from "./theme-switcher";
 
 
@@ -25,6 +26,8 @@ export function ShellHeaderControls({
       <div className="hidden lg:flex">
         <McpStatusIndicator compact={compactStatus} />
       </div>
+      {/* Task lifecycle history, so a completion survives a tab switch. */}
+      <NotificationBell />
       {showPreferencesMenu ? (
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
