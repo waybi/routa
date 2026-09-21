@@ -148,7 +148,7 @@ Fitness = Σ (Weight_i × Score_i) / 100
 阻断: < 80 | 强告警: 80-90 | 通过: ≥ 90
 ```
 
-## Dimensions（十个维度）
+## Dimensions（十一个维度）
 
 | 维度 | 权重 | 描述 | 关键指标 | 证据文件 |
 |------|------|------|----------|----------|
@@ -160,6 +160,7 @@ Fitness = Σ (Weight_i × Score_i) / 100
 | design_system | 10% | 设计系统质量 | CSS 契约, 组件视觉回归, 可访问性 | [design-system-quality-layers.md](design-system-quality-layers.md) |
 | evolvability | 8% | API 兼容性与契约 | breaking changes=0, parity=100% | [api-contract.md](api-contract.md) |
 | ui_consistency | 8% | UI 一致性 | Shell 组件覆盖, Token 接入 | [design-system-shell.md](design-system-shell.md) |
+| doc_health | 0% | 文档健康与漂移检测 | specialist 清单同步, ADR 索引同步, 仓库地图路径可达, 交叉引用完整 | [doc-health.md](doc-health.md) |
 | observability | 0% | 运行时可观测性 | instrumentation, error visibility, trace recorder | [runtime/observability.md](runtime/observability.md) |
 | performance | 0% | 运行时性能证据 | route smoke, SQLite WAL | [runtime/performance.md](runtime/performance.md) |
 
@@ -167,7 +168,7 @@ Fitness = Σ (Weight_i × Score_i) / 100
 
 说明：
 
-- `observability` 与 `performance` 目前是 runtime 维度，权重为 `0`，不会改变总分，但会作为执行证据出现在报告里。
+- `doc_health`、`observability` 与 `performance` 目前权重为 `0`，不会改变总分，但会作为执行证据出现在报告里。
 - `security` 维度仍由 `entrix` 评分，同时 GitHub Actions 会继续保留 SARIF / scanner 类型的独立安全作业。
 
 ## Hard Gates
@@ -218,6 +219,7 @@ Fitness = Σ (Weight_i × Score_i) / 100
 - `Gate: Design System`
 - `Gate: Evolvability`
 - `Gate: UI Consistency`
+- `Gate: Doc Health`
 - `Gate: Observability`
 - `Gate: Performance`
 
