@@ -487,6 +487,8 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     repoMissing: string;
     worktreeLoading: string;
     noObjective: string;
+    /** Empty state shown only after the boards fetch settles. */
+    noBoardAvailable: string;
     automation: string;
     cardOverride: string;
     laneDefault: string;

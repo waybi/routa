@@ -481,6 +481,7 @@ export const enExtended: ExtendedTranslationDictionarySections = {
     repoMissing: "⚠ repo missing",
     worktreeLoading: "worktree loading...",
     noObjective: "No objective captured yet.",
+    noBoardAvailable: "No board available yet.",
     automation: "Automation",
     cardOverride: "Card override",
     laneDefault: "Lane default",

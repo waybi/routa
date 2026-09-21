@@ -481,6 +481,7 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
     repoMissing: "⚠ 仓库缺失",
     worktreeLoading: "工作树加载中...",
     noObjective: "尚未捕获目标。",
+    noBoardAvailable: "还没有看板。",
     automation: "自动化",
     cardOverride: "卡片覆盖",
     laneDefault: "泳道默认",
