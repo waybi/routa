@@ -2,7 +2,7 @@
 title: "Card deletion leaves dangling dependency references in other cards"
 date: "2026-09-21"
 kind: issue
-status: investigating
+status: resolved
 severity: medium
 area: "kanban"
 tags: ["kanban", "dependencies", "delete-card", "canonical-contract", "data-integrity"]
@@ -76,3 +76,25 @@ Both delete paths are bare deletes today:
 - Machine-editing canonical YAML is not safe (description freeze from dev
   onward; agent-authored contract), so YAML gets an audit comment instead of a
   rewrite.
+
+## Resolution
+
+Fixed in commit `362fa281`:
+
+- `src/core/kanban/task-dependency-cleanup.ts` — on deletion, scans workspace
+  tasks; strips the deleted id from structured `dependencies` (protects
+  /api/tasks/ready) and appends an audit comment to cards whose canonical YAML
+  mentions the id. YAML is never machine-edited.
+- Both delete paths (`KanbanTools.deleteCard`, `DELETE /api/tasks/{taskId}`)
+  run the cleanup and return a `dependencyCleanup` summary; the tool result
+  adds an explicit warning listing YAML-mention cards.
+- Tests: `src/core/kanban/__tests__/task-dependency-cleanup.test.ts` (3 cases)
+  and a deleteCard integration case in kanban-tools.test.ts.
+
+Not covered (follow-up candidates): remapping references to a replacement card
+(no way to know the successor id at delete time), and a board-wide dangling-ref
+lint in flow-diagnostics.
+
+Note: the TopBI card `c5320340` predates this fix — its YAML still names the
+deleted `71051574` and must be repointed to `bda9afe7` manually during its
+unblock refinement.
