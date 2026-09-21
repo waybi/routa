@@ -14,6 +14,7 @@ import {
 } from "@/core/models/task";
 import { columnIdToTaskStatus, resolveTaskStatusForBoardColumn, taskStatusToColumnId } from "@/core/models/kanban";
 import { getKanbanEventBroadcaster } from "@/core/kanban/kanban-event-broadcaster";
+import { cleanupDanglingDependencyReferences } from "@/core/kanban/task-dependency-cleanup";
 import { ensureTaskBoardContext } from "@/core/kanban/task-board-context";
 import { buildTaskGitHubIssueBody, updateGitHubIssue } from "@/core/kanban/github-issues";
 import { GitWorktreeService } from "@/core/git/git-worktree-service";
@@ -677,14 +678,32 @@ export async function DELETE(
   const system = getRoutaSystem();
   const task = await system.taskStore.get(taskId);
   await system.taskStore.delete(taskId);
-  if (task) {
-    getKanbanEventBroadcaster().notify({
-      workspaceId: task.workspaceId,
-      entity: "task",
-      action: "deleted",
-      resourceId: task.id,
-      source: "user",
-    });
+  if (!task) {
+    return NextResponse.json({ deleted: true });
   }
-  return NextResponse.json({ deleted: true });
+
+  getKanbanEventBroadcaster().notify({
+    workspaceId: task.workspaceId,
+    entity: "task",
+    action: "deleted",
+    resourceId: task.id,
+    source: "user",
+  });
+
+  // Referential cleanup: strip the deleted id from other cards' structured
+  // dependencies and annotate cards whose canonical YAML still mentions it.
+  const dependencyCleanup = await cleanupDanglingDependencyReferences({
+    deletedTask: task,
+    taskStore: system.taskStore,
+    onTaskUpdated: (updated) =>
+      getKanbanEventBroadcaster().notify({
+        workspaceId: updated.workspaceId,
+        entity: "task",
+        action: "updated",
+        resourceId: updated.id,
+        source: "system",
+      }),
+  });
+
+  return NextResponse.json({ deleted: true, dependencyCleanup });
 }

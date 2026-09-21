@@ -1342,3 +1342,57 @@ describe("KanbanTools", () => {
     ]);
   });
 });
+
+describe("KanbanTools.deleteCard dependency cleanup", () => {
+  it("cleans structured dependencies and flags YAML mentions on referrers", async () => {
+    const boardStore = new InMemoryKanbanBoardStore();
+    const taskStore = new InMemoryTaskStore();
+    const tools = new KanbanTools(boardStore, taskStore);
+
+    const deleted = createTask({
+      id: "dep-card-to-delete",
+      title: "Prerequisite card",
+      objective: "Will be deleted",
+      workspaceId: "default",
+    });
+    const structuralReferrer = createTask({
+      id: "dep-structural-referrer",
+      title: "Structural referrer",
+      objective: "No YAML mention",
+      workspaceId: "default",
+      dependencies: ["dep-card-to-delete"],
+    });
+    const yamlReferrer = createTask({
+      id: "dep-yaml-referrer",
+      title: "YAML referrer",
+      objective: "depends_on:\n  - \"dep-card-to-delete\"",
+      workspaceId: "default",
+    });
+    await taskStore.save(deleted);
+    await taskStore.save(structuralReferrer);
+    await taskStore.save(yamlReferrer);
+
+    const result = await tools.deleteCard("dep-card-to-delete");
+
+    expect(result.success).toBe(true);
+    const data = result.data as {
+      dependencyCleanup: {
+        structuralReferrerIds: string[];
+        yamlMentionTaskIds: string[];
+        updatedTaskIds: string[];
+      };
+      warning?: string;
+    };
+    expect(data.dependencyCleanup.structuralReferrerIds).toEqual(["dep-structural-referrer"]);
+    expect(data.dependencyCleanup.yamlMentionTaskIds).toEqual(["dep-yaml-referrer"]);
+    expect(data.warning).toContain("dep-yaml-referrer");
+
+    expect(await taskStore.get("dep-card-to-delete")).toBeFalsy();
+    const structural = await taskStore.get("dep-structural-referrer");
+    expect(structural?.dependencies).toEqual([]);
+    expect(structural?.comment).toContain("dep-card-to-delete");
+    const yaml = await taskStore.get("dep-yaml-referrer");
+    expect(yaml?.objective).toBe("depends_on:\n  - \"dep-card-to-delete\"");
+    expect(yaml?.comment).toContain("canonical YAML");
+  });
+});
