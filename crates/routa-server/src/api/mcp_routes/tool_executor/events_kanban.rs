@@ -14,6 +14,56 @@ fn required_str_arg<'a>(
     }
 }
 
+/// Fields `update_card` can change, in the order reported back to the agent.
+/// Mirrors the Next implementation in `src/core/tools/kanban-tools.ts`.
+const UPDATE_CARD_FIELDS: [&str; 5] = ["title", "description", "comment", "priority", "labels"];
+
+/// Project the `update_card` RPC result into a lightweight ack.
+///
+/// Write tools must not echo the card back to the agent: card comments are
+/// append-only, so echoing re-injects the whole accumulated comment history
+/// into the calling agent's LLM context on every write (measured at 76 KB /
+/// ~20K tokens per call on a comment-heavy card). Agents that need fresh state
+/// call `get_task`.
+///
+/// The RPC itself keeps returning the full card because the CLI
+/// (`crates/routa-cli/src/commands/kanban.rs`) renders it; only this MCP
+/// projection is trimmed. Shape is mirrored by `taskToUpdateAck` in
+/// `src/core/tools/kanban-tools.ts`.
+fn update_card_ack(result: &serde_json::Value, args: &serde_json::Value) -> serde_json::Value {
+    let card = result.get("card");
+    let updated_fields: Vec<&str> = UPDATE_CARD_FIELDS
+        .iter()
+        .copied()
+        .filter(|field| !matches!(args.get(*field), None | Some(serde_json::Value::Null)))
+        .collect();
+
+    serde_json::json!({
+        "id": card.and_then(|card| card.get("id")).cloned().unwrap_or(serde_json::Value::Null),
+        "updatedFields": updated_fields,
+        "updatedAt": card.and_then(|card| card.get("updatedAt")).cloned().unwrap_or(serde_json::Value::Null),
+    })
+}
+
+/// Project the `move_card` RPC result into a lightweight ack.
+/// See [`update_card_ack`] for rationale; mirrors `taskToMoveAck` in
+/// `src/core/tools/kanban-tools.ts`.
+fn move_card_ack(result: &serde_json::Value) -> serde_json::Value {
+    let card = result.get("card");
+    let field = |key: &str| {
+        card.and_then(|card| card.get(key))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null)
+    };
+
+    serde_json::json!({
+        "id": field("id"),
+        "columnId": field("columnId"),
+        "position": field("position"),
+        "status": field("status"),
+    })
+}
+
 pub(super) async fn execute(
     state: &AppState,
     name: &str,
@@ -161,13 +211,7 @@ pub(super) async fn execute(
         )
         .await
         {
-            Ok(result) => {
-                let card = result
-                    .get("card")
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::json!({}));
-                tool_result_json(&card)
-            }
+            Ok(result) => tool_result_json(&move_card_ack(&result)),
             Err(error) => tool_result_error(&error),
         },
         "update_card" => match rpc_tool_result(
@@ -184,13 +228,7 @@ pub(super) async fn execute(
         )
         .await
         {
-            Ok(result) => {
-                let card = result
-                    .get("card")
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::json!({}));
-                tool_result_json(&card)
-            }
+            Ok(result) => tool_result_json(&update_card_ack(&result, args)),
             Err(error) => tool_result_error(&error),
         },
         "delete_card" => match rpc_tool_result(
@@ -375,4 +413,113 @@ pub(super) async fn execute(
     };
 
     Some(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Full card as returned by `kanban.updateCard` / `kanban.moveCard` RPC,
+    /// with a comment blob standing in for accumulated review history.
+    fn rpc_result_with_fat_card() -> serde_json::Value {
+        serde_json::json!({
+            "card": {
+                "id": "task-ack-1",
+                "title": "Comment-heavy card",
+                "description": "Stable story body",
+                "comment": "prior review note\n\n".repeat(500),
+                "status": "IN_PROGRESS",
+                "columnId": "dev",
+                "position": 3,
+                "priority": "high",
+                "labels": ["kanban"],
+                "createdAt": "2026-09-01T00:00:00Z",
+                "updatedAt": "2026-09-21T07:01:08.289Z",
+            }
+        })
+    }
+
+    #[test]
+    fn update_card_ack_drops_the_card_payload() {
+        let args = serde_json::json!({
+            "cardId": "task-ack-1",
+            "comment": "New note",
+            "priority": "high",
+        });
+
+        let ack = update_card_ack(&rpc_result_with_fat_card(), &args);
+
+        assert_eq!(
+            ack,
+            serde_json::json!({
+                "id": "task-ack-1",
+                "updatedFields": ["comment", "priority"],
+                "updatedAt": "2026-09-21T07:01:08.289Z",
+            })
+        );
+
+        let serialized = serde_json::to_string(&ack).unwrap();
+        assert!(!serialized.contains("prior review note"));
+        assert!(serialized.len() < 1024);
+    }
+
+    #[test]
+    fn update_card_ack_reports_only_supplied_fields() {
+        let args = serde_json::json!({
+            "cardId": "task-ack-1",
+            "title": "Renamed card",
+            "labels": ["urgent"],
+            "comment": serde_json::Value::Null,
+        });
+
+        let ack = update_card_ack(&rpc_result_with_fat_card(), &args);
+
+        assert_eq!(
+            ack.get("updatedFields").unwrap(),
+            &serde_json::json!(["title", "labels"])
+        );
+    }
+
+    #[test]
+    fn move_card_ack_drops_the_card_payload() {
+        let ack = move_card_ack(&rpc_result_with_fat_card());
+
+        assert_eq!(
+            ack,
+            serde_json::json!({
+                "id": "task-ack-1",
+                "columnId": "dev",
+                "position": 3,
+                "status": "IN_PROGRESS",
+            })
+        );
+
+        let serialized = serde_json::to_string(&ack).unwrap();
+        assert!(!serialized.contains("prior review note"));
+        assert!(serialized.len() < 1024);
+    }
+
+    #[test]
+    fn acks_tolerate_a_missing_card_field() {
+        let empty = serde_json::json!({});
+
+        let no_fields: Vec<&str> = Vec::new();
+        assert_eq!(
+            update_card_ack(&empty, &serde_json::json!({})),
+            serde_json::json!({
+                "id": serde_json::Value::Null,
+                "updatedFields": no_fields,
+                "updatedAt": serde_json::Value::Null,
+            })
+        );
+        assert_eq!(
+            move_card_ack(&empty),
+            serde_json::json!({
+                "id": serde_json::Value::Null,
+                "columnId": serde_json::Value::Null,
+                "position": serde_json::Value::Null,
+                "status": serde_json::Value::Null,
+            })
+        );
+    }
 }

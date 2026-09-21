@@ -410,7 +410,7 @@ fn build_tool_list_inner() -> Vec<serde_json::Value> {
             },
             "required": ["boardId", "columnId", "title"]
         })),
-        tool_def("move_card", "Move a card to a different column or position", serde_json::json!({
+        tool_def("move_card", "Move a card to a different column or position. Returns a lightweight ack (id, columnId, position, status); it does NOT echo the card. Call get_task if you need the updated card state.", serde_json::json!({
             "type": "object",
             "properties": {
                 "cardId": { "type": "string", "description": "Card ID" },
@@ -419,7 +419,7 @@ fn build_tool_list_inner() -> Vec<serde_json::Value> {
             },
             "required": ["cardId", "targetColumnId"]
         })),
-        tool_def("update_card", "Update card fields (title, description, comment, priority, labels). From dev onward, use comment because description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead.", serde_json::json!({
+        tool_def("update_card", "Update card fields (title, description, comment, priority, labels). From dev onward, use comment because description is frozen. For story-readiness fields such as scope, acceptance criteria, verification commands, or test cases, use update_task instead. Returns a lightweight ack (id, updatedFields, updatedAt); it does NOT echo the card. Call get_task if you need the updated card state.", serde_json::json!({
             "type": "object",
             "properties": {
                 "cardId": { "type": "string", "description": "Card ID" },
