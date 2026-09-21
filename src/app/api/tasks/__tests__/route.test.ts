@@ -135,12 +135,13 @@ describe("/api/tasks GET", () => {
     expect(response.status).toBe(200);
     expect(taskStore.listByWorkspace).toHaveBeenCalledWith("workspace-1");
     expect(data.tasks).toHaveLength(1);
+    // The default list view is the slim board projection: comments are
+    // detail-only and come from GET /api/tasks/:id.
+    expect(data.view).toBe("summary");
+    expect(data.tasks[0].comment).toBeUndefined();
+    expect(data.tasks[0].comments).toBeUndefined();
     expect(data.tasks[0]).toMatchObject({
       id: "task-1",
-      comment: "Backlog refinement note from update_card.",
-      comments: [
-        { body: "Backlog refinement note from update_card." },
-      ],
       artifactSummary: {
         total: 2,
         byType: {
@@ -178,6 +179,23 @@ describe("/api/tasks GET", () => {
       investValidation: {
         source: "heuristic",
       },
+    });
+  });
+
+  it("returns the full record when view=full is requested", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost/api/tasks?workspaceId=workspace-1&view=full"),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.view).toBe("full");
+    expect(data.tasks[0]).toMatchObject({
+      id: "task-1",
+      comment: "Backlog refinement note from update_card.",
+      comments: [
+        { body: "Backlog refinement note from update_card." },
+      ],
     });
   });
 
