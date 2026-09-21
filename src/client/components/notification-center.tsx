@@ -39,10 +39,25 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
-export function useNotifications() {
-  const ctx = useContext(NotificationContext);
-  if (!ctx) throw new Error("useNotifications must be used within NotificationProvider");
-  return ctx;
+/**
+ * Inert fallback for trees rendered without the provider (unit tests,
+ * Storybook, any surface that mounts a shell fragment in isolation).
+ *
+ * The bell now lives in the shared header, so throwing here turns "this
+ * screen has no notification provider" into "this screen crashes". Missing
+ * notifications are a degraded experience; a thrown render is an outage.
+ */
+const INERT_NOTIFICATION_CONTEXT: NotificationContextType = {
+  notifications: [],
+  unreadCount: 0,
+  addNotification: () => {},
+  markAsRead: () => {},
+  markAllAsRead: () => {},
+  clearAll: () => {},
+};
+
+export function useNotifications(): NotificationContextType {
+  return useContext(NotificationContext) ?? INERT_NOTIFICATION_CONTEXT;
 }
 
 // ─── Provider ────────────────────────────────────────────────────────────────
