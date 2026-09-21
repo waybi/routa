@@ -2,7 +2,7 @@
 title: "update_task.objective silently clobbers gate-validated card description (same field, no guards)"
 date: "2026-09-21"
 kind: issue
-status: investigating
+status: resolved
 severity: high
 area: "kanban"
 tags: ["kanban", "mcp-tools", "canonical-contract", "update-task", "update-card", "data-loss"]
@@ -108,3 +108,25 @@ Impact beyond the observed data loss:
 ## References
 
 - Board: workspace `e3c231ef-3efd-4bf5-b9d7-89911bdea32b`, board `312b1f5a-f1d6-4e51-b0da-334944e64609`
+
+## Resolution
+
+Fixed in commit `40ccc829` (fix(kanban): guard update_task.objective with same
+freeze and contract gate as update_card):
+
+- New shared guard `src/core/kanban/task-description-write-guard.ts` enforces
+  the dev-onward description freeze and the canonical-contract gate for every
+  alias of `tasks.objective`.
+- `AgentTools.updateTask` runs the guard before writing `objective` on
+  board-backed tasks; violations are rejected with a hint to use `update_card`.
+  Identical resends stay idempotent; non-board tasks are unaffected.
+- `KanbanTools.updateCard` reuses the same guard (behavior unchanged).
+- `update_task` MCP descriptions now state objective == description.
+- Regression tests: `src/core/tools/__tests__/agent-tools.test.ts`
+  ("AgentTools.updateTask description write guard", 5 cases incl. the TopBI
+  clobber repro).
+
+The HTTP PATCH route (`src/app/api/tasks/[taskId]/route.ts`) already enforced
+the contract gate for `body.objective`; it still lacks the freeze check —
+acceptable for now since the route is UI-facing, but a candidate for the same
+shared guard in a follow-up.
