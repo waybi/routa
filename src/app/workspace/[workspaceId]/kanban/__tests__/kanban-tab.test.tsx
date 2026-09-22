@@ -1877,9 +1877,40 @@ describe("KanbanCardDetail changes tab", () => {
   });
 });
 
-// TODO: This test suite is flaky - skipping temporarily
-// See: Error logging during artifact gate validation causing test failures
-describe.skip("KanbanTab card detail manual runs", () => {
+/**
+ * Opening a card now hydrates the full record (GET /api/tasks/:id, 5bc6694b)
+ * and persists the resolved board provider (PATCH /api/kanban/boards/:id).
+ * Tests written before that were never updated because the suite was
+ * skipped; every "flaky" failure here was one of those two calls hitting a
+ * mock that threw. This helper answers both and delegates everything else.
+ */
+function withDetailOpenFetches(
+  tasks: TaskInfo[],
+  inner?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    const detailMatch = url.match(/^\/api\/tasks\/([^/?]+)$/);
+    if (method === "GET" && detailMatch) {
+      const task = tasks.find((entry) => entry.id === detailMatch[1]);
+      return new Response(JSON.stringify({ task: task ?? null }), {
+        status: task ? 200 : 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (method === "PATCH" && /^\/api\/kanban\/boards\/[^/]+$/.test(url)) {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (inner) return inner(input, init);
+    throw new Error(`Unexpected fetch: ${method} ${url}`);
+  });
+}
+
+describe("KanbanTab card detail manual runs", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -1905,7 +1936,8 @@ describe.skip("KanbanTab card detail manual runs", () => {
       ],
     };
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const tasks = [createTask("task-1", "Story One")];
+    const fetchMock = withDetailOpenFetches(tasks, async (input, init) => {
       const url = String(input);
       if (init?.method === "PATCH" && url === "/api/tasks/task-1") {
         return {
@@ -1926,7 +1958,7 @@ describe.skip("KanbanTab card detail manual runs", () => {
       <KanbanTab
         workspaceId="workspace-1"
         boards={[automatedBoard]}
-        tasks={[createTask("task-1", "Story One")]}
+        tasks={tasks}
         sessions={[]}
         providers={[{ id: "claude", name: "Claude Code", description: "Claude Code provider", command: "claude" }]}
         specialists={[{ id: "backlog-refiner", name: "Backlog Refiner", role: "ROUTA" }]}
@@ -1936,10 +1968,12 @@ describe.skip("KanbanTab card detail manual runs", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
+    // Run / lane-default copy live in the Execution tab since 38b1cb60.
+    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
 
     const runButton = await screen.findByTestId("kanban-detail-run");
     expect(runButton.textContent).toBe("Run");
-    expect(screen.getByText(/current lane default/i)).toBeTruthy();
+    expect(screen.getByText(/lane default/i)).toBeTruthy();
 
     fireEvent.click(runButton);
 
@@ -1973,11 +2007,14 @@ describe.skip("KanbanTab card detail manual runs", () => {
       ],
     };
 
+    const tasks = [createTask("task-1", "Story One")];
+    vi.stubGlobal("fetch", withDetailOpenFetches(tasks));
+
     render(
       <KanbanTab
         workspaceId="workspace-1"
         boards={[automatedBoard]}
-        tasks={[createTask("task-1", "Story One")]}
+        tasks={tasks}
         sessions={[]}
         providers={[{ id: "claude", name: "Claude Code", description: "Claude Code provider", command: "claude" }]}
         specialists={[{ id: "backlog-refiner", name: "Backlog Refiner", role: "ROUTA" }]}
@@ -1993,7 +2030,7 @@ describe.skip("KanbanTab card detail manual runs", () => {
     expect(await screen.findByText("当前还没有启动 session")).toBeTruthy();
     expect(screen.getByText("还没有自动化运行记录")).toBeTruthy();
     expect(screen.getAllByText(/右侧 session pane 会先显示等待中的空态/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "关闭 session 面板" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "隐藏 session 面板" })).toBeTruthy();
   });
 
   it("recovers when the trigger session appears after the detail view is already open", async () => {
@@ -2050,7 +2087,8 @@ describe.skip("KanbanTab card detail manual runs", () => {
       listProviderModels: vi.fn(),
     } satisfies Partial<UseAcpState & UseAcpActions> as UseAcpState & UseAcpActions;
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const initialTasks = [createTask("task-1", "Story One")];
+    const fetchMock = withDetailOpenFetches(initialTasks, async (input) => {
       const url = String(input);
       if (url === "/api/sessions/session-123") {
         return {
@@ -2159,6 +2197,8 @@ describe.skip("KanbanTab card detail manual runs", () => {
       ],
     };
 
+    vi.stubGlobal("fetch", withDetailOpenFetches([{ ...createTask("task-1", "Story One"), columnId: "dev" }]));
+
     render(
       <KanbanTab
         workspaceId="workspace-1"
@@ -2180,6 +2220,7 @@ describe.skip("KanbanTab card detail manual runs", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
 
     expect(await screen.findByText(/Moving this card to Review requires Screenshot, Test Results\./i)).toBeTruthy();
     expect(screen.getByText(/This gate is injected into the ACP prompt/i)).toBeTruthy();
@@ -2208,7 +2249,7 @@ describe.skip("KanbanTab card detail manual runs", () => {
       ],
     };
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withDetailOpenFetches([], async (input, init) => {
       const url = String(input);
       if (url === "/api/tasks/task-1" && init?.method === "PATCH") {
         return {
@@ -2272,7 +2313,7 @@ describe.skip("KanbanTab card detail manual runs", () => {
       ],
     };
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = withDetailOpenFetches([], async (input, init) => {
       const url = String(input);
       if (url === "/api/tasks/task-1" && init?.method === "PATCH") {
         return {
@@ -2418,11 +2459,13 @@ describe.skip("KanbanTab card detail manual runs", () => {
       expect(acp.selectSession).toHaveBeenCalledWith("session-456");
     });
 
-    const runOne = await screen.findByRole("button", { name: /Dev Crafter/i });
-    const runTwo = await screen.findByRole("button", { name: /Review Guard/i });
+    // Run tabs are compact (lane badge + index); the specialist name lives
+    // in the title, not the visible text.
+    const runOne = await screen.findByTitle("Dev Crafter · Dev · Run 1");
+    const runTwo = await screen.findByTitle("Review Guard · Review · Run 2");
 
-    expect(runOne.textContent).toContain("Dev Crafter");
-    expect(runTwo.textContent).toContain("Review Guard");
+    expect(runOne.getAttribute("title")).toContain("Dev Crafter");
+    expect(runTwo.getAttribute("title")).toContain("Review Guard");
     expect(runTwo.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("completed")).toBeTruthy();
 
