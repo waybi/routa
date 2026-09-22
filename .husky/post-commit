@@ -12,6 +12,12 @@ if [ -z "$changed_files" ]; then
   exit 0
 fi
 
+# Ensure the Rust toolchain is reachable from non-interactive shells
+# (needed for the `cargo run -p entrix` fallback below).
+if ! command -v cargo >/dev/null 2>&1 && [ -x "$HOME/.cargo/bin/cargo" ]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 echo "📏 Checking file budgets for the latest commit..."
 ENTRIX_BIN="./target/debug/entrix"
 if [ -x "$ENTRIX_BIN" ]; then
