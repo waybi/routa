@@ -13,7 +13,7 @@
  *   `id` is the SSE `id:` line, so `Last-Event-ID` can address a row.
  */
 
-import type { KanbanWorkspaceEvent } from "../kanban/kanban-event-broadcaster";
+import type { KanbanWorkspaceEvent } from "../kanban/kanban-event-types";
 
 export interface KanbanEventRecord {
   id: string;
