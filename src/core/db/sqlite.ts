@@ -577,6 +577,21 @@ function initializeSqliteTables(db: SqliteDatabase): void {
     )
   `);
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS kanban_events (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      resource_id TEXT,
+      payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000)
+    )
+  `);
+  db.run(sql`
+    CREATE INDEX IF NOT EXISTS idx_kanban_events_workspace_created
+      ON kanban_events (workspace_id, created_at)
+  `);
+
   console.log("[SQLite] Tables initialized");
 }
 
