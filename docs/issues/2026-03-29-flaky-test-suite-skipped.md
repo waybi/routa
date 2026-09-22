@@ -1,6 +1,7 @@
 ---
 title: "Flaky test suite was partially skipped to unblock pre-push"
-date: 2026-03-29
+date: "2026-03-29"
+kind: issue
 severity: medium
 status: investigating
 area: testing
@@ -105,3 +106,4 @@ Test Files  124 passed | 1 skipped (125)
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. `rg` still finds skipped suites in `workflow-orchestrator.test.ts`, `agent-trigger.test.ts`, and `kanban-tab.test.tsx`, so this cannot be resolved yet.
+- 2026-09-22: reviewed, still active. `.skip` still present in `kanban-tab.test.tsx` (1), `agent-trigger.test.ts` (1), `workflow-orchestrator.test.ts` (1 describe, 9 tests skipped in the 2026-09-22 run). `claude-code-sdk-adapter.test.ts` no longer skips anything.

@@ -2,14 +2,15 @@
 title: "Docker build fails because npm postinstall assets are missing"
 date: "2026-05-22"
 kind: issue
-status: open
+status: resolved
+resolved_at: "2026-06-22"
 severity: medium
 area: "docker"
 tags: ["docker", "build", "npm", "postinstall"]
 reported_by: "github"
 related_issues: ["https://github.com/phodal/routa/pull/555", "https://github.com/phodal/routa/pull/578", "https://github.com/phodal/routa/issues/579"]
 github_issue: 579
-github_state: open
+github_state: closed
 github_url: "https://github.com/phodal/routa/issues/579"
 ---
 
@@ -60,3 +61,7 @@ Those scripts also need `patches/` and the hook runtime entrypoint when lifecycl
 - PR #578 added `git` and `ca-certificates` to the runtime image before the release, covering the requested runtime git follow-up from #570.
 - `v0.19.0` is the release vehicle for both fixes. The release branch validation includes `npm ci --legacy-peer-deps`, `entrix run --dry-run`, and `entrix run --tier fast`.
 - Local Docker build smoke could not be re-run during the release because this machine does not have the `docker` CLI installed; the prior `colima nerdctl` build result remains the latest local image-build evidence in this tracker.
+
+## Issue Hygiene
+
+- 2026-09-22: synced from upstream — phodal/routa#579 was closed on 2026-06-22. `package.json` postinstall now runs `scripts/install/run-patch-package.mjs`.

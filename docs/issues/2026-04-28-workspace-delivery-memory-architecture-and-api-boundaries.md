@@ -18,7 +18,7 @@ related_issues:
   - "docs/issues/2026-04-21-task-adaptive-harness-kanban-backlog-refine-and-card-detail.md"
   - "docs/issues/2026-04-25-reasoning-bank-style-agent-experience-memory.md"
 github_issue: 538
-github_state: open
+github_state: closed
 github_url: "https://github.com/phodal/routa/pull/538"
 references:
   - "https://github.com/phodal/routa/issues/301"
@@ -173,3 +173,7 @@ Add memory quality metrics into harness/fitness:
 - https://docs.letta.com/guides/core-concepts/stateful-agents/
 - https://help.getzep.com/graph-overview
 - https://arxiv.org/abs/2507.05257
+
+## Issue Hygiene
+
+- 2026-09-22: upstream phodal/routa#538 was closed on 2026-04-30 (the P0 `/api/system/memory` split shipped). Kept open locally: `/api/workspace-memory`, `/api/agent-memory`, `/api/memory-pack` do not exist in `src/app/api/` as of this sweep. If those are no longer planned, close this as `wontfix` rather than leaving it to age.

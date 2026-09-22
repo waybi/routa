@@ -2,7 +2,8 @@
 title: "entrix npm_audit_critical hard gate fails on Next.js unauthenticated RCE advisory"
 date: "2026-09-18"
 kind: issue
-status: open
+status: resolved
+resolved_at: "2026-09-22"
 severity: critical
 area: "dependencies"
 tags: ["npm-audit", "nextjs", "entrix", "security"]
@@ -84,3 +85,7 @@ findings so the entrix fast-tier hard gate passes.
 ## Resolution
 
 _Not yet resolved — tracked for follow-up._
+
+## Issue Hygiene
+
+- 2026-09-22: marked resolved. `next` is at 16.3.5 (`41811e68`), `npm audit --audit-level=critical` reports no critical advisories, and the `npm_audit_critical` hard gate passes in `entrix run --tier fast`.
