@@ -39,8 +39,10 @@ Card badges moved from three states to five. `acpStatus: ready` used to render a
 | Measurement | Before | After |
 |---|---|---|
 | `GET /api/tasks`, 8 cards | 3369 KB | **80.8 KB** (41×) |
-| Live-tail call | ~1 MB / 3.2 s | **503 B / 32 ms** |
-| 12 tail calls over 60 s idle | ~12.5 MB | **8.1 KB** |
+| Live-tail call (cold start) | ~1 MB / 3.2 s | **503 B / 32 ms** |
+| Live-tail call (warm) | 1.6 MB / ~20 ms | 503 B / ~20 ms — server still loads full history; only transfer shrank |
+| Live-tail delivery | poll every 10 s per session | **pushed over SSE on change**; one seed fetch per session, then zero requests |
+| 60 s idle, 2 live sessions | 21 requests (12 were tail polls) | **4 requests** (all fitness/runtime) |
 | Create failure feedback | console only | inline error + sticky toast |
 | Create pending state | none | disabled + spinner within 150 ms |
 | Agent completion | nothing | toast + bell + OS notification when hidden |
@@ -61,7 +63,7 @@ curl -s "http://localhost:3000/api/sessions/<session-id>/tail" | wc -c
 | 2 | Async buttons change appearance within 100 ms | **Met** — measured at 150 ms: disabled, spinning, label `正在创建卡片…` |
 | 3 | Completion notifies (foreground toast + bell, background OS notification) | **Met** — 8 integration tests over the real providers |
 | 4 | `curl /api/tasks \| wc -c` < 100 KB for 8 cards | **Met** — 80.8 KB |
-| 5 | 60 s idle → < 10 network requests | **Not met: 21 requests.** Two live sessions polling `/tail` every 10 s account for 12 of them. The bytes moved, not the request count: those 12 calls now cost 8.1 KB against ~12.5 MB before. Eliminating the count needs the preview pushed over SSE (the `lastMessagePreview` field exists for this) rather than polled. |
+| 5 | 60 s idle → < 10 network requests | **Met (follow-up): 4 requests.** Initially 21, of which 12 were `/tail` polls. `kanban:session-tail` now pushes the caption from `pushNotification` through a per-session debounce (300 ms trailing / 1 s max-wait); the board seeds once per newly-live session and then polls nothing. Verified: two `kanban:session-tail` frames captured on the SSE channel during a live run, 28 s apart, matching the provider cadence. |
 | 6 | `grep -rn "window.confirm\|window.alert" src/app` → 0 | **Met** — 0 call sites |
 | 7 | Both backends pass the same shape tests | **Met** — Next and Axum projection/lifecycle tests assert identical contracts |
 
@@ -77,7 +79,9 @@ curl -s "http://localhost:3000/api/sessions/<session-id>/tail" | wc -c
 
 ## Follow-ups
 
-- **Push the live tail instead of polling** to close acceptance #5. `lastMessagePreview` already rides `kanban:task-lifecycle`; an `agent_message` relay would let the 10 s poll go away entirely.
+- **Rust does not push `kanban:session-tail` yet.** `crates/routa-core/src/acp/mod.rs:261 push_to_history` is the hook (every notification passes through it), but `AcpManager` holds no EventBus reference. Until wired, desktop cards show the one seed fetch and then freeze — degraded, not blank. Mirror `src/core/kanban/session-tail-publisher.ts` there.
+- **Debounce numbers are provider-informed, not provider-measured for Claude.** 300 ms / 1 s were chosen from dsh's paragraph cadence (13.7 s median gap, routa.db) plus the assumption that Claude SDK `text_delta` gaps sit under 300 ms. No Claude SDK session exists in the local DB to confirm the latter.
+- **`/tail` and the push both still call `loadSessionHistory` for the full transcript.** Server cost is unchanged (~20 ms warm for a 1.6 MB session); only transfer and client parse were removed. If a session grows past tens of MB, push the limit into the store (`ORDER BY … DESC LIMIT 1`).
 - **`kanban-tab.tsx` is 2392 lines** and grew here. The repo playbook (`docs/REFACTOR.md`) prescribes orchestration shell + domain hooks; the task-mutation handlers touched in Phase 1 are the natural first extraction.
 - **Pin the fitness-poll root cause.** The throttle bounds the rate, but the exact `refreshSignal` churn pattern was inferred from the burst schedule rather than instrumented.
 - **The four pre-existing gate failures** are unrelated to this work and still block a clean `entrix` run.
