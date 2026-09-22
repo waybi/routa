@@ -73,3 +73,4 @@ The intended retrieval order is:
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. Reusable friction profile storage, refresh, and task-adaptive consumption exist, but the automatic async hotspot retro queue described here is not confirmed as implemented.
+- 2026-09-22: reviewed, still active. No implementation found: `grep -rln 'auto.retro|autoRetro|hotspot.*retro' src/core src/app/api` returns nothing.

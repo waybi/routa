@@ -138,3 +138,4 @@ github_url: null
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. The full-graph memory spike was resolved separately, but this issue tracks journey-first decision summary and continue/merge safety, which remain broader product work.
+- 2026-09-22: reviewed, still active. `docs/exec-plans/active/harness-monitor-run-centric-implementation.md` is still in `active/` with Steps 2–4 (operator state, eval/evidence, policy checkpoints) outstanding; 66 commits touched `crates/harness-monitor` since filing but the plan has not been archived as complete.

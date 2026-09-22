@@ -1,6 +1,7 @@
 ---
 title: "Kanban lacks flow observability, controllability, and optimization primitives"
 date: "2026-03-19"
+kind: issue
 status: open
 area: kanban
 labels:
@@ -117,3 +118,4 @@ The next Kanban milestone should focus on adding:
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. Several sub-gaps have since been split or addressed, but the broad flow-management surface is not fully resolved: `kanban_events` persistence is still tracked separately, and WIP/SLE/blocked-time dashboard primitives remain open.
+- 2026-09-22: reviewed, still active. `kanban:task-lifecycle` and `kanban:session-tail` SSE frames now exist (`c8288313`, `cb0d63ea`) and cover per-card run state and live captions, which closes part of the observability gap. WIP/lead-time/blocked-time dashboard primitives and the persisted event model (`2026-04-21-kanban-event-persistence.md`) remain open.

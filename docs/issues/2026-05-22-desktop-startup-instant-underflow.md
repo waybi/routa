@@ -2,7 +2,8 @@
 title: "desktop backend panics on fresh Windows boot due to Instant underflow"
 date: "2026-05-22"
 kind: issue
-status: open
+status: resolved
+resolved_at: "2026-09-22"
 severity: high
 area: "desktop"
 tags: ["desktop", "windows", "rust", "docker", "startup"]
@@ -56,3 +57,7 @@ On Windows, subtracting a duration greater than system uptime from `Instant` can
 - `cargo test -p routa-core acp::docker::detector::tests` passed.
 - `cargo build -p routa-server` passed.
 - `entrix run --tier fast` passed.
+
+## Issue Hygiene
+
+- 2026-09-22: marked resolved locally. Fix `55dda889` (checked `Instant` subtraction in the Docker detector) is on `main`. Upstream phodal/routa#554 is still open as of this sweep; `gh` was not authenticated here so it was not closed remotely.

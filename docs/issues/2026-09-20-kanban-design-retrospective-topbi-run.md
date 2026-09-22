@@ -394,3 +394,7 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 - **Delivery Rules 硬门控**：`requireCommittedChanges` + `requireCleanWorktree` + `requirePullRequestReady`。
 - **SSE 实时推送**：`kanban-event-broadcaster` + `useKanbanEvents` 增量刷新机制。
 - **History Memory Policy**：跨任务历史记忆注入的 confidence 分级策略。
+
+## Issue Hygiene
+
+- 2026-09-22: `kind: analysis`, reviewed. Several items it raised shipped in `docs/exec-plans/completed/kanban-ux-feedback.md` (toast layer, completion notifications, list payload diet, live-tail push). Left `open` as reference material; not an active tracker.

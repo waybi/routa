@@ -1,7 +1,8 @@
 ---
 title: "Kanban session history still lacks durable lane metadata"
 date: "2026-03-15"
-status: "resolved"
+kind: issue
+status: resolved
 resolved_at: "2026-04-03"
 area: kanban
 labels: ["Agent", "Kanban", "UX"]

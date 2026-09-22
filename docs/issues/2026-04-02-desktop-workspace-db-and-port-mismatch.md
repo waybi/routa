@@ -1,6 +1,7 @@
 ---
 title: "Desktop workspace route diagnosis obscured by DB and port mismatch"
 date: "2026-04-02"
+kind: issue
 status: investigating
 severity: high
 area: desktop
@@ -92,3 +93,4 @@ related_issues:
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. The record is an environment-sensitive desktop diagnosis gap, and there is no durable follow-up proving the DB/port ownership confusion has been eliminated.
+- 2026-09-22: reviewed, still active. No commit since filing addresses stale-server-on-3210 detection or a DB-path banner in the desktop shell. Remains a debugging-experience hardening item, not a correctness bug.

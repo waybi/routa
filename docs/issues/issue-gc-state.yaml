@@ -1,11 +1,13 @@
-last_reviewed_at: "2026-04-28"
+last_reviewed_at: "2026-09-22"
 cadence_days: 7
 owner: "agent"
 notes: "Weekly issue hygiene heartbeat for status/implementation sync checks."
 last_cleanup_summary: |
-  2026-04-28 cleanup:
-  - Fixed docs/issues frontmatter validation errors: replaced invalid `status: closed` values with `resolved`, added frontmatter to the Kanban event persistence tracker, and normalized the legacy history-memory snapshot record
-  - Synced local/remote status drift for already-closed GitHub issues `#180`, `#314`, `#364`, `#401`, `#406`, `#445`, `#528`, and `#537`
-  - Marked resolved local trackers whose implementation evidence is now present: startup performance probe, canonical story contract gate, MCP approval rendering, task delivery snapshots, Docusaurus surface-first IA, harness-monitor Full graph opt-in, and git credential prevention
-  - Reviewed the remaining active suspects and left them open only where unresolved work is still evident: Kanban flow observability, skipped flaky tests, desktop DB/port diagnosis, harness-monitor decision summary, Feature Explorer auto-retro queue, Kanban event persistence, and ReasoningBank memory
-  - Scanner status after cleanup: `python3 .github/scripts/issue-scanner.py --check` passes; active local trackers reduced to 7 with 6 age-based suspects retained intentionally
+  2026-09-22 cleanup (previous sweep 2026-04-28, 147 days overdue):
+  - Resolved 3 local trackers with implementation evidence: desktop Instant underflow (#554, fix 55dda889 on main; upstream still open, gh unauthenticated so not closed remotely), npm_audit_critical Next.js RCE (next 16.3.5 via 41811e68, hard gate passes), Docker postinstall (#579, upstream closed 2026-06-22)
+  - Synced github_state for #538 (closed upstream 2026-04-30) and #579 (closed 2026-06-22); #538 kept open locally because /api/workspace-memory, /api/agent-memory, /api/memory-pack are still absent
+  - Normalized frontmatter on 4 legacy files (added missing `kind:`, unquoted status, quoted date)
+  - Added dated Issue Hygiene notes with concrete evidence to all 10 remaining active trackers; each states what was checked and why it stays open
+  - Reproduced 2026-05-22-canonical-contract-comment-only-refinement-loop on a live board (TopBI d5e0a0a2, 3 bounces on 2026-09-21); prompt fix still not landed
+  - Scanner after cleanup: `python3 .github/scripts/issue-scanner.py --check` passes; active local trackers 13 -> 10 (8 open issues + 1 open analysis kept as reference + 2 investigating; the scanner counts the analysis file as a tracker)
+  - Not done: GitHub-side closes for #554 (gh not authenticated in this environment)

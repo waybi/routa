@@ -109,3 +109,4 @@ story:
 ## Issue Hygiene
 
 - 2026-04-28: reviewed as still active. `kanban_events` persistence is not present in the codebase yet, so this remains the canonical active tracker for durable Kanban event replay/reconnect behavior.
+- 2026-09-22: reviewed, still active. `src/core/kanban/flow-ledger.ts` exists but computes diagnosis in memory (`analyzeFlowForTasks`); no `kanban_events`/flow-ledger table in `src/core/db/` or `drizzle/`. The new SSE lifecycle frames (`c8288313`) are transient and do not persist either.

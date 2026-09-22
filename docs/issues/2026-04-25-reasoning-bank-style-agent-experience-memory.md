@@ -163,3 +163,7 @@ Use Routa's multi-agent and Kanban automation model to support ReasoningBank-sty
 Do not reuse `/api/memory` for this feature; that endpoint currently represents runtime memory monitoring. Use an explicit product/domain name such as `reasoning-memory`, `experience-memory`, or `reasoning-bank`.
 
 Do not store private chain-of-thought. Store concise operational rationale, evidence-backed lessons, and preventative guidance.
+
+## Issue Hygiene
+
+- 2026-09-22: reviewed, still active. `src/core/mcp/reasoning-memory-tools.ts` (`8066ce9f`, 2026-04-29) exposes reasoning-memory MCP tools, which is a partial step; the workspace-scoped experience bank with `outcome`/`title`/`content` records described above is not present. Upstream phodal/routa#535 still open.
