@@ -15,7 +15,8 @@ vi.mock("@/core/kanban/kanban-event-broadcaster", () => ({
   }),
 }));
 
-import { GET, resolveReplayCursor } from "../route";
+import { GET } from "../route";
+import { resolveReplayCursor } from "../replay-cursor";
 
 function makeRequest(url: string, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(new URL(url, "http://localhost:3000"), { headers });
@@ -33,6 +34,11 @@ describe("resolveReplayCursor", () => {
   it("prefers Last-Event-ID over ?since", () => {
     const request = makeRequest("/api/kanban/events?workspaceId=ws&since=1000", { "last-event-id": "evt-9" });
     expect(resolveReplayCursor(request)).toEqual({ afterId: "evt-9" });
+  });
+
+  it("accepts ?lastEventId for manual reconnects", () => {
+    expect(resolveReplayCursor(makeRequest("/api/kanban/events?workspaceId=ws&lastEventId=evt-7&since=1000")))
+      .toEqual({ afterId: "evt-7" });
   });
 
   it("falls back to ?since when no header", () => {

@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useKanbanEvents } from "../use-kanban-events";
+import { INVALIDATE_COALESCE_MS, useKanbanEvents } from "../use-kanban-events";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -15,8 +15,8 @@ class MockEventSource {
     MockEventSource.instances.push(this);
   }
 
-  emit(payload: unknown) {
-    this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+  emit(payload: unknown, lastEventId = "") {
+    this.onmessage?.({ data: JSON.stringify(payload), lastEventId } as MessageEvent);
   }
 
   fail() {
@@ -49,6 +49,7 @@ describe("useKanbanEvents", () => {
   });
 
   it("ignores the initial connected event but invalidates on actual kanban changes", () => {
+    vi.useFakeTimers();
     const onInvalidate = vi.fn();
     vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
 
@@ -58,10 +59,56 @@ describe("useKanbanEvents", () => {
     expect(source?.url).toContain("/api/kanban/events?workspaceId=workspace-1");
 
     source.emit({ type: "connected" });
+    vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
     expect(onInvalidate).not.toHaveBeenCalled();
 
     source.emit({ type: "kanban:changed" });
+    vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a replay burst of kanban:changed into one invalidate", () => {
+    // On reconnect the server may replay dozens of stored frames in a few
+    // ms. Each used to cost a full board refetch.
+    vi.useFakeTimers();
+    const onInvalidate = vi.fn();
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+
+    render(<HookHarness workspaceId="workspace-1" onInvalidate={onInvalidate} />);
+    const source = MockEventSource.instances[0];
+    source.emit({ type: "connected" });
+
+    for (let index = 0; index < 50; index += 1) {
+      source.emit({ type: "kanban:changed" });
+    }
+    expect(onInvalidate).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the last hour on a fresh load and resumes from lastEventId on manual reconnect", () => {
+    vi.useFakeTimers();
+    const now = 1_700_000_000_000;
+    vi.setSystemTime(now);
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+
+    render(<HookHarness workspaceId="workspace-1" onInvalidate={vi.fn()} />);
+    const first = MockEventSource.instances[0];
+    const firstUrl = new URL(first.url, "http://localhost");
+    expect(firstUrl.searchParams.get("since")).toBe(String(now - 60 * 60 * 1000));
+    expect(firstUrl.searchParams.get("lastEventId")).toBeNull();
+
+    first.emit({ type: "connected" });
+    first.emit({ type: "kanban:changed" }, "evt-abc");
+    first.fail();
+    vi.advanceTimersByTime(3000);
+
+    const second = MockEventSource.instances[1];
+    expect(second).toBeTruthy();
+    const secondUrl = new URL(second.url, "http://localhost");
+    expect(secondUrl.searchParams.get("lastEventId")).toBe("evt-abc");
+    expect(secondUrl.searchParams.get("since")).toBeNull();
   });
 
   it("throttles rapid fitness change events", () => {
@@ -102,6 +149,7 @@ describe("useKanbanEvents", () => {
     expect(secondSource).toBeTruthy();
 
     secondSource.emit({ type: "connected" });
+    vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
     expect(onInvalidate).toHaveBeenCalledTimes(1);
   });
 
