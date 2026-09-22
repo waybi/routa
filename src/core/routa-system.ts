@@ -34,6 +34,13 @@ import { InMemoryArtifactStore, ArtifactStore } from "./store/artifact-store";
 import { PermissionStore } from "./tools/permission-store";
 import { getKanbanEventBroadcaster } from "./kanban/kanban-event-broadcaster";
 import { setupTaskLifecycleBridge } from "./kanban/task-lifecycle-bridge";
+import {
+  InMemoryKanbanEventStore,
+  KANBAN_EVENT_RETENTION_MS,
+  type KanbanEventStore,
+} from "./store/kanban-event-store";
+import { PgKanbanEventStore } from "./db/pg-kanban-event-store";
+import { SqliteKanbanEventStore } from "./db/sqlite-kanban-event-store";
 import { AgentEventType } from "./events/event-bus";
 
 export interface RoutaSystem {
@@ -51,6 +58,8 @@ export interface RoutaSystem {
   kanbanBoardStore: KanbanBoardStore;
   /** Artifact store for agent-to-agent communication */
   artifactStore: ArtifactStore;
+  /** Durable log of Kanban SSE frames; backs Last-Event-ID replay. */
+  kanbanEventStore: KanbanEventStore;
   /** Permission store for runtime permission delegation protocol */
   permissionStore: PermissionStore;
   eventBus: EventBus;
@@ -80,6 +89,7 @@ export function createInMemorySystem(): RoutaSystem {
   const workflowRunStore = new InMemoryWorkflowRunStore();
   const kanbanBoardStore = new InMemoryKanbanBoardStore();
   const artifactStore = new InMemoryArtifactStore();
+  const kanbanEventStore = new InMemoryKanbanEventStore();
   const permissionStore = new PermissionStore();
 
   // CRDT-backed note store with event broadcasting
@@ -114,6 +124,7 @@ export function createInMemorySystem(): RoutaSystem {
     workflowRunStore,
     kanbanBoardStore,
     artifactStore,
+    kanbanEventStore,
     permissionStore,
     eventBus,
     tools,
@@ -156,6 +167,7 @@ export function createPgSystem(): RoutaSystem {
   const workflowRunStore = new InMemoryWorkflowRunStore();
   const kanbanBoardStore = new PgKanbanBoardStore(db);
   const artifactStore = new PgArtifactStore(db);
+  const kanbanEventStore = new PgKanbanEventStore(db);
   const permissionStore = new PermissionStore();
 
   // CRDT manager and broadcaster still used for real-time collab
@@ -191,6 +203,7 @@ export function createPgSystem(): RoutaSystem {
     workflowRunStore,
     kanbanBoardStore,
     artifactStore,
+    kanbanEventStore,
     permissionStore,
     eventBus,
     tools,
@@ -227,6 +240,7 @@ export function createSqliteSystem(): RoutaSystem {
   // TODO: Implement SqliteWorkflowRunStore for persistent workflow state
   const workflowRunStore = new InMemoryWorkflowRunStore();
   let artifactStore: ArtifactStore;
+  let kanbanEventStore: KanbanEventStore;
   const permissionStore = new PermissionStore();
   // True when noteStore doesn't broadcast on save (SqliteNoteStore); NoteTools will broadcast.
   // False when CRDTNoteStore is used as fallback (it already broadcasts internally).
@@ -266,6 +280,7 @@ export function createSqliteSystem(): RoutaSystem {
     scheduleStore = new SqliteScheduleStore(db);
     kanbanBoardStore = new SqliteKanbanBoardStore(db);
     artifactStore = new SqliteArtifactStore(db);
+    kanbanEventStore = new SqliteKanbanEventStore(db);
     noteToolsBroadcast = true; // SqliteNoteStore doesn't broadcast — NoteTools must
   } catch (err) {
     // Some builds may not include sqlite native modules.
@@ -285,6 +300,7 @@ export function createSqliteSystem(): RoutaSystem {
     scheduleStore = new InMemoryScheduleStore();
     kanbanBoardStore = new InMemoryKanbanBoardStore();
     artifactStore = new InMemoryArtifactStore();
+    kanbanEventStore = new InMemoryKanbanEventStore();
   }
 
   const eventBus = new EventBus();
@@ -314,6 +330,7 @@ export function createSqliteSystem(): RoutaSystem {
     workflowRunStore,
     kanbanBoardStore,
     artifactStore,
+    kanbanEventStore,
     permissionStore,
     eventBus,
     tools,
@@ -393,6 +410,9 @@ export function getRoutaSystem(): RoutaSystem {
     // Set up EventBus → KanbanEventBroadcaster bridge for file changes
     setupFileChangeBridge(system);
 
+    // Persist every Kanban SSE frame so a reload / reconnect can replay.
+    setupKanbanEventPersistence(system);
+
     // Bridge agent lifecycle (completed / failed) onto card-level events so the
     // UI can notify the user instead of silently refetching.
     setupTaskLifecycleBridge({
@@ -401,6 +421,36 @@ export function getRoutaSystem(): RoutaSystem {
     });
   }
   return g[GLOBAL_KEY] as RoutaSystem;
+}
+
+// ─── Kanban Event Persistence ──────────────────────────────────────────
+
+/** How often the retention sweep runs. Once an hour is plenty for a 7-day window. */
+const KANBAN_EVENT_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Attach the durable event store to the broadcaster and start the retention
+ * sweep. Idempotent: the singleton guard in getRoutaSystem() means this runs
+ * once per process.
+ */
+function setupKanbanEventPersistence(system: RoutaSystem): void {
+  const broadcaster = getKanbanEventBroadcaster();
+  broadcaster.setEventStore(system.kanbanEventStore);
+
+  const prune = () => {
+    void system.kanbanEventStore
+      .pruneOlderThan(Date.now() - KANBAN_EVENT_RETENTION_MS)
+      .then((removed) => {
+        if (removed > 0) console.log(`[kanban-events] pruned ${removed} frame(s) past retention`);
+      })
+      .catch((error) => {
+        console.error("[kanban-events] retention sweep failed:", error);
+      });
+  };
+  prune();
+  const timer = setInterval(prune, KANBAN_EVENT_PRUNE_INTERVAL_MS);
+  // Never keep the process alive just for housekeeping.
+  if (typeof timer === "object" && "unref" in timer) timer.unref();
 }
 
 // ─── File Change Bridge ────────────────────────────────────────────────
