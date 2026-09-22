@@ -53,7 +53,7 @@ docs/plans/evidence/2026-09-w3-error-paths/defects.md  (touched by 2)
 | Manual PR trigger | `src/app/api/tasks/[taskId]/pr-run/route.ts:82-92` | `detectPrPlatform` → 400 unless GitHub/GitLab |
 | Delivery readiness | `src/core/kanban/task-delivery-readiness.ts:23-38, 87` | Already computes `ahead/behind/commitsSinceBase/hasCommitsSinceBase/canCreatePullRequest` via `getRepoDeliveryStatus` (`src/core/git/git-utils.ts:811`) |
 | Delivery snapshot | `src/core/kanban/task-delivery-snapshot.ts:15-56`; captured at `src/app/api/tasks/[taskId]/route.ts:519-520` on `review`/`done` transitions | Freezes `baseSha/headSha/commits` so base..HEAD survives a later merge. **Has no notion of "was it merged".** |
-| Readiness in list API | `src/app/api/tasks/route.ts:532` | Each task in `GET /api/tasks` already carries `deliveryReadiness` |
+| Readiness in list API | `src/app/api/tasks/route.ts:200,532` | `deliveryReadiness` is **expand-only** (`?expand=deliveryReadiness`) since 5928fc14 — the default list view the board fetches does not carry it (full probe ran `git status`+`git remote` per card, ~15 s on 21 cards) |
 | Card detail badge | `src/app/workspace/[workspaceId]/kanban/kanban-card-detail.tsx:486-492` | Shows commit count only; no merged/unmerged signal |
 | Git helpers | `src/core/git/git-utils.ts` | Has `getRepoRefSha`, `getRepoCommitChanges`, `getRepoDeliveryStatus`, `deleteBranch`; **no** `merge-tree` / `merge-base --is-ancestor` / `merge` helpers |
 | Contract | `api-contract.yaml:3807-3890` (`/api/tasks/{taskId}/changes*`), `:4792-4852` (`/api/worktrees/{id}*`) | No merge-related paths registered |
@@ -75,6 +75,19 @@ Extend `TaskDeliverySnapshot` with an optional `landedAt?: string` set the first
 UI: in `kanban-card.tsx` (board tile) and `kanban-card-detail.tsx:486` (badge row), when `columnId === "done"` and `deliveryReadiness.hasCommitsSinceBase && landedOnBase === false`, render an amber badge `t.kanbanDetail.unmerged` ("未合入基线" / "Not merged to base"). When `landedOnBase === true`, render a muted `t.kanbanDetail.merged`.
 
 Column header: count of done cards with `landedOnBase === false`, shown next to the existing card count.
+
+**Correction made during implementation.** The board tile never receives `deliveryReadiness`: `GET /api/tasks` gates it behind `?expand=deliveryReadiness` because the full probe (`git status`, upstream ahead/behind, remote URL) took ~15 s on a 21-card workspace (`docs/issues/2026-04-09-next-task-api-head-of-line-blocking.md`). Re-enabling it for the badge would reopen that incident. Instead Phase 1 adds a second, cheap projection:
+
+```ts
+// src/core/kanban/task-delivery-landing.ts
+deliveryLanding?: { landedOnBase: boolean | null; commitsSinceBase: number; branch?; baseBranch? }
+```
+
+Backed by `getRepoLandingStatus` (`git-utils.ts`): `rev-parse --verify` + `rev-list --count` + `merge-base --is-ancestor`, no `status`/`remote`. Measured on a real task worktree: 57 ms vs 159 ms for the full path. It runs only for cards where `columnId === "done" && worktreeId` is set, is always on in the default list view, and `resolveCardMergeState` prefers it over `deliveryReadiness` when both are present. `landedOnBase` is still also added to `deliveryReadiness` so the detail view (which does get the full probe) agrees with the tile.
+
+`landedAt` on the snapshot is added as a pure helper (`markTaskDeliveryLanded`) but **not yet persisted** from any read path — writing on GET would be a side effect in a hot path; the Phase 2 land endpoint is the natural writer.
+
+Known quirk carried into Phase 2: `resolveBaseRef` prefers `origin/<base>` over the local branch, so `commitsSinceBase` on this board reads 33–37 (distance to the stale remote) rather than 1–3 (distance to local `feat/coder-query`). `landedOnBase` already falls back to the local branch; the count does not. The badge only tests `> 0` so it is unaffected, but the merge-readiness panel must not display this number without the same fallback.
 
 ### Phase 2 — Merge readiness panel (Option C)
 
@@ -111,7 +124,7 @@ UI: a "合并就绪" button on the done column header opens a modal listing card
 
 ## Implementation Steps
 
-Phase 1 (target: one PR, < 10 files):
+Phase 1 — **landed on `main` 2026-09-22** as three commits: `991d078c` (core `landedOnBase` + `landedAt`), `98c57f7f` (i18n + badges + column count), `dbc447f9` (`deliveryLanding` list probe). Original step list kept for traceability:
 
 1. `src/core/git/git-utils.ts`: add `isRefAncestor(repoPath, ref, ancestorOf)`; wire `landedOnBase` into `RepoDeliveryStatus` / `getRepoDeliveryStatus`.
 2. `src/core/kanban/task-delivery-readiness.ts`: pass `landedOnBase` through `mapReadiness`; null on the three early-return branches.
@@ -152,6 +165,13 @@ for b in 5cea679a 21624731 fb268309 632aaff4 7e93558c d5e0a0a2 c5320340 bda9afe7
     && echo "issue/$b clean" || { echo "issue/$b CONFLICT"; echo "$out" | grep -i conflict; }
 done
 ```
+
+### Phase 1 verification record (2026-09-22)
+
+- Unit: `npx vitest run src/core src/app/api/tasks 'src/app/workspace/[workspaceId]/kanban/__tests__/kanban-card-status.test.ts'` → 161 files, 1274 tests passed. New suites: `git-utils.test.ts` (+4 `landedOnBase` cases), `task-delivery-landing.test.ts` (5), `task-delivery-snapshot.test.ts` (+3 `markTaskDeliveryLanded`), `route.test.ts` (+2 list-view characterization), `kanban-card-status.test.ts` (+5 `resolveCardMergeState`).
+- Runtime, dev server `npx next dev --webpack -p 3210` against the live `routa.db`: `GET /api/tasks?workspaceId=e3c231ef-…` returned `deliveryLanding.landedOnBase: false` for all 8 done cards and **no** `deliveryReadiness` key (lean path preserved); whole response 1.95 s.
+- Browser (agent-browser, board `312b1f5a`): `[data-testid="kanban-card-merge-state-unmerged"]` × 8, `[data-testid="kanban-card-merge-state-merged"]` × 0, Done header renders "8 张未合入". Screenshot kept at `/tmp/routa-evidence/done-unmerged-badges.png` (not committed per repo policy).
+- `entrix run --tier fast` → PASS 100 %. The four `INFRA ERRORS` it lists (`legacy_hotspot_budget_guard`, `file_line_limit`, `clippy_pass`, `ts_test_pass`) are tooling; the one real `ts_test_pass` failure (`kanban-tab.test.tsx`, 5 tests) was bisected to another agent's **uncommitted** un-skip of previously-skipped tests — the same file passes 23/23 on clean `main`.
 
 ## Risks
 
