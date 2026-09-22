@@ -1,30 +1,9 @@
 import { NextRequest } from "next/server";
 import { getKanbanEventBroadcaster } from "@/core/kanban/kanban-event-broadcaster";
 import { KANBAN_EVENT_REPLAY_LIMIT } from "@/core/store/kanban-event-store";
+import { resolveReplayCursor } from "./replay-cursor";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Resolves the replay cursor from a reconnecting client.
- *
- * - `Last-Event-ID` is what EventSource sends automatically after a drop,
- *   set from the last `id:` line it saw. Preferred.
- * - `?since=<epoch ms>` is for a fresh page load that wants recent history
- *   (the notification bell rebuilding after a reload).
- * - Neither → live only, exactly as before persistence existed.
- */
-export function resolveReplayCursor(request: NextRequest): { afterId?: string; since?: number } | null {
-  const lastEventId = request.headers.get("last-event-id")?.trim();
-  if (lastEventId) return { afterId: lastEventId };
-
-  const sinceRaw = request.nextUrl.searchParams.get("since");
-  if (sinceRaw) {
-    const since = Number(sinceRaw);
-    if (Number.isFinite(since) && since > 0) return { since };
-  }
-
-  return null;
-}
 
 export async function GET(request: NextRequest) {
   const workspaceId = request.nextUrl.searchParams.get("workspaceId") ?? "*";
