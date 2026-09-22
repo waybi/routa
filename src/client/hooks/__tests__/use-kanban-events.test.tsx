@@ -28,8 +28,16 @@ class MockEventSource {
   }
 }
 
-function HookHarness({ workspaceId, onInvalidate }: { workspaceId: string; onInvalidate: () => void }) {
-  useKanbanEvents({ workspaceId, onInvalidate });
+function HookHarness({
+  workspaceId,
+  onInvalidate,
+  onSessionTail,
+}: {
+  workspaceId: string;
+  onInvalidate: () => void;
+  onSessionTail?: (event: { sessionId: string; tail: string }) => void;
+}) {
+  useKanbanEvents({ workspaceId, onInvalidate, onSessionTail });
   return null;
 }
 
@@ -95,5 +103,30 @@ describe("useKanbanEvents", () => {
 
     secondSource.emit({ type: "connected" });
     expect(onInvalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes session-tail frames to the caption handler without invalidating", () => {
+    // A caption change is not a card-data change, so it must not trigger the
+    // board refetch — that was the whole point of pushing it separately.
+    const onInvalidate = vi.fn();
+    const onSessionTail = vi.fn();
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+
+    render(<HookHarness workspaceId="workspace-1" onInvalidate={onInvalidate} onSessionTail={onSessionTail} />);
+    const source = MockEventSource.instances[0];
+    source.emit({ type: "connected" });
+
+    source.emit({
+      type: "kanban:session-tail",
+      workspaceId: "workspace-1",
+      sessionId: "session-9",
+      tail: "Running tests…",
+      updateType: "agent_message_chunk",
+      timestamp: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(onSessionTail).toHaveBeenCalledTimes(1);
+    expect(onSessionTail.mock.calls[0][0]).toMatchObject({ sessionId: "session-9", tail: "Running tests…" });
+    expect(onInvalidate).not.toHaveBeenCalled();
   });
 });

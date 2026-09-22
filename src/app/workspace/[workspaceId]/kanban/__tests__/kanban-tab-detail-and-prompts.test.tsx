@@ -734,40 +734,42 @@ describe("KanbanTab live session tail", () => {
     expect(screen.queryByTestId("kanban-card-live-tail")).toBeNull();
   });
 
-  it("uses a slower polling cadence for live session tails", async () => {
+  it("seeds the caption once and then stops polling — updates arrive over SSE", async () => {
+    // Previously this hook polled /tail every 10 s per live session. The
+    // server now pushes kanban:session-tail on change (debounced), so the
+    // only request left is a single seed fetch when a session first goes live.
     vi.useFakeTimers();
 
     const fetchMock = vi.fn(async () => ({
       ok: true,
-      json: async () => ({
-        history: [
-          { update: { sessionUpdate: "agent_message", content: { type: "text", text: "Still working." } } },
-        ],
-      }),
+      json: async () => ({ sessionId: "session-123", tail: "Seeded line.", updateType: "agent_message" }),
     }) as Response);
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    const liveTask = {
+      ...createTask("task-1", "Story One"),
+      triggerSessionId: "session-123",
+      laneSessions: [{
+        sessionId: "session-123",
+        status: "running" as const,
+        startedAt: "2025-01-01T00:00:00.000Z",
+      }],
+    };
+    const liveSession = {
+      sessionId: "session-123",
+      cwd: "/tmp/project",
+      workspaceId: "workspace-1",
+      provider: "claude",
+      acpStatus: "ready" as const,
+      createdAt: "2025-01-01T00:00:00.000Z",
+    };
+
+    const { rerender } = render(
       <KanbanTab
         workspaceId="workspace-1"
         boards={[board]}
-        tasks={[{
-          ...createTask("task-1", "Story One"),
-          triggerSessionId: "session-123",
-          laneSessions: [{
-            sessionId: "session-123",
-            status: "running",
-            startedAt: "2025-01-01T00:00:00.000Z",
-          }],
-        }]}
-        sessions={[{
-          sessionId: "session-123",
-          cwd: "/tmp/project",
-          workspaceId: "workspace-1",
-          provider: "claude",
-          acpStatus: "ready",
-          createdAt: "2025-01-01T00:00:00.000Z",
-        }]}
+        tasks={[liveTask]}
+        sessions={[liveSession]}
         providers={[]}
         specialists={[]}
         codebases={[]}
@@ -777,28 +779,44 @@ describe("KanbanTab live session tail", () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Let the resolved fetch land in state.
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByTestId("kanban-card-live-tail").textContent).toContain("Seeded line.");
 
-    await vi.advanceTimersByTimeAsync(9_999);
+    // A full minute passes: no second fetch.
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A pushed tail replaces the seed without any request.
+    rerender(
+      <KanbanTab
+        workspaceId="workspace-1"
+        boards={[board]}
+        tasks={[liveTask]}
+        sessions={[liveSession]}
+        providers={[]}
+        specialists={[]}
+        codebases={[]}
+        onRefresh={vi.fn()}
+        pushedSessionTails={{ "session-123": "Pushed over SSE." }}
+      />,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByTestId("kanban-card-live-tail").textContent).toContain("Pushed over SSE.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not poll live session tails while the page is hidden", async () => {
+  it("does not seed live session tails while the page is hidden", async () => {
     vi.useFakeTimers();
 
     const fetchMock = vi.fn(async () => ({
       ok: true,
-      json: async () => ({
-        history: [
-          { update: { sessionUpdate: "agent_message", content: { type: "text", text: "Still working." } } },
-        ],
-      }),
+      json: async () => ({ sessionId: "session-123", tail: "Seeded line.", updateType: "agent_message" }),
     }) as Response);
     vi.stubGlobal("fetch", fetchMock);
 
-    const visibilityState = { value: "visible" };
+    const visibilityState = { value: "hidden" };
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
       get: () => visibilityState.value,
@@ -832,24 +850,17 @@ describe("KanbanTab live session tail", () => {
       />,
     );
 
-    await vi.advanceTimersByTimeAsync(0);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      visibilityState.value = "hidden";
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
+    // Hidden from the start: the seed waits.
     await vi.advanceTimersByTimeAsync(20_000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
 
+    // Becomes visible: seed once.
     await act(async () => {
       visibilityState.value = "visible";
       document.dispatchEvent(new Event("visibilitychange"));
     });
-
     await vi.advanceTimersByTimeAsync(0);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
