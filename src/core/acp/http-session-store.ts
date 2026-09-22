@@ -22,6 +22,8 @@ import type { NormalizedSessionUpdate } from "./provider-adapter/types";
 import { getRoutaSystem } from "../routa-system";
 import { EventBus, AgentEventType } from "../events/event-bus";
 import type { McpServerProfile } from "../mcp/mcp-server-profiles";
+import { getKanbanEventBroadcaster } from "../kanban/kanban-event-broadcaster";
+import { SessionTailPublisher } from "../kanban/session-tail-publisher";
 
 export type AcpSessionStatus = "connecting" | "ready" | "error";
 
@@ -187,6 +189,11 @@ class HttpSessionStore {
   private agentEventSubscribers = new Map<string, Set<(event: WorkspaceAgentEvent) => void>>();
   /** Optional bridge to the global EventBus for lifecycle events. */
   private eventBus?: EventBus;
+  /**
+   * Pushes the newest agent line to the Kanban SSE channel (debounced), so
+   * the board no longer polls /tail every 10 s per live session.
+   */
+  private sessionTailPublisher = new SessionTailPublisher(getKanbanEventBroadcaster());
   /** AG-UI notification interceptors per session (for protocol bridging) */
   private notificationInterceptors = new Map<string, Set<(n: SessionUpdateNotification) => void>>();
   /** Capture assistant output per session for workflow step chaining */
@@ -288,6 +295,7 @@ class HttpSessionStore {
     this.agentEventBridges.get(sessionId)?.cleanup();
     this.agentEventBridges.delete(sessionId);
     this.agentEventSubscribers.delete(sessionId);
+    this.sessionTailPublisher.forget(sessionId);
     // Detach SSE if connected
     this.sseControllers.delete(sessionId);
     return this.sessions.delete(sessionId);
@@ -496,6 +504,17 @@ class HttpSessionStore {
       this.messageHistory.set(sessionId, history);
       this.limitHistorySize(sessionId); // Apply memory limit
       void appendSessionNotificationEvent(sessionId, enriched, this.sessions.get(sessionId)?.cwd);
+
+      // ── Kanban live tail (push, not poll) ──
+      // Same gate as history: child-agent lines belong to their own session.
+      const workspaceId = currentSession?.workspaceId;
+      if (workspaceId) {
+        try {
+          this.sessionTailPublisher.observe(sessionId, workspaceId, enriched);
+        } catch {
+          // A caption update must never break the notification pipeline.
+        }
+      }
     }
 
     // ── Notify AG-UI interceptors (protocol bridging) ──
