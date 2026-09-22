@@ -161,8 +161,18 @@ export type KanbanCardMergeState = "unmerged" | "merged" | "unknown";
  * rather than `merged`, so the badge never claims a landing that never
  * happened.
  */
-export function resolveCardMergeState(task: Pick<TaskInfo, "columnId" | "deliveryReadiness">): KanbanCardMergeState {
+export function resolveCardMergeState(
+  task: Pick<TaskInfo, "columnId" | "deliveryReadiness" | "deliveryLanding">,
+): KanbanCardMergeState {
   if (task.columnId !== "done") return "unknown";
+  // The list endpoint ships the cheap `deliveryLanding` probe; the detail
+  // endpoint additionally ships full `deliveryReadiness`. Either is enough.
+  const landing = task.deliveryLanding;
+  if (landing) {
+    if (landing.landedOnBase === true) return "merged";
+    if (landing.landedOnBase === false && landing.commitsSinceBase > 0) return "unmerged";
+    return "unknown";
+  }
   const readiness = task.deliveryReadiness;
   if (!readiness?.checked) return "unknown";
   if (readiness.landedOnBase === true) return "merged";

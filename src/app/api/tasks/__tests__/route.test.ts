@@ -59,6 +59,11 @@ vi.mock("@/core/kanban/workflow-orchestrator-singleton", () => ({
   processKanbanColumnTransition: (...args: unknown[]) => processKanbanColumnTransition(...args),
 }));
 
+const buildTaskDeliveryLanding = vi.fn();
+vi.mock("@/core/kanban/task-delivery-landing", () => ({
+  buildTaskDeliveryLanding: (...args: unknown[]) => buildTaskDeliveryLanding(...args),
+}));
+
 vi.mock("@/core/kanban/github-issues", () => ({
   createGitHubIssue: (repo: string, payload: unknown) => createGitHubIssue(repo, payload),
   buildTaskGitHubIssueBody: (objective: string, testCases?: string[]) =>
@@ -110,6 +115,7 @@ describe("/api/tasks GET", () => {
     system.worktreeStore.listByWorkspace.mockResolvedValue([]);
     system.worktreeStore.get.mockResolvedValue(undefined);
     processKanbanColumnTransition.mockResolvedValue(undefined);
+    buildTaskDeliveryLanding.mockResolvedValue(undefined);
     await artifactStore.deleteByTask("task-1");
   });
 
@@ -247,6 +253,49 @@ describe("/api/tasks GET", () => {
     expect(data.tasks).toHaveLength(1);
     expect(data.tasks[0].contextSearchSpec).toBeUndefined();
     expect(data.tasks[0].jitContextSnapshot).toBeUndefined();
+  });
+
+  it("ships the cheap merge-landing probe on the default list view without the full readiness probe", async () => {
+    taskStore.listByWorkspace.mockResolvedValueOnce([
+      createTask({
+        id: "task-done",
+        title: "Done but not merged",
+        objective: "Branch still sits in its worktree",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        columnId: "done",
+        worktreeId: "wt-1",
+        status: TaskStatus.COMPLETED,
+      }),
+    ]);
+    buildTaskDeliveryLanding.mockResolvedValueOnce({
+      landedOnBase: false,
+      commitsSinceBase: 2,
+      branch: "issue/task-done",
+      baseBranch: "feat/base",
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/tasks?workspaceId=workspace-1"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(buildTaskDeliveryLanding).toHaveBeenCalledTimes(1);
+    expect(data.tasks[0].deliveryLanding).toEqual({
+      landedOnBase: false,
+      commitsSinceBase: 2,
+      branch: "issue/task-done",
+      baseBranch: "feat/base",
+    });
+    // The list hot path must stay lean: full readiness is expand-only.
+    expect(data.tasks[0].deliveryReadiness).toBeUndefined();
+  });
+
+  it("omits deliveryLanding when the probe has nothing to say", async () => {
+    const response = await GET(new NextRequest("http://localhost/api/tasks?workspaceId=workspace-1"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect("deliveryLanding" in data.tasks[0]).toBe(false);
   });
 
   it("rejects task listing without workspaceId", async () => {

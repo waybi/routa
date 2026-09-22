@@ -9,6 +9,7 @@ import type {
   TaskJitContextSnapshot,
 } from "@/core/models/task";
 import type { TaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
+import type { TaskDeliveryLanding } from "@/core/kanban/task-delivery-landing";
 
 export interface SessionInfo {
   sessionId: string;
@@ -216,6 +217,7 @@ export interface TaskInfo {
   artifactSummary?: ArtifactSummaryInfo;
   evidenceSummary?: TaskEvidenceSummaryInfo;
   deliveryReadiness?: TaskDeliveryReadiness;
+  deliveryLanding?: TaskDeliveryLanding;
   storyReadiness?: {
     ready: boolean;
     missing: KanbanRequiredTaskField[];

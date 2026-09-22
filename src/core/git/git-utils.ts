@@ -830,6 +830,64 @@ export function getRepoCommitDiff(
   };
 }
 
+/**
+ * Whether HEAD has landed on the base branch.
+ *
+ * Checks the resolved `baseRef` first; if that is a remote-tracking ref that
+ * is behind, also checks the local branch of the same name so a local merge
+ * counts as landed before it is pushed. `null` when there is no base ref.
+ */
+function resolveLandedOnBase(
+  repoPath: string,
+  baseRef: string | undefined,
+  baseBranch: string | undefined,
+): boolean | null {
+  if (!baseRef) return null;
+  if (isRefAncestor(repoPath, "HEAD", baseRef)) return true;
+  if (baseBranch && baseRef !== baseBranch && hasGitRef(repoPath, baseBranch)) {
+    return isRefAncestor(repoPath, "HEAD", baseBranch);
+  }
+  return false;
+}
+
+export interface RepoLandingStatus {
+  baseBranch?: string;
+  baseRef?: string;
+  commitsSinceBase: number;
+  landedOnBase: boolean | null;
+}
+
+/**
+ * Cheap subset of {@link getRepoDeliveryStatus} for list views: resolves the
+ * base ref, counts `base..HEAD`, and asks whether HEAD has landed. Skips
+ * `git status`, upstream ahead/behind and remote URL lookup, which dominate
+ * the full probe's cost.
+ */
+export function getRepoLandingStatus(
+  repoPath: string,
+  options?: { baseBranch?: string | null },
+): RepoLandingStatus {
+  const baseRef = resolveBaseRef(repoPath, options?.baseBranch);
+  const normalizedBaseBranch = options?.baseBranch?.trim() || baseRef?.replace(/^origin\//, "");
+  let commitsSinceBase = 0;
+  if (baseRef) {
+    try {
+      commitsSinceBase = Number.parseInt(
+        gitExecSync(["rev-list", "--count", `${baseRef}..HEAD`], repoPath),
+        10,
+      ) || 0;
+    } catch {
+      commitsSinceBase = 0;
+    }
+  }
+  return {
+    baseBranch: normalizedBaseBranch,
+    baseRef,
+    commitsSinceBase,
+    landedOnBase: resolveLandedOnBase(repoPath, baseRef, normalizedBaseBranch),
+  };
+}
+
 export function getRepoDeliveryStatus(
   repoPath: string,
   options?: {
@@ -868,16 +926,7 @@ export function getRepoDeliveryStatus(
     && Boolean(normalizedBaseBranch)
     && branch !== normalizedBaseBranch;
 
-  let landedOnBase: boolean | null = null;
-  if (baseRef) {
-    landedOnBase = isRefAncestor(repoPath, "HEAD", baseRef);
-    // A local merge into the base branch counts as landed even if the
-    // remote-tracking ref is behind (the resolver prefers `origin/<base>`).
-    if (!landedOnBase && normalizedBaseBranch && baseRef !== normalizedBaseBranch
-      && hasGitRef(repoPath, normalizedBaseBranch)) {
-      landedOnBase = isRefAncestor(repoPath, "HEAD", normalizedBaseBranch);
-    }
-  }
+  const landedOnBase = resolveLandedOnBase(repoPath, baseRef, normalizedBaseBranch);
 
   return {
     branch,
