@@ -825,6 +825,7 @@ export function KanbanTaskDetailOverlay({
   confirmDeleteTask,
   onRefresh,
   setActiveSessionId,
+  pinSessionId,
   sessionMap,
   workspaceId,
   isTaskDetailFullscreen,
@@ -856,6 +857,8 @@ export function KanbanTaskDetailOverlay({
   confirmDeleteTask: (task: TaskInfo) => void;
   onRefresh: () => void;
   setActiveSessionId: Dispatch<SetStateAction<string | null>>;
+  /** Marks a session the panel switched to on purpose so the board's reconcile does not bounce off it. */
+  pinSessionId?: (sessionId: string) => void;
   sessionMap: Map<string, SessionInfo>;
   workspaceId: string;
   isTaskDetailFullscreen?: boolean;
@@ -888,7 +891,7 @@ export function KanbanTaskDetailOverlay({
     }
   };
 
-  const recoverActiveAcpSession = async () => {
+  const recoverActiveAcpSession = async (options?: { willAutoResend: boolean }) => {
     if (!acp || !activeSessionId) return;
     const targetSessionInfo = sessionMap.get(activeSessionId);
     if (!targetSessionInfo?.cwd) return;
@@ -896,6 +899,7 @@ export function KanbanTaskDetailOverlay({
     try {
       const resumed = await acp.resumeSession(activeSessionId, targetSessionInfo.cwd, { throwOnError: true });
       if (resumed?.sessionId) {
+        pinSessionId?.(resumed.sessionId);
         setActiveSessionId(resumed.sessionId);
         setSessionRecoveryInputPrefill(null);
         onRefresh();
@@ -934,9 +938,17 @@ export function KanbanTaskDetailOverlay({
       await patchTask(activeTask.id, { sessionIds: nextSessionIds });
     }
 
+    pinSessionId?.(replacement.sessionId);
     setActiveSessionId(replacement.sessionId);
     acp.selectSession(replacement.sessionId);
-    setSessionRecoveryInputPrefill(buildKanbanSessionRestorePrompt(activeTask, targetSessionInfo, transcript));
+    // When the panel is about to re-send the user's own failed message, a
+    // canned "continue the previous session" draft would only sit in the
+    // input as clutter. Seed it only for a bare Resume.
+    setSessionRecoveryInputPrefill(
+      options?.willAutoResend
+        ? null
+        : buildKanbanSessionRestorePrompt(activeTask, targetSessionInfo, transcript),
+    );
     setHiddenSessionPaneTaskId(null);
     onRefresh();
   };

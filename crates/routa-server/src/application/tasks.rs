@@ -279,6 +279,14 @@ impl TaskApplicationService {
         if let Some(ids) = command.codebase_ids {
             task.codebase_ids = ids;
         }
+        if let Some(ids) = command.session_ids {
+            // Dedupe while preserving order, drop empties — same shape as Next.
+            let mut seen = std::collections::HashSet::new();
+            task.session_ids = ids
+                .into_iter()
+                .filter(|id| !id.is_empty() && seen.insert(id.clone()))
+                .collect();
+        }
         if let Some(context_search_spec) = command.context_search_spec {
             task.context_search_spec = Some(context_search_spec);
         }
@@ -479,6 +487,7 @@ pub struct UpdateTaskCommand {
     pub retry_trigger: Option<bool>,
     pub repo_path: Option<String>,
     pub codebase_ids: Option<Vec<String>>,
+    pub session_ids: Option<Vec<String>>,
     pub context_search_spec: Option<TaskContextSearchSpec>,
     pub worktree_id: Option<Option<String>>, // null clears, string sets
 }

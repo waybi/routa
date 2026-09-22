@@ -1012,6 +1012,11 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     resume: string;
     resuming: string;
     resumeHint: string;
+    /** Shown instead of the raw ownership/lease or dead-process error. */
+    agentGone: string;
+    agentGoneHint: string;
+    /** Toast after Resume when the failed message was re-sent automatically. */
+    resentAfterResume: string;
     fork: string;
     forking: string;
     forkHint: string;

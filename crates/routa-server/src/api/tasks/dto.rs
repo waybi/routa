@@ -219,6 +219,9 @@ pub struct UpdateTaskRequest {
     pub assigned_specialist_name: Option<String>,
     pub trigger_session_id: Option<String>,
     pub codebase_ids: Option<Vec<String>>,
+    /// Links a replacement session after a dead one is recovered from the
+    /// card-detail panel. Mirrors the Next backend.
+    pub session_ids: Option<Vec<String>>,
     pub context_search_spec: Option<TaskContextSearchSpec>,
     pub verification_plan: Option<String>,
     pub verification_verdict: Option<String>,

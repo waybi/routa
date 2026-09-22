@@ -262,6 +262,15 @@ export async function PATCH(
   if (body.codebaseIds !== undefined && Array.isArray(body.codebaseIds)) {
     nextTask.codebaseIds = body.codebaseIds.filter((id): id is string => typeof id === "string");
   }
+  // The card-detail session panel links a replacement session here after a
+  // dead one is recovered. Without this the client's PATCH was silently
+  // ignored, the card never learned about the new session, and the panel's
+  // ownership check bounced the user back to the dead one.
+  if (body.sessionIds !== undefined && Array.isArray(body.sessionIds)) {
+    nextTask.sessionIds = Array.from(new Set(
+      body.sessionIds.filter((id): id is string => typeof id === "string" && id.length > 0),
+    ));
+  }
   if ("contextSearchSpec" in body) {
     nextTask.contextSearchSpec = body.contextSearchSpec === null
       ? undefined

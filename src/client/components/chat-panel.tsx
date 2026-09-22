@@ -30,6 +30,7 @@ import type {WorkspaceData, CodebaseData} from "../hooks/use-workspaces";
 import {getFileChangesSummary} from "../utils/file-changes-tracker";
 import { TriangleAlert, X, KeyRound, Copy, Check, Monitor } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { toast } from "./toast";
 
 
 // ─── Message Types ─────────────────────────────────────────────────────
@@ -77,6 +78,29 @@ export interface PlanEntry {
 
 const MISSING_PENDING_INTERACTIVE_REQUEST_MESSAGE = "No pending interactive request found for this session";
 
+/**
+ * Server messages that all mean the same thing to the user: the agent process
+ * behind this session is gone and the message did not land.
+ *
+ * They are matched by substring because they come from three different code
+ * paths (ownership lease, dead ACP process, dead Claude process) with
+ * different wording. The raw text names internal instance ids and lease
+ * timestamps; the user needs "it's gone, click Resume".
+ */
+const AGENT_GONE_ERROR_MARKERS = [
+  "embedded ACP processes cannot be resumed on a different instance",
+  "process is not running",
+  "No ACP agent process for session",
+  "No Claude Code process for session",
+  "process for session",
+  "not found in store",
+] as const;
+
+export function isAgentGoneError(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return AGENT_GONE_ERROR_MARKERS.some((marker) => message.includes(marker));
+}
+
 interface ChatPanelProps {
   acp: UseAcpState & UseAcpActions;
   activeSessionId: string | null;
@@ -109,7 +133,12 @@ interface ChatPanelProps {
   onDecoratePrompt?: (text: string) => string;
   onDecoratedPromptSent?: () => void;
   /** Optional recovery action for a selected historical session. */
-  onResumeActiveSession?: () => Promise<void>;
+  /**
+   * `willAutoResend` is true when the panel holds the failed message and will
+   * re-send it into the recovered session itself; the parent should then skip
+   * seeding a restore prompt into the input.
+   */
+  onResumeActiveSession?: (options?: { willAutoResend: boolean }) => Promise<void>;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────
@@ -152,6 +181,10 @@ export function ChatPanel({
   // View mode: 'chat' or 'trace'
   const [viewMode, setViewMode] = useState<"chat" | "trace">("chat");
   const [isResumingActiveSession, setIsResumingActiveSession] = useState(false);
+  // The prompt whose send failed because the agent process was gone. The
+  // input clears on send, so without this the user would have to retype it
+  // after clicking Resume.
+  const failedPromptRef = useRef<{ sessionId: string; text: string; skillContext?: { skillName: string; skillContent: string } } | null>(null);
 
   // Use the extracted chat messages hook
   const {
@@ -420,6 +453,10 @@ export function ChatPanel({
 
     const decoratedPrompt = onDecoratePrompt ? onDecoratePrompt(finalPrompt) : finalPrompt;
 
+    // Remember what we are about to send. promptSession does not throw — it
+    // reports failure through acp.error — so the effect below decides whether
+    // this becomes the retry payload.
+    failedPromptRef.current = { sessionId: sid, text: decoratedPrompt, skillContext };
     await promptSession(sid, decoratedPrompt, skillContext);
     if (onDecoratePrompt) onDecoratedPromptSent?.();
 
@@ -451,15 +488,84 @@ export function ChatPanel({
     setSetupInput("");
   }, [setupInput, handleSend]);
 
+  // Set when Resume is clicked while a failed prompt is held. The resend
+  // happens in the effect below once activeSessionId points at the new
+  // session, because onResumeActiveSession does not return the id — the
+  // parent swaps it via state.
+  const [pendingResendAfterResume, setPendingResendAfterResume] = useState<{
+    fromSessionId: string;
+    text: string;
+    skillContext?: { skillName: string; skillContent: string };
+  } | null>(null);
+
   const handleResumeActiveSession = useCallback(async () => {
     if (!onResumeActiveSession || isResumingActiveSession) return;
     setIsResumingActiveSession(true);
+    const failed = failedPromptRef.current;
+    const willAutoResend = Boolean(failed && isAgentGoneError(error) && failed.sessionId === activeSessionId);
+    if (willAutoResend && failed) {
+      setPendingResendAfterResume({
+        fromSessionId: failed.sessionId,
+        text: failed.text,
+        skillContext: failed.skillContext,
+      });
+    }
     try {
-      await onResumeActiveSession();
+      await onResumeActiveSession({ willAutoResend });
+    } catch (resumeError) {
+      // The parent already routed this into acp.error, so the banner shows
+      // it. Rethrowing from a void click handler only produces an unhandled
+      // rejection.
+      setPendingResendAfterResume(null);
+      console.error("[chat-panel] Resume failed:", resumeError);
     } finally {
       setIsResumingActiveSession(false);
     }
-  }, [isResumingActiveSession, onResumeActiveSession]);
+  }, [activeSessionId, error, isResumingActiveSession, onResumeActiveSession]);
+
+  // A held prompt is only meaningful while the "agent gone" banner is up.
+  // Drop it when a *different* error replaces that banner. Do not drop it on
+  // error → null: Resume clears acp.error as part of recovering, and the
+  // resend below still needs the payload at that point.
+  useEffect(() => {
+    if (error && !isAgentGoneError(error)) {
+      failedPromptRef.current = null;
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (!pendingResendAfterResume || !activeSessionId) return;
+    // Still on the dead session: the parent has not swapped yet.
+    if (activeSessionId === pendingResendAfterResume.fromSessionId) return;
+    // Resume failed and left an error behind — do not fire into it.
+    if (error) {
+      setPendingResendAfterResume(null);
+      return;
+    }
+
+    const { text, skillContext } = pendingResendAfterResume;
+    setPendingResendAfterResume(null);
+    failedPromptRef.current = null;
+    resetStreamingRefs(activeSessionId);
+    // Toast at dispatch, not completion: the reply can take tens of seconds,
+    // and the point of the toast is to confirm the user's words went out.
+    toast.success(t.sessions.resentAfterResume);
+    void promptSession(activeSessionId, text, skillContext);
+  }, [activeSessionId, error, pendingResendAfterResume, promptSession, resetStreamingRefs, t]);
+
+  // The user-facing text for the error banner. Ownership/lease and
+  // dead-process errors are rewritten; everything else passes through.
+  const errorBanner = useMemo(() => {
+    if (!error) return null;
+    if (isAgentGoneError(error)) {
+      return {
+        title: t.sessions.agentGone,
+        hint: onResumeActiveSession && activeSessionId ? t.sessions.agentGoneHint : null,
+        raw: error,
+      };
+    }
+    return { title: error, hint: null, raw: error };
+  }, [activeSessionId, error, onResumeActiveSession, t]);
 
   // ── Render ───────────────────────────────────────────────────────────
 
@@ -513,9 +619,19 @@ export function ChatPanel({
         </div>
       )}
 
-      {error && (
-        <div className="flex items-start justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-2 text-xs text-red-600 dark:border-red-900/20 dark:bg-red-900/10 dark:text-red-400">
-          <div className="min-w-0 flex-1">{error}</div>
+      {errorBanner && (
+        <div
+          className="flex items-start justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-2 text-xs text-red-600 dark:border-red-900/20 dark:bg-red-900/10 dark:text-red-400"
+          role="alert"
+          data-testid="chat-error-banner"
+          title={errorBanner.raw !== errorBanner.title ? errorBanner.raw : undefined}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">{errorBanner.title}</div>
+            {errorBanner.hint && (
+              <div className="mt-0.5 text-red-500 dark:text-red-400/80">{errorBanner.hint}</div>
+            )}
+          </div>
           {activeSessionId && onResumeActiveSession && (
             <button
               type="button"
