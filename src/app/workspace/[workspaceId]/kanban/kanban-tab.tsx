@@ -21,7 +21,7 @@ import { EMPTY_DRAFT, type TaskDraft } from "../kanban-create-modal";
 import { type ColumnAutomationConfig, type KanbanSettingsModalProps } from "./kanban-settings-modal";
 import { scheduleKanbanRefreshBurst } from "./kanban-agent-input";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
-import { buildKanbanMoveBlockedRemediationPrompt, buildKanbanTaskAgentPrompt, getKanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
+import { buildKanbanTaskAgentPrompt, getKanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import { useTranslation } from "@/i18n";
 import { normalizeKanbanAutomation } from "@/core/models/kanban";
@@ -41,7 +41,8 @@ import { getKanbanFileChangesSummary } from "./kanban-file-changes-panel";
 import { KanbanTabContent } from "./kanban-tab-content";
 import { useRuntimeFitnessStatus } from "./use-runtime-fitness-status";
 import { toast } from "@/client/components/toast";
-import { useConfirm } from "@/client/components/confirm-dialog";
+import { useKanbanCodebaseModal } from "./use-kanban-codebase-modal";
+import { TaskPatchError, useKanbanCardMove } from "./use-kanban-card-move";
 
 interface SpecialistOption {
   id: string;
@@ -84,14 +85,6 @@ const MIN_DETAIL_SPLIT_RATIO = 0.32;
 const MAX_DETAIL_SPLIT_RATIO = 0.72;
 const LIVE_SESSION_TAIL_POLL_MS = 10_000;
 
-type MoveBlockedState = {
-  message: string;
-  taskId: string;
-  targetColumnId: string;
-  storyReadiness?: TaskInfo["storyReadiness"];
-  missingTaskFields?: string[];
-};
-
 /**
  * Fields the list projection omits (see src/app/api/tasks/task-list-projection.ts).
  * They must come from the hydrated detail fetch, not from the board summary.
@@ -106,24 +99,6 @@ function pickHydratedDetailFields(hydrated: TaskInfo): Partial<TaskInfo> {
   // The summary objective is truncated; the hydrated one is authoritative.
   if (hydrated.objective !== undefined) detail.objective = hydrated.objective;
   return detail;
-}
-
-class TaskPatchError extends Error {
-  storyReadiness?: TaskInfo["storyReadiness"];
-  missingTaskFields?: string[];
-
-  constructor(
-    message: string,
-    options?: {
-      storyReadiness?: TaskInfo["storyReadiness"];
-      missingTaskFields?: string[];
-    },
-  ) {
-    super(message);
-    this.name = "TaskPatchError";
-    this.storyReadiness = options?.storyReadiness;
-    this.missingTaskFields = options?.missingTaskFields;
-  }
 }
 
 function isPlanBacklogBoard(board: KanbanBoardInfo): boolean {
@@ -184,7 +159,6 @@ export function KanbanTab({
   onAgentPrompt,
 }: KanbanTabProps) {
   const { t } = useTranslation();
-  const confirm = useConfirm();
   const kanbanTaskAgentCopy = getKanbanTaskAgentCopy(specialistLanguage);
   const [localBoards, setLocalBoards] = useState<KanbanBoardInfo[]>(boards);
   const visibleBoards = useMemo(
@@ -246,34 +220,6 @@ export function KanbanTab({
   const [detailSplitRatio, setDetailSplitRatio] = useState(0.48);
   const [isDraggingDetailSplit, setIsDraggingDetailSplit] = useState(false);
 
-  // Codebase detail popup state
-  const [showCodebaseModal, setShowCodebaseModal] = useState(false);
-  const [selectedCodebase, setSelectedCodebase] = useState<CodebaseData | null>(null);
-  const [codebaseWorktrees, setCodebaseWorktrees] = useState<WorktreeInfo[]>([]);
-  const [addRepoSelection, setAddRepoSelection] = useState<RepoSelection | null>(null);
-  const [addSaving, setAddSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  // Codebase edit state - use RepoPicker for re-selecting/cloning
-  const [editingCodebase, setEditingCodebase] = useState(false);
-  const [editRepoSelection, setEditRepoSelection] = useState<RepoSelection | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-  // Re-clone state
-  const [recloning, setRecloning] = useState(false);
-  const [recloneError, setRecloneError] = useState<string | null>(null);
-  const [recloneSuccess, setRecloneSuccess] = useState<string | null>(null);
-  // Replace all repos state
-  const [showReplaceAllConfirm, setShowReplaceAllConfirm] = useState(false);
-  const [replacingAll, setReplacingAll] = useState(false);
-  // Delete codebase state
-  const [showDeleteCodebaseConfirm, setShowDeleteCodebaseConfirm] = useState(false);
-  const [deletingCodebase, setDeletingCodebase] = useState(false);
-  const [deletingWorktreeIds, setDeletingWorktreeIds] = useState<string[]>([]);
-  const [deletingBranchNames, setDeletingBranchNames] = useState<string[]>([]);
-  const [branchActionError, setBranchActionError] = useState<string | null>(null);
-  const [worktreeActionError, setWorktreeActionError] = useState<string | null>(null);
-  // Live branch info for selected codebase
-  const [liveBranchInfo, setLiveBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
 
   // Worktree cache: worktreeId -> WorktreeInfo
   const [worktreeCache, setWorktreeCache] = useState<Record<string, WorktreeInfo>>({});
@@ -291,14 +237,6 @@ export function KanbanTab({
   // Manual card creation in-flight state (Phase 1.3: three-state buttons)
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [createTaskError, setCreateTaskError] = useState<string | null>(null);
-  // Worktree cleanup confirmation when moving a card to Done (replaces window.confirm)
-  const [worktreeCleanupPrompt, setWorktreeCleanupPrompt] = useState<{
-    taskId: string;
-    targetColumnId: string;
-  } | null>(null);
-  const [moveError, setMoveError] = useState<string | null>(null);
-  const [moveBlockedState, setMoveBlockedState] = useState<MoveBlockedState | null>(null);
-  const [moveBlockedDelegatingTaskId, setMoveBlockedDelegatingTaskId] = useState<string | null>(null);
   const detailSplitContainerRef = useRef<HTMLDivElement | null>(null);
   const [isTaskDetailFullscreen, setIsTaskDetailFullscreen] = useState(false);
   const [fileChangesOpen, setFileChangesOpen] = useState(false);
@@ -604,6 +542,21 @@ export function KanbanTab({
     }
     return data.task as TaskInfo;
   }, []);
+
+  // Everything about the "repositories" modal lives in its own hook; the board
+  // only needs `open` (for the Escape handler) and `openCodebaseModal`.
+  const codebaseModal = useKanbanCodebaseModal({
+    workspaceId,
+    codebases,
+    defaultCodebase,
+    localTasks,
+    setLocalTasks,
+    setWorktreeCache,
+    patchTask,
+    onRefresh,
+  });
+  const showCodebaseModal = codebaseModal.open;
+  const { openCodebaseModal, closeCodebaseModal, selectCodebase, selectedCodebase } = codebaseModal;
 
   useEffect(() => {
     setLocalTasks(tasks);
@@ -1051,6 +1004,40 @@ export function KanbanTab({
     }, "replace");
   }, [defaultBoardId, selectedBoardId]);
 
+  // Card moves (optimistic update, worktree cleanup prompt, gate-blocked
+  // handling, agent-delegated remediation) live in their own hook.
+  const cardMove = useKanbanCardMove({
+    workspaceId,
+    selectedBoardId,
+    defaultBoardId,
+    defaultCodebase,
+    boardAutoProviderId,
+    specialistLanguage,
+    tasks,
+    localTasks,
+    boardTasks,
+    setLocalTasks,
+    setWorktreeCache,
+    patchTask,
+    fetchTaskById,
+    ensureBoardAutoProviderPersisted,
+    openSession,
+    openAgentPanel,
+    onAgentPrompt,
+    onRefresh,
+  });
+  const {
+    moveTask,
+    moveError,
+    setMoveError,
+    moveBlockedState,
+    setMoveBlockedState,
+    moveBlockedDelegatingTaskId,
+    delegateMoveBlockedFix,
+    worktreeCleanupPrompt,
+    resolveWorktreeCleanupPrompt,
+  } = cardMove;
+
   const handleSelectBoard = useCallback((boardId: string) => {
     setSelectedBoardId(boardId);
 
@@ -1158,139 +1145,6 @@ export function KanbanTab({
   }, [activeLiveSessionIds, isPageVisible]);
 
   // Codebase edit handlers - use RepoPicker for re-selecting/cloning
-  const handleStartEditCodebase = useCallback(() => {
-    if (!selectedCodebase) return;
-    // Initialize with current selection
-    setEditRepoSelection({
-      path: selectedCodebase.repoPath,
-      branch: selectedCodebase.branch ?? "",
-      name: selectedCodebase.label ?? selectedCodebase.repoPath.split("/").pop() ?? "",
-    });
-    setEditError(null);
-    setEditingCodebase(true);
-  }, [selectedCodebase]);
-
-  const handleRepoSelectionChange = useCallback(async (selection: RepoSelection | null) => {
-    if (!selection || !selectedCodebase) return;
-    setEditRepoSelection(selection);
-    setEditSaving(true);
-    setEditError(null);
-    try {
-      const res = await desktopAwareFetch(`/api/codebases/${encodeURIComponent(selectedCodebase.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: selection.name, repoPath: selection.path, branch: selection.branch }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to update repository");
-      setEditingCodebase(false);
-      setSelectedCodebase(null);
-      setCodebaseWorktrees([]);
-      onRefresh(); // Refresh to get updated codebase data
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Failed to update repository");
-    } finally {
-      setEditSaving(false);
-    }
-  }, [selectedCodebase, onRefresh]);
-
-  const handleCancelEditCodebase = useCallback(() => {
-    setEditingCodebase(false);
-    setEditRepoSelection(null);
-    setEditError(null);
-  }, []);
-
-  // Re-clone handler - triggers a fresh clone of the repository
-  const handleReclone = useCallback(async () => {
-    if (!selectedCodebase?.sourceUrl) return;
-    setRecloning(true);
-    setRecloneError(null);
-    setRecloneSuccess(null);
-    try {
-      const res = await desktopAwareFetch("/api/clone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: selectedCodebase.sourceUrl, force: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to re-clone repository");
-
-      // Update the codebase with the new path if it changed
-      if (data.path && data.path !== selectedCodebase.repoPath) {
-        await desktopAwareFetch(`/api/codebases/${encodeURIComponent(selectedCodebase.id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ repoPath: data.path, branch: data.branch }),
-        });
-      }
-      setRecloneSuccess(`Repository re-cloned successfully${data.existed ? " (pulled latest)" : ""}`);
-      onRefresh();
-    } catch (err) {
-      setRecloneError(err instanceof Error ? err.message : "Failed to re-clone repository");
-    } finally {
-      setRecloning(false);
-    }
-  }, [selectedCodebase, onRefresh]);
-
-  // Replace all repos handler - updates all codebases to use the new cloned path
-  const handleReplaceAllRepos = useCallback(async () => {
-    if (!selectedCodebase?.sourceUrl || !editRepoSelection) return;
-    setReplacingAll(true);
-    setRecloneError(null);
-    try {
-      // Update all codebases in the workspace to use the new repo path
-      const updatePromises = codebases.map(async (cb) => {
-        const res = await desktopAwareFetch(`/api/codebases/${encodeURIComponent(cb.id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            repoPath: editRepoSelection.path,
-            branch: editRepoSelection.branch,
-            label: editRepoSelection.name,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error ?? `Failed to update codebase ${cb.id}`);
-        }
-      });
-      await Promise.all(updatePromises);
-      setShowReplaceAllConfirm(false);
-      setEditingCodebase(false);
-      setSelectedCodebase(null);
-      setCodebaseWorktrees([]);
-      onRefresh();
-    } catch (err) {
-      setRecloneError(err instanceof Error ? err.message : "Failed to replace repositories");
-    } finally {
-      setReplacingAll(false);
-    }
-  }, [selectedCodebase, editRepoSelection, codebases, onRefresh]);
-
-  // Remove codebase handler
-  const handleRemoveCodebase = useCallback(async () => {
-    if (!selectedCodebase) return;
-    setDeletingCodebase(true);
-    setEditError(null);
-    try {
-      const res = await desktopAwareFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/codebases/${encodeURIComponent(selectedCodebase.id)}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Failed to remove repository");
-      }
-      setShowDeleteCodebaseConfirm(false);
-      setSelectedCodebase(null);
-      setCodebaseWorktrees([]);
-      onRefresh();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Failed to remove repository");
-    } finally {
-      setDeletingCodebase(false);
-    }
-  }, [selectedCodebase, workspaceId, onRefresh]);
-
   // Close modal on Escape key
   useEffect(() => {
     if (!activeTaskId && !activeSessionId && !showSettings && !showCodebaseModal) return;
@@ -1301,24 +1155,13 @@ export function KanbanTab({
         } else if (showSettings) {
           setShowSettings(false);
         } else if (showCodebaseModal) {
-          setShowCodebaseModal(false);
-          setSelectedCodebase(null);
-          setCodebaseWorktrees([]);
-          setEditingCodebase(false);
-          setLiveBranchInfo(null);
-          setBranchActionError(null);
-          setDeletingBranchNames([]);
-          setRecloneError(null);
-          setRecloneSuccess(null);
-          setAddRepoSelection(null);
-          setAddError(null);
-          setShowDeleteCodebaseConfirm(false);
+          closeCodebaseModal();
         }
       }
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [activeTaskId, activeSessionId, showSettings, showCodebaseModal, closeTaskDetail]);
+  }, [activeTaskId, activeSessionId, showSettings, showCodebaseModal, closeTaskDetail, closeCodebaseModal]);
 
   // Fetch worktrees for tasks that have worktreeId
   useEffect(() => {
@@ -1374,230 +1217,6 @@ export function KanbanTab({
     })();
   }, [localTasks, missingWorktreeIds, patchTask, worktreeCache]);
 
-  const fetchCodebaseWorktrees = useCallback(async (codebase: CodebaseData) => {
-    // Reset live branch info
-    setLiveBranchInfo(null);
-    setBranchActionError(null);
-
-    try {
-      const res = await desktopAwareFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/codebases/${encodeURIComponent(codebase.id)}/worktrees`,
-        { cache: "no-store" }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setCodebaseWorktrees(Array.isArray(data.worktrees) ? data.worktrees as WorktreeInfo[] : []);
-      }
-    } catch { /* ignore */ }
-
-    // Fetch live branch info from the repo
-    try {
-      const branchRes = await desktopAwareFetch(`/api/clone/branches?repoPath=${encodeURIComponent(codebase.repoPath)}`, { cache: "no-store" });
-      if (branchRes.ok) {
-        const branchData = await branchRes.json();
-        setLiveBranchInfo({ current: branchData.current, branches: branchData.local || [] });
-      }
-    } catch { /* ignore */ }
-  }, [workspaceId]);
-
-  const selectCodebase = useCallback(async (codebase: CodebaseData | null) => {
-    setSelectedCodebase(codebase);
-    setCodebaseWorktrees([]);
-    setLiveBranchInfo(null);
-    setBranchActionError(null);
-    setWorktreeActionError(null);
-    setDeletingBranchNames([]);
-    setDeletingWorktreeIds([]);
-    setEditingCodebase(false);
-    setEditError(null);
-    setEditRepoSelection(null);
-    setRecloneError(null);
-    setRecloneSuccess(null);
-    setShowDeleteCodebaseConfirm(false);
-
-    if (codebase) {
-      await fetchCodebaseWorktrees(codebase);
-    }
-  }, [fetchCodebaseWorktrees]);
-
-  const closeCodebaseModal = useCallback(() => {
-    setShowCodebaseModal(false);
-    setSelectedCodebase(null);
-    setCodebaseWorktrees([]);
-    setEditingCodebase(false);
-    setLiveBranchInfo(null);
-    setBranchActionError(null);
-    setDeletingBranchNames([]);
-    setRecloneError(null);
-    setRecloneSuccess(null);
-    setAddRepoSelection(null);
-    setAddError(null);
-    setShowDeleteCodebaseConfirm(false);
-  }, []);
-
-  const openCodebaseModal = useCallback(() => {
-    setShowCodebaseModal(true);
-    const nextCodebase = selectedCodebase ?? defaultCodebase ?? codebases[0] ?? null;
-    if (nextCodebase) {
-      void selectCodebase(nextCodebase);
-    }
-  }, [codebases, defaultCodebase, selectedCodebase, selectCodebase]);
-
-  const handleAddCodebase = useCallback(async (selection: RepoSelection | null) => {
-    if (!selection) return;
-    setAddRepoSelection(selection);
-    setAddSaving(true);
-    setAddError(null);
-    try {
-      const res = await desktopAwareFetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/codebases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoPath: selection.path, branch: selection.branch, label: selection.name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to add repository");
-      onRefresh();
-      const nextCodebase = data.codebase as CodebaseData | undefined;
-      if (nextCodebase) {
-        await selectCodebase(nextCodebase);
-      }
-      setAddRepoSelection(null);
-    } catch (error) {
-      setAddError(error instanceof Error ? error.message : "Failed to add repository");
-    } finally {
-      setAddSaving(false);
-    }
-  }, [onRefresh, selectCodebase, workspaceId]);
-
-  useEffect(() => {
-    if (!showCodebaseModal) return;
-    if (selectedCodebase && codebases.some((codebase) => codebase.id === selectedCodebase.id)) return;
-    const nextCodebase = defaultCodebase ?? codebases[0] ?? null;
-    if (nextCodebase) {
-      void selectCodebase(nextCodebase);
-    } else {
-      setSelectedCodebase(null);
-      setCodebaseWorktrees([]);
-      setLiveBranchInfo(null);
-    }
-  }, [codebases, defaultCodebase, selectedCodebase, selectCodebase, showCodebaseModal]);
-
-  const deleteIssueBranches = useCallback(async (branches: string[]) => {
-    if (!selectedCodebase || branches.length === 0) return;
-
-    const uniqueBranches = [...new Set(branches)];
-    setBranchActionError(null);
-    setDeletingBranchNames((current) => [...new Set([...current, ...uniqueBranches])]);
-
-    let latestBranchInfo: { current: string; branches: string[] } | null = null;
-    const failures: string[] = [];
-    try {
-      for (const branch of uniqueBranches) {
-        const response = await desktopAwareFetch("/api/clone/branches", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            repoPath: selectedCodebase.repoPath,
-            branch,
-          }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !(data as { success?: boolean }).success) {
-          failures.push((data as { error?: string }).error ?? `Failed to delete branch '${branch}'`);
-          continue;
-        }
-
-        const nextCurrentBranch: string = latestBranchInfo?.current ?? liveBranchInfo?.current ?? selectedCodebase.branch ?? "";
-        const nextBranches: string[] = latestBranchInfo?.branches ?? liveBranchInfo?.branches ?? [];
-        latestBranchInfo = {
-          current: typeof (data as { current?: string }).current === "string"
-            ? (data as { current: string }).current
-            : nextCurrentBranch,
-          branches: Array.isArray((data as { branches?: unknown[] }).branches)
-            ? (data as { branches: string[] }).branches
-            : nextBranches,
-        };
-      }
-    } catch (error) {
-      failures.push(error instanceof Error ? error.message : "Failed to delete branches");
-    } finally {
-      setDeletingBranchNames((current) => current.filter((name) => !uniqueBranches.includes(name)));
-    }
-
-    if (latestBranchInfo) {
-      setLiveBranchInfo(latestBranchInfo);
-    }
-    if (failures.length > 0) {
-      setBranchActionError(
-        t.kanbanModals.removeBranchesFailed
-          .replace("{count}", String(failures.length))
-          .replace("{branches}", failures.join("; ")),
-      );
-    }
-  }, [liveBranchInfo, selectedCodebase, t.kanbanModals.removeBranchesFailed]);
-
-  const handleDeleteIssueBranch = useCallback(async (branch: string) => {
-    const confirmed = await confirm({
-      message: t.kanbanModals.removeBranchConfirm.replace("{branch}", branch),
-      destructive: true,
-    });
-    if (!confirmed) return;
-
-    await deleteIssueBranches([branch]);
-  }, [confirm, deleteIssueBranches, t.kanbanModals.removeBranchConfirm]);
-
-  const handleDeleteIssueBranches = useCallback(async (branches: string[]) => {
-    if (branches.length === 0) return;
-
-    const confirmed = await confirm({
-      message: t.kanbanModals.clearIssueBranchesConfirm.replace("{count}", String(branches.length)),
-      destructive: true,
-    });
-    if (!confirmed) return;
-
-    await deleteIssueBranches(branches);
-  }, [confirm, deleteIssueBranches, t.kanbanModals.clearIssueBranchesConfirm]);
-
-  const handleDeleteCodebaseWorktrees = useCallback(async (worktrees: WorktreeInfo[]) => {
-    if (worktrees.length === 0) return;
-
-    const ids = [...new Set(worktrees.map((worktree) => worktree.id))];
-    const worktreeIdSet = new Set(ids);
-    setWorktreeActionError(null);
-    setDeletingWorktreeIds(ids);
-    try {
-      for (const worktree of worktrees) {
-        const linkedTasks = localTasks.filter((task) => task.worktreeId === worktree.id);
-        await Promise.all(linkedTasks.map((task) => patchTask(task.id, { worktreeId: null })));
-
-        const response = await desktopAwareFetch(`/api/worktrees/${encodeURIComponent(worktree.id)}`, {
-          method: "DELETE",
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error((data as { error?: string }).error ?? "Failed to delete worktree");
-        }
-      }
-
-      setLocalTasks((current) => current.map((task) => (
-        task.worktreeId && worktreeIdSet.has(task.worktreeId)
-          ? { ...task, worktreeId: undefined }
-          : task
-      )));
-      setCodebaseWorktrees((current) => current.filter((item) => !worktreeIdSet.has(item.id)));
-      setWorktreeCache((current) => {
-        const next = { ...current };
-        for (const id of ids) {
-          delete next[id];
-        }
-        return next;
-      });
-    } catch (error) {
-      setWorktreeActionError(error instanceof Error ? error.message : "Failed to delete worktree");
-    } finally {
-      setDeletingWorktreeIds([]);
-    }
-  }, [localTasks, patchTask]);
-
   async function createTaskCard() {
     if (isCreatingTask) return;
     setIsCreatingTask(true);
@@ -1644,6 +1263,16 @@ export function KanbanTab({
     }
   }
 
+  /** Shared tail of both GitHub importers: merge new cards into local state. */
+  function mergeImportedTasks(importedTasks: TaskInfo[]) {
+    if (importedTasks.length === 0) return;
+    setLocalTasks((current) => {
+      const existingIds = new Set(current.map((task) => task.id));
+      return [...current, ...importedTasks.filter((task) => !existingIds.has(task.id))];
+    });
+    onRefresh();
+  }
+
   async function importGitHubIssues(
     codebaseId: string,
     issues: GitHubIssueListItemInfo[],
@@ -1651,9 +1280,10 @@ export function KanbanTab({
     mergeAsSingleCard: boolean,
   ) {
     await ensureBoardAutoProviderPersisted();
-    const importedTasks = await importGitHubItems({
+    const boardId = selectedBoardId ?? defaultBoardId;
+    mergeImportedTasks(await importGitHubItems({
       workspaceId,
-      boardId: selectedBoardId ?? defaultBoardId,
+      boardId,
       codebaseId,
       items: issues,
       mergeAsSingleCard,
@@ -1662,7 +1292,7 @@ export function KanbanTab({
       mergeFallbackMessage: t.kanbanImport.importFailed,
       createItemPayload: (issue) => ({
         workspaceId,
-        boardId: selectedBoardId ?? defaultBoardId,
+        boardId,
         columnId: "backlog",
         title: issue.title,
         objective: issue.body?.trim() || issue.title,
@@ -1675,21 +1305,7 @@ export function KanbanTab({
         githubState: issue.state,
       }),
       createItemFallbackMessage: (issue) => `Failed to import GitHub issue #${issue.number}`,
-    });
-
-    if (importedTasks.length > 0) {
-      setLocalTasks((current) => {
-        const next = [...current];
-        const existingIds = new Set(current.map((task) => task.id));
-        for (const task of importedTasks) {
-          if (!existingIds.has(task.id)) {
-            next.push(task);
-          }
-        }
-        return next;
-      });
-      onRefresh();
-    }
+    }));
   }
 
   async function importGitHubPulls(
@@ -1699,9 +1315,10 @@ export function KanbanTab({
     mergeAsSingleCard: boolean,
   ) {
     await ensureBoardAutoProviderPersisted();
-    const importedTasks = await importGitHubItems({
+    const boardId = selectedBoardId ?? defaultBoardId;
+    mergeImportedTasks(await importGitHubItems({
       workspaceId,
-      boardId: selectedBoardId ?? defaultBoardId,
+      boardId,
       codebaseId,
       items: pulls,
       mergeAsSingleCard,
@@ -1710,7 +1327,7 @@ export function KanbanTab({
       mergeFallbackMessage: t.kanbanImport.importPullsFailed,
       createItemPayload: (pull) => ({
         workspaceId,
-        boardId: selectedBoardId ?? defaultBoardId,
+        boardId,
         columnId: "backlog",
         title: pull.title,
         objective: pull.body?.trim() || pull.title,
@@ -1724,21 +1341,7 @@ export function KanbanTab({
         isPullRequest: true,
       }),
       createItemFallbackMessage: (pull) => `Failed to import GitHub pull request #${pull.number}`,
-    });
-
-    if (importedTasks.length > 0) {
-      setLocalTasks((current) => {
-        const next = [...current];
-        const existingIds = new Set(current.map((task) => task.id));
-        for (const task of importedTasks) {
-          if (!existingIds.has(task.id)) {
-            next.push(task);
-          }
-        }
-        return next;
-      });
-      onRefresh();
-    }
+    }));
   }
 
   async function retryTaskTrigger(taskId: string) {
@@ -1831,204 +1434,6 @@ export function KanbanTab({
     setDeleteConfirmTask(null);
     setIsDeleting(false);
     setDeleteError(null);
-  }
-
-  const performMoveTask = useCallback(async (
-    taskId: string,
-    targetColumnId: string,
-    shouldCleanupWorktree: boolean,
-  ) => {
-    const movingTask = localTasks.find((task) => task.id === taskId);
-    if (!movingTask) return;
-
-    await ensureBoardAutoProviderPersisted();
-    setMoveError(null);
-    setMoveBlockedState(null);
-
-    const nextPosition = boardTasks.filter((task) => task.columnId === targetColumnId).length;
-    const optimistic = localTasks.map((task) =>
-      task.id === taskId
-        ? {
-            ...task,
-            columnId: targetColumnId,
-            position: nextPosition,
-            status: targetColumnId === "dev" ? "IN_PROGRESS"
-              : targetColumnId === "review" ? "REVIEW_REQUIRED"
-              : targetColumnId === "blocked" ? "BLOCKED"
-              : targetColumnId === "done" ? "COMPLETED"
-              : "PENDING",
-          }
-        : task,
-    );
-    setLocalTasks(optimistic);
-
-    try {
-      let updated = await patchTask(taskId, { columnId: targetColumnId, position: nextPosition });
-      if (shouldCleanupWorktree && movingTask.worktreeId) {
-        const response = await desktopAwareFetch(`/api/worktrees/${encodeURIComponent(movingTask.worktreeId)}`, {
-          method: "DELETE",
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error ?? "Failed to remove worktree");
-        }
-        updated = await patchTask(taskId, { worktreeId: null });
-        setWorktreeCache((current) => {
-          const next = { ...current };
-          delete next[movingTask.worktreeId!];
-          return next;
-        });
-      }
-      if (updated.triggerSessionId && updated.triggerSessionId !== movingTask.triggerSessionId) {
-        openSession(updated.triggerSessionId, updated);
-      }
-      setMoveError(null);
-      onRefresh();
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Failed to move task";
-      if (message.startsWith("Cannot move ")) {
-        setMoveBlockedState({
-          message,
-          taskId,
-          targetColumnId,
-          storyReadiness: error instanceof TaskPatchError ? error.storyReadiness : undefined,
-          missingTaskFields: error instanceof TaskPatchError ? error.missingTaskFields : undefined,
-        });
-        setMoveError(null);
-      } else {
-        setMoveError(message);
-      }
-      setLocalTasks(tasks);
-    }
-  }, [
-    boardTasks,
-    ensureBoardAutoProviderPersisted,
-    localTasks,
-    onRefresh,
-    openSession,
-    patchTask,
-    tasks,
-  ]);
-
-  // Moving a card with an attached worktree into Done asks first. The prompt is
-  // an in-app dialog (i18n) rather than window.confirm, which blocked the main
-  // thread and shipped hardcoded English.
-  const moveTask = useCallback(async (taskId: string, targetColumnId: string) => {
-    const movingTask = localTasks.find((task) => task.id === taskId);
-    if (!movingTask) return;
-
-    if (targetColumnId === "done" && movingTask.worktreeId) {
-      setWorktreeCleanupPrompt({ taskId, targetColumnId });
-      return;
-    }
-
-    await performMoveTask(taskId, targetColumnId, false);
-  }, [localTasks, performMoveTask]);
-
-  const resolveWorktreeCleanupPrompt = useCallback(async (shouldCleanup: boolean) => {
-    const pending = worktreeCleanupPrompt;
-    setWorktreeCleanupPrompt(null);
-    if (!pending) return;
-    await performMoveTask(pending.taskId, pending.targetColumnId, shouldCleanup);
-  }, [performMoveTask, worktreeCleanupPrompt]);
-
-  const delegateMoveBlockedFix = useCallback(async (blocked: MoveBlockedState) => {
-    if (!onAgentPrompt || moveBlockedDelegatingTaskId) return;
-
-    const task = localTasks.find((item) => item.id === blocked.taskId)
-      ?? tasks.find((item) => item.id === blocked.taskId)
-      ?? null;
-    if (!task) return;
-
-    setMoveBlockedDelegatingTaskId(blocked.taskId);
-    setMoveError(null);
-
-    try {
-      await ensureBoardAutoProviderPersisted();
-      const missingFields = blocked.storyReadiness?.missing?.length
-        ? blocked.storyReadiness.missing
-        : blocked.missingTaskFields ?? [];
-      const remediationPrompt = buildKanbanMoveBlockedRemediationPrompt({
-        workspaceId,
-        boardId: selectedBoardId ?? defaultBoardId ?? "default",
-        cardId: blocked.taskId,
-        cardTitle: task.title,
-        targetColumnId: blocked.targetColumnId,
-        repoPath: defaultCodebase?.repoPath,
-        missingFields,
-        language: specialistLanguage,
-      });
-      const sessionId = await onAgentPrompt(remediationPrompt, {
-        boardId: selectedBoardId ?? defaultBoardId ?? task.boardId ?? undefined,
-        provider: boardAutoProviderId,
-        role: "CRAFTER",
-        toolMode: "full",
-        allowedNativeTools: ["Read", "Grep", "Glob"],
-        mcpProfile: "kanban-planning",
-        systemPrompt: remediationPrompt,
-        taskAdaptiveHarness: buildKanbanTaskAdaptiveHarnessOptions(task.title, { locale: specialistLanguage, role: "CRAFTER", taskType: "planning", task }),
-      });
-      if (!sessionId) {
-        return;
-      }
-
-      openAgentPanel(sessionId);
-      setMoveBlockedState(null);
-      scheduleKanbanRefreshBurst(onRefresh);
-
-      const startedAt = Date.now();
-      const pollUntilMs = 30_000;
-      const pollIntervalMs = 2_000;
-
-      while (Date.now() - startedAt < pollUntilMs) {
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, pollIntervalMs);
-        });
-        const refreshedTask = await fetchTaskById(blocked.taskId).catch(() => null);
-        if (!refreshedTask) {
-          continue;
-        }
-        setLocalTasks((current) => current.map((entry) => entry.id === refreshedTask.id ? refreshedTask : entry));
-        if (refreshedTask.storyReadiness?.ready) {
-          await moveTask(blocked.taskId, blocked.targetColumnId);
-          return;
-        }
-      }
-    } catch (error) {
-      console.error("[kanban] Failed to delegate story-readiness remediation:", error);
-    } finally {
-      setMoveBlockedDelegatingTaskId((current) => current === blocked.taskId ? null : current);
-    }
-  }, [
-    boardAutoProviderId,
-    defaultBoardId,
-    defaultCodebase?.repoPath,
-    ensureBoardAutoProviderPersisted,
-    fetchTaskById,
-    localTasks,
-    moveBlockedDelegatingTaskId,
-    moveTask,
-    onAgentPrompt,
-    onRefresh,
-    openAgentPanel,
-    selectedBoardId,
-    specialistLanguage,
-    tasks,
-    workspaceId,
-  ]);
-
-  async function _createBoard() {
-    const name = window.prompt(t.kanban.boardName);
-    if (!name?.trim()) return;
-    const response = await desktopAwareFetch("/api/kanban/boards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId, name: name.trim() }),
-    });
-    if (response.ok) {
-      onRefresh();
-    }
   }
 
   const kanbanTabHeaderProps = {
@@ -2141,8 +1546,6 @@ export function KanbanTab({
     workspaceId,
     defaultCodebase,
     repoSync,
-    setSelectedCodebase,
-    fetchCodebaseWorktrees,
     onRefresh,
     repoChanges,
     repoChangesLoading,
@@ -2247,60 +1650,60 @@ export function KanbanTab({
     key: showCodebaseModal ? (selectedCodebase?.id ?? "workspace-repos-open") : "workspace-repos-closed",
     open: showCodebaseModal,
     selectedCodebase,
-    editingCodebase,
+    editingCodebase: codebaseModal.editingCodebase,
     codebases,
-    addRepoSelection,
-    setAddRepoSelection,
-    addSaving,
-    addError,
-    onAddRepository: handleAddCodebase,
-    editRepoSelection,
-    onRepoSelectionChange: handleRepoSelectionChange,
-    editError,
-    recloneError,
-    editSaving,
-    replacingAll,
-    setShowReplaceAllConfirm,
-    handleCancelEditCodebase,
-    codebaseWorktrees,
-    worktreeActionError,
+    addRepoSelection: codebaseModal.addRepoSelection,
+    setAddRepoSelection: codebaseModal.setAddRepoSelection,
+    addSaving: codebaseModal.addSaving,
+    addError: codebaseModal.addError,
+    onAddRepository: codebaseModal.handleAddCodebase,
+    editRepoSelection: codebaseModal.editRepoSelection,
+    onRepoSelectionChange: codebaseModal.handleRepoSelectionChange,
+    editError: codebaseModal.editError,
+    recloneError: codebaseModal.recloneError,
+    editSaving: codebaseModal.editSaving,
+    replacingAll: codebaseModal.replacingAll,
+    setShowReplaceAllConfirm: codebaseModal.setShowReplaceAllConfirm,
+    handleCancelEditCodebase: codebaseModal.handleCancelEditCodebase,
+    codebaseWorktrees: codebaseModal.codebaseWorktrees,
+    worktreeActionError: codebaseModal.worktreeActionError,
     localTasks,
-    handleDeleteCodebaseWorktrees,
-    deletingWorktreeIds,
-    liveBranchInfo,
-    branchActionError,
+    handleDeleteCodebaseWorktrees: codebaseModal.handleDeleteCodebaseWorktrees,
+    deletingWorktreeIds: codebaseModal.deletingWorktreeIds,
+    liveBranchInfo: codebaseModal.liveBranchInfo,
+    branchActionError: codebaseModal.branchActionError,
     repoHealth,
     onSelectCodebase: (codebase: CodebaseData) => {
       void selectCodebase(codebase);
     },
-    handleDeleteIssueBranch,
-    handleDeleteIssueBranches,
-    deletingBranchNames,
-    handleReclone,
-    recloning,
-    recloneSuccess,
-    onStartEditCodebase: handleStartEditCodebase,
-    onRequestRemoveCodebase: () => setShowDeleteCodebaseConfirm(true),
+    handleDeleteIssueBranch: codebaseModal.handleDeleteIssueBranch,
+    handleDeleteIssueBranches: codebaseModal.handleDeleteIssueBranches,
+    deletingBranchNames: codebaseModal.deletingBranchNames,
+    handleReclone: codebaseModal.handleReclone,
+    recloning: codebaseModal.recloning,
+    recloneSuccess: codebaseModal.recloneSuccess,
+    onStartEditCodebase: codebaseModal.handleStartEditCodebase,
+    onRequestRemoveCodebase: () => codebaseModal.setShowDeleteCodebaseConfirm(true),
     onClose: closeCodebaseModal,
   };
 
   const deleteCodebaseModalProps = {
-    show: showDeleteCodebaseConfirm,
+    show: codebaseModal.showDeleteCodebaseConfirm,
     selectedCodebase,
-    editError,
-    deletingCodebase,
-    onCancel: () => setShowDeleteCodebaseConfirm(false),
-    onConfirm: handleRemoveCodebase,
+    editError: codebaseModal.editError,
+    deletingCodebase: codebaseModal.deletingCodebase,
+    onCancel: () => codebaseModal.setShowDeleteCodebaseConfirm(false),
+    onConfirm: codebaseModal.handleRemoveCodebase,
   };
 
   const replaceAllReposModalProps = {
-    show: showReplaceAllConfirm,
-    editRepoSelection,
+    show: codebaseModal.showReplaceAllConfirm,
+    editRepoSelection: codebaseModal.editRepoSelection,
     codebasesCount: codebases.length,
-    recloneError,
-    replacingAll,
-    onCancel: () => setShowReplaceAllConfirm(false),
-    onConfirm: handleReplaceAllRepos,
+    recloneError: codebaseModal.recloneError,
+    replacingAll: codebaseModal.replacingAll,
+    onCancel: () => codebaseModal.setShowReplaceAllConfirm(false),
+    onConfirm: codebaseModal.handleReplaceAllRepos,
   };
 
   const deleteTaskModalProps = {

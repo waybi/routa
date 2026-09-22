@@ -309,8 +309,6 @@ export function KanbanBoardSurface({
   workspaceId,
   defaultCodebase,
   repoSync: _repoSync,
-  setSelectedCodebase: _setSelectedCodebase,
-  fetchCodebaseWorktrees: _fetchCodebaseWorktrees,
   onRefresh,
   repoChanges,
   repoChangesLoading,
@@ -354,8 +352,6 @@ export function KanbanBoardSurface({
   workspaceId: string;
   defaultCodebase: CodebaseData | null;
   repoSync?: RepoSyncState;
-  setSelectedCodebase: Dispatch<SetStateAction<CodebaseData | null>>;
-  fetchCodebaseWorktrees: (codebase: CodebaseData) => Promise<void>;
   onRefresh: () => void;
   repoChanges: KanbanRepoChanges[];
   repoChangesLoading: boolean;
