@@ -1,4 +1,6 @@
 import type { RuntimeFitnessEventStatus } from "@/core/fitness/runtime-status-types";
+import type { KanbanEventStore } from "@/core/store/kanban-event-store";
+import { resolveKanbanEventResourceId } from "@/core/store/kanban-event-store";
 
 export type KanbanWorkspaceChangedEvent = {
   type: "kanban:changed";
@@ -87,6 +89,21 @@ type SSEController = ReadableStreamDefaultController<Uint8Array>;
 export class KanbanEventBroadcaster {
   private controllers = new Map<string, { controller: SSEController; workspaceId: string }>();
   private connectionCounter = 0;
+  /**
+   * Optional durable log. When set, every frame except `connected` is
+   * appended after fan-out so a reconnecting client can replay via
+   * `Last-Event-ID`. Persistence failures are logged, never thrown: a dead
+   * disk must not take the live channel down with it.
+   */
+  private eventStore: KanbanEventStore | null = null;
+
+  setEventStore(store: KanbanEventStore | null): void {
+    this.eventStore = store;
+  }
+
+  get hasEventStore(): boolean {
+    return this.eventStore !== null;
+  }
 
   attach(workspaceId: string, controller: SSEController): string {
     const connId = `kanban-sse-${++this.connectionCounter}`;
@@ -107,14 +124,53 @@ export class KanbanEventBroadcaster {
   }
 
   broadcast(event: KanbanWorkspaceEvent): void {
+    // The id is minted here, before fan-out, so the SSE `id:` line and the
+    // persisted row agree. A client that reconnects with this id gets
+    // everything after it.
+    const id = crypto.randomUUID();
+
     for (const [connId, { controller, workspaceId }] of this.controllers) {
       if (workspaceId !== event.workspaceId && workspaceId !== "*") continue;
       try {
-        this.writeSse(controller, event);
+        this.writeSse(controller, event, id);
       } catch {
         this.controllers.delete(connId);
       }
     }
+
+    if (this.eventStore) {
+      const createdAt = Date.parse(event.timestamp);
+      void this.eventStore
+        .append({
+          id,
+          workspaceId: event.workspaceId,
+          type: event.type,
+          resourceId: resolveKanbanEventResourceId(event),
+          payload: event,
+          createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        })
+        .catch((error) => {
+          console.error("[kanban-events] failed to persist frame:", error);
+        });
+    }
+  }
+
+  /**
+   * Replays stored frames to one controller. Used by the SSE route right
+   * after `attach()` when the client presents a cursor. Frames carry their
+   * stored id so a second disconnect resumes from the right place.
+   */
+  async replay(
+    controller: SSEController,
+    workspaceId: string,
+    options: { afterId?: string; since?: number; limit?: number },
+  ): Promise<number> {
+    if (!this.eventStore) return 0;
+    const rows = await this.eventStore.list(workspaceId, options);
+    for (const row of rows) {
+      this.writeSse(controller, row.payload, row.id);
+    }
+    return rows.length;
   }
 
   notify(event: Omit<KanbanWorkspaceChangedEvent, "type" | "timestamp">): void {
@@ -154,9 +210,10 @@ export class KanbanEventBroadcaster {
     return this.controllers.size;
   }
 
-  private writeSse(controller: SSEController, payload: unknown): void {
+  private writeSse(controller: SSEController, payload: unknown, id?: string): void {
     const encoder = new TextEncoder();
-    controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+    const idLine = id ? `id: ${id}\n` : "";
+    controller.enqueue(encoder.encode(`${idLine}data: ${JSON.stringify(payload)}\n\n`));
   }
 }
 
