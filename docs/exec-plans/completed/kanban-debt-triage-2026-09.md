@@ -1,5 +1,51 @@
 # Kanban Debt Triage: Un-skip Orchestrator Tests, Persist Board Events, Fail Fast on Misplaced Canonical YAML
 
+**Status: shipped 2026-09-22.** Ten commits, `84734bec..3abb56e4` (interleaved with
+another agent's done≠merged work on the same branch).
+
+## Outcome
+
+| Item | Result | Evidence |
+|---|---|---|
+| 1. Misplaced-YAML error | Shipped. Gate names the case, points at `update_card`, drops the "regenerate" suffix. | `84734bec`; 12 tests in `task-contract-readiness.test.ts` |
+| 2. Un-skip suites | Shipped. All three `describe.skip` removed; 16 tests live again. Repo-wide `describe.skip\|it.skip\|test.skip` in `src/**/*.test.*` → **0**. | `3c29aba5` `1777e984` `5b6c42f9`; suite 1837 pass / 23 skip → **1951 pass / 0 skip** |
+| 3. Event persistence | Shipped (Next). `kanban_events` table on pg+sqlite; every frame persisted with its SSE `id:`; replay on `Last-Event-ID`, `?lastEventId`, or `?since`; client resumes on manual reconnect and coalesces invalidates. | `f553559a` `061d4369` `9fe2eb61` `482ec20d` `3abb56e4`; 34 new tests |
+
+Verified against the live build (`npx next build --webpack` + `next start` on :3000):
+
+```
+sqlite3 routa.db ".schema kanban_events"           → table + index present
+3 × PATCH /api/tasks/:id (no SSE client attached)   → 3 rows in kanban_events
+curl -H "Last-Event-ID: <row1>" .../events?ws=…     → connected + 2 replayed frames, ids match db
+curl .../events?ws=…&since=<now-1h>                 → 3 replayed frames
+curl .../events?ws=…&since=<now+1h>                 → connected only
+browser first connect (hooked EventSource ctor)     → ?since=60min-ago
+```
+
+### What Item 2 actually found
+
+The tracker called the suites "flaky". They were not. Un-skipping and running each
+three times gave identical results every time:
+
+| Suite | Un-skipped result | Cause |
+|---|---|---|
+| `workflow-orchestrator.test.ts` | 9/9 pass, no change needed | Skipped alongside the others, never re-checked. Six months of zero coverage on the file that drives every lane transition. |
+| `agent-trigger.test.ts` | 2 deterministic failures | `97a1c50d` moved the prompt from a second `fetch` to `dispatchSessionPrompt`; `f039909d` removed the A2A lane path the other test asserted. |
+| `kanban-tab.test.tsx` | 5 deterministic failures | `5bc6694b` added detail hydration fetch + provider persist; `38b1cb60` added tabs. Tests predated both. |
+
+### Deferred
+
+- **Rust does not persist or replay `kanban:events`.** Table and frame shape are frozen
+  below; the Axum port is mechanical. Tracked in
+  `docs/issues/2026-09-22-desktop-live-tail-not-pushed.md` alongside the session-tail gap.
+- **Rust has no contract gate at all** (`require_canonical_story` is defined in
+  `crates/routa-core/src/models/kanban.rs:29` and never read), so Item 1 had nothing to
+  mirror. Pre-existing parity gap, not introduced here.
+- `kanban-tab.test.tsx` is 3261 lines (budget 1600). Pre-existing; grew by ~40 lines here.
+
+---
+
+
 ## Goal
 
 Land the three items chosen from the 2026-09-22 issue sweep that a Kanban user is

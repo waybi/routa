@@ -86,3 +86,6 @@ produces output, on both backends.
 
 - `docs/exec-plans/completed/kanban-ux-feedback.md` — Follow-ups, first bullet
 - Commits: `cb0d63ea` (publisher), `d7bd49f2` (frontend consumer), `4c92e75e` (doc)
+
+## Issue Hygiene
+- 2026-09-22 (later): scope widened. The Axum backend now also lacks `kanban_events` persistence and `Last-Event-ID` replay (`482ec20d` on Next). Same root cause — no `EventBus`/broadcaster hook on `AcpManager`, and `crates/routa-server/src/api/kanban.rs` translates EventBus events only. Mirror both `session-tail-publisher.ts` and the persist/replay in `kanban-event-broadcaster.ts` + `api/kanban/events/route.ts` in one pass.

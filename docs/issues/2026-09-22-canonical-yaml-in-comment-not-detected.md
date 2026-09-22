@@ -2,7 +2,8 @@
 title: "Contract gate cannot tell 'YAML written to a comment' from 'YAML missing', so agents loop"
 date: "2026-09-22"
 kind: issue
-status: open
+status: resolved
+resolved_at: "2026-09-22"
 severity: medium
 area: "kanban"
 tags: ["kanban", "canonical-contract", "move_card", "agent-loop", "error-message"]
@@ -78,3 +79,6 @@ One bounce, one precise instruction, done.
 ## References
 
 - `2026-05-22-canonical-contract-comment-only-refinement-loop.md` — the prompt-side fix, resolved 2026-09-22 in `73a44bf5`
+
+## Issue Hygiene
+- 2026-09-22: resolved in `84734bec`. `buildTaskContractReadiness` scans comments when the description has no block; the transition error names the misplaced case, points at `update_card` + description, and drops the "Regenerate" suffix that caused the loop. The gate's own bounce note cannot re-trigger it. 12 tests. Rust has no contract gate to mirror.
