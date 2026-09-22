@@ -22,6 +22,13 @@ if ! command -v cargo >/dev/null 2>&1 && [ -x "$HOME/.cargo/bin/cargo" ]; then
   export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
+# Ensure entrix is reachable: metrics such as graph_test_mapping_probe call
+# a bare `entrix`, which is rarely installed globally. Fall back to the
+# locally built binary, mirroring the post-commit hook's ENTRIX_BIN logic.
+if ! command -v entrix >/dev/null 2>&1 && [ -x "./target/debug/entrix" ]; then
+  export PATH="$(pwd)/target/debug:$PATH"
+fi
+
 # ─── Run Standard Checks ───────────────────────────────────────────
 # Run hook runtime directly for full pre-push checks.
 node --import tsx tools/hook-runtime/src/cli.ts --profile pre-push "$@"
