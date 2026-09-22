@@ -198,6 +198,8 @@ export interface TaskDeliverySnapshot {
   headSha: string;
   commits: TaskDeliverySnapshotCommit[];
   source: "review_transition" | "done_transition" | "pr_run" | "manual";
+  /** ISO timestamp of the first observation that `headSha` was reachable from the base branch. */
+  landedAt?: string;
 }
 
 export interface FallbackAgent {

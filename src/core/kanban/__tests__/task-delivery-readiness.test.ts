@@ -42,6 +42,7 @@ describe("task delivery readiness", () => {
     const readiness = await buildTaskDeliveryReadiness(task, system);
 
     expect(readiness.checked).toBe(false);
+    expect(readiness.landedOnBase).toBeNull();
     expect(readiness.reason).toContain("no linked repository");
     expect(isGitRepository).not.toHaveBeenCalled();
   });
@@ -98,10 +99,12 @@ describe("task delivery readiness", () => {
       remoteUrl: "git@github.com:acme/platform.git",
       isGitHubRepo: true,
       canCreatePullRequest: true,
+      landedOnBase: false,
     });
 
     const readiness = await buildTaskDeliveryReadiness(task, system);
 
+    expect(readiness.landedOnBase).toBe(false);
     expect(isGitRepository).toHaveBeenCalledWith("/repo/worktrees/task-1");
     expect(getRepoDeliveryStatus).toHaveBeenCalledWith("/repo/worktrees/task-1", {
       baseBranch: "main",

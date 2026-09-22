@@ -35,6 +35,11 @@ export interface TaskDeliveryReadiness {
   hasUncommittedChanges: boolean;
   isGitHubRepo: boolean;
   canCreatePullRequest: boolean;
+  /**
+   * HEAD reachable from the base branch (task branch has landed).
+   * `null`/absent when the check could not run (no base ref, not a git repo, unchecked).
+   */
+  landedOnBase?: boolean | null;
   reason?: string;
 }
 
@@ -81,6 +86,7 @@ function mapReadiness(
     hasUncommittedChanges: deliveryStatus.hasUncommittedChanges,
     isGitHubRepo: deliveryStatus.isGitHubRepo,
     canCreatePullRequest: deliveryStatus.canCreatePullRequest,
+    landedOnBase: deliveryStatus.landedOnBase,
   };
 }
 
@@ -101,6 +107,7 @@ export async function buildTaskDeliveryReadiness(
       hasUncommittedChanges: false,
       isGitHubRepo: false,
       canCreatePullRequest: false,
+      landedOnBase: null,
       reason: "Task has no linked repository or worktree.",
     };
   }
@@ -118,6 +125,7 @@ export async function buildTaskDeliveryReadiness(
       hasUncommittedChanges: false,
       isGitHubRepo: false,
       canCreatePullRequest: false,
+      landedOnBase: null,
       reason: "Linked repository is missing or is not a git repository.",
     };
   }
@@ -135,6 +143,7 @@ export async function buildTaskDeliveryReadiness(
       hasUncommittedChanges: false,
       isGitHubRepo: false,
       canCreatePullRequest: false,
+      landedOnBase: null,
       reason: "Linked repository is a bare git repo. Attach a task worktree before checking delivery readiness.",
     };
   }
