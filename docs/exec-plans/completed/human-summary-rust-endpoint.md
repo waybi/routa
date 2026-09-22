@@ -1,6 +1,6 @@
 # Rust/Axum 补齐 `/api/tasks/{id}/human-summary`（人话版摘要端点双后端对齐）
 
-状态：待实现
+状态：已实现（2026-09-22，commit 15cff103）
 日期：2026-09-22
 来源：`docs/exec-plans/completed/card-detail-human-readable-tab.md`「未做」一节
 
@@ -74,3 +74,33 @@ TaskHumanSummaryRecord = { taskId, descriptionHash, language, model, generatedAt
 
 - 提示词双份维护：Rust 与 TS 各一份，漂移风险由「文件头互相注明 + 同一 PR 内同步改」约束；若后续第三处需要，再抽成共享资源文件（如 `resources/prompts/human-summary.{zh,en}.md`）由两端读取。
 - hash 不一致会让两端互相判 stale：AC2 对拍是硬要求。
+
+## 实现记录（2026-09-22）
+
+| 步骤 | 落点 |
+|---|---|
+| Rust 端点 | `crates/routa-server/src/api/tasks/human_summary.rs`（954 行）：hash / FileSummaryStore / 宽松 YAML 事实解析 / 提示词（与 TS 逐字一致）/ lint（`evidence.where` 同样豁免）/ 一次重试 / GET+POST handler |
+| 路由注册 | `crates/routa-server/src/api/tasks/handlers.rs` 路由表 `.route("/{id}/human-summary", get(...).post(...))` |
+| 契约 | `api-contract.yaml` 新增 2 条 path + 4 个 schema（`TaskHumanSummary{Evidence,Content,Record,Response}`） |
+| 同源标注 | TS 侧 `src/core/kanban/task-human-summary.ts` 文件头注明 Rust twin；Rust 文件头注明 TS 来源 |
+| 模型调用 | `AcpAgentCaller` adapter=`anthropic`，model 优先级 `WORKSPACE_AGENT_MODEL` → `ANTHROPIC_MODEL` → `claude-sonnet-4-20250514`，max_tokens 2048，timeout 180s |
+
+hash 对拍向量由 TS 生成（`node --input-type=module -e 'import {createHash} from "node:crypto"; ...'`），固化进 Rust 单测 `hash_matches_typescript_vectors`：三组输入（含 CRLF / 前后空白 / 空串）全部一致。
+
+### 验收结果
+
+| AC | 结果 |
+|---|---|
+| AC1 parity 计数 | `npm run -s api:check` → `Both backends implement: 238/238`，`human-summary` 不再出现在 Extra 列表 |
+| AC2 hash 对拍 | 两端 GET 卡 `c5320340` 均返回 `89374d87ff06…7818ef` |
+| AC3 共享缓存 | Rust POST 生成（41.5s，`lintHits: []`）→ Next.js GET 30ms `cached:true stale:false`；反向 Next.js POST / Rust POST 无 force 均 ~25ms 命中缓存 |
+| AC4 Rust 测试 | `cargo test -p routa-server` 218 通过（含新增 6 条：hash 对拍、lint 命中与豁免、JSON 三种形态解析、文件 store 读写/损坏容错/文件名 sanitize、事实解析（YAML + 纯文本退化）、提示词拼装）；`cargo clippy -p routa-server -- -D warnings` 零告警 |
+| AC5 桌面走查 | **未做**：本轮以两端 HTTP 探针替代 `npm run tauri dev` 手工走查；端点行为已由 AC2/AC3 覆盖，UI 侧组件未改 |
+
+额外探针：Rust 端篡改缓存 hash 后 GET 返回 `stale:true`；不存在的 taskId 返回 404；`language=en` 无缓存时 `record:null`。
+
+### 踩坑
+
+- `api-contract.yaml` 里 `record` 可空写成 `nullable: true + allOf` 会被 `npm run api:schema:validate` 判为 AJV 编译错误（`"nullable" cannot be used without "type"`），改为 `oneOf: [$ref, {type: "null"}]` 通过。
+- `rustfmt` 对整个 crate 跑会顺带改到 `list_projection.rs` 的无关测试断言；只对自己新增/修改的三个文件跑 `rustfmt --edition 2021 <files>`，未改的文件用 `git checkout` 还原。
+- Rust 侧现有 `parse_canonical_story`（`routa-core/src/models/task.rs:652`）是私有函数且只解析 invest/dependencies，本端点自带一份宽松版 `LooseStory`（全 `Option` 字段），YAML 缺字段不报错、只影响提示词里的事实行。
