@@ -3,7 +3,8 @@ title: "Flaky test suite was partially skipped to unblock pre-push"
 date: "2026-03-29"
 kind: issue
 severity: medium
-status: investigating
+status: resolved
+resolved_at: "2026-09-22"
 area: testing
 tags: [testing, flaky-tests, vitest]
 reported_by: "codex"
@@ -107,3 +108,4 @@ Test Files  124 passed | 1 skipped (125)
 
 - 2026-04-28: reviewed as still active. `rg` still finds skipped suites in `workflow-orchestrator.test.ts`, `agent-trigger.test.ts`, and `kanban-tab.test.tsx`, so this cannot be resolved yet.
 - 2026-09-22: reviewed, still active. `.skip` still present in `kanban-tab.test.tsx` (1), `agent-trigger.test.ts` (1), `workflow-orchestrator.test.ts` (1 describe, 9 tests skipped in the 2026-09-22 run). `claude-code-sdk-adapter.test.ts` no longer skips anything.
+- 2026-09-22: resolved. None of the three suites was flaky — un-skipping and running each three times gave identical results every run. `workflow-orchestrator.test.ts` passed 9/9 untouched (`3c29aba5`). `agent-trigger.test.ts` had two stale mocks from `97a1c50d`/`f039909d` (`1777e984`). `kanban-tab.test.tsx` had five tests written before `5bc6694b` (detail hydration fetch) and `38b1cb60` (tabbed detail) landed (`5b6c42f9`). `grep -rn 'describe.skip\|it.skip\|test.skip' src --include='*.test.ts*'` now returns 0.
