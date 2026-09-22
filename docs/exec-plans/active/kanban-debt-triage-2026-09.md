@@ -114,8 +114,10 @@ This message replaces the generic one only in that case. It does **not** count t
 the loop breaker (`countContractGateFailures`) — the point is to make attempt #1 the last
 one, not to accelerate the cutoff.
 
-Rust: add the same detection and wording to the gate in `crates/routa-core/src/models/task.rs`
-so desktop agents get the same hint. (Small; the parse helper exists there already.)
+Rust: **no mirror needed.** Verified 2026-09-22 that `require_canonical_story` is only
+defined in `crates/routa-core/src/models/kanban.rs:29` and never read — the Axum backend
+has no contract gate at all, so there is no error string to sharpen. Desktop parity for
+the gate itself is a separate (pre-existing) gap, not introduced here.
 
 ### Item 2 — un-skip and repair
 
@@ -177,7 +179,7 @@ dedupes on `taskId:phase:timestamp`, so replayed frames do not double-toast.
 Item 1 (~1 h)
 1. Add `detectMisplacedCanonicalYaml` + wire into `buildTaskContractTransitionErrorFromRules`.
 2. Tests in `task-contract-readiness.test.ts`: YAML in comment → specific message; YAML nowhere → generic message; YAML in objective → no error; loop-breaker count unaffected by the misplaced case.
-3. Mirror wording in `crates/routa-core/src/models/task.rs`; `cargo test -p routa-core`.
+3. ~~Mirror in Rust~~ — no Rust gate exists (see Design). Skipped.
 4. Commit `fix(kanban): name the misplaced-YAML case in the contract gate error`.
 
 Item 2 (~half day)

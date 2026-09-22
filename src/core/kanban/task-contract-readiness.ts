@@ -16,7 +16,37 @@ export interface TaskContractReadiness {
   hasCanonicalStoryBlock: boolean;
   issues: string[];
   loopBreakerThreshold: number;
+  /**
+   * Set when the description has no canonical YAML but a comment on the card
+   * does. The agent wrote it to the wrong field; the error must say so
+   * instead of the generic "missing", or the agent regenerates the same YAML
+   * into the same comment and loops.
+   */
+  misplacedYamlInComment?: boolean;
 }
+
+/**
+ * Looks through the card's comments (newest first) for a canonical story
+ * block that parses. Used only when the description has none, to turn
+ * "YAML is missing" into "YAML is in the wrong place".
+ */
+export function detectMisplacedCanonicalYaml(
+  task: Partial<Pick<Task, "comments">>,
+): boolean {
+  const comments = task.comments ?? [];
+  for (let index = comments.length - 1; index >= 0; index -= 1) {
+    const body = comments[index]?.body;
+    if (!body) continue;
+    const parsed = parseCanonicalStory(body);
+    if (parsed.hasYamlBlock && parsed.story) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export const MISPLACED_CANONICAL_YAML_ISSUE =
+  "The canonical story YAML is in a comment, not in the card description. The gate reads only the description. Call `update_card` with the YAML as the description, then retry.";
 
 function normalizeLoopBreakerThreshold(rules: KanbanContractRules | undefined): number {
   return Math.max(1, rules?.loopBreakerThreshold ?? DEFAULT_CONTRACT_LOOP_BREAKER_THRESHOLD);
@@ -80,7 +110,7 @@ export function resolveCurrentOrNextContractGate(
 }
 
 export function buildTaskContractReadiness(
-  task: Pick<Task, "objective">,
+  task: Pick<Task, "objective"> & Partial<Pick<Task, "comments">>,
   rules: KanbanContractRules | undefined,
 ): TaskContractReadiness {
   if (!hasContractRules(rules)) {
@@ -95,14 +125,18 @@ export function buildTaskContractReadiness(
 
   const parseResult = parseCanonicalStory(task.objective);
   if (!parseResult.hasYamlBlock) {
+    const misplaced = detectMisplacedCanonicalYaml(task);
     return {
       checked: true,
       ready: false,
       hasCanonicalStoryBlock: false,
       issues: [
-        "Canonical story YAML is missing. Add exactly one ```yaml``` block with the canonical story contract.",
+        misplaced
+          ? MISPLACED_CANONICAL_YAML_ISSUE
+          : "Canonical story YAML is missing. Add exactly one ```yaml``` block with the canonical story contract.",
       ],
       loopBreakerThreshold: normalizeLoopBreakerThreshold(rules),
+      ...(misplaced ? { misplacedYamlInComment: true } : {}),
     };
   }
 
@@ -134,6 +168,12 @@ export function buildTaskContractTransitionErrorFromRules(
   }
 
   if (!readiness.hasCanonicalStoryBlock) {
+    if (readiness.misplacedYamlInComment) {
+      // Do NOT append "Regenerate the canonical YAML" here: the YAML already
+      // exists, and that suffix is what sent agents back to write it into
+      // the same comment again.
+      return `Cannot move task to "${targetColumnName}": ${MISPLACED_CANONICAL_YAML_ISSUE}`;
+    }
     return `Cannot move task to "${targetColumnName}": ${readiness.issues[0] ?? "Canonical story YAML is missing."} Regenerate the canonical YAML in Backlog before retrying.`;
   }
 
