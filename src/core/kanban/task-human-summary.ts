@@ -10,6 +10,10 @@ import { parseCanonicalStory, type CanonicalStoryAcceptanceCriterion } from "./c
  *
  * Hashing lives in task-human-summary-store.ts (needs node:crypto).
  * Nothing here writes to the task description or touches gates.
+ *
+ * Rust twin: crates/routa-server/src/api/tasks/human_summary.rs. The prompt text, banned-pattern
+ * list, hash normalization and cache file naming must stay byte-for-byte aligned; change both in
+ * the same commit (both backends read/write the same ~/.routa/task-summaries cache).
  */
 
 export type TaskHumanSummaryLanguage = "en" | "zh-CN";

@@ -18,6 +18,77 @@ servers:
 # ─────────────────────────────────────────────────────────
 components:
   schemas:
+    # ── Human-readable card summary ──
+    TaskHumanSummaryEvidence:
+      type: object
+      required: [label, where]
+      properties:
+        label:
+          type: string
+        where:
+          type: string
+          description: Searchable locator inside the description (section heading / AC id / file:line / artifact type)
+
+    TaskHumanSummaryContent:
+      type: object
+      required: [what, where, blockedNext, evidence]
+      properties:
+        what:
+          type: string
+        where:
+          type: string
+        blockedNext:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHumanSummaryEvidence"
+
+    TaskHumanSummaryRecord:
+      type: object
+      required: [taskId, descriptionHash, language, model, generatedAt, summary, lintHits]
+      properties:
+        taskId:
+          type: string
+        descriptionHash:
+          type: string
+          description: sha256 hex of the normalized description the summary was generated from
+        language:
+          type: string
+          enum: [zh-CN, en]
+        model:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        summary:
+          $ref: "#/components/schemas/TaskHumanSummaryContent"
+        lintHits:
+          type: array
+          items:
+            type: string
+
+    TaskHumanSummaryResponse:
+      type: object
+      required: [taskId, descriptionHash, language, record, stale, cached]
+      properties:
+        taskId:
+          type: string
+        descriptionHash:
+          type: string
+        language:
+          type: string
+          enum: [zh-CN, en]
+        record:
+          oneOf:
+            - $ref: "#/components/schemas/TaskHumanSummaryRecord"
+            - type: "null"
+        stale:
+          type: boolean
+          description: true when record.descriptionHash differs from the current descriptionHash
+        cached:
+          type: boolean
+
     # ── Enums ──
     AgentRole:
       type: string
@@ -1706,6 +1777,66 @@ paths:
                 properties:
                   updated:
                     type: boolean
+
+  /api/tasks/{id}/human-summary:
+    get:
+      operationId: getTaskHumanSummary
+      summary: Read the cached human-readable card summary (never calls the model)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: language
+          in: query
+          schema:
+            type: string
+            enum: [zh-CN, en]
+            default: zh-CN
+      responses:
+        "200":
+          description: Cached summary (record is null when none exists) plus the current description hash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHumanSummaryResponse"
+        "404":
+          description: Task not found
+    post:
+      operationId: generateTaskHumanSummary
+      summary: Return the cached summary when its hash matches the description, otherwise generate and cache
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                  enum: [zh-CN, en]
+                  default: zh-CN
+                force:
+                  type: boolean
+                  description: Regenerate even when the cached hash matches
+      responses:
+        "200":
+          description: Summary record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHumanSummaryResponse"
+        "404":
+          description: Task not found
+        "500":
+          description: Model call failed or provider not configured
 
   /api/tasks/ready:
     get:

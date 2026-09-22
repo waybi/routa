@@ -17,6 +17,7 @@ use super::evidence::{
     build_task_run_ledger, ensure_transition_artifacts, serialize_task_with_evidence,
     serialize_tasks_batch,
 };
+use super::human_summary;
 use super::list_projection::{parse_task_list_view, project_tasks_for_list};
 
 use crate::api::tasks_automation::{
@@ -49,6 +50,10 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/changes/file", get(changes::get_task_change_file))
         .route("/{id}/changes/commit", get(changes::get_task_change_commit))
         .route("/{id}/changes/stats", get(changes::get_task_change_stats))
+        .route(
+            "/{id}/human-summary",
+            get(human_summary::get_human_summary).post(human_summary::post_human_summary),
+        )
         .route("/{id}/runs", get(list_task_runs))
         .route("/{id}/status", axum::routing::post(update_task_status))
         .route("/ready", get(find_ready_tasks))

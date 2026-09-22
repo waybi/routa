@@ -7,9 +7,11 @@ mod changes;
 mod dto;
 mod evidence;
 mod handlers;
+mod human_summary;
 mod list_projection;
 
 pub use handlers::router;
+pub use human_summary::{hash_task_description, lint_summary, parse_summary_response};
 
 pub use list_projection::{
     parse_task_list_view, project_task_for_list, project_tasks_for_list, TaskListView,
