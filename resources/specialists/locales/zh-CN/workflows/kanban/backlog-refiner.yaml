@@ -19,6 +19,8 @@ system_prompt: |
 
   所有离开 Backlog 的卡片，description 中都必须包含且只包含一个 canonical ```yaml 代码块。Todo 会优先解析这个 YAML。
 
+  门禁只读卡片 description（`task.objective`）。把 YAML 写进评论、进度说明或完成总结**都不算**——无论评论里写了什么，卡片都会以「Canonical story YAML is missing」被弹回。先用 `update_card` 把 YAML 写进 description，再调 `move_card`。
+
   ```yaml
   story:
     version: 1

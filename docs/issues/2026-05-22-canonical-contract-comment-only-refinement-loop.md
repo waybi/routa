@@ -2,7 +2,8 @@
 title: "Canonical contract gate can loop when backlog refinement only writes comments"
 date: "2026-05-22"
 kind: issue
-status: open
+status: resolved
+resolved_at: "2026-09-22"
 severity: medium
 area: "kanban"
 tags: ["canonical-contract", "backlog", "prompts", "kanban"]
@@ -40,3 +41,4 @@ produce a false sense of progress and burn repeated lane attempts without changi
 ## Issue Hygiene
 
 - 2026-09-22: reviewed, still active and reproduced. TopBI card `d5e0a0a2` bounced three times on 2026-09-21 for exactly this pattern. `resources/specialists/locales/*/workflows/kanban/backlog-refiner.yaml` says to use `update_card` but does not state that comments/progress notes do not satisfy the gate, and no prompt regression test exists. `40ccc829` closed a related hole (update_task.objective bypassing the gate) but not this one.
+- 2026-09-22: resolved. All three `backlog-refiner.yaml` variants (root, `locales/en`, `locales/zh-CN`) now state that the gate reads only `task.objective`, that comments / progress notes / completion summaries do NOT satisfy it, and that the YAML must be persisted via `update_card` before `move_card`. Regression test `src/core/specialists/__tests__/backlog-refiner-contract-prompt.test.ts` loads the bundled prompts and asserts the instruction per locale (verified to fail when the zh-CN line is removed). Tool-layer enforcement (auto-lifting YAML from comments) was not in scope.
