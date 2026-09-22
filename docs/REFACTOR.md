@@ -55,6 +55,33 @@ When choosing what to extract, group by concept and lifecycle:
 5. Keep entry file behavior and API shape stable.
 6. Remove dead code and re-run tests/lint/fitness checks.
 
+## Declaration-Only and Test Files
+
+The budget (`docs/fitness/file_budgets.json`, default ≤ 1600 lines) applies to every `.ts/.tsx` under `src/`, including type dictionaries and `__tests__`. These files carry no runtime branching, so the Test-First Extraction Rule does not apply; the risk is purely structural (a missing brace, a lost import). Split them by their own natural seams and verify with counts.
+
+### Type dictionaries (`src/i18n/types-*.ts`)
+
+Pattern already in use: `TailTranslationDictionarySections` lives in `types-tail.ts` and is composed via `extends`. Repeat it:
+
+1. Measure section sizes: `grep -nE "^  [a-zA-Z]+: \{$" <file>` and diff consecutive line numbers; take the largest self-contained top-level section.
+2. Move that section's body into `types-<section>.ts` as `export interface <Section>TranslationDictionarySections { ... }`.
+3. In the origin file, add the import and append the new interface to the `extends` list. Locale objects (`zh-extended.ts` / `en-extended.ts`) do not change: the type is composed, the value is not.
+4. Verify: `npx tsc --noEmit` (any locale key drift surfaces here) and `npx vitest run src/i18n`.
+
+Worked example (2026-09-22): `types-extended.ts` 1621 → 1203 lines by lifting the 421-line `harness` section into `types-harness.ts` (428 lines). Zero locale edits.
+
+### Test files (`__tests__/*.test.tsx`)
+
+1. Map `describe` blocks: `grep -nE "^describe\(" <file>` with sizes. If one block dominates, map its `it(` cases the same way and look for a thematic run (same component, same mock shape, same feature).
+2. Lift shared fixtures (board/task factories) into a small `*-fixtures.ts` next to `test-utils.ts`. Keep it free of `vitest`/`react` imports so `vi.mock` factories can also import it.
+3. Each new test file re-declares its own `vi.hoisted` / `vi.mock` block. Mocks are per-module in vitest and cannot be shared through an import; copying them is correct, not duplication to eliminate.
+4. Each new file imports only what its cases use. Run `tsc` after the split; it names every import you dropped that a case still needs (`Cannot find name 'afterEach'`).
+5. Verify by count before running: `grep -cE "^\s*it\("` on the original at `HEAD` must equal the sum over the new files. Then run the new files together, then the whole `__tests__` directory.
+
+Worked example (2026-09-22): `kanban-tab-detail-and-prompts.test.tsx` 2114 → 1078 lines. Moved the 4 prompt/modal cases (no fetch mock needed) to `kanban-prompts-and-modal.test.tsx` (131) and the 8 JIT-context cases to `kanban-card-detail-jit-context.test.tsx` (922); fixtures to `kanban-detail-fixtures.ts` (40). `it()` count 30 → 4 + 8 + 18 = 30; 36 files / 171 tests in the directory still pass.
+
+Pitfalls hit in that pass, all caught by `tsc` or the vitest transform step before any test ran: off-by-one on the slice that copied the fixture object (duplicated the `const` line, lost the closing `};`), and dropping the closing `});` of the last `vi.mock` factory. Slice by asserting the exact text of the first and last line you intend to move, not by line number alone.
+
 ## Done Criteria
 
 A refactor is done only when all are true:
