@@ -45,6 +45,7 @@ import {
 } from "./task-evidence-summary";
 import { parseTaskListView, projectTasksForList } from "./task-list-projection";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
+import { buildTaskDeliveryLanding } from "@/core/kanban/task-delivery-landing";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 
 export const dynamic = "force-dynamic";
@@ -530,6 +531,9 @@ async function serializeTask(
   const deliveryReadiness = options.includeDeliveryReadiness === false
     ? undefined
     : await buildTaskDeliveryReadiness(task, system);
+  // Always on: three ref lookups, only for done cards with a worktree. Lets
+  // the board tell "done" from "merged" without the full readiness probe.
+  const deliveryLanding = await buildTaskDeliveryLanding(task, system);
   const comments = hydrateTaskComments(task.comments, task.comment);
 
   return {
@@ -583,6 +587,7 @@ async function serializeTask(
     storyReadiness,
     investValidation,
     ...(deliveryReadiness != null && { deliveryReadiness }),
+    ...(deliveryLanding != null && { deliveryLanding }),
     createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : task.createdAt,
     updatedAt: task.updatedAt instanceof Date ? task.updatedAt.toISOString() : task.updatedAt,
   };

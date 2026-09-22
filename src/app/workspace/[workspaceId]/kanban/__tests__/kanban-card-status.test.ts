@@ -164,6 +164,28 @@ describe("resolveCardMergeState", () => {
     expect(resolveCardMergeState(task({ columnId: "done", deliveryReadiness: readiness() }))).toBe("unmerged");
   });
 
+  it("prefers the list endpoint's cheap deliveryLanding probe when present", () => {
+    // Board tiles never receive deliveryReadiness (lean list path).
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryLanding: { landedOnBase: false, commitsSinceBase: 3 },
+    }))).toBe("unmerged");
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryLanding: { landedOnBase: true, commitsSinceBase: 0 },
+    }))).toBe("merged");
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryLanding: { landedOnBase: null, commitsSinceBase: 3 },
+    }))).toBe("unknown");
+    // Landing wins over a stale readiness object.
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryLanding: { landedOnBase: true, commitsSinceBase: 0 },
+      deliveryReadiness: readiness({ landedOnBase: false }),
+    }))).toBe("merged");
+  });
+
   it("reports merged once HEAD is reachable from base", () => {
     expect(resolveCardMergeState(task({
       columnId: "done",
