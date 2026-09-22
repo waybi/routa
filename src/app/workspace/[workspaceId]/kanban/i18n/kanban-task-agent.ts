@@ -109,3 +109,25 @@ export function buildKanbanMoveBlockedRemediationPrompt(params: {
     missingList,
   });
 }
+
+/**
+ * Wraps a follow-up question typed into the card-detail session panel with
+ * writing rules for the reply.
+ *
+ * The panel talks to an agent whose system prompt was written for *doing*
+ * the card (planning, coding, verifying), so its answers to a human's
+ * follow-up question tend to read like a work log: chronological, hedged,
+ * padded. The rules here (ported from the RunAI Coder base instructions)
+ * push the reply toward the shape a person reading a side panel wants —
+ * outcome first, evidence they can check, plain words.
+ *
+ * Only the human's typed message is wrapped; the card's system prompt and
+ * the agent's tool access are unchanged.
+ */
+export function buildKanbanHumanReadableReplyPrompt(params: {
+  request: string;
+  language?: KanbanSpecialistLanguage;
+}): string {
+  const { request, language = "en" } = params;
+  return renderPromptTemplate("humanReadableReply", language, { request });
+}

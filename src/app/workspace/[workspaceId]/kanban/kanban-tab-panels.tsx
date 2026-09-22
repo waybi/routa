@@ -23,7 +23,7 @@ import { KanbanCard, KanbanCardOverlay } from "./kanban-card";
 import { KanbanCardActivityBar, KanbanCardDetail } from "./kanban-card-detail";
 import { getKanbanFileChangesSummary as _getKanbanFileChangesSummary } from "./kanban-file-changes-panel";
 import { KanbanEnhancedFileChangesPanel } from "./components/kanban-enhanced-file-changes-panel";
-import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
+import { buildKanbanHumanReadableReplyPrompt, type KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanCreateModal, type TaskDraft } from "../kanban-create-modal";
 import { KanbanCardActivityPanel, KanbanEmptySessionPane } from "./kanban-card-activity";
 import { formatSessionTimestamp } from "./kanban-card-session-utils";
@@ -1142,6 +1142,14 @@ export function KanbanTaskDetailOverlay({
                       inputPrefill={sessionRecoveryInputPrefill}
                       onInputPrefillConsumed={() => setSessionRecoveryInputPrefill(null)}
                       onResumeActiveSession={recoverActiveAcpSession}
+                      // A person asking a follow-up here wants an answer they
+                      // can read, not the agent's work log. Wrap the typed
+                      // message with reply-writing rules; the card's own
+                      // system prompt is untouched.
+                      onDecoratePrompt={(text) => buildKanbanHumanReadableReplyPrompt({
+                        request: text,
+                        language: specialistLanguage,
+                      })}
                     />
                   </div>
                 )}
