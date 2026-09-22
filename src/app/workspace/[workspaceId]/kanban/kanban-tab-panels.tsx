@@ -44,6 +44,7 @@ import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import { buildKanbanTaskAdaptiveHarnessOptions } from "./kanban-task-adaptive";
 import { ChevronRight as _ChevronRight, GitBranch as _GitBranch } from "lucide-react";
 import { GitLogPanel, RealGitAdapter, MockGitAdapter } from "./git-log";
+import { resolveCardMergeState } from "./kanban-card-status";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -512,6 +513,9 @@ export function KanbanBoardSurface({
                   .filter((column) => visibleColumns.includes(column.id))
                   .map((column) => {
                     const columnTasks = boardTasks.filter((task) => (task.columnId ?? "backlog") === column.id);
+                    const unmergedCount = column.id === "done"
+                      ? columnTasks.filter((task) => resolveCardMergeState(task) === "unmerged").length
+                      : 0;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
                     const widthClass = column.width === "compact" ? "w-[14rem]" : column.width === "wide" ? "w-[24rem]" : "w-[18rem]";
 
@@ -525,8 +529,16 @@ export function KanbanBoardSurface({
                         <div className="mb-3 space-y-1.5">
                           <div className="flex items-baseline justify-between gap-3">
                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{column.name}</div>
-                            <div className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
-                              {columnTasks.length} {t.kanbanBoard.cards}
+                            <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+                              {unmergedCount > 0 && (
+                                <span
+                                  data-testid="kanban-done-unmerged-count"
+                                  className="rounded-full bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:ring-amber-900/40"
+                                >
+                                  {t.kanbanDetail.unmergedCount.replace("{count}", String(unmergedCount))}
+                                </span>
+                              )}
+                              <span>{columnTasks.length} {t.kanbanBoard.cards}</span>
                             </div>
                           </div>
                           <div

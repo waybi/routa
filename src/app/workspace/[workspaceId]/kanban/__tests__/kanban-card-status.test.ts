@@ -3,6 +3,7 @@ import type { TaskInfo } from "../../types";
 import {
   CARD_WORKING_ACTIVITY_WINDOW_MS,
   cardRunStatusDotClass,
+  resolveCardMergeState,
   resolveCardRunStatus,
 } from "../kanban-card-status";
 
@@ -138,5 +139,56 @@ describe("cardRunStatusDotClass", () => {
     // A parked card must look parked.
     expect(cardRunStatusDotClass("idle")).not.toContain("animate-pulse");
     expect(cardRunStatusDotClass("completed")).not.toContain("animate-pulse");
+  });
+});
+
+describe("resolveCardMergeState", () => {
+  function readiness(overrides: Partial<NonNullable<TaskInfo["deliveryReadiness"]>> = {}) {
+    return {
+      checked: true,
+      modified: 0,
+      untracked: 0,
+      ahead: 1,
+      behind: 0,
+      commitsSinceBase: 1,
+      hasCommitsSinceBase: true,
+      hasUncommittedChanges: false,
+      isGitHubRepo: false,
+      canCreatePullRequest: false,
+      landedOnBase: false,
+      ...overrides,
+    } as NonNullable<TaskInfo["deliveryReadiness"]>;
+  }
+
+  it("flags a done card whose commits are not reachable from base", () => {
+    expect(resolveCardMergeState(task({ columnId: "done", deliveryReadiness: readiness() }))).toBe("unmerged");
+  });
+
+  it("reports merged once HEAD is reachable from base", () => {
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryReadiness: readiness({ landedOnBase: true, commitsSinceBase: 0, hasCommitsSinceBase: false }),
+    }))).toBe("merged");
+  });
+
+  it("stays unknown outside the done column", () => {
+    expect(resolveCardMergeState(task({ columnId: "review", deliveryReadiness: readiness() }))).toBe("unknown");
+  });
+
+  it("stays unknown when readiness is unchecked, undeterminable, or there is nothing to merge", () => {
+    expect(resolveCardMergeState(task({ columnId: "done" }))).toBe("unknown");
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryReadiness: readiness({ checked: false }),
+    }))).toBe("unknown");
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryReadiness: readiness({ landedOnBase: null }),
+    }))).toBe("unknown");
+    // No commits beyond base and not landed: nothing to claim either way.
+    expect(resolveCardMergeState(task({
+      columnId: "done",
+      deliveryReadiness: readiness({ commitsSinceBase: 0, hasCommitsSinceBase: false }),
+    }))).toBe("unknown");
   });
 });

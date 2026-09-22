@@ -457,6 +457,12 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     evidenceBundle: string;
     evidenceBundleHint: string;
     commits: string;
+    /** Done card whose branch has not been merged into the base branch. */
+    unmerged: string;
+    /** Done card whose branch is reachable from the base branch. */
+    merged: string;
+    /** Done column header: N cards not yet merged. */
+    unmergedCount: string;
     inheritedFromLane: string;
     laneMetadataUnavailable: string;
     noLaneAutomation: string;

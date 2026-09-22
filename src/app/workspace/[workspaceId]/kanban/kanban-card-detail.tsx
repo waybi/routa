@@ -41,6 +41,7 @@ import {
   type KanbanSpecialistLanguage,
 } from "./kanban-specialist-language";
 import { useTranslation } from "@/i18n";
+import { resolveCardMergeState } from "./kanban-card-status";
 
 export interface KanbanCardDetailProps {
   task: TaskInfo;
@@ -333,6 +334,7 @@ export function KanbanCardDetail({
     ? (task.storyReadiness.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev)
     : null;
   const evidenceValue = getEvidenceStatus(task, t);
+  const mergeState = resolveCardMergeState(task);
   const detailTabs = [
     { id: "overview" as const, label: t.kanbanDetail.overview },
     { id: "humanReadable" as const, label: t.kanbanDetail.humanReadable },
@@ -487,6 +489,13 @@ export function KanbanCardDetail({
               <MetaBadge
                 label={t.kanbanDetail.commits}
                 value={String(task.deliveryReadiness.commitsSinceBase)}
+                compact={compactMode}
+              />
+            )}
+            {mergeState !== "unknown" && (
+              <MetaBadge
+                label={t.kanbanModals.branch}
+                value={mergeState === "unmerged" ? t.kanbanDetail.unmerged : t.kanbanDetail.merged}
                 compact={compactMode}
               />
             )}

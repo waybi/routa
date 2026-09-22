@@ -146,3 +146,32 @@ export function cardRunStatusDotClass(status: KanbanCardRunStatus): string {
       return "bg-slate-400";
   }
 }
+
+// ─── Merge state (done ≠ merged) ────────────────────────────────────────
+
+export type KanbanCardMergeState = "unmerged" | "merged" | "unknown";
+
+/**
+ * Whether a done card's branch has actually landed on the base branch.
+ *
+ * `done` on the board only means the column automation finished; the task
+ * branch may still be sitting in its worktree (e.g. Gerrit repos where the
+ * PR publisher cannot open a PR). Only cards that carry commits beyond the
+ * base are classified — a done card with nothing to merge is `unknown`
+ * rather than `merged`, so the badge never claims a landing that never
+ * happened.
+ */
+export function resolveCardMergeState(task: Pick<TaskInfo, "columnId" | "deliveryReadiness">): KanbanCardMergeState {
+  if (task.columnId !== "done") return "unknown";
+  const readiness = task.deliveryReadiness;
+  if (!readiness?.checked) return "unknown";
+  if (readiness.landedOnBase === true) return "merged";
+  if (readiness.landedOnBase === false && readiness.hasCommitsSinceBase) return "unmerged";
+  return "unknown";
+}
+
+export function cardMergeStateTone(state: Exclude<KanbanCardMergeState, "unknown">): string {
+  return state === "unmerged"
+    ? "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:ring-amber-900/40"
+    : "bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400";
+}
