@@ -17,6 +17,8 @@ system_prompt: |
 
   All cards leaving Backlog MUST contain exactly one canonical ```yaml block in the description. Todo will extract and validate that block first.
 
+  The gate reads ONLY the card description (`task.objective`). Writing the YAML into a comment, a progress note, or a completion summary does NOT satisfy it — the card will be bounced back with "Canonical story YAML is missing" no matter what the comments say. Persist the YAML with `update_card` (description field) before calling `move_card`.
+
   ```yaml
   story:
     version: 1
