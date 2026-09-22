@@ -1,100 +1,100 @@
 "use client";
 
 /**
- * Polls the one-line "what is the agent saying right now" caption for every
- * card with a live session.
+ * The one-line "what is the agent saying right now" caption for every card
+ * with a live session.
  *
- * Uses `GET /api/sessions/:id/tail`, which returns a few hundred bytes. The
- * previous source (`history?consolidated=true`) shipped ~1 MB per session per
- * tick to render the same single line. Pauses while the tab is hidden.
+ * Two sources, merged:
+ * - `pushedTails`: fed by `kanban:session-tail` over the board's SSE channel.
+ *   The server debounces (300 ms trailing / 1 s max-wait) so a token stream
+ *   arrives as one update. This is the steady state — zero polling.
+ * - A one-shot `GET /api/sessions/:id/tail` per session the *first* time it
+ *   becomes live, so a card does not sit blank until the agent says its next
+ *   line. Sessions already seeded are never fetched again.
  *
- * Extracted from `kanban-tab.tsx` (docs/REFACTOR.md: orchestration shell +
- * domain hooks).
+ * History: this used to poll `history?consolidated=true` (~1 MB per session
+ * per 10 s), then `/tail` every 10 s (~500 B), and now polls nothing while
+ * connected. The seed fetch is the only request left.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
-
-export const LIVE_SESSION_TAIL_POLL_MS = 10_000;
 
 export interface UseKanbanLiveTailsOptions {
   activeLiveSessionIds: string[];
   isPageVisible: boolean;
+  /** sessionId -> newest line, from the SSE channel. Wins over the seed. */
+  pushedTails?: Record<string, string>;
 }
 
 export function useKanbanLiveTails({
   activeLiveSessionIds,
   isPageVisible,
+  pushedTails,
 }: UseKanbanLiveTailsOptions): Record<string, string> {
-  const [liveSessionTails, setLiveSessionTails] = useState<Record<string, string>>({});
+  const [seededTails, setSeededTails] = useState<Record<string, string>>({});
+  const seededSessionIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (activeLiveSessionIds.length === 0 || !isPageVisible) return;
+    if (!isPageVisible) return;
+    const toSeed = activeLiveSessionIds.filter((id) => !seededSessionIdsRef.current.has(id));
+    if (toSeed.length === 0) return;
 
-    const activeIdSet = new Set(activeLiveSessionIds);
+    // Mark before fetching so a re-render mid-flight does not double-fetch.
+    for (const id of toSeed) seededSessionIdsRef.current.add(id);
     let disposed = false;
-    let inFlight = false;
 
-    const pollLiveSessionTail = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      if (disposed || inFlight) return;
-      inFlight = true;
-
-      const updates = await Promise.all(activeLiveSessionIds.map(async (sessionId) => {
-        try {
-          const response = await desktopAwareFetch(
-            `/api/sessions/${encodeURIComponent(sessionId)}/tail`,
-            { cache: "no-store" },
-          );
-          if (!response.ok) return [sessionId, null] as const;
-          const payload = await response.json();
-          const tail = typeof payload?.tail === "string" && payload.tail.trim() ? payload.tail : null;
-          return [sessionId, tail] as const;
-        } catch {
-          return [sessionId, null] as const;
-        }
-      })).finally(() => {
-        inFlight = false;
-      });
-
+    void Promise.all(toSeed.map(async (sessionId) => {
+      try {
+        const response = await desktopAwareFetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}/tail`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) return [sessionId, null] as const;
+        const payload = await response.json();
+        const tail = typeof payload?.tail === "string" && payload.tail.trim() ? payload.tail : null;
+        return [sessionId, tail] as const;
+      } catch {
+        return [sessionId, null] as const;
+      }
+    })).then((results) => {
       if (disposed) return;
-
-      setLiveSessionTails((previous) => {
-        const next: Record<string, string> = {};
-        let changed = false;
-
-        for (const [sessionId, tail] of updates) {
-          if (!activeIdSet.has(sessionId) || !tail) continue;
+      setSeededTails((previous) => {
+        let next = previous;
+        for (const [sessionId, tail] of results) {
+          if (!tail || previous[sessionId] === tail) continue;
+          if (next === previous) next = { ...previous };
           next[sessionId] = tail;
-          if (previous[sessionId] !== tail) changed = true;
         }
-
-        for (const sessionId of Object.keys(previous)) {
-          if (!activeIdSet.has(sessionId)) {
-            changed = true;
-            continue;
-          }
-          if (!next[sessionId] && previous[sessionId]) changed = true;
-        }
-
-        return changed ? next : previous;
+        return next;
       });
-    };
-
-    void pollLiveSessionTail();
-    const timerId = window.setInterval(() => {
-      void pollLiveSessionTail();
-    }, LIVE_SESSION_TAIL_POLL_MS);
+    });
 
     return () => {
       disposed = true;
-      window.clearInterval(timerId);
     };
   }, [activeLiveSessionIds, isPageVisible]);
 
-  // With no live sessions the caption map is empty by definition; deriving it
-  // here avoids a synchronous setState inside the effect just to clear it.
-  return activeLiveSessionIds.length === 0 ? EMPTY_TAILS : liveSessionTails;
+  // Sessions that stop being live drop out of the seed set so they re-seed if
+  // they come back (a resumed session may have said things in between).
+  useEffect(() => {
+    const live = new Set(activeLiveSessionIds);
+    for (const id of Array.from(seededSessionIdsRef.current)) {
+      if (!live.has(id)) seededSessionIdsRef.current.delete(id);
+    }
+  }, [activeLiveSessionIds]);
+
+  return useMemo(() => {
+    if (activeLiveSessionIds.length === 0) return EMPTY_TAILS;
+    const merged: Record<string, string> = {};
+    for (const sessionId of activeLiveSessionIds) {
+      const pushed = pushedTails?.[sessionId];
+      const seeded = seededTails[sessionId];
+      const tail = pushed ?? seeded;
+      if (tail) merged[sessionId] = tail;
+    }
+    return merged;
+  }, [activeLiveSessionIds, pushedTails, seededTails]);
 }
 
 const EMPTY_TAILS: Record<string, string> = Object.freeze({}) as Record<string, string>;

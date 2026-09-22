@@ -20,17 +20,33 @@ export interface KanbanTaskLifecyclePayload {
   timestamp?: string;
 }
 
+/** Mirrors KanbanSessionTailEvent from the server broadcaster. */
+export interface KanbanSessionTailPayload {
+  type: "kanban:session-tail";
+  workspaceId: string;
+  sessionId: string;
+  tail: string;
+  updateType?: string;
+  timestamp?: string;
+}
+
 interface UseKanbanEventsOptions {
   workspaceId: string;
   onInvalidate: () => void;
   /** Called when an agent run attached to a card reaches a terminal phase. */
   onTaskLifecycle?: (event: KanbanTaskLifecyclePayload) => void;
+  /**
+   * Called when a live session's newest line changes. Replaces the 10 s
+   * /tail poll; the server debounces so a token stream arrives as one update.
+   */
+  onSessionTail?: (event: KanbanSessionTailPayload) => void;
 }
 
 export function useKanbanEvents({
   workspaceId,
   onInvalidate,
   onTaskLifecycle,
+  onSessionTail,
 }: UseKanbanEventsOptions): void {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,6 +56,7 @@ export function useKanbanEvents({
   const hasConnectedOnceRef = useRef(false);
   const onInvalidateRef = useRef(onInvalidate);
   const onTaskLifecycleRef = useRef(onTaskLifecycle);
+  const onSessionTailRef = useRef(onSessionTail);
   const connectSseRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -49,6 +66,10 @@ export function useKanbanEvents({
   useEffect(() => {
     onTaskLifecycleRef.current = onTaskLifecycle;
   }, [onTaskLifecycle]);
+
+  useEffect(() => {
+    onSessionTailRef.current = onSessionTail;
+  }, [onSessionTail]);
 
   const connectSSE = useCallback(() => {
     if (eventSourceRef.current) {
@@ -81,6 +102,11 @@ export function useKanbanEvents({
           onTaskLifecycleRef.current?.(lifecycle);
           // A terminal phase also changed the card, so keep the board fresh.
           onInvalidateRef.current();
+          return;
+        }
+        if (data.type === "kanban:session-tail") {
+          // Caption-only: no card data changed, so no invalidate.
+          onSessionTailRef.current?.(data as unknown as KanbanSessionTailPayload);
           return;
         }
         if (data.type === "fitness:changed") {

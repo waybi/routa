@@ -58,6 +58,8 @@ export function KanbanPageClient() {
   const [repoChanges, setRepoChanges] = useState<KanbanRepoChanges[]>([]);
   const [repoChangesLoading, setRepoChangesLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // sessionId -> newest line, fed by kanban:session-tail over SSE.
+  const [pushedSessionTails, setPushedSessionTails] = useState<Record<string, string>>({});
   const [repoSync, setRepoSync] = useState<RepoSyncState>({
     status: "idle",
     total: 0,
@@ -380,10 +382,17 @@ export function KanbanPageClient() {
     onOpenTask: handleOpenTaskFromNotification,
   });
 
+  const handleSessionTail = useCallback((event: { sessionId: string; tail: string }) => {
+    setPushedSessionTails((current) => (
+      current[event.sessionId] === event.tail ? current : { ...current, [event.sessionId]: event.tail }
+    ));
+  }, []);
+
   useKanbanEvents({
     workspaceId,
     onInvalidate: handleKanbanInvalidate,
     onTaskLifecycle: handleTaskLifecycle,
+    onSessionTail: handleSessionTail,
   });
 
   useEffect(() => {
@@ -523,6 +532,7 @@ export function KanbanPageClient() {
             repoSync={repoSync}
             repoChanges={repoChanges}
             repoChangesLoading={repoChangesLoading}
+            pushedSessionTails={pushedSessionTails}
           />
         </div>
       </div>

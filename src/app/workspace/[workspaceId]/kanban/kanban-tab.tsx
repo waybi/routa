@@ -69,6 +69,8 @@ interface KanbanTabProps {
   repoSync?: RepoSyncState;
   repoChanges?: KanbanRepoChanges[];
   repoChangesLoading?: boolean;
+  /** sessionId -> newest agent line, pushed over SSE (see use-kanban-live-tails). */
+  pushedSessionTails?: Record<string, string>;
   acp?: UseAcpState & UseAcpActions;
   onAgentPrompt?: KanbanAgentPromptHandler;
 }
@@ -153,6 +155,7 @@ export function KanbanTab({
   repoSync,
   repoChanges = [],
   repoChangesLoading = false,
+  pushedSessionTails,
   acp,
   onAgentPrompt,
 }: KanbanTabProps) {
@@ -768,7 +771,11 @@ export function KanbanTab({
     }
     return Array.from(ids);
   }, [boardTasks, sessionMap]);
-  const liveSessionTails = useKanbanLiveTails({ activeLiveSessionIds, isPageVisible });
+  const liveSessionTails = useKanbanLiveTails({
+    activeLiveSessionIds,
+    isPageVisible,
+    pushedTails: pushedSessionTails,
+  });
   const agentSession = agentSessionId ? sessionMap.get(agentSessionId) : undefined;
   const kanbanRepoSelection = useMemo<RepoSelection | null>(() => {
     if (!defaultCodebase) return null;
