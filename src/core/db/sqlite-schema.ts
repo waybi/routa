@@ -17,6 +17,7 @@ import {
   integer,
   primaryKey,
   uniqueIndex,
+  index,
 } from "drizzle-orm/sqlite-core";
 import type { TaskCreationSource } from "../kanban/task-creation-policy";
 import type { KanbanColumn } from "../models/kanban";
@@ -142,6 +143,19 @@ export const kanbanBoards = sqliteTable("kanban_boards", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
+
+// ─── Kanban Events (durable SSE frame log) ──────────────────────────────
+
+export const kanbanEvents = sqliteTable("kanban_events", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  type: text("type").notNull(),
+  resourceId: text("resource_id"),
+  payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+}, (table) => [
+  index("idx_kanban_events_workspace_created").on(table.workspaceId, table.createdAt),
+]);
 
 // ─── Notes ──────────────────────────────────────────────────────────
 

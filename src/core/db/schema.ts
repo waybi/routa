@@ -15,6 +15,7 @@ import {
   boolean,
   primaryKey,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import type { TaskCreationSource } from "../kanban/task-creation-policy";
 import type { KanbanColumn } from "../models/kanban";
@@ -141,6 +142,23 @@ export const kanbanBoards = pgTable("kanban_boards", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── Kanban Events (durable SSE frame log) ──────────────────────────────
+//
+// One row per frame sent over /api/kanban/events. `payload` is the exact
+// object that went over the wire. Rows are pruned after
+// KANBAN_EVENT_RETENTION_DAYS. Contract mirrored on the Axum backend.
+
+export const kanbanEvents = pgTable("kanban_events", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  type: text("type").notNull(),
+  resourceId: text("resource_id"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_kanban_events_workspace_created").on(table.workspaceId, table.createdAt),
+]);
 
 // ─── Notes ──────────────────────────────────────────────────────────
 
