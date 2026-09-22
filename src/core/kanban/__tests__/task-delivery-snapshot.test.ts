@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTask } from "@/core/models/task";
-import { captureTaskDeliverySnapshot } from "../task-delivery-snapshot";
+import { captureTaskDeliverySnapshot, markTaskDeliveryLanded } from "../task-delivery-snapshot";
 
 const getRepoCommitChanges = vi.fn();
 const getRepoRefSha = vi.fn();
@@ -117,5 +117,41 @@ describe("task delivery snapshot", () => {
 
     expect(snapshot).toBe(previous);
     expect(getRepoCommitChanges).not.toHaveBeenCalled();
+  });
+
+  describe("markTaskDeliveryLanded", () => {
+    const base = {
+      capturedAt: "2026-04-09T01:02:03.000Z",
+      repoPath: "/repo/worktrees/task-1",
+      baseRef: "origin/main",
+      baseSha: "base-sha",
+      headSha: "head-sha",
+      commits: [],
+      source: "done_transition" as const,
+    };
+
+    it("stamps landedAt the first time the frozen head is reachable from base", () => {
+      const landed = markTaskDeliveryLanded(base, { landedOnBase: true }, {
+        landedAt: new Date("2026-04-10T00:00:00.000Z"),
+      });
+
+      expect(landed).not.toBe(base);
+      expect(landed?.landedAt).toBe("2026-04-10T00:00:00.000Z");
+      expect(landed?.headSha).toBe("head-sha");
+    });
+
+    it("never moves an existing landedAt", () => {
+      const already = { ...base, landedAt: "2026-04-10T00:00:00.000Z" };
+      expect(markTaskDeliveryLanded(already, { landedOnBase: true }, {
+        landedAt: new Date("2026-04-11T00:00:00.000Z"),
+      })).toBe(already);
+    });
+
+    it("returns the same snapshot when not landed, unknown, or missing", () => {
+      expect(markTaskDeliveryLanded(base, { landedOnBase: false })).toBe(base);
+      expect(markTaskDeliveryLanded(base, { landedOnBase: null })).toBe(base);
+      expect(markTaskDeliveryLanded(base, {})).toBe(base);
+      expect(markTaskDeliveryLanded(undefined, { landedOnBase: true })).toBeUndefined();
+    });
   });
 });

@@ -50,3 +50,25 @@ export function captureTaskDeliverySnapshot(
     source: params.source,
   };
 }
+
+/**
+ * Record the moment a task's frozen delivery range landed on the base branch.
+ *
+ * Idempotent: once `landedAt` is set it is never moved. Returns the same
+ * snapshot object when nothing changes so callers can `!==` to decide whether
+ * to persist. Requires a snapshot with `headSha` so "landed" always refers to
+ * a concrete commit rather than whatever HEAD happens to be now.
+ */
+export function markTaskDeliveryLanded(
+  snapshot: TaskDeliverySnapshot | undefined,
+  readiness: Pick<TaskDeliveryReadiness, "landedOnBase">,
+  params?: { landedAt?: Date },
+): TaskDeliverySnapshot | undefined {
+  if (!snapshot || snapshot.landedAt || readiness.landedOnBase !== true || !snapshot.headSha) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    landedAt: (params?.landedAt ?? new Date()).toISOString(),
+  };
+}

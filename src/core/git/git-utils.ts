@@ -114,6 +114,20 @@ export function getRepoRefSha(repoPath: string, ref: string): string | null {
   }
 }
 
+/**
+ * Whether `ref` is an ancestor of (or equal to) `descendant`.
+ * Wraps `git merge-base --is-ancestor`, which exits 0 when true, 1 when false,
+ * and non-0/1 on error; any failure is reported as `false`.
+ */
+export function isRefAncestor(repoPath: string, ref: string, descendant: string): boolean {
+  try {
+    gitExecSync(["merge-base", "--is-ancestor", ref, descendant], repoPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveBaseRef(repoPath: string, baseBranch?: string | null): string | undefined {
   const normalizedBaseBranch = baseBranch?.trim();
   const candidates = Array.from(new Set([
@@ -207,6 +221,14 @@ export interface RepoDeliveryStatus {
   remoteUrl: string | null;
   isGitHubRepo: boolean;
   canCreatePullRequest: boolean;
+  /**
+   * Whether HEAD is already reachable from the base branch, i.e. the task
+   * branch has landed. Checked against the resolved `baseRef` and, when that
+   * is a remote-tracking ref, also against the local branch of the same name
+   * (a local merge counts as landed even before it is pushed).
+   * `null` when no base ref could be resolved.
+   */
+  landedOnBase: boolean | null;
 }
 
 /**
@@ -846,6 +868,17 @@ export function getRepoDeliveryStatus(
     && Boolean(normalizedBaseBranch)
     && branch !== normalizedBaseBranch;
 
+  let landedOnBase: boolean | null = null;
+  if (baseRef) {
+    landedOnBase = isRefAncestor(repoPath, "HEAD", baseRef);
+    // A local merge into the base branch counts as landed even if the
+    // remote-tracking ref is behind (the resolver prefers `origin/<base>`).
+    if (!landedOnBase && normalizedBaseBranch && baseRef !== normalizedBaseBranch
+      && hasGitRef(repoPath, normalizedBaseBranch)) {
+      landedOnBase = isRefAncestor(repoPath, "HEAD", normalizedBaseBranch);
+    }
+  }
+
   return {
     branch,
     baseBranch: normalizedBaseBranch,
@@ -857,6 +890,7 @@ export function getRepoDeliveryStatus(
     remoteUrl,
     isGitHubRepo,
     canCreatePullRequest,
+    landedOnBase,
   };
 }
 

@@ -133,6 +133,8 @@ describe("delivery and branch status helpers", () => {
       if (command === "git rev-list --count origin/main..HEAD") return "3\n";
       if (command === "git rev-parse --git-dir") return ".git\n";
       if (command === "git rev-parse --is-bare-repository") return "false\n";
+      if (command === "git merge-base --is-ancestor HEAD origin/main") throw new Error("exit 1");
+      if (command === "git rev-parse --verify main") throw new Error("no local main");
       throw new Error(`Unexpected command: ${command}`);
     });
 
@@ -150,8 +152,81 @@ describe("delivery and branch status helpers", () => {
         hasUncommittedChanges: false,
         isGitHubRepo: true,
         canCreatePullRequest: true,
+        landedOnBase: false,
       }),
     );
+  });
+
+  describe("landedOnBase", () => {
+    function mockDeliveryRepo(overrides: Record<string, string | Error>) {
+      gitExecMock.mockImplementation((args: string[]) => {
+        const command = formatGitArgs(args);
+        if (command in overrides) {
+          const value = overrides[command];
+          if (value instanceof Error) throw value;
+          return value;
+        }
+        if (command === "git rev-parse --abbrev-ref HEAD") return "issue/abc\n";
+        if (command === "git status --porcelain -uall") return "";
+        if (command === "git rev-list --left-right --count HEAD...@{upstream}") return "0 0\n";
+        if (command === "git remote get-url origin") return "ssh://gerrit.example/repo\n";
+        if (command === "git rev-parse --verify origin/feat/base") return "base-remote\n";
+        if (command === "git rev-list --count origin/feat/base..HEAD") return "2\n";
+        throw new Error(`Unexpected command: ${command}`);
+      });
+    }
+
+    it("is true when HEAD is reachable from the resolved base ref", () => {
+      mockDeliveryRepo({
+        "git merge-base --is-ancestor HEAD origin/feat/base": "",
+      });
+
+      expect(getRepoDeliveryStatus("/tmp/repo", { baseBranch: "feat/base" }).landedOnBase).toBe(true);
+      expect(gitExecMock).not.toHaveBeenCalledWith(
+        ["merge-base", "--is-ancestor", "HEAD", "feat/base"],
+        expect.anything(),
+      );
+    });
+
+    it("falls back to the local base branch when the remote-tracking ref is behind", () => {
+      mockDeliveryRepo({
+        "git merge-base --is-ancestor HEAD origin/feat/base": new Error("exit 1"),
+        "git rev-parse --verify feat/base": "base-local\n",
+        "git merge-base --is-ancestor HEAD feat/base": "",
+      });
+
+      expect(getRepoDeliveryStatus("/tmp/repo", { baseBranch: "feat/base" }).landedOnBase).toBe(true);
+    });
+
+    it("is false when neither remote nor local base contains HEAD", () => {
+      mockDeliveryRepo({
+        "git merge-base --is-ancestor HEAD origin/feat/base": new Error("exit 1"),
+        "git rev-parse --verify feat/base": "base-local\n",
+        "git merge-base --is-ancestor HEAD feat/base": new Error("exit 1"),
+      });
+
+      expect(getRepoDeliveryStatus("/tmp/repo", { baseBranch: "feat/base" }).landedOnBase).toBe(false);
+    });
+
+    it("is null when no base ref can be resolved", () => {
+      gitExecMock.mockImplementation((args: string[]) => {
+        const command = formatGitArgs(args);
+        if (command === "git rev-parse --abbrev-ref HEAD") return "detached\n";
+        if (command === "git status --porcelain -uall") return "";
+        if (command === "git rev-list --left-right --count HEAD...@{upstream}") throw new Error("no upstream");
+        if (command === "git remote get-url origin") throw new Error("no remote");
+        if (command.startsWith("git rev-parse --verify ")) throw new Error("missing");
+        throw new Error(`Unexpected command: ${command}`);
+      });
+
+      const status = getRepoDeliveryStatus("/tmp/repo", { baseBranch: null });
+      expect(status.baseRef).toBeUndefined();
+      expect(status.landedOnBase).toBeNull();
+      expect(gitExecMock).not.toHaveBeenCalledWith(
+        expect.arrayContaining(["merge-base"]),
+        expect.anything(),
+      );
+    });
   });
 
   it("computes branch ahead/behind status and uncommitted changes", () => {
