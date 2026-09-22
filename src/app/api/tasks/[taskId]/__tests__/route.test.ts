@@ -233,6 +233,29 @@ describe("/api/tasks/[taskId]", () => {
     });
   });
 
+  it("links replacement sessions through PATCH sessionIds", async () => {
+    // The card-detail panel calls this after recovering a dead session. It
+    // used to be silently ignored, so the card never learned about the new
+    // session and the panel's ownership check bounced back to the dead one.
+    const response = await PATCH(new NextRequest("http://localhost/api/tasks/task-1", {
+      method: "PATCH",
+      body: JSON.stringify({
+        sessionIds: ["session-old", "session-new", "session-new", "", "session-old"],
+      }),
+      headers: { "Content-Type": "application/json" },
+    }), {
+      params: Promise.resolve({ taskId: "task-1" }),
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    // Deduped, order preserved, empties dropped.
+    expect(taskStore.save).toHaveBeenCalledWith(expect.objectContaining({
+      sessionIds: ["session-old", "session-new"],
+    }));
+    expect(data.task.sessionIds).toEqual(["session-old", "session-new"]);
+  });
+
   it("strips speculative backlog snapshots during unrelated PATCH updates", async () => {
     taskStore.get.mockResolvedValueOnce(createTask({
       id: "task-stale-backlog-history",

@@ -236,6 +236,12 @@ export function KanbanTab({
   const sessionBackfillInFlightRef = useRef(new Set<string>());
   const emptySessionRecoveryRef = useRef<string | null>(null);
   const previousPreferredTaskSessionIdRef = useRef<string | null>(null);
+  // Sessions the detail panel deliberately switched to (e.g. the replacement
+  // after a dead-session Resume). The reconcile effect below must not bounce
+  // off them while the card record and ACP list catch up.
+  const pinnedSessionIdsRef = useRef(new Set<string>());
+  // Mirror of activeTaskId for callbacks that must not close over a stale value.
+  const activeTaskIdRef = useRef<string | null>(null);
   const [isPageVisible, setIsPageVisible] = useState(() => (
     typeof document === "undefined" || document.visibilityState === "visible"
   ));
@@ -636,7 +642,15 @@ export function KanbanTab({
     const previousPreferredTaskSessionId = previousPreferredTaskSessionIdRef.current;
     setActiveSessionId((current) => {
       if (!current) return preferredActiveTaskSessionId;
-      if (!taskOwnsSession(activeTask, current)) return preferredActiveTaskSessionId;
+      // A session the panel just switched to (the replacement after a
+      // dead-session Resume) is not in the card record until the PATCH round
+      // trips and the list refetches. Without the pin, this reconcile would
+      // snap the panel back to the dead session in that window.
+      const ownedByCard = taskOwnsSession(activeTask, current);
+      const pinned = pinnedSessionIdsRef.current.has(current);
+      if (!ownedByCard && !pinned) return preferredActiveTaskSessionId;
+      // Once the card record carries it, the pin has done its job.
+      if (ownedByCard && pinned) pinnedSessionIdsRef.current.delete(current);
       if (current === preferredActiveTaskSessionId) return current;
       if (previousPreferredTaskSessionId && current === previousPreferredTaskSessionId) {
         return preferredActiveTaskSessionId;
@@ -825,6 +839,10 @@ export function KanbanTab({
     return result.sessionId;
   }, [acp, agentSessionId, boardAutoProviderId, defaultCodebase?.repoPath, openAgentPanel, workspaceId]);
 
+  useEffect(() => {
+    activeTaskIdRef.current = activeTaskId;
+  }, [activeTaskId]);
+
   const syncTaskDetailFromUrl = useCallback(() => {
     const urlState = getKanbanUrlState();
     const requestedBoardId = urlState?.boardId;
@@ -861,8 +879,17 @@ export function KanbanTab({
     if (requestedTask.boardId) {
       setSelectedBoardId(requestedTask.boardId);
     }
+    // This runs on every localTasks change (dependency below), not only on
+    // real URL navigation. Re-picking the preferred session while the same
+    // card is already open would discard a session the user switched to —
+    // including the replacement after a dead-session Resume. Only reset the
+    // session when the card itself changed. (Read the current id from a ref:
+    // calling setState inside another setState's updater is not reliable.)
+    const isSameCard = activeTaskIdRef.current === requestedTask.id;
     setActiveTaskId(requestedTask.id);
-    setActiveSessionId(getPreferredTaskSessionId(requestedTask) ?? null);
+    if (!isSameCard) {
+      setActiveSessionId(getPreferredTaskSessionId(requestedTask) ?? null);
+    }
     setIsTaskDetailFullscreen(false);
   }, [defaultBoardId, localBoards, localTasks, selectedBoardId]);
 
@@ -1407,6 +1434,9 @@ export function KanbanTab({
     confirmDeleteTask,
     onRefresh,
     setActiveSessionId,
+    pinSessionId: (sessionId: string) => {
+      pinnedSessionIdsRef.current.add(sessionId);
+    },
     sessionMap,
     workspaceId,
     isTaskDetailFullscreen,
