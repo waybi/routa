@@ -48,10 +48,27 @@ export type KanbanTaskLifecycleEvent = {
   timestamp: string;
 };
 
+/**
+ * Newest line an agent said, pushed when it changes.
+ *
+ * Replaces the board's 10 s poll of `GET /api/sessions/:id/tail`. Keyed by
+ * session rather than card because the board already tracks live tails per
+ * session id, and one session can move between cards on lane handoff.
+ */
+export type KanbanSessionTailEvent = {
+  type: "kanban:session-tail";
+  workspaceId: string;
+  sessionId: string;
+  tail: string;
+  updateType: string;
+  timestamp: string;
+};
+
 export type KanbanWorkspaceEvent =
   | KanbanWorkspaceChangedEvent
   | KanbanFitnessChangedEvent
-  | KanbanTaskLifecycleEvent;
+  | KanbanTaskLifecycleEvent
+  | KanbanSessionTailEvent;
 
 /** Keeps `lastMessagePreview` small enough to stay a notification, not a transcript. */
 export const KANBAN_LIFECYCLE_PREVIEW_MAX_CHARS = 120;
@@ -121,6 +138,14 @@ export class KanbanEventBroadcaster {
       ...event,
       lastMessagePreview: truncateLifecyclePreview(event.lastMessagePreview),
       type: "kanban:task-lifecycle",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  notifySessionTail(event: Omit<KanbanSessionTailEvent, "type" | "timestamp">): void {
+    this.broadcast({
+      ...event,
+      type: "kanban:session-tail",
       timestamp: new Date().toISOString(),
     });
   }
