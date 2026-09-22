@@ -15,13 +15,12 @@ import type {
   KanbanHistoryMemoryPolicyInfo,
   SessionInfo,
   TaskInfo,
-  WorktreeInfo,
 } from "../types";
 import { EMPTY_DRAFT, type TaskDraft } from "../kanban-create-modal";
 import { type ColumnAutomationConfig, type KanbanSettingsModalProps } from "./kanban-settings-modal";
 import { scheduleKanbanRefreshBurst } from "./kanban-agent-input";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
-import { buildKanbanTaskAgentPrompt, getKanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
+import { getKanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import { useTranslation } from "@/i18n";
 import { normalizeKanbanAutomation } from "@/core/models/kanban";
@@ -35,7 +34,6 @@ import {
   resolveKanbanBoardAutoProviderId,
   taskOwnsSession,
 } from "./kanban-tab-helpers";
-import { buildKanbanTaskAdaptiveHarnessOptions } from "./kanban-task-adaptive";
 import { importGitHubItems } from "./kanban-github-import";
 import { getKanbanFileChangesSummary } from "./kanban-file-changes-panel";
 import { KanbanTabContent } from "./kanban-tab-content";
@@ -43,6 +41,10 @@ import { useRuntimeFitnessStatus } from "./use-runtime-fitness-status";
 import { toast } from "@/client/components/toast";
 import { useKanbanCodebaseModal } from "./use-kanban-codebase-modal";
 import { TaskPatchError, useKanbanCardMove } from "./use-kanban-card-move";
+import { useKanbanLiveTails } from "./use-kanban-live-tails";
+import { useKanbanWorktreeCache } from "./use-kanban-worktree-cache";
+import { useKanbanAgentInput } from "./use-kanban-agent-input";
+import { useKanbanDetailSplit } from "./use-kanban-detail-split";
 
 interface SpecialistOption {
   id: string;
@@ -78,12 +80,8 @@ function isLikelyGitHubCodebase(codebase: CodebaseData | null | undefined): bool
   return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(codebase.label?.trim() ?? "");
 }
 
-const KANBAN_DETAIL_SPLIT_RATIO_KEY = "routa:kanban-detail-split-ratio";
 const KANBAN_BOARD_QUERY_KEY = "boardId";
 const KANBAN_DETAIL_TASK_QUERY_KEY = "taskId";
-const MIN_DETAIL_SPLIT_RATIO = 0.32;
-const MAX_DETAIL_SPLIT_RATIO = 0.72;
-const LIVE_SESSION_TAIL_POLL_MS = 10_000;
 
 /**
  * Fields the list projection omits (see src/app/api/tasks/task-list-projection.ts).
@@ -211,20 +209,12 @@ export function KanbanTab({
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
 
-  const [agentInput, setAgentInput] = useState("");
-  const [agentLoading, setAgentLoading] = useState(false);
   const [agentSessionId, setAgentSessionId] = useState<string | null>(null);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
   const [showFitnessWorkbench, setShowFitnessWorkbench] = useState(false);
   const [fitnessWorkbenchSessionId, setFitnessWorkbenchSessionId] = useState<string | null>(null);
-  const [detailSplitRatio, setDetailSplitRatio] = useState(0.48);
-  const [isDraggingDetailSplit, setIsDraggingDetailSplit] = useState(false);
 
 
-  // Worktree cache: worktreeId -> WorktreeInfo
-  const [worktreeCache, setWorktreeCache] = useState<Record<string, WorktreeInfo>>({});
-  const [missingWorktreeIds, setMissingWorktreeIds] = useState<Record<string, true>>({});
-  const [liveSessionTails, setLiveSessionTails] = useState<Record<string, string>>({});
   const [backfilledSessions, setBackfilledSessions] = useState<Record<string, SessionInfo>>({});
 
   // Settings state - column automation rules (initialized from board columns)
@@ -237,7 +227,6 @@ export function KanbanTab({
   // Manual card creation in-flight state (Phase 1.3: three-state buttons)
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [createTaskError, setCreateTaskError] = useState<string | null>(null);
-  const detailSplitContainerRef = useRef<HTMLDivElement | null>(null);
   const [isTaskDetailFullscreen, setIsTaskDetailFullscreen] = useState(false);
   const [fileChangesOpen, setFileChangesOpen] = useState(false);
   const [gitLogOpen, setGitLogOpen] = useState(false);
@@ -305,48 +294,7 @@ export function KanbanTab({
   );
   const queuedPositions = boardQueue?.queuedPositions ?? {};
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const localStorageApi = window.localStorage;
-    if (!localStorageApi || typeof localStorageApi.getItem !== "function") return;
-    const stored = Number(localStorageApi.getItem(KANBAN_DETAIL_SPLIT_RATIO_KEY));
-    if (!Number.isFinite(stored)) return;
-    setDetailSplitRatio(Math.min(MAX_DETAIL_SPLIT_RATIO, Math.max(MIN_DETAIL_SPLIT_RATIO, stored)));
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const localStorageApi = window.localStorage;
-    if (!localStorageApi || typeof localStorageApi.setItem !== "function") return;
-    localStorageApi.setItem(KANBAN_DETAIL_SPLIT_RATIO_KEY, String(detailSplitRatio));
-  }, [detailSplitRatio]);
-
-  useEffect(() => {
-    if (!isDraggingDetailSplit) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const container = detailSplitContainerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      if (rect.width <= 0) return;
-      const nextRatio = (event.clientX - rect.left) / rect.width;
-      setDetailSplitRatio(Math.min(MAX_DETAIL_SPLIT_RATIO, Math.max(MIN_DETAIL_SPLIT_RATIO, nextRatio)));
-    };
-
-    const handleMouseUp = () => setIsDraggingDetailSplit(false);
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDraggingDetailSplit]);
+  const { detailSplitRatio, setIsDraggingDetailSplit, detailSplitContainerRef } = useKanbanDetailSplit();
 
   const openAgentPanel = useCallback((sessionId: string) => {
     setAgentSessionId(sessionId);
@@ -390,66 +338,23 @@ export function KanbanTab({
     });
   }, [ensureBoardAutoProviderPersisted]);
 
-  const handleAgentSubmit = useCallback(async () => {
-    if (!agentInput.trim() || !onAgentPrompt || agentLoading) return;
-
-    setAgentLoading(true);
-    try {
-      // Best-effort: persisting the board provider must not block session
-      // creation.  A failure here only means lane automation may fall back to
-      // the stored provider — losing the user's prompt would be worse.
-      try {
-        await ensureBoardAutoProviderPersisted();
-      } catch (error) {
-        console.error("[kanban] Failed to persist board provider before agent submit:", error);
-      }
-      const planningPrompt = buildKanbanTaskAgentPrompt({
-        workspaceId,
-        boardId: selectedBoardId ?? defaultBoardId ?? "default",
-        repoPath: defaultCodebase?.repoPath,
-        agentInput,
-        language: specialistLanguage,
-      });
-
-      const sessionId = await onAgentPrompt(agentInput, {
-        boardId: selectedBoardId ?? defaultBoardId ?? undefined,
-        provider: boardAutoProviderId,
-        role: "CRAFTER",
-        toolMode: "full",
-        allowedNativeTools: ["Read", "Grep", "Glob"],
-        mcpProfile: "kanban-planning",
-        systemPrompt: planningPrompt,
-        taskAdaptiveHarness: buildKanbanTaskAdaptiveHarnessOptions(agentInput, { locale: specialistLanguage, role: "CRAFTER", taskType: "planning" }),
-      });
-      if (!sessionId) {
-        toast.error(t.feedback.agentSessionCreateFailed);
-        return;
-      }
-      openAgentPanel(sessionId);
-      scheduleKanbanRefreshBurst(onRefresh);
-      setAgentInput("");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[kanban] Failed to submit Kanban agent prompt:", error);
-      toast.error(t.feedback.agentSessionCreateFailed, { description: message });
-    } finally {
-      setAgentLoading(false);
-    }
-  }, [
-    boardAutoProviderId,
-    ensureBoardAutoProviderPersisted,
+  const {
     agentInput,
+    setAgentInput,
     agentLoading,
+    handleAgentSubmit,
+  } = useKanbanAgentInput({
+    workspaceId,
+    selectedBoardId,
     defaultBoardId,
-    defaultCodebase?.repoPath,
+    defaultCodebase,
+    boardAutoProviderId,
+    specialistLanguage,
+    ensureBoardAutoProviderPersisted,
+    openAgentPanel,
     onAgentPrompt,
     onRefresh,
-    openAgentPanel,
-    selectedBoardId,
-    specialistLanguage,
-    t,
-    workspaceId,
-  ]);
+  });
 
   useEffect(() => {
     if (!hasGitHubCodebase) {
@@ -542,6 +447,12 @@ export function KanbanTab({
     }
     return data.task as TaskInfo;
   }, []);
+
+  const { worktreeCache, setWorktreeCache } = useKanbanWorktreeCache({
+    localTasks,
+    setLocalTasks,
+    patchTask,
+  });
 
   // Everything about the "repositories" modal lives in its own hook; the board
   // only needs `open` (for the Escape handler) and `openCodebaseModal`.
@@ -857,6 +768,7 @@ export function KanbanTab({
     }
     return Array.from(ids);
   }, [boardTasks, sessionMap]);
+  const liveSessionTails = useKanbanLiveTails({ activeLiveSessionIds, isPageVisible });
   const agentSession = agentSessionId ? sessionMap.get(agentSessionId) : undefined;
   const kanbanRepoSelection = useMemo<RepoSelection | null>(() => {
     if (!defaultCodebase) return null;
@@ -1074,75 +986,6 @@ export function KanbanTab({
     return scheduleKanbanRefreshBurst(onRefresh);
   }, [agentPanelOpen, agentSessionId, onRefresh]);
 
-  useEffect(() => {
-    if (activeLiveSessionIds.length === 0) {
-      setLiveSessionTails((previous) => (Object.keys(previous).length > 0 ? {} : previous));
-      return;
-    }
-    if (!isPageVisible) return;
-
-    const activeIdSet = new Set(activeLiveSessionIds);
-    let disposed = false;
-    let inFlight = false;
-
-    const pollLiveSessionTail = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      if (disposed || inFlight) return;
-      inFlight = true;
-
-      const updates = await Promise.all(activeLiveSessionIds.map(async (sessionId) => {
-        try {
-          // /tail returns just the newest message line. The previous call
-          // (history?consolidated=true) shipped ~1 MB per session per tick to
-          // render the same single caption.
-          const response = await desktopAwareFetch(`/api/sessions/${encodeURIComponent(sessionId)}/tail`,
-            { cache: "no-store" },
-          );
-          if (!response.ok) return [sessionId, null] as const;
-          const payload = await response.json();
-          const tail = typeof payload?.tail === "string" && payload.tail.trim() ? payload.tail : null;
-          return [sessionId, tail] as const;
-        } catch {
-          return [sessionId, null] as const;
-        }
-      })).finally(() => {
-        inFlight = false;
-      });
-
-      if (disposed) return;
-
-      setLiveSessionTails((previous) => {
-        const next: Record<string, string> = {};
-        let changed = false;
-
-        for (const [sessionId, tail] of updates) {
-          if (!activeIdSet.has(sessionId) || !tail) continue;
-          next[sessionId] = tail;
-          if (previous[sessionId] !== tail) changed = true;
-        }
-
-        for (const sessionId of Object.keys(previous)) {
-          if (!activeIdSet.has(sessionId)) {
-            changed = true;
-            continue;
-          }
-          if (!next[sessionId] && previous[sessionId]) changed = true;
-        }
-
-        return changed ? next : previous;
-      });
-    };
-
-    void pollLiveSessionTail();
-    const timerId = window.setInterval(() => {
-      void pollLiveSessionTail();
-    }, LIVE_SESSION_TAIL_POLL_MS);
-
-    return () => {
-      disposed = true;
-      window.clearInterval(timerId);
-    };
-  }, [activeLiveSessionIds, isPageVisible]);
 
   // Codebase edit handlers - use RepoPicker for re-selecting/cloning
   // Close modal on Escape key
@@ -1163,59 +1006,6 @@ export function KanbanTab({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [activeTaskId, activeSessionId, showSettings, showCodebaseModal, closeTaskDetail, closeCodebaseModal]);
 
-  // Fetch worktrees for tasks that have worktreeId
-  useEffect(() => {
-    const worktreeIds = [...new Set(localTasks.map((t) => t.worktreeId).filter((id): id is string => Boolean(id)))];
-    const missing = worktreeIds.filter((id) => !worktreeCache[id] && !missingWorktreeIds[id]);
-    if (missing.length === 0) return;
-
-    (async () => {
-      const results: Record<string, WorktreeInfo> = {};
-      const staleIds = new Set<string>();
-      await Promise.allSettled(
-        missing.map(async (id) => {
-          try {
-            const res = await desktopAwareFetch(`/api/worktrees/${encodeURIComponent(id)}`, { cache: "no-store" });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.worktree) results[id] = data.worktree as WorktreeInfo;
-              return;
-            }
-            if (res.status === 404) {
-              staleIds.add(id);
-            }
-          } catch { /* ignore */ }
-        })
-      );
-      if (Object.keys(results).length > 0) {
-        setWorktreeCache((prev) => ({ ...prev, ...results }));
-      }
-      if (staleIds.size > 0) {
-        const staleIdList = [...staleIds];
-        setMissingWorktreeIds((prev) => ({
-          ...prev,
-          ...Object.fromEntries(staleIdList.map((id) => [id, true] as const)),
-        }));
-        setLocalTasks((current) => current.map((task) => (
-          task.worktreeId && staleIds.has(task.worktreeId)
-            ? { ...task, worktreeId: undefined }
-            : task
-        )));
-
-        const linkedTasks = localTasks
-          .filter((task) => task.worktreeId && staleIds.has(task.worktreeId))
-          .map((task) => task.id);
-
-        await Promise.allSettled(linkedTasks.map(async (taskId) => {
-          try {
-            await patchTask(taskId, { worktreeId: null });
-          } catch {
-            // Ignore patch failures; the missing worktree cache prevents repeated 404 noise.
-          }
-        }));
-      }
-    })();
-  }, [localTasks, missingWorktreeIds, patchTask, worktreeCache]);
 
   async function createTaskCard() {
     if (isCreatingTask) return;
