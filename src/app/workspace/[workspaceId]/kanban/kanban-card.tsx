@@ -15,6 +15,8 @@ import {
   cardRunStatusLabelKey,
   cardRunStatusTone,
   resolveCardRunStatus,
+  cardMergeStateTone,
+  resolveCardMergeState,
 } from "./kanban-card-status";
 import { GripVertical, Trash2 } from "lucide-react";
 
@@ -221,6 +223,7 @@ function KanbanCardSurface({
   const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
   const priorityTone = getPriorityTone(task.priority);
   const prioritySizeLabel = getPrioritySizeLabel(task.priority);
+  const mergeState = resolveCardMergeState(task);
   // Folds acpStatus together with the lane-session record so the badge can
   // distinguish "agent is producing output" from "process alive but parked".
   const runStatus = resolveCardRunStatus({ task, acpStatus: sessionStatus, queuePosition });
@@ -355,6 +358,14 @@ function KanbanCardSurface({
             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${syncTone}`}>
               {resolvedSyncLabel}
             </span>
+            {mergeState !== "unknown" && (
+              <span
+                data-testid={`kanban-card-merge-state-${mergeState}`}
+                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${cardMergeStateTone(mergeState)}`}
+              >
+                {mergeState === "unmerged" ? t.kanbanDetail.unmerged : t.kanbanDetail.merged}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
