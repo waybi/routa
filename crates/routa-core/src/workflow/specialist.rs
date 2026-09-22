@@ -542,8 +542,7 @@ mod tests {
     }
 
     impl EnvVarGuard {
-        fn set_var_and_restore(value: &Path) -> Self {
-            let key = "ROUTA_SPECIALISTS_RESOURCE_DIR";
+        fn set_var_and_restore(key: &'static str, value: &Path) -> Self {
             let previous = std::env::var_os(key);
             std::env::set_var(key, value);
             Self { key, previous }
@@ -562,15 +561,32 @@ mod tests {
 
     struct SpecialistsResourceDirScope {
         _lock: MutexGuard<'static, ()>,
-        _restore: EnvVarGuard,
+        _restore_resource_dir: EnvVarGuard,
+        _restore_home: EnvVarGuard,
     }
 
+    /// Points both the bundled-resource lookup and `$HOME` at `path`.
+    ///
+    /// `default_search_paths()` also walks `~/.routa/specialists`, and
+    /// `dirs::home_dir()` reads `$HOME` first. Without redirecting `HOME`,
+    /// these tests pick up whatever specialists the developer has installed
+    /// on their machine and the `count == 1` assertions fail — which is how
+    /// this suite came to fail on one machine and pass on another. A poisoned
+    /// lock from that first failure then cascaded into every sibling test.
     fn with_specialists_resource_dir(path: &Path) -> SpecialistsResourceDirScope {
-        let lock = specialists_resource_dir_lock().lock().unwrap();
-        let restore = EnvVarGuard::set_var_and_restore(path);
+        // `lock()` fails only if a previous holder panicked. Recover the guard
+        // rather than propagating: the env vars are restored by RAII either
+        // way, so the poisoned state carries no stale data.
+        let lock = specialists_resource_dir_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let restore_resource_dir =
+            EnvVarGuard::set_var_and_restore("ROUTA_SPECIALISTS_RESOURCE_DIR", path);
+        let restore_home = EnvVarGuard::set_var_and_restore("HOME", path);
         SpecialistsResourceDirScope {
             _lock: lock,
-            _restore: restore,
+            _restore_resource_dir: restore_resource_dir,
+            _restore_home: restore_home,
         }
     }
 
