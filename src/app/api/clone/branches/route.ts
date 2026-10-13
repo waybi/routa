@@ -19,6 +19,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import * as fs from "fs";
+import * as path from "path";
+import { getRoutaSystem } from "@/core/routa-system";
 import {
   getCurrentBranch,
   listBranches,
@@ -149,13 +151,46 @@ export async function PATCH(request: NextRequest) {
 
   const branchInfo = getBranchInfo(repoPath);
   const status = getBranchStatus(repoPath, branchInfo.current);
+  const registrationsUpdated = await syncCodebaseRegistrationsToBranch(repoPath, branchInfo.current);
 
   return NextResponse.json({
     success: true,
     branch: branchInfo.current,
     branches: branchInfo.branches,
     status,
+    registrationsUpdated,
   });
+}
+
+/**
+ * Keep codebase registrations in step with a checkout made from the UI.
+ *
+ * The kanban page re-checks-out every registered codebase to its registered
+ * branch on load, so a checkout that does not update the registration is
+ * reverted the next time a board is opened. Any codebase (in any workspace)
+ * whose repoPath is this checkout follows the new branch.
+ */
+async function syncCodebaseRegistrationsToBranch(repoPath: string, branch: string): Promise<number> {
+  if (!branch) return 0;
+  try {
+    const target = path.resolve(repoPath);
+    const system = getRoutaSystem();
+    const workspaces = await system.workspaceStore.list();
+    let updated = 0;
+    for (const workspace of workspaces) {
+      const codebases = await system.codebaseStore.listByWorkspace(workspace.id);
+      for (const codebase of codebases) {
+        if (!codebase.repoPath || path.resolve(codebase.repoPath) !== target) continue;
+        if (codebase.branch === branch) continue;
+        await system.codebaseStore.update(codebase.id, { branch });
+        updated += 1;
+      }
+    }
+    return updated;
+  } catch {
+    // The checkout itself succeeded; a registration sync failure must not turn it into an error.
+    return 0;
+  }
 }
 
 export async function DELETE(request: NextRequest) {

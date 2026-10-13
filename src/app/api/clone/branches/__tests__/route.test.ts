@@ -26,6 +26,22 @@ vi.mock("fs", () => ({
 
 vi.mock("@/core/git", () => gitMocks);
 
+const systemMocks = vi.hoisted(() => ({
+  workspaceList: vi.fn(),
+  listByWorkspace: vi.fn(),
+  codebaseUpdate: vi.fn(),
+}));
+
+vi.mock("@/core/routa-system", () => ({
+  getRoutaSystem: () => ({
+    workspaceStore: { list: systemMocks.workspaceList },
+    codebaseStore: {
+      listByWorkspace: systemMocks.listByWorkspace,
+      update: systemMocks.codebaseUpdate,
+    },
+  }),
+}));
+
 import { DELETE, PATCH } from "../route";
 
 describe("/api/clone/branches DELETE", () => {
@@ -147,5 +163,58 @@ describe("/api/clone/branches PATCH", () => {
     expect(data).toMatchObject({
       error: expect.stringContaining("bare git repository"),
     });
+  });
+
+  function checkoutRequest(repoPath: string, branch: string) {
+    return new NextRequest("http://localhost/api/clone/branches", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repoPath, branch, pull: true }),
+    });
+  }
+
+  it("moves every codebase registration of the checked-out repo to the new branch", async () => {
+    gitMocks.getBranchInfo.mockReturnValue({ current: "master", branches: ["master", "dev"] });
+    systemMocks.workspaceList.mockResolvedValue([{ id: "ws-a" }, { id: "ws-b" }]);
+    systemMocks.listByWorkspace.mockImplementation(async (workspaceId: string) =>
+      workspaceId === "ws-a"
+        ? [
+          { id: "cb-1", repoPath: "/tmp/repos/demo", branch: "feat/old" },
+          { id: "cb-other", repoPath: "/tmp/repos/other", branch: "feat/old" },
+        ]
+        : [
+          { id: "cb-2", repoPath: "/tmp/repos/demo/", branch: "feat/old" },
+          { id: "cb-same", repoPath: "/tmp/repos/demo", branch: "master" },
+        ],
+    );
+
+    const response = await PATCH(checkoutRequest("/tmp/repos/demo", "master"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(systemMocks.codebaseUpdate).toHaveBeenCalledTimes(2);
+    expect(systemMocks.codebaseUpdate).toHaveBeenCalledWith("cb-1", { branch: "master" });
+    expect(systemMocks.codebaseUpdate).toHaveBeenCalledWith("cb-2", { branch: "master" });
+    expect(data).toMatchObject({ success: true, branch: "master", registrationsUpdated: 2 });
+  });
+
+  it("still reports a successful checkout when the registration sync fails", async () => {
+    systemMocks.workspaceList.mockRejectedValue(new Error("db down"));
+
+    const response = await PATCH(checkoutRequest("/tmp/repos/demo", "main"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data).toMatchObject({ success: true, branch: "main", registrationsUpdated: 0 });
+  });
+
+  it("does not touch registrations when the checkout fails", async () => {
+    gitMocks.checkoutBranch.mockReturnValue(false);
+
+    const response = await PATCH(checkoutRequest("/tmp/repos/demo", "missing"));
+
+    expect(response.status).toBe(500);
+    expect(systemMocks.workspaceList).not.toHaveBeenCalled();
+    expect(systemMocks.codebaseUpdate).not.toHaveBeenCalled();
   });
 });
