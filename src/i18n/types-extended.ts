@@ -65,16 +65,6 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     openCard: string;
     dragCard: string;
     liveSession: string;
-    /** Run is alive but has been silent past the stall threshold. */
-    stalled: string;
-    activityJustNow: string;
-    activitySecondsAgo: string;
-    activityMinutesAgo: string;
-    activityQuietFor: string;
-    activityRunningTool: string;
-    activityTurnDone: string;
-    activityWaitingFirst: string;
-    activityError: string;
     repoMissing: string;
     worktreeLoading: string;
     noObjective: string;

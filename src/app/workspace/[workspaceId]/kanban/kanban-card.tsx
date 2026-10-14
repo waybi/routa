@@ -189,9 +189,9 @@ function useNowTick(enabled: boolean, intervalMs = 15_000): number {
   return now;
 }
 
-type KanbanDict = Record<string, string>;
+type ActivityDict = Record<string, string>;
 
-function formatActivityLine(activity: CardActivityDetail, dict: KanbanDict): string | null {
+function formatActivityLine(activity: CardActivityDetail, dict: ActivityDict): string | null {
   const fill = (template: string | undefined, values: Record<string, string>) => {
     let out = template ?? "";
     for (const [key, value] of Object.entries(values)) out = out.replace(`{${key}}`, value);
@@ -199,34 +199,34 @@ function formatActivityLine(activity: CardActivityDetail, dict: KanbanDict): str
   };
   const age = (() => {
     if (activity.quietMs === undefined) return null;
-    if (activity.quietMs < 10_000) return dict.activityJustNow;
+    if (activity.quietMs < 10_000) return dict.justNow;
     if (activity.quietMs < 60_000) {
-      return fill(dict.activitySecondsAgo, { count: String(Math.floor(activity.quietMs / 1000)) });
+      return fill(dict.secondsAgo, { count: String(Math.floor(activity.quietMs / 1000)) });
     }
-    return fill(dict.activityMinutesAgo, { count: String(Math.floor(activity.quietMs / 60_000)) });
+    return fill(dict.minutesAgo, { count: String(Math.floor(activity.quietMs / 60_000)) });
   })();
 
   switch (activity.status) {
     case "failed":
       return activity.failureReason
-        ? fill(dict.activityError, { reason: activity.failureReason })
+        ? fill(dict.error, { reason: activity.failureReason })
         : null;
     case "stalled":
-      return fill(dict.activityQuietFor, { count: String(Math.floor((activity.quietMs ?? 0) / 60_000)) })
-        + (activity.runningTool ? ` · ${fill(dict.activityRunningTool, { tool: activity.runningTool })}` : "");
+      return fill(dict.quietFor, { count: String(Math.floor((activity.quietMs ?? 0) / 60_000)) })
+        + (activity.runningTool ? ` · ${fill(dict.runningTool, { tool: activity.runningTool })}` : "");
     case "working": {
       const parts = [
-        activity.runningTool ? fill(dict.activityRunningTool, { tool: activity.runningTool }) : null,
+        activity.runningTool ? fill(dict.runningTool, { tool: activity.runningTool }) : null,
         age,
       ].filter(Boolean);
-      return parts.length > 0 ? parts.join(" · ") : dict.activityWaitingFirst;
+      return parts.length > 0 ? parts.join(" · ") : dict.waitingFirst;
     }
     case "idle":
       return activity.turnDone
-        ? [dict.activityTurnDone, age].filter(Boolean).join(" · ")
+        ? [dict.turnDone, age].filter(Boolean).join(" · ")
         : null;
     case "starting":
-      return dict.activityWaitingFirst;
+      return dict.waitingFirst;
     default:
       return null;
   }
@@ -283,7 +283,7 @@ function KanbanCardSurface({
     || (!task.triggerSessionId && task.columnId === "dev")
   ) && !queuePosition;
   const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
-  const activityLine = isTerminalCard ? null : formatActivityLine(activity, t.kanban as unknown as KanbanDict);
+  const activityLine = isTerminalCard ? null : formatActivityLine(activity, t.kanbanCardActivity as unknown as ActivityDict);
   const lastActivityTitle = linkedSession?.lastActivityAt
     ? new Date(linkedSession.lastActivityAt).toLocaleString()
     : undefined;
@@ -295,7 +295,9 @@ function KanbanCardSurface({
     ? t.kanban.done
     : queuePosition
       ? `${t.kanban.queued} #${queuePosition}`
-      : (t.kanban as Record<string, string>)[statusLabel] ?? statusLabel;
+      : statusLabel === "stalled"
+        ? t.kanbanCardActivity.stalled
+        : (t.kanban as Record<string, string>)[statusLabel] ?? statusLabel;
   const visibleLabels = (task.labels ?? []).slice(0, 2);
   const remainingLabelCount = Math.max((task.labels?.length ?? 0) - visibleLabels.length, 0);
   const visibleCodebaseIds = (task.codebaseIds && task.codebaseIds.length > 0 ? task.codebaseIds : allCodebaseIds).slice(0, 1);

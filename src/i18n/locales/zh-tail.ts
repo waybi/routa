@@ -402,4 +402,15 @@ export const zhTail: TailTranslationDictionarySections = {
     openCard: "查看卡片",
     notificationsEnabled: "已开启完成通知",
   },
+  kanbanCardActivity: {
+    stalled: "可能卡住",
+    justNow: "刚刚有动静",
+    secondsAgo: "{count} 秒前有动静",
+    minutesAgo: "{count} 分钟前有动静",
+    quietFor: "已 {count} 分钟没动静",
+    runningTool: "正在执行 {tool}",
+    turnDone: "本轮已结束，等待下一步",
+    waitingFirst: "等待首个输出",
+    error: "出错：{reason}",
+  },
 };

@@ -408,4 +408,15 @@ export const enTail: TailTranslationDictionarySections = {
     openCard: "Open card",
     notificationsEnabled: "Completion notifications enabled",
   },
+  kanbanCardActivity: {
+    stalled: "May be stuck",
+    justNow: "active just now",
+    secondsAgo: "active {count}s ago",
+    minutesAgo: "active {count} min ago",
+    quietFor: "silent for {count} min",
+    runningTool: "running {tool}",
+    turnDone: "turn finished, waiting",
+    waitingFirst: "waiting for first output",
+    error: "error: {reason}",
+  },
 };

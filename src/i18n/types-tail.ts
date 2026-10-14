@@ -415,4 +415,17 @@ export interface TailTranslationDictionarySections {
     // Browser notification permission
     notificationsEnabled: string;
   };
+  /** One-line run activity on the kanban card face (working / may be stuck / failed). */
+  kanbanCardActivity: {
+    /** Run is alive but has been silent past the stall threshold. */
+    stalled: string;
+    justNow: string;
+    secondsAgo: string;
+    minutesAgo: string;
+    quietFor: string;
+    runningTool: string;
+    turnDone: string;
+    waitingFirst: string;
+    error: string;
+  };
 }
