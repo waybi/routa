@@ -60,6 +60,7 @@ export function resolveKanbanEventResourceId(event: KanbanWorkspaceEvent): strin
     case "kanban:task-lifecycle":
       return event.taskId;
     case "kanban:session-tail":
+    case "kanban:session-activity":
       return event.sessionId;
     case "fitness:changed":
       return event.codebaseId ?? null;

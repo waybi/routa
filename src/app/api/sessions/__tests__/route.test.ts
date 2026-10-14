@@ -10,6 +10,7 @@ vi.mock("@/core/acp/http-session-store", () => ({
   getHttpSessionStore: () => ({
     hydrateFromDb,
     listSessions,
+    getSessionActivitySummary: () => ({}),
   }),
 }));
 

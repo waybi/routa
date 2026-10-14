@@ -2,6 +2,7 @@ import type { KanbanEventStore } from "@/core/store/kanban-event-store";
 import { resolveKanbanEventResourceId } from "@/core/store/kanban-event-store";
 import type {
   KanbanFitnessChangedEvent,
+  KanbanSessionActivityEvent,
   KanbanSessionTailEvent,
   KanbanTaskLifecycleEvent,
   KanbanWorkspaceChangedEvent,
@@ -12,6 +13,7 @@ import type {
 // ./kanban-event-types (see that file for why).
 export type {
   KanbanFitnessChangedEvent,
+  KanbanSessionActivityEvent,
   KanbanSessionTailEvent,
   KanbanTaskLifecycleEvent,
   KanbanTaskLifecyclePhase,
@@ -85,7 +87,10 @@ export class KanbanEventBroadcaster {
       }
     }
 
-    if (this.eventStore) {
+    // Session heartbeats are ephemeral: persisting them would crowd lifecycle
+    // frames out of the bounded replay window. Clients refetch /api/sessions
+    // on reconnect instead.
+    if (this.eventStore && event.type !== "kanban:session-activity") {
       const createdAt = Date.parse(event.timestamp);
       void this.eventStore
         .append({
@@ -149,6 +154,14 @@ export class KanbanEventBroadcaster {
     this.broadcast({
       ...event,
       type: "kanban:session-tail",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  notifySessionActivity(event: Omit<KanbanSessionActivityEvent, "type" | "timestamp">): void {
+    this.broadcast({
+      ...event,
+      type: "kanban:session-activity",
       timestamp: new Date().toISOString(),
     });
   }

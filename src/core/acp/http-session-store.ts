@@ -24,6 +24,7 @@ import { EventBus, AgentEventType } from "../events/event-bus";
 import type { McpServerProfile } from "../mcp/mcp-server-profiles";
 import { getKanbanEventBroadcaster } from "../kanban/kanban-event-broadcaster";
 import { SessionTailPublisher } from "../kanban/session-tail-publisher";
+import { SessionActivityPublisher } from "../kanban/session-activity-publisher";
 
 export type AcpSessionStatus = "connecting" | "ready" | "error";
 
@@ -79,6 +80,9 @@ export interface RoutaSessionActivity {
   lastActivityAt: string;
   lastMeaningfulActivityAt: string;
   lastEventType?: string;
+  /** Tool named by the latest tool_call/tool_call_update; cleared by any other event. */
+  lastToolName?: string;
+  lastToolStatus?: string;
   terminalState?: "completed" | "failed" | "timed_out";
   terminalReason?: string;
   terminalAt?: string;
@@ -194,6 +198,11 @@ class HttpSessionStore {
    * the board no longer polls /tail every 10 s per live session.
    */
   private sessionTailPublisher = new SessionTailPublisher(getKanbanEventBroadcaster());
+  /**
+   * Pushes "process status + last activity" per session (throttled), so a
+   * board card can show working / quiet / errored without being opened.
+   */
+  private sessionActivityPublisher = new SessionActivityPublisher(getKanbanEventBroadcaster());
   /** AG-UI notification interceptors per session (for protocol bridging) */
   private notificationInterceptors = new Map<string, Set<(n: SessionUpdateNotification) => void>>();
   /** Capture assistant output per session for workflow step chaining */
@@ -296,6 +305,7 @@ class HttpSessionStore {
     this.agentEventBridges.delete(sessionId);
     this.agentEventSubscribers.delete(sessionId);
     this.sessionTailPublisher.forget(sessionId);
+    this.sessionActivityPublisher.forget(sessionId);
     // Detach SSE if connected
     this.sseControllers.delete(sessionId);
     return this.sessions.delete(sessionId);
@@ -545,7 +555,7 @@ class HttpSessionStore {
       const updates = Array.isArray(normalized) ? normalized : [normalized];
       const bridge = this.agentEventBridges.get(sessionId);
       for (const update of updates) {
-        this.recordSessionActivity(sessionId, update.eventType);
+        this.recordSessionActivity(sessionId, update.eventType, update.timestamp, update.toolCall);
         this.traceRecorder.recordFromUpdate(update, cwd);
         // Convert to semantic WorkspaceAgentEvents and dispatch to subscribers
         if (bridge) {
@@ -747,21 +757,65 @@ class HttpSessionStore {
   private recordSessionActivity(
     sessionId: string,
     eventType: string,
-    at = new Date(),
+    at: Date | undefined = new Date(),
+    toolCall?: { name?: string; title?: string; status?: string },
   ): void {
-    const nowIso = at.toISOString();
+    const stamp = at instanceof Date && Number.isFinite(at.getTime()) ? at : new Date();
+    const nowIso = stamp.toISOString();
     const existing = this.sessionActivities.get(sessionId);
     const createdAt = existing?.createdAt ?? this.sessions.get(sessionId)?.createdAt ?? nowIso;
+    const isToolEvent = eventType === "tool_call" || eventType === "tool_call_update";
+    // tool_call_update often omits the name; keep the one from tool_call.
+    const lastToolName = isToolEvent
+      ? (toolCall?.title || toolCall?.name || existing?.lastToolName)
+      : undefined;
     this.sessionActivities.set(sessionId, {
       sessionId,
       createdAt,
       lastActivityAt: nowIso,
       lastMeaningfulActivityAt: nowIso,
       lastEventType: eventType,
+      lastToolName,
+      lastToolStatus: isToolEvent ? (toolCall?.status ?? existing?.lastToolStatus) : undefined,
       terminalState: existing?.terminalState,
       terminalReason: existing?.terminalReason,
       terminalAt: existing?.terminalAt,
     });
+    this.publishSessionActivity(sessionId, {
+      urgent: !existing || eventType === "turn_complete" || eventType === "error",
+    });
+  }
+
+  /**
+   * Snapshot of what a board card needs to label a run: process status plus
+   * the latest activity. Shared by the push channel and GET /api/sessions.
+   */
+  getSessionActivitySummary(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    const activity = this.sessionActivities.get(sessionId);
+    return {
+      acpStatus: session?.acpStatus,
+      acpError: session?.acpError,
+      lastActivityAt: activity?.lastMeaningfulActivityAt ?? activity?.lastActivityAt,
+      lastEventType: activity?.lastEventType,
+      lastToolName: activity?.lastToolName,
+      lastToolStatus: activity?.lastToolStatus,
+      terminalState: activity?.terminalState,
+      terminalReason: activity?.terminalReason,
+    };
+  }
+
+  private publishSessionActivity(sessionId: string, options: { urgent?: boolean } = {}): void {
+    const workspaceId = this.sessions.get(sessionId)?.workspaceId;
+    if (!workspaceId) return;
+    try {
+      this.sessionActivityPublisher.observe(
+        { workspaceId, sessionId, ...this.getSessionActivitySummary(sessionId) },
+        options,
+      );
+    } catch {
+      // A heartbeat must never break the notification pipeline.
+    }
   }
 
   private setSessionAcpStatus(
@@ -779,6 +833,7 @@ class HttpSessionStore {
       acpStatus: status,
       acpError: error,
     });
+    this.publishSessionActivity(sessionId, { urgent: true });
     return true;
   }
 
@@ -823,6 +878,7 @@ class HttpSessionStore {
         terminalAt: nowIso,
       };
       this.sessionActivities.set(sessionId, next);
+      this.publishSessionActivity(sessionId, { urgent: true });
       return { ...next };
     }
 
@@ -835,6 +891,7 @@ class HttpSessionStore {
       terminalAt: nowIso,
     };
     this.sessionActivities.set(sessionId, next);
+    this.publishSessionActivity(sessionId, { urgent: true });
     return { ...next };
   }
 

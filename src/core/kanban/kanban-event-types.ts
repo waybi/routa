@@ -74,8 +74,39 @@ export type KanbanSessionTailEvent = {
   timestamp: string;
 };
 
+/**
+ * Heartbeat of a live session, so a card can say "working / quiet for 4 min /
+ * errored" without the user opening it.
+ *
+ * The board's session list is fetched once and only refetched on
+ * `kanban:changed`, so a card used to keep the `connecting` snapshot from
+ * session creation ("starting" forever) and never learned when the agent last
+ * did anything. This event carries the live process status plus the last
+ * activity time; the client ages it locally, so the server only sends it when
+ * something happens (throttled per session).
+ *
+ * Ephemeral: never persisted or replayed. A reconnecting client refetches
+ * `/api/sessions`, which carries the same fields.
+ */
+export type KanbanSessionActivityEvent = {
+  type: "kanban:session-activity";
+  workspaceId: string;
+  sessionId: string;
+  acpStatus?: "connecting" | "ready" | "error";
+  acpError?: string;
+  lastActivityAt?: string;
+  lastEventType?: string;
+  /** Tool currently or most recently invoked, e.g. "Bash". */
+  lastToolName?: string;
+  lastToolStatus?: string;
+  terminalState?: "completed" | "failed" | "timed_out";
+  terminalReason?: string;
+  timestamp: string;
+};
+
 export type KanbanWorkspaceEvent =
   | KanbanWorkspaceChangedEvent
   | KanbanFitnessChangedEvent
   | KanbanTaskLifecycleEvent
-  | KanbanSessionTailEvent;
+  | KanbanSessionTailEvent
+  | KanbanSessionActivityEvent;

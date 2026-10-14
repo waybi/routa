@@ -46,7 +46,11 @@ function deriveSessionStatus(session: RoutaSessionRecord, hasActiveProcess: bool
   return "interrupted";
 }
 
-function toSessionSummary(session: RoutaSessionRecord, hasActiveProcess: boolean) {
+function toSessionSummary(
+  session: RoutaSessionRecord,
+  hasActiveProcess: boolean,
+  activity?: ReturnType<ReturnType<typeof getHttpSessionStore>["getSessionActivitySummary"]>,
+) {
   const preset = getPresetById(session.provider ?? "");
   return {
     sessionId: session.sessionId,
@@ -66,6 +70,14 @@ function toSessionSummary(session: RoutaSessionRecord, hasActiveProcess: boolean
     createdAt: session.createdAt,
     continuityStatus: deriveSessionStatus(session, hasActiveProcess),
     resumeCapabilities: preset?.resume ?? null,
+    // Same fields as the kanban:session-activity push, so a refetch (e.g.
+    // after an SSE reconnect) lands the card on the current state.
+    lastActivityAt: activity?.lastActivityAt,
+    lastEventType: activity?.lastEventType,
+    lastToolName: activity?.lastToolName,
+    lastToolStatus: activity?.lastToolStatus,
+    terminalState: activity?.terminalState,
+    terminalReason: activity?.terminalReason,
   };
 }
 
@@ -155,7 +167,11 @@ export async function GET(request: NextRequest) {
   const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : Number.NaN;
   const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
 
-  const summarize = (s: RoutaSessionRecord) => toSessionSummary(s, processManager.hasActiveSession(s.sessionId));
+  const summarize = (s: RoutaSessionRecord) => toSessionSummary(
+    s,
+    processManager.hasActiveSession(s.sessionId),
+    store.getSessionActivitySummary(s.sessionId),
+  );
 
   let sessions = store.listSessions();
   if (workspaceId) {
