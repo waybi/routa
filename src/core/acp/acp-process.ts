@@ -199,7 +199,37 @@ export class AcpProcess {
             console.log(
                 `[AcpProcess:${displayName}] Process exited: code=${code}, signal=${signal}`
             );
+            // kill() clears _alive before the exit lands, so still-alive here
+            // means nobody asked it to stop: a crash or an external kill.
+            // A clean self-exit (code 0, no signal) is not a failure.
+            const crashed = code !== 0 || signal !== null;
+            const unexpected = this._alive && this._sessionId !== null && crashed;
             this._alive = false;
+            if (unexpected) {
+                // Without this the session stayed `ready` forever and the
+                // board card read "idle" for a dead agent. Routed as a
+                // standard `error` update so the store flips acpStatus to
+                // error and pushes a kanban:session-activity heartbeat.
+                const detail = this.lastStderrErrorMessage ? `: ${this.lastStderrErrorMessage}` : "";
+                try {
+                    this.onNotification({
+                        jsonrpc: "2.0",
+                        method: "session/update",
+                        params: {
+                            sessionId: this._sessionId,
+                            update: {
+                                sessionUpdate: "error",
+                                error: {
+                                    code: "process_exited",
+                                    message: `${displayName} process exited unexpectedly (code=${code}, signal=${signal})${detail}`,
+                                },
+                            },
+                        },
+                    });
+                } catch {
+                    // Exit bookkeeping below must still run.
+                }
+            }
             // Reject all pending requests
             for (const [id, pending] of this.pendingRequests) {
                 clearTimeout(pending.timeout);
@@ -433,6 +463,9 @@ export class AcpProcess {
      * Kill the agent process.
      */
     kill(): void {
+        // Cleared before signalling so the exit handler (which may fire
+        // synchronously) sees an intentional stop, not a crash.
+        this._alive = false;
         if (this.process && this.process.exitCode === null) {
             console.log(
                 `[AcpProcess:${this._config.displayName}] Killing process pid=${this.process.pid}`

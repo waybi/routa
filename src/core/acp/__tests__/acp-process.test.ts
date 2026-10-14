@@ -454,6 +454,77 @@ describe("AcpProcess codex permission handling", () => {
     vi.useRealTimers();
   });
 
+  it("reports an unexpected exit of a live session as an error update", async () => {
+    vi.useFakeTimers();
+    const onNotification = vi.fn();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+
+    const process = createProcess(onNotification);
+    const startPromise = process.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await startPromise;
+    (process as any)._sessionId = "provider-session-1";
+
+    fakeProcess.exitCode = null;
+    fakeProcess.emit("exit", null, "SIGTERM");
+
+    expect(onNotification).toHaveBeenCalledWith(expect.objectContaining({
+      method: "session/update",
+      params: expect.objectContaining({
+        sessionId: "provider-session-1",
+        update: expect.objectContaining({
+          sessionUpdate: "error",
+          error: expect.objectContaining({ code: "process_exited" }),
+        }),
+      }),
+    }));
+    vi.useRealTimers();
+  });
+
+  it("does not report a clean self-exit (code 0) as an error", async () => {
+    vi.useFakeTimers();
+    const onNotification = vi.fn();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+
+    const process = createProcess(onNotification);
+    const startPromise = process.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await startPromise;
+    (process as any)._sessionId = "provider-session-1";
+
+    fakeProcess.exitCode = 0;
+    fakeProcess.emit("exit", 0, null);
+
+    const errorUpdates = onNotification.mock.calls.filter(([msg]) => (
+      (msg as { params?: { update?: { sessionUpdate?: string } } }).params?.update?.sessionUpdate === "error"
+    ));
+    expect(errorUpdates).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("does not report an error when Routa itself kills the process", async () => {
+    vi.useFakeTimers();
+    const onNotification = vi.fn();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+
+    const process = createProcess(onNotification);
+    const startPromise = process.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await startPromise;
+    (process as any)._sessionId = "provider-session-1";
+
+    process.kill();
+
+    const errorUpdates = onNotification.mock.calls.filter(([msg]) => (
+      (msg as { params?: { update?: { sessionUpdate?: string } } }).params?.update?.sessionUpdate === "error"
+    ));
+    expect(errorUpdates).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
   it("converts late stopReason responses into turn_complete notifications", () => {
     const onNotification = vi.fn();
     const process = createProcess(onNotification);
