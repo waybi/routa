@@ -89,3 +89,4 @@ produces output, on both backends.
 
 ## Issue Hygiene
 - 2026-09-22 (later): scope widened. The Axum backend now also lacks `kanban_events` persistence and `Last-Event-ID` replay (`482ec20d` on Next). Same root cause — no `EventBus`/broadcaster hook on `AcpManager`, and `crates/routa-server/src/api/kanban.rs` translates EventBus events only. Mirror both `session-tail-publisher.ts` and the persist/replay in `kanban-event-broadcaster.ts` + `api/kanban/events/route.ts` in one pass.
+- 2026-10-14: scope widened again. `kanban:session-activity` (card liveness heartbeat, `src/core/kanban/session-activity-publisher.ts`, see `docs/exec-plans/completed/kanban-card-liveness.md`) is also Next-only; mirror it in the same pass.
