@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "../../types";
-import { mergeSessionActivity } from "../kanban-session-activity";
+import { mergeSessionActivity, resolveCardLinkedSession } from "../kanban-session-activity";
 
 function session(overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -33,5 +33,34 @@ describe("mergeSessionActivity", () => {
       { s1: { sessionId: "s1", acpStatus: "ready", lastActivityAt: "2026-10-14T01:05:00.000Z", lastEventType: "tool_call" } },
     );
     expect(merged.lastEventType).toBe("turn_complete");
+  });
+});
+
+describe("resolveCardLinkedSession", () => {
+  const dead = session({ sessionId: "dead", acpStatus: "error", acpError: "process exited unexpectedly" });
+  const map = new Map([["dead", dead], ["s1", session()]]);
+
+  it("uses the trigger session when present", () => {
+    expect(resolveCardLinkedSession({ triggerSessionId: "s1", columnId: "dev", laneSessions: [] }, map)?.sessionId).toBe("s1");
+  });
+
+  it("keeps the failure reason after the stale sweep clears the trigger", () => {
+    const linked = resolveCardLinkedSession({
+      triggerSessionId: undefined,
+      columnId: "dev",
+      laneSessions: [{ sessionId: "dead", columnId: "dev", status: "timed_out", startedAt: "2026-10-14T02:00:00.000Z" }],
+    } as never, map);
+    expect(linked?.acpError).toBe("process exited unexpectedly");
+  });
+
+  it("does not resurrect sessions from a completed lane or another column", () => {
+    expect(resolveCardLinkedSession({
+      triggerSessionId: undefined,
+      columnId: "review",
+      laneSessions: [
+        { sessionId: "dead", columnId: "dev", status: "failed", startedAt: "2026-10-14T02:00:00.000Z" },
+        { sessionId: "s1", columnId: "review", status: "completed", startedAt: "2026-10-14T02:05:00.000Z" },
+      ],
+    } as never, map)).toBeUndefined();
   });
 });

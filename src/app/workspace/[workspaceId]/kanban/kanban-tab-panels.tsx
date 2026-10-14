@@ -45,6 +45,7 @@ import { buildKanbanTaskAdaptiveHarnessOptions } from "./kanban-task-adaptive";
 import { ChevronRight as _ChevronRight, GitBranch as _GitBranch } from "lucide-react";
 import { GitLogPanel, RealGitAdapter, MockGitAdapter } from "./git-log";
 import { resolveCardMergeState } from "./kanban-card-status";
+import { resolveCardLinkedSession } from "./kanban-session-activity";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -566,7 +567,7 @@ export function KanbanBoardSurface({
                               key={task.id}
                               task={task}
                               boardColumns={board.columns}
-                              linkedSession={task.triggerSessionId ? sessionMap.get(task.triggerSessionId) : undefined}
+                              linkedSession={resolveCardLinkedSession(task, sessionMap)}
                               liveMessageTail={task.triggerSessionId ? liveSessionTails[task.triggerSessionId] : undefined}
                               availableProviders={availableProviders}
                               specialists={specialists}
@@ -594,7 +595,7 @@ export function KanbanBoardSurface({
                     <KanbanCardOverlay
                       task={activeDragTask}
                       boardColumns={board.columns}
-                      linkedSession={activeDragTask.triggerSessionId ? sessionMap.get(activeDragTask.triggerSessionId) : undefined}
+                      linkedSession={resolveCardLinkedSession(activeDragTask, sessionMap)}
                       liveMessageTail={activeDragTask.triggerSessionId ? liveSessionTails[activeDragTask.triggerSessionId] : undefined}
                       availableProviders={availableProviders}
                       specialists={specialists}

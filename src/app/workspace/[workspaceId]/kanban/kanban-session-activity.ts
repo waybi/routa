@@ -11,7 +11,7 @@
  * lands after a heartbeat cannot roll the card back.
  */
 
-import type { SessionInfo } from "../types";
+import type { SessionInfo, TaskInfo } from "../types";
 
 export interface SessionActivityPatch {
   sessionId: string;
@@ -52,4 +52,26 @@ export function mergeSessionActivity(
       terminalReason: patch.terminalReason,
     };
   });
+}
+
+/**
+ * Which session a card should read its run status from.
+ *
+ * Normally the card's `triggerSessionId`. But when a run dies, the board's
+ * stale-session sweep (`restart-recovery.ts` sanitizeStaleCurrentLaneAutomation)
+ * clears the trigger and marks the lane record failed/timed out — so the card
+ * lost the session and with it the reason ("process exited …"), showing a bare
+ * "failed" or even "idle". Fall back to the newest failed lane record in the
+ * card's current column so the reason stays on the card face.
+ */
+export function resolveCardLinkedSession(
+  task: Pick<TaskInfo, "triggerSessionId" | "columnId" | "laneSessions">,
+  sessionMap: Map<string, SessionInfo>,
+): SessionInfo | undefined {
+  if (task.triggerSessionId) return sessionMap.get(task.triggerSessionId);
+  const failed = (task.laneSessions ?? [])
+    .filter((entry) => entry.columnId === task.columnId
+      && (entry.status === "failed" || entry.status === "timed_out"))
+    .sort((left, right) => toMs(right.startedAt) - toMs(left.startedAt))[0];
+  return failed ? sessionMap.get(failed.sessionId) : undefined;
 }
