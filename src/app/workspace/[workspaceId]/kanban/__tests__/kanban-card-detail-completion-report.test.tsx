@@ -104,4 +104,13 @@ describe("KanbanCardDetail completion tab", () => {
     expect(screen.getByTestId("kanban-completion-report-empty")).toBeTruthy();
     expect(screen.queryByTestId("kanban-completion-report-pointer")).toBeNull();
   });
+
+  it("keeps the header buttons in a sticky toolbar outside the scrolling header section", () => {
+    renderDetail([]);
+    const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
+    expect(toolbar.className).toContain("sticky");
+    expect(toolbar.className).toContain("top-0");
+    expect(toolbar.closest("section")).toBeNull();
+    expect(toolbar.querySelector("button")).toBeTruthy();
+  });
 });

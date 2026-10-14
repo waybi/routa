@@ -354,53 +354,53 @@ export function KanbanCardDetail({
   return (
     <div className="h-full w-full overflow-y-auto">
       <div className={`mx-auto flex min-h-full max-w-6xl flex-col ${compactMode ? "gap-2 p-3" : "gap-3 p-4"}`}>
-        <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>
-          <div className={`flex items-center justify-between gap-3 ${compactMode ? "mb-1" : "mb-1.5"}`}>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-              {t.kanbanDetail.cardDetail}
-            </div>
-            <div className="flex items-center gap-1.5">
-              {onClose ? (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
-                  aria-label={t.kanbanDetail.closeCardDetail}
-                  title={t.kanbanDetail.closeCardDetail}
-                >
-                  <X className="h-3 w-3" />
-                  <span>{t.kanbanDetail.closeCardDetail}</span>
-                </button>
-              ) : null}
-              {canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? (
-                <button
-                  type="button"
-                  onClick={onShowSessionPane}
-                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
-                >
-                  {sessionCopy.showSessionPane}
-                </button>
-              ) : null}
-              {onToggleFullscreen ? (
-                <button
-                  type="button"
-                  onClick={() => onToggleFullscreen(!isFullscreen)}
-                  className="inline-flex h-6 w-6 items-center justify-center border border-slate-300/80 text-slate-500 transition-colors hover:border-amber-400 hover:text-amber-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-amber-700 dark:hover:text-amber-200"
-                  aria-label={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
-                  title={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
-                >
-                  {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                </button>
-              ) : null}
+        <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 px-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 px-4 pb-1.5 pt-4"}`} data-testid="kanban-detail-sticky-toolbar">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            {t.kanbanDetail.cardDetail}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {onClose ? (
               <button
                 type="button"
-                onClick={onRefresh}
+                onClick={onClose}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
+                aria-label={t.kanbanDetail.closeCardDetail}
+                title={t.kanbanDetail.closeCardDetail}
+              >
+                <X className="h-3 w-3" />
+                <span>{t.kanbanDetail.closeCardDetail}</span>
+              </button>
+            ) : null}
+            {canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? (
+              <button
+                type="button"
+                onClick={onShowSessionPane}
                 className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
               >
-                {t.common.refresh}
+                {sessionCopy.showSessionPane}
               </button>
-            </div>
+            ) : null}
+            {onToggleFullscreen ? (
+              <button
+                type="button"
+                onClick={() => onToggleFullscreen(!isFullscreen)}
+                className="inline-flex h-6 w-6 items-center justify-center border border-slate-300/80 text-slate-500 transition-colors hover:border-amber-400 hover:text-amber-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-amber-700 dark:hover:text-amber-200"
+                aria-label={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
+                title={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
+              >
+                {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
+            >
+              {t.common.refresh}
+            </button>
           </div>
+        </div>
+        <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>
           <textarea
             ref={titleInputRef}
             value={displayedTitle}
