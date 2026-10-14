@@ -14,6 +14,7 @@ import { formatArtifactSummary, resolveKanbanTransitionArtifacts } from "@/core/
 import { getKanbanAutomationSteps, type KanbanAutomationStep } from "@/core/models/kanban";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { KanbanCardActivityPanel } from "./kanban-card-activity";
+import { splitCompletionReports } from "./kanban-completion-report";
 import { KanbanDescriptionEditor } from "./kanban-description-editor";
 import { KanbanTaskChangesTab } from "./components/kanban-task-changes-tab";
 import { MarkdownViewer } from "@/client/components/markdown/markdown-viewer";
@@ -77,7 +78,7 @@ export interface KanbanCardDetailProps {
 }
 
 const ROLE_OPTIONS = ["CRAFTER", "ROUTA", "GATE", "DEVELOPER"];
-type KanbanDetailTabId = "overview" | "humanReadable" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs";
+type KanbanDetailTabId = "overview" | "humanReadable" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs" | "completion";
 
 const persistedKanbanDetailTabs = new Map<string, KanbanDetailTabId>();
 
@@ -263,7 +264,10 @@ export function KanbanCardDetail({
   onShowSessionPane,
 }: KanbanCardDetailProps) {
   const { t } = useTranslation();
-  const progressNotes = useMemo(() => resolveTaskCommentEntries(task), [task]);
+  const { progressNotes, completionReports } = useMemo(
+    () => splitCompletionReports(resolveTaskCommentEntries(task)),
+    [task],
+  );
   const sessionCopy = getKanbanSessionCopy(specialistLanguage);
   const [editTitle, setEditTitle] = useState(task.title);
   const [editObjective, setEditObjective] = useState(task.objective ?? "");
@@ -344,6 +348,7 @@ export function KanbanCardDetail({
     { id: "changes" as const, label: t.kanbanDetail.changes },
     { id: "evidence" as const, label: t.kanbanDetail.evidenceBundle },
     { id: "runs" as const, label: t.kanbanDetail.runs },
+    { id: "completion" as const, label: t.kanbanDetail.completionReport },
   ];
 
   return (
@@ -631,6 +636,16 @@ export function KanbanCardDetail({
                       {t.kanbanDetail.noProgressNotesYet}
                     </div>
                   )}
+                  {completionReports.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => selectTab("completion")}
+                      data-testid="kanban-completion-report-pointer"
+                      className={`text-left text-[12px] font-medium text-amber-700 underline-offset-2 hover:underline dark:text-amber-300 ${compactMode ? "mt-1 px-3" : "mt-1 px-4"}`}
+                    >
+                      {t.kanbanDetail.completionReportMovedNote}
+                    </button>
+                  ) : null}
                 </div>
               </DetailSection>
 
@@ -836,6 +851,21 @@ export function KanbanCardDetail({
               compact={compactMode}
             />
           )}
+
+          {activeTab === "completion" && (
+            <DetailSection
+              title={t.kanbanDetail.completionReport}
+              description={compactMode ? undefined : t.kanbanDetail.completionReportHint}
+              compact={compactMode}
+            >
+              <CompletionReportPanel
+                reports={completionReports}
+                fallbackSummary={task.completionSummary}
+                compact={compactMode}
+                t={t}
+              />
+            </DetailSection>
+          )}
         </div>
 
         <div className={`mt-auto border-t border-slate-200 dark:border-slate-700 ${compactMode ? "pt-2" : "pt-3"}`}>
@@ -847,6 +877,66 @@ export function KanbanCardDetail({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CompletionReportPanel({
+  reports,
+  fallbackSummary,
+  compact,
+  t,
+}: {
+  reports: Array<{ id: string; body: string; createdAt?: string }>;
+  fallbackSummary?: string;
+  compact: boolean;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const pad = compact ? "px-3 py-2.5" : "px-4 py-3";
+  const [latest, ...earlier] = reports;
+  const fallback = fallbackSummary?.trim();
+  if (!latest && !fallback) {
+    return (
+      <div className={`text-sm text-slate-500 dark:text-slate-400 ${pad}`} data-testid="kanban-completion-report-empty">
+        {t.kanbanDetail.noCompletionReportYet}
+      </div>
+    );
+  }
+  return (
+    <div className={`space-y-3 ${pad}`} data-testid="kanban-completion-report">
+      <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 px-3 py-2.5 dark:border-emerald-900/60 dark:bg-emerald-900/10">
+        {latest?.createdAt ? (
+          <div className="mb-1 text-[11px] text-slate-500 dark:text-slate-400">
+            {formatCommentTimestamp(latest.createdAt)}
+          </div>
+        ) : null}
+        <MarkdownViewer
+          content={latest ? latest.body : (fallback ?? "")}
+          className="prose prose-sm max-w-none text-slate-800 dark:prose-invert dark:text-slate-200"
+        />
+      </div>
+      {earlier.length > 0 ? (
+        <details className="rounded-xl border border-slate-200/70 px-3 py-2 dark:border-slate-700/70">
+          <summary className="cursor-pointer text-[12px] font-medium text-slate-600 dark:text-slate-300">
+            {t.kanbanDetail.completionReportEarlier.replace("{count}", String(earlier.length))}
+          </summary>
+          <div className="mt-2 space-y-3">
+            {earlier.map((entry) => (
+              <div key={entry.id} className="border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
+                {entry.createdAt ? (
+                  <div className="mb-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    {formatCommentTimestamp(entry.createdAt)}
+                  </div>
+                ) : null}
+                <MarkdownViewer
+                  content={entry.body}
+                  className="prose prose-sm max-w-none text-slate-800 dark:prose-invert dark:text-slate-200"
+                />
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

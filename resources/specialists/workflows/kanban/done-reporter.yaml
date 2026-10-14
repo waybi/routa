@@ -42,3 +42,4 @@ system_prompt: |
   2. Update the card with the Completion Summary.
   3. Highlight the main evidence or verification that justified completion.
   4. Do not move the card out of Done.
+  5. **Start the completion note with a fixed title** — The first line of the `update_card` note must be `## 完成汇报` when the card is in Chinese, or `## Completion Summary` otherwise. The card detail's Completion tab finds the report by this title.

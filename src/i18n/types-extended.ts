@@ -456,6 +456,11 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     clean: string;
     evidenceBundle: string;
     evidenceBundleHint: string;
+    completionReport: string;
+    completionReportHint: string;
+    noCompletionReportYet: string;
+    completionReportEarlier: string;
+    completionReportMovedNote: string;
     commits: string;
     /** Done card whose branch has not been merged into the base branch. */
     unmerged: string;
