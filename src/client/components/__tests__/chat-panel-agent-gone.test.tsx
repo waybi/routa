@@ -30,6 +30,8 @@ vi.mock("@/i18n", () => ({
         resumeHint: "Resume hint",
         agentGone: "This agent is no longer running.",
         agentGoneHint: "Your message was not sent. Click Resume to start it again.",
+        agentFinished: "This session has finished.",
+        agentFinishedHint: "Its work is done.",
         resentAfterResume: "Agent restarted; your message has been re-sent.",
       },
       common: { tasks: "Tasks", dismiss: "Dismiss", copyToClipboard: "Copy", save: "Save", cancel: "Cancel" },
@@ -246,5 +248,53 @@ describe("ChatPanel when the agent is gone", () => {
     // Still only the original attempt; nothing was fired into a broken resume.
     expect(promptSession).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("chat-error-banner").textContent).toContain("spawn ENOENT");
+  });
+
+  it("shows a grey ended note without Resume when a finished session's agent has exited", () => {
+    render(
+      <ChatPanel
+        acp={makeAcp({ error: "ACP agent (dsh) process is not running" })}
+        activeSessionId="session-done"
+        onEnsureSession={async () => "session-done"}
+        onSelectSession={async () => {}}
+        onResumeActiveSession={async () => {}}
+        sessionFinished
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-ended-banner").textContent).toContain("This session has finished.");
+    expect(screen.queryByTestId("chat-error-banner")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+  });
+
+  it("stays red with Resume when the user's message to a finished session fails", async () => {
+    const promptSession = vi.fn(async () => {});
+    let currentError: string | null = null;
+    const view = () => (
+      <ToastProvider>
+        <ChatPanel
+          acp={makeAcp({ error: currentError, promptSession })}
+          activeSessionId="session-done"
+          onEnsureSession={async () => "session-done"}
+          onSelectSession={async () => {}}
+          onResumeActiveSession={async () => {}}
+          sessionFinished
+          repoSelection={null}
+          onRepoChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+    const { rerender } = render(view());
+
+    fireEvent.click(screen.getByRole("button", { name: "Send mock prompt" }));
+    await waitFor(() => expect(promptSession).toHaveBeenCalledTimes(1));
+    currentError = "ACP agent (dsh) process is not running";
+    rerender(view());
+
+    expect(screen.getByTestId("chat-error-banner").textContent).toContain("This agent is no longer running.");
+    expect(screen.queryByTestId("chat-ended-banner")).toBeNull();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
   });
 });

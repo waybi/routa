@@ -139,6 +139,13 @@ interface ChatPanelProps {
    * seeding a restore prompt into the input.
    */
   onResumeActiveSession?: (options?: { willAutoResend: boolean }) => Promise<void>;
+  /**
+   * True when the parent knows this session already finished its work (e.g. a
+   * kanban lane session marked completed). A dead process is then the normal
+   * end state, not a fault: the banner turns grey with no Resume button —
+   * unless the user tried to send a message here, which really did fail.
+   */
+  sessionFinished?: boolean;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────
@@ -172,6 +179,7 @@ export function ChatPanel({
   onDecoratePrompt,
   onDecoratedPromptSent,
   onResumeActiveSession,
+  sessionFinished = false,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { connected, loading, error, authError, updates, promptSession, clearAuthError } = acp;
@@ -185,6 +193,12 @@ export function ChatPanel({
   // input clears on send, so without this the user would have to retype it
   // after clicking Resume.
   const failedPromptRef = useRef<{ sessionId: string; text: string; skillContext?: { skillName: string; skillContent: string } } | null>(null);
+  // Which session the user has tried to send to since opening it. A dead agent
+  // on a finished session is only a real problem once a message was attempted.
+  const [promptAttemptedSessionId, setPromptAttemptedSessionId] = useState<string | null>(null);
+  useEffect(() => {
+    setPromptAttemptedSessionId(null);
+  }, [activeSessionId]);
 
   // Use the extracted chat messages hook
   const {
@@ -457,6 +471,7 @@ export function ChatPanel({
     // reports failure through acp.error — so the effect below decides whether
     // this becomes the retry payload.
     failedPromptRef.current = { sessionId: sid, text: decoratedPrompt, skillContext };
+    setPromptAttemptedSessionId(sid);
     await promptSession(sid, decoratedPrompt, skillContext);
     if (onDecoratePrompt) onDecoratedPromptSent?.();
 
@@ -558,14 +573,23 @@ export function ChatPanel({
   const errorBanner = useMemo(() => {
     if (!error) return null;
     if (isAgentGoneError(error)) {
+      if (sessionFinished && promptAttemptedSessionId !== activeSessionId) {
+        return {
+          tone: "ended" as const,
+          title: t.sessions.agentFinished,
+          hint: t.sessions.agentFinishedHint,
+          raw: error,
+        };
+      }
       return {
+        tone: "error" as const,
         title: t.sessions.agentGone,
         hint: onResumeActiveSession && activeSessionId ? t.sessions.agentGoneHint : null,
         raw: error,
       };
     }
-    return { title: error, hint: null, raw: error };
-  }, [activeSessionId, error, onResumeActiveSession, t]);
+    return { tone: "error" as const, title: error, hint: null, raw: error };
+  }, [activeSessionId, error, onResumeActiveSession, promptAttemptedSessionId, sessionFinished, t]);
 
   // ── Render ───────────────────────────────────────────────────────────
 
@@ -619,7 +643,19 @@ export function ChatPanel({
         </div>
       )}
 
-      {errorBanner && (
+      {errorBanner?.tone === "ended" && (
+        <div
+          className="border-b border-slate-200 bg-slate-50 px-5 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400"
+          role="status"
+          data-testid="chat-ended-banner"
+          title={errorBanner.raw}
+        >
+          <div className="font-medium text-slate-600 dark:text-slate-300">{errorBanner.title}</div>
+          <div className="mt-0.5">{errorBanner.hint}</div>
+        </div>
+      )}
+
+      {errorBanner && errorBanner.tone === "error" && (
         <div
           className="flex items-start justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-2 text-xs text-red-600 dark:border-red-900/20 dark:bg-red-900/10 dark:text-red-400"
           role="alert"

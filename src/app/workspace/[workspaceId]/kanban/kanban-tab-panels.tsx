@@ -1166,6 +1166,7 @@ export function KanbanTaskDetailOverlay({
                       inputPrefill={sessionRecoveryInputPrefill}
                       onInputPrefillConsumed={() => setSessionRecoveryInputPrefill(null)}
                       onResumeActiveSession={recoverActiveAcpSession}
+                      sessionFinished={selectedLaneSession?.status === "completed" || selectedLaneSession?.status === "transitioned"}
                       // A person asking a follow-up here wants an answer they
                       // can read, not the agent's work log. Wrap the typed
                       // message with reply-writing rules; the card's own

@@ -1020,6 +1020,8 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     /** Shown instead of the raw ownership/lease or dead-process error. */
     agentGone: string;
     agentGoneHint: string;
+    agentFinished: string;
+    agentFinishedHint: string;
     /** Toast after Resume when the failed message was re-sent automatically. */
     resentAfterResume: string;
     fork: string;

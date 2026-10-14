@@ -1415,6 +1415,8 @@ export const enExtended: ExtendedTranslationDictionarySections = {
     resumeHint: "Resume this persisted session. If native resume is unavailable, Routa recreates it in a new session with restored context.",
     agentGone: "This agent is no longer running.",
     agentGoneHint: "Your message was not sent. Click Resume to start it again — your message will be re-sent automatically.",
+    agentFinished: "This session has finished.",
+    agentFinishedHint: "Its work is done and the process exited normally. Nothing to fix. Send a message to ask a follow-up and you will be offered a restart.",
     resentAfterResume: "Agent restarted; your message has been re-sent.",
     fork: "Fork",
     forking: "Forking...",

@@ -1415,6 +1415,8 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
     resumeHint: "恢复这个持久化会话；如果原生恢复不可用，Routa 会在新会话中重建并带上已恢复的上下文。",
     agentGone: "这个 agent 已经不在运行了。",
     agentGoneHint: "你的消息没有发出去。点「恢复」重新启动它，消息会自动重发。",
+    agentFinished: "这个会话已经结束了。",
+    agentFinishedHint: "它的活已经干完，进程正常退出，不需要处理。要追问就直接发消息，会提示你重新启动。",
     resentAfterResume: "agent 已重启，你的消息已重发。",
     fork: "分叉",
     forking: "分叉中...",
