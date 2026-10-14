@@ -482,7 +482,9 @@ describe("AcpProcess codex permission handling", () => {
     vi.useRealTimers();
   });
 
-  it("does not report a clean self-exit (code 0) as an error", async () => {
+  it("reports an external SIGTERM that dsh turns into exit code 0", async () => {
+    // Observed live: `kill -TERM` on a dsh agent → "Process exited: code=0,
+    // signal=null". Exit code alone cannot tell this apart from health.
     vi.useFakeTimers();
     const onNotification = vi.fn();
     const fakeProcess = new FakeProcess();
@@ -500,7 +502,7 @@ describe("AcpProcess codex permission handling", () => {
     const errorUpdates = onNotification.mock.calls.filter(([msg]) => (
       (msg as { params?: { update?: { sessionUpdate?: string } } }).params?.update?.sessionUpdate === "error"
     ));
-    expect(errorUpdates).toHaveLength(0);
+    expect(errorUpdates).toHaveLength(1);
     vi.useRealTimers();
   });
 

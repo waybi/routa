@@ -201,9 +201,10 @@ export class AcpProcess {
             );
             // kill() clears _alive before the exit lands, so still-alive here
             // means nobody asked it to stop: a crash or an external kill.
-            // A clean self-exit (code 0, no signal) is not a failure.
-            const crashed = code !== 0 || signal !== null;
-            const unexpected = this._alive && this._sessionId !== null && crashed;
+            // Exit code is not a signal of health: dsh handles SIGTERM and
+            // exits 0, and an ACP agent never quits on its own while Routa
+            // still holds the session. Any exit Routa did not request counts.
+            const unexpected = this._alive && this._sessionId !== null;
             this._alive = false;
             if (unexpected) {
                 // Without this the session stayed `ready` forever and the
