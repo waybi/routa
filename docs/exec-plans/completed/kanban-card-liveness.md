@@ -1,6 +1,6 @@
 # Kanban Card Liveness: Working, May Be Stuck, or Failed — Without Opening the Card
 
-**Status: shipped on Web (Next.js).** Commits `044dfabd` (server heartbeat), `9634eb62` (card face), `33f62901` (i18n move). Desktop (Axum) does not push the new event yet — see Follow-ups.
+**Status: shipped on Web (Next.js).** Commits `044dfabd` (server heartbeat), `9634eb62` (card face), `33f62901` (i18n move), `830e2327` + `4424f20b` (dead agent → error), `7573c8db` (failure reason survives the stale sweep). Desktop (Axum) does not push the new event yet — see Follow-ups.
 
 ## Problem
 
@@ -39,10 +39,22 @@ ACP notification ─▶ HttpSessionStore.recordSessionActivity / setSessionAcpSt
 - The sync pill now shows GitHub sync state only.
 - Strings live in `kanbanCardActivity` in the tail dictionaries (`*-extended.ts` were at the 1600-line budget).
 
+### Found by the live check and fixed
+
+- **A dead agent looked idle.** `kill -TERM` on a probe card's dsh process left the session `ready`: `AcpProcess` only flipped a private `_alive` flag on exit. The exit handler now emits a standard `error` update when Routa did not request the stop (`kill()` clears `_alive` first). Exit code is not used: dsh handles SIGTERM and exits 0 (`Process exited: code=0, signal=null` in the pm2 log), which an earlier version (`830e2327`) wrongly exempted.
+- **The reason vanished after the stale sweep.** The next board fetch runs `sanitizeStaleCurrentLaneAutomation`, which clears `triggerSessionId` and marks the lane record timed out, so the card had no session to read. Cards now fall back to the newest failed/timed-out lane record in their current column.
+
 ## Verification
 
 - Unit: `npx vitest run src/core/kanban src/core/acp 'src/app/workspace/[workspaceId]/kanban' src/client/hooks src/app/api/sessions src/i18n` → 119 files, 807 tests passed. New: `session-activity-publisher.test.ts` (6, incl. "heartbeats are not persisted"), `http-session-store-activity.test.ts` (2), `kanban-session-activity.test.ts` (3), `kanban-card-status.test.ts` (+6), `kanban-card.test.tsx` (+3: working with tool, may be stuck, failure reason).
 - `npx tsc --noEmit` 0 errors; eslint clean; `entrix run --tier fast` all PASS except `npm_audit_critical` (dependency advisories, lockfile untouched by this change).
+- Live, on the production build, in a throwaway workspace (automation off, one probe card attached to a real dsh session; headless Chromium polled the card every 5 s, SSE listener on `/api/kanban/events`):
+  - "运行中 · 正在执行 bash · 43 秒前有动静" while `sleep 420` ran;
+  - "可能卡住 · 已 6 分钟没动静 · 正在执行 bash" at 6 min (02:00:12);
+  - "空闲 · 本轮已结束，等待下一步" after the turn ended;
+  - "失败 · 出错：DeepSeek Harness process exited unexpectedly (code=0, signal=null)" 5 s after `kill -TERM` (after `7573c8db`);
+  - 8 `kanban:session-activity` frames over the ~15 min run (throttle working).
+  Workspace, card, 5 sessions and the dsh session directory were deleted afterwards.
 - `npm run build` from a clean worktree of `33f62901`: exit 0; built `api/kanban/events` route and kanban page contain `kanban:session-activity`.
 
 ## Follow-ups
@@ -54,4 +66,5 @@ ACP notification ─▶ HttpSessionStore.recordSessionActivity / setSessionAcpSt
 
 | Date | Change | Effect | Commit |
 |---|---|---|---|
+| 2026-10-14 | Dead agent process → session error; failure reason kept after stale sweep | Killed agent shows "failed: process exited unexpectedly" within 5 s instead of "idle" | `830e2327`, `4424f20b`, `7573c8db` |
 | 2026-10-14 | Heartbeat event + card liveness states | Card shows working / may be stuck / failed with reason and last-activity age; no more permanent "Starting" | `044dfabd`, `9634eb62`, `33f62901` |
