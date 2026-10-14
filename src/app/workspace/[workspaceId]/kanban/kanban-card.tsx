@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useTranslation } from "@/i18n";
 import type { AcpProviderInfo } from "@/client/acp-client";
@@ -12,9 +12,11 @@ import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../t
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import {
+  cardRunStatusDotClass,
   cardRunStatusLabelKey,
   cardRunStatusTone,
-  resolveCardRunStatus,
+  describeCardActivity,
+  type CardActivityDetail,
   cardMergeStateTone,
   resolveCardMergeState,
 } from "./kanban-card-status";
@@ -100,16 +102,13 @@ function getPrioritySizeLabel(priority?: string) {
   }
 }
 
-function getSyncTone(
-  sessionStatus: "connecting" | "ready" | "error" | undefined,
-  queuePosition: number | undefined,
-  hasSyncError: boolean,
-  githubSyncedAt?: string,
-) {
-  if (sessionStatus === "connecting" || queuePosition) {
-    return "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:ring-sky-900/40";
-  }
-  if (sessionStatus === "error" || hasSyncError) {
+/**
+ * The sync badge is about GitHub sync only. It used to also echo the process
+ * state ("starting" / "queued"), which put two identical "starting" pills on
+ * every running card; the run badge owns process state now.
+ */
+function getSyncTone(hasSyncError: boolean, githubSyncedAt?: string) {
+  if (hasSyncError) {
     return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-900/40";
   }
   if (githubSyncedAt) {
@@ -118,15 +117,8 @@ function getSyncTone(
   return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5";
 }
 
-function getSyncLabel(
-  sessionStatus: "connecting" | "ready" | "error" | undefined,
-  queuePosition: number | undefined,
-  hasSyncError: boolean,
-  githubSyncedAt?: string,
-) {
-  if (sessionStatus === "connecting") return "starting";
-  if (queuePosition) return `queued`;
-  if (sessionStatus === "error" || hasSyncError) return "syncIssue";
+function getSyncLabel(hasSyncError: boolean, githubSyncedAt?: string) {
+  if (hasSyncError) return "syncIssue";
   if (githubSyncedAt) return "synced";
   return "notSynced";
 }
@@ -186,6 +178,60 @@ function buildCardSummary(task: TaskInfo, fallback: string): string {
   return normalizeCardPreviewText(fallback);
 }
 
+/** Re-render every `intervalMs` while enabled, so "quiet for N min" keeps aging. */
+function useNowTick(enabled: boolean, intervalMs = 15_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [enabled, intervalMs]);
+  return now;
+}
+
+type KanbanDict = Record<string, string>;
+
+function formatActivityLine(activity: CardActivityDetail, dict: KanbanDict): string | null {
+  const fill = (template: string | undefined, values: Record<string, string>) => {
+    let out = template ?? "";
+    for (const [key, value] of Object.entries(values)) out = out.replace(`{${key}}`, value);
+    return out;
+  };
+  const age = (() => {
+    if (activity.quietMs === undefined) return null;
+    if (activity.quietMs < 10_000) return dict.activityJustNow;
+    if (activity.quietMs < 60_000) {
+      return fill(dict.activitySecondsAgo, { count: String(Math.floor(activity.quietMs / 1000)) });
+    }
+    return fill(dict.activityMinutesAgo, { count: String(Math.floor(activity.quietMs / 60_000)) });
+  })();
+
+  switch (activity.status) {
+    case "failed":
+      return activity.failureReason
+        ? fill(dict.activityError, { reason: activity.failureReason })
+        : null;
+    case "stalled":
+      return fill(dict.activityQuietFor, { count: String(Math.floor((activity.quietMs ?? 0) / 60_000)) })
+        + (activity.runningTool ? ` · ${fill(dict.activityRunningTool, { tool: activity.runningTool })}` : "");
+    case "working": {
+      const parts = [
+        activity.runningTool ? fill(dict.activityRunningTool, { tool: activity.runningTool }) : null,
+        age,
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" · ") : dict.activityWaitingFirst;
+    }
+    case "idle":
+      return activity.turnDone
+        ? [dict.activityTurnDone, age].filter(Boolean).join(" · ")
+        : null;
+    case "starting":
+      return dict.activityWaitingFirst;
+    default:
+      return null;
+  }
+}
+
 function KanbanCardSurface({
   task,
   boardColumns,
@@ -213,20 +259,34 @@ function KanbanCardSurface({
   const { t } = useTranslation();
   const sessionStatus = linkedSession?.acpStatus;
   const isTerminalCard = task.columnId === "done" || task.columnId === "blocked";
+  const now = useNowTick(!isTerminalCard && Boolean(linkedSession) && !dragOverlay);
   const resolveSpecialist = createKanbanSpecialistResolver(specialists);
   const effectiveAutomation = resolveEffectiveTaskAutomation(task, boardColumns, resolveSpecialist, {
     autoProviderId,
   });
-  const canRetry = effectiveAutomation.canRun && (
-    sessionStatus === "error" || (!task.triggerSessionId && task.columnId === "dev")
-  ) && !queuePosition;
-  const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
   const priorityTone = getPriorityTone(task.priority);
   const prioritySizeLabel = getPrioritySizeLabel(task.priority);
   const mergeState = resolveCardMergeState(task);
-  // Folds acpStatus together with the lane-session record so the badge can
-  // distinguish "agent is producing output" from "process alive but parked".
-  const runStatus = resolveCardRunStatus({ task, acpStatus: sessionStatus, queuePosition });
+  // Folds acpStatus, the live activity heartbeat and the lane-session record
+  // so the badge can say working / may be stuck / parked / failed.
+  const activity = describeCardActivity({
+    task,
+    acpStatus: sessionStatus,
+    session: linkedSession,
+    queuePosition,
+    now,
+  });
+  const runStatus = activity.status;
+  const canRetry = effectiveAutomation.canRun && (
+    sessionStatus === "error"
+    || (!isTerminalCard && activity.status === "failed")
+    || (!task.triggerSessionId && task.columnId === "dev")
+  ) && !queuePosition;
+  const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
+  const activityLine = isTerminalCard ? null : formatActivityLine(activity, t.kanban as unknown as KanbanDict);
+  const lastActivityTitle = linkedSession?.lastActivityAt
+    ? new Date(linkedSession.lastActivityAt).toLocaleString()
+    : undefined;
   const statusLabel = cardRunStatusLabelKey(runStatus);
   const sessionTone = isTerminalCard
     ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40"
@@ -243,11 +303,9 @@ function KanbanCardSurface({
     (task.codebaseIds && task.codebaseIds.length > 0 ? task.codebaseIds.length : allCodebaseIds.length) - visibleCodebaseIds.length,
     0,
   );
-  const syncLabelKey = getSyncLabel(sessionStatus, queuePosition, Boolean(task.lastSyncError), task.githubSyncedAt);
-  const resolvedSyncLabel = syncLabelKey === "queued"
-    ? `${t.kanban.queued} #${queuePosition}`
-    : (t.kanban as Record<string, string>)[syncLabelKey] ?? syncLabelKey;
-  const syncTone = getSyncTone(sessionStatus, queuePosition, Boolean(task.lastSyncError), task.githubSyncedAt);
+  const syncLabelKey = getSyncLabel(Boolean(task.lastSyncError), task.githubSyncedAt);
+  const resolvedSyncLabel = (t.kanban as Record<string, string>)[syncLabelKey] ?? syncLabelKey;
+  const syncTone = getSyncTone(Boolean(task.lastSyncError), task.githubSyncedAt);
   const objectiveText = buildCardSummary(task, task.objective?.trim() || t.kanban.noObjective);
   const transitionArtifacts = resolveKanbanTransitionArtifacts(boardColumns, task.columnId);
   const missingNextArtifacts = transitionArtifacts.nextRequiredArtifacts.filter(
@@ -279,7 +337,16 @@ function KanbanCardSurface({
     : task.verificationVerdict === "APPROVED"
       ? "border-emerald-200/80 bg-emerald-50/80 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/15 dark:text-emerald-200"
       : "border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200";
-  const cardClassName = `group relative flex flex-col gap-2 border border-slate-200/80 bg-white/90 p-2.5 transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:border-[#262938] dark:bg-[#0d1018] dark:hover:border-[#34384a] ${dragOverlay
+  const attentionClass = isTerminalCard || dragOverlay
+    ? ""
+    : runStatus === "failed"
+      ? "border-l-4 !border-l-rose-500"
+      : runStatus === "stalled"
+        ? "border-l-4 !border-l-orange-400"
+        : runStatus === "working"
+          ? "border-l-4 !border-l-emerald-400"
+          : "";
+  const cardClassName = `group relative flex flex-col gap-2 border border-slate-200/80 bg-white/90 p-2.5 ${attentionClass} transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:border-[#262938] dark:bg-[#0d1018] dark:hover:border-[#34384a] ${dragOverlay
     ? "pointer-events-none border-amber-300/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.28)] ring-2 ring-amber-300/55 will-change-transform dark:border-amber-700/60 dark:bg-[#11141d] dark:ring-amber-700/45"
     : isDragging
       ? "opacity-15 ring-1 ring-slate-300/70 dark:ring-white/10"
@@ -352,7 +419,12 @@ function KanbanCardSurface({
                 {task.isPullRequest ? `PR #${task.githubNumber}` : `Issue #${task.githubNumber}`}
               </a>
             ) : null}
-            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${sessionTone}`}>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${sessionTone}`}
+              data-testid="kanban-card-run-status"
+              data-run-status={isTerminalCard ? "done" : runStatus}
+            >
+              {!isTerminalCard && <span className={`h-1.5 w-1.5 rounded-full ${cardRunStatusDotClass(runStatus)}`} />}
               {resolvedStatusLabel}
             </span>
             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${syncTone}`}>
@@ -390,6 +462,20 @@ function KanbanCardSurface({
       <div className="text-[14px] font-semibold leading-[1.2] text-slate-900 dark:text-slate-100">
         {task.title}
       </div>
+
+      {activityLine && (
+        <div
+          className={`truncate text-[10px] leading-[1.3] ${runStatus === "failed"
+            ? "text-rose-600 dark:text-rose-300"
+            : runStatus === "stalled"
+              ? "font-medium text-orange-600 dark:text-orange-300"
+              : "text-slate-500 dark:text-slate-400"}`}
+          title={[activityLine, lastActivityTitle].filter(Boolean).join(" · ")}
+          data-testid="kanban-card-activity"
+        >
+          {activityLine}
+        </div>
+      )}
 
       {(transitionArtifacts.nextRequiredArtifacts.length > 0 || artifactCount > 0) && (
         <div className="flex flex-wrap items-center gap-1">

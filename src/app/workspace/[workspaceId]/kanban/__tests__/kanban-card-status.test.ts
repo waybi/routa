@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TaskInfo } from "../../types";
 import {
-  CARD_WORKING_ACTIVITY_WINDOW_MS,
+  CARD_STALL_THRESHOLD_MS,
+  CARD_TOOL_STALL_THRESHOLD_MS,
   cardRunStatusDotClass,
+  describeCardActivity,
   resolveCardMergeState,
   resolveCardRunStatus,
 } from "../kanban-card-status";
@@ -58,19 +60,87 @@ describe("resolveCardRunStatus", () => {
     expect(status).toBe("working");
   });
 
-  it("treats a live process gone quiet as idle, not live", () => {
-    // This is the case the old three-state model could not express: the
-    // process is alive, so the card used to claim "live" forever.
+  it("keeps a run that paused briefly as working (dsh paragraphs are ~14 s apart)", () => {
     const status = resolveCardRunStatus({
-      task: task({
-        laneSessions: [laneSession({
-          lastActivityAt: new Date(NOW - CARD_WORKING_ACTIVITY_WINDOW_MS - 1_000).toISOString(),
-        })],
-      }),
+      task: task(),
       acpStatus: "ready",
+      session: { acpStatus: "ready", lastActivityAt: new Date(NOW - 45_000).toISOString(), lastEventType: "agent_message" },
       now: NOW,
     });
-    expect(status).toBe("idle");
+    expect(status).toBe("working");
+  });
+
+  it("flags a live, mid-turn run silent past the threshold as stalled", () => {
+    const detail = describeCardActivity({
+      task: task(),
+      acpStatus: "ready",
+      session: {
+        acpStatus: "ready",
+        lastActivityAt: new Date(NOW - CARD_STALL_THRESHOLD_MS - 1_000).toISOString(),
+        lastEventType: "agent_message",
+      },
+      now: NOW,
+    });
+    expect(detail.status).toBe("stalled");
+    expect(detail.quietMs).toBe(CARD_STALL_THRESHOLD_MS + 1_000);
+  });
+
+  it("gives a still-running tool a longer grace before calling it stuck", () => {
+    const session = {
+      acpStatus: "ready" as const,
+      lastActivityAt: new Date(NOW - CARD_STALL_THRESHOLD_MS - 60_000).toISOString(),
+      lastEventType: "tool_call",
+      lastToolName: "Bash",
+      lastToolStatus: "running",
+    };
+    const detail = describeCardActivity({ task: task(), acpStatus: "ready", session, now: NOW });
+    expect(detail.status).toBe("working");
+    expect(detail.runningTool).toBe("Bash");
+
+    expect(resolveCardRunStatus({
+      task: task(),
+      acpStatus: "ready",
+      session: { ...session, lastActivityAt: new Date(NOW - CARD_TOOL_STALL_THRESHOLD_MS - 1_000).toISOString() },
+      now: NOW,
+    })).toBe("stalled");
+  });
+
+  it("treats a finished turn as idle (parked), not stuck", () => {
+    const detail = describeCardActivity({
+      task: task(),
+      acpStatus: "ready",
+      session: { acpStatus: "ready", lastActivityAt: new Date(NOW - 20 * 60_000).toISOString(), lastEventType: "turn_complete" },
+      now: NOW,
+    });
+    expect(detail.status).toBe("idle");
+    expect(detail.turnDone).toBe(true);
+  });
+
+  it("does not stay 'starting' once the session has shown activity", () => {
+    // The board's session snapshot is taken at creation (connecting); a
+    // heartbeat proves the process is up.
+    expect(resolveCardRunStatus({
+      task: task(),
+      acpStatus: "connecting",
+      session: { acpStatus: "connecting", lastActivityAt: new Date(NOW - 5_000).toISOString(), lastEventType: "tool_call" },
+      now: NOW,
+    })).toBe("working");
+  });
+
+  it("surfaces the failure reason from a watchdog timeout or process error", () => {
+    expect(describeCardActivity({
+      task: task(),
+      acpStatus: "ready",
+      session: { acpStatus: "ready", terminalState: "timed_out", terminalReason: "No ACP activity for 10 minutes." },
+      now: NOW,
+    })).toMatchObject({ status: "failed", failureReason: "No ACP activity for 10 minutes." });
+
+    expect(describeCardActivity({
+      task: task(),
+      acpStatus: "error",
+      session: { acpStatus: "error", acpError: "provider exited" },
+      now: NOW,
+    })).toMatchObject({ status: "failed", failureReason: "provider exited" });
   });
 
   it("lets a terminal lane status win over a lingering process", () => {
@@ -138,6 +208,7 @@ describe("cardRunStatusDotClass", () => {
     expect(cardRunStatusDotClass("starting")).toContain("animate-pulse");
     // A parked card must look parked.
     expect(cardRunStatusDotClass("idle")).not.toContain("animate-pulse");
+    expect(cardRunStatusDotClass("stalled")).not.toContain("animate-pulse");
     expect(cardRunStatusDotClass("completed")).not.toContain("animate-pulse");
   });
 });

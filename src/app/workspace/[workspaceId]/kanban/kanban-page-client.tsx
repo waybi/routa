@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAcp } from "@/client/hooks/use-acp";
-import { useKanbanEvents } from "@/client/hooks/use-kanban-events";
+import { useKanbanEvents, type KanbanSessionActivityPayload } from "@/client/hooks/use-kanban-events";
 import { useWorkspaces, useCodebases } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
@@ -29,6 +29,7 @@ import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import { toast } from "@/client/components/toast";
 import { useTaskLifecycleNotifications } from "./use-task-lifecycle-notifications";
+import { mergeSessionActivity } from "./kanban-session-activity";
 
 interface SpecialistOption {
   id: string;
@@ -60,6 +61,9 @@ export function KanbanPageClient() {
   const [refreshKey, setRefreshKey] = useState(0);
   // sessionId -> newest line, fed by kanban:session-tail over SSE.
   const [pushedSessionTails, setPushedSessionTails] = useState<Record<string, string>>({});
+  // sessionId -> newest heartbeat, fed by kanban:session-activity over SSE.
+  // Overrides the fetched snapshot, which otherwise stays "connecting" forever.
+  const [pushedSessionActivity, setPushedSessionActivity] = useState<Record<string, KanbanSessionActivityPayload>>({});
   const [repoSync, setRepoSync] = useState<RepoSyncState>({
     status: "idle",
     total: 0,
@@ -388,12 +392,22 @@ export function KanbanPageClient() {
     ));
   }, []);
 
+  const handleSessionActivity = useCallback((event: KanbanSessionActivityPayload) => {
+    setPushedSessionActivity((current) => ({ ...current, [event.sessionId]: event }));
+  }, []);
+
   useKanbanEvents({
     workspaceId,
     onInvalidate: handleKanbanInvalidate,
     onTaskLifecycle: handleTaskLifecycle,
     onSessionTail: handleSessionTail,
+    onSessionActivity: handleSessionActivity,
   });
+
+  const liveSessions = useMemo(
+    () => mergeSessionActivity(sessions, pushedSessionActivity),
+    [sessions, pushedSessionActivity],
+  );
 
   useEffect(() => {
     if (!workspaceId || workspaceId === "__placeholder__") return;
@@ -521,7 +535,7 @@ export function KanbanPageClient() {
             refreshSignal={refreshKey}
             boards={boards}
             tasks={tasks}
-            sessions={sessions}
+            sessions={liveSessions}
             providers={acp.providers}
             specialists={localizedSpecialists}
             specialistLanguage={specialistLanguage}

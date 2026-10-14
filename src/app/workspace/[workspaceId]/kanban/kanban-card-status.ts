@@ -1,42 +1,87 @@
 /**
  * Card run status derivation.
  *
- * `acpStatus` only has three values (connecting | ready | error), and the card
- * rendered `ready` as "live". But `ready` means "the ACP process is alive",
- * not "the agent is producing output" — a finished agent waiting for its next
- * prompt looked exactly like one mid-task. Users could not tell from the board
- * whether it was time to go look at the result.
+ * `acpStatus` only has three values (connecting | ready | error), and `ready`
+ * means "the ACP process is alive", not "the agent is producing output". This
+ * module folds the process status together with the live activity heartbeat
+ * (`kanban:session-activity`, last event + time) and the lane-session record
+ * into a status the board can act on without opening the card:
  *
- * This module folds the process status together with the lane-session record
- * (which does carry terminal state and activity timestamps) into a status the
- * board can actually act on.
+ *   working  — something happened recently (or a tool is still running)
+ *   stalled  — alive, mid-turn, but silent past the stall threshold
+ *   idle     — the agent finished its turn and is parked
+ *   failed   — process error, runtime error, or watchdog timeout
+ *
+ * History: the first version used a 30 s window on the lane record's
+ * `lastActivityAt`. That field is only written on lifecycle events (it is
+ * null for a running dev card in routa.db), and dsh's median gap between
+ * message chunks is 13.7 s, so cards flapped to "idle" mid-task — and the
+ * session snapshot never left `connecting`, so most cards just said
+ * "starting".
  */
 
-import type { TaskInfo } from "../types";
+import type { SessionInfo, TaskInfo } from "../types";
 
 export type KanbanCardRunStatus =
   | "queued"
   | "starting"
   | "working"
+  | "stalled"
   | "idle"
   | "completed"
   | "failed";
 
 /**
- * How recently the lane session must have emitted something to count as
- * actively working. Chosen to comfortably exceed a slow tool round-trip while
- * still flipping to "idle" within one glance of the agent going quiet.
+ * Silence longer than this, mid-turn, flips the card to "may be stuck".
+ * dsh paragraphs arrive ~14 s apart at the median; 3 min of nothing is well
+ * outside normal thinking time but still well before the default 10 min
+ * watchdog (`board-session-supervision.ts`) kills the run.
  */
-export const CARD_WORKING_ACTIVITY_WINDOW_MS = 30_000;
+export const CARD_STALL_THRESHOLD_MS = 3 * 60_000;
+
+/**
+ * A tool that is still running (a build, a test suite) legitimately stays
+ * quiet longer, so it gets a longer grace before the card calls it stuck.
+ */
+export const CARD_TOOL_STALL_THRESHOLD_MS = 6 * 60_000;
+
+/** Kept for callers that still import the old name. */
+export const CARD_WORKING_ACTIVITY_WINDOW_MS = CARD_STALL_THRESHOLD_MS;
 
 type AcpStatus = "connecting" | "ready" | "error" | undefined;
+
+export type CardSessionActivity = Pick<
+  SessionInfo,
+  | "acpStatus"
+  | "acpError"
+  | "lastActivityAt"
+  | "lastEventType"
+  | "lastToolName"
+  | "lastToolStatus"
+  | "terminalState"
+  | "terminalReason"
+>;
 
 export interface ResolveCardRunStatusInput {
   task: Pick<TaskInfo, "columnId" | "triggerSessionId" | "laneSessions">;
   acpStatus: AcpStatus;
+  /** Live session heartbeat; wins over the lane record when present. */
+  session?: CardSessionActivity;
   queuePosition?: number;
   /** Injected for deterministic tests. */
   now?: number;
+}
+
+export interface CardActivityDetail {
+  status: KanbanCardRunStatus;
+  /** ms since the last observed activity, when known. */
+  quietMs?: number;
+  /** Tool still running, e.g. "Bash". */
+  runningTool?: string;
+  /** Agent finished its turn (parked, waiting for the next prompt). */
+  turnDone: boolean;
+  /** Why it failed, when known. */
+  failureReason?: string;
 }
 
 function toTimestamp(value: string | undefined): number | undefined {
@@ -57,38 +102,71 @@ function findCurrentLaneSession(task: ResolveCardRunStatusInput["task"]) {
     .sort((left, right) => (toTimestamp(right.startedAt) ?? 0) - (toTimestamp(left.startedAt) ?? 0))[0];
 }
 
-export function resolveCardRunStatus({
+function isToolStillRunning(session: CardSessionActivity | undefined): boolean {
+  if (!session?.lastEventType) return false;
+  if (session.lastEventType !== "tool_call" && session.lastEventType !== "tool_call_update") return false;
+  return session.lastToolStatus !== "completed" && session.lastToolStatus !== "failed";
+}
+
+export function describeCardActivity({
   task,
   acpStatus,
+  session,
   queuePosition,
   now = Date.now(),
-}: ResolveCardRunStatusInput): KanbanCardRunStatus {
-  if (queuePosition) return "queued";
-  if (acpStatus === "error") return "failed";
-  if (acpStatus === "connecting") return "starting";
-
+}: ResolveCardRunStatusInput): CardActivityDetail {
   const laneSession = findCurrentLaneSession(task);
+  const lastActivityAt = toTimestamp(session?.lastActivityAt)
+    ?? toTimestamp(laneSession?.lastActivityAt);
+  const quietMs = lastActivityAt === undefined ? undefined : Math.max(0, now - lastActivityAt);
+  const toolRunning = isToolStillRunning(session);
+  const runningTool = toolRunning ? session?.lastToolName : undefined;
+  // terminalState is sticky across prompts, so only trust it when no newer
+  // event type has been recorded.
+  const turnDone = session?.lastEventType === "turn_complete"
+    || (session?.terminalState === "completed" && !session.lastEventType);
+  const base = { quietMs, runningTool, turnDone };
+
+  if (queuePosition) return { ...base, status: "queued" };
+  if (acpStatus === "error") {
+    return { ...base, status: "failed", failureReason: session?.acpError ?? session?.terminalReason };
+  }
+  if (session?.terminalState === "failed" || session?.terminalState === "timed_out") {
+    return { ...base, status: "failed", failureReason: session.terminalReason };
+  }
 
   // Terminal lane state wins over the process being alive: a completed run
   // whose process lingers is "completed", not "live".
-  if (laneSession?.status === "failed" || laneSession?.status === "timed_out") return "failed";
-  if (laneSession?.status === "completed" || laneSession?.status === "transitioned") return "completed";
+  if (laneSession?.status === "failed" || laneSession?.status === "timed_out") {
+    return { ...base, status: "failed", failureReason: session?.terminalReason };
+  }
+  if (laneSession?.status === "completed" || laneSession?.status === "transitioned") {
+    return { ...base, status: "completed" };
+  }
 
-  if (acpStatus !== "ready") {
+  // A heartbeat proves the process is up even if the status snapshot still
+  // says "connecting".
+  const alive = acpStatus === "ready" || (acpStatus === "connecting" && lastActivityAt !== undefined);
+  if (acpStatus === "connecting" && !alive) return { ...base, status: "starting" };
+
+  if (!alive) {
     // No live process. Done/blocked columns are terminal by definition.
-    if (task.columnId === "done") return "completed";
-    return "idle";
+    if (task.columnId === "done") return { ...base, status: "completed" };
+    return { ...base, status: "idle" };
   }
 
-  // Process alive: distinguish actually-working from parked-and-waiting.
-  const lastActivityAt = toTimestamp(laneSession?.lastActivityAt)
-    ?? toTimestamp(laneSession?.startedAt);
-  if (lastActivityAt === undefined) {
-    // Alive but no activity record at all — treat as working so a fresh run is
-    // not mislabelled idle before its first event lands.
-    return "working";
+  if (turnDone) return { ...base, status: "idle" };
+
+  if (quietMs === undefined) {
+    // Alive but nothing observed yet — a fresh run, not a stuck one.
+    return { ...base, status: "working" };
   }
-  return now - lastActivityAt <= CARD_WORKING_ACTIVITY_WINDOW_MS ? "working" : "idle";
+  const threshold = toolRunning ? CARD_TOOL_STALL_THRESHOLD_MS : CARD_STALL_THRESHOLD_MS;
+  return { ...base, status: quietMs <= threshold ? "working" : "stalled" };
+}
+
+export function resolveCardRunStatus(input: ResolveCardRunStatusInput): KanbanCardRunStatus {
+  return describeCardActivity(input).status;
 }
 
 /** i18n key under the `kanban` dictionary for each status. */
@@ -100,6 +178,8 @@ export function cardRunStatusLabelKey(status: KanbanCardRunStatus): string {
       return "starting";
     case "working":
       return "working";
+    case "stalled":
+      return "stalled";
     case "completed":
       return "completed";
     case "failed":
@@ -118,6 +198,8 @@ export function cardRunStatusTone(status: KanbanCardRunStatus): string {
       return "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:ring-sky-900/40";
     case "working":
       return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40";
+    case "stalled":
+      return "bg-orange-100 text-orange-700 ring-1 ring-inset ring-orange-300 dark:bg-orange-900/25 dark:text-orange-300 dark:ring-orange-900/50";
     case "completed":
       return "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/10 dark:text-emerald-300 dark:ring-emerald-900/30";
     case "failed":
@@ -135,6 +217,8 @@ export function cardRunStatusDotClass(status: KanbanCardRunStatus): string {
       return "animate-pulse bg-emerald-500";
     case "starting":
       return "animate-pulse bg-sky-500";
+    case "stalled":
+      return "bg-orange-500";
     case "failed":
       return "bg-rose-500";
     case "completed":

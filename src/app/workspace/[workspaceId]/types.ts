@@ -27,6 +27,13 @@ export interface SessionInfo {
   parentSessionId?: string;
   specialistId?: string;
   createdAt: string;
+  /** Live activity, from GET /api/sessions and the kanban:session-activity push. */
+  lastActivityAt?: string;
+  lastEventType?: string;
+  lastToolName?: string;
+  lastToolStatus?: string;
+  terminalState?: "completed" | "failed" | "timed_out";
+  terminalReason?: string;
 }
 
 export interface TaskRunInfo {

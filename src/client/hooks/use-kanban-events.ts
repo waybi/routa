@@ -38,6 +38,22 @@ export interface KanbanSessionTailPayload {
   timestamp?: string;
 }
 
+/** Mirrors KanbanSessionActivityEvent from the server broadcaster. */
+export interface KanbanSessionActivityPayload {
+  type: "kanban:session-activity";
+  workspaceId: string;
+  sessionId: string;
+  acpStatus?: "connecting" | "ready" | "error";
+  acpError?: string;
+  lastActivityAt?: string;
+  lastEventType?: string;
+  lastToolName?: string;
+  lastToolStatus?: string;
+  terminalState?: "completed" | "failed" | "timed_out";
+  terminalReason?: string;
+  timestamp?: string;
+}
+
 interface UseKanbanEventsOptions {
   workspaceId: string;
   onInvalidate: () => void;
@@ -54,6 +70,11 @@ interface UseKanbanEventsOptions {
    * /tail poll; the server debounces so a token stream arrives as one update.
    */
   onSessionTail?: (event: KanbanSessionTailPayload) => void;
+  /**
+   * Called on a live session's heartbeat (process status + last activity),
+   * so cards can tell working from quiet from errored without a refetch.
+   */
+  onSessionActivity?: (event: KanbanSessionActivityPayload) => void;
 }
 
 export function useKanbanEvents({
@@ -61,6 +82,7 @@ export function useKanbanEvents({
   onInvalidate,
   onTaskLifecycle,
   onSessionTail,
+  onSessionActivity,
   replayOnFreshLoad = true,
 }: UseKanbanEventsOptions): void {
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -72,6 +94,7 @@ export function useKanbanEvents({
   const onInvalidateRef = useRef(onInvalidate);
   const onTaskLifecycleRef = useRef(onTaskLifecycle);
   const onSessionTailRef = useRef(onSessionTail);
+  const onSessionActivityRef = useRef(onSessionActivity);
   const connectSseRef = useRef<() => void>(() => {});
   // Last `id:` we saw. Native EventSource reconnects send it as
   // Last-Event-ID automatically; our manual reconnect (after onerror) opens
@@ -98,6 +121,10 @@ export function useKanbanEvents({
   useEffect(() => {
     onSessionTailRef.current = onSessionTail;
   }, [onSessionTail]);
+
+  useEffect(() => {
+    onSessionActivityRef.current = onSessionActivity;
+  }, [onSessionActivity]);
 
   const connectSSE = useCallback(() => {
     if (eventSourceRef.current) {
@@ -142,6 +169,11 @@ export function useKanbanEvents({
         if (data.type === "kanban:session-tail") {
           // Caption-only: no card data changed, so no invalidate.
           onSessionTailRef.current?.(data as unknown as KanbanSessionTailPayload);
+          return;
+        }
+        if (data.type === "kanban:session-activity") {
+          // Heartbeat only: patches the session in place, no board refetch.
+          onSessionActivityRef.current?.(data as unknown as KanbanSessionActivityPayload);
           return;
         }
         if (data.type === "fitness:changed") {

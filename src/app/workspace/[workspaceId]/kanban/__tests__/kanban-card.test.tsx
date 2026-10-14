@@ -285,3 +285,55 @@ story:
     expect(screen.queryByText(/```yaml/i)).toBeNull();
   });
 });
+
+describe("KanbanCard run activity", () => {
+  function renderWithSession(session: Record<string, unknown>) {
+    return render(
+      <KanbanCard
+        task={buildTask({ triggerSessionId: "s1" })}
+        boardColumns={boardColumns}
+        linkedSession={{ sessionId: "s1", cwd: "/tmp", workspaceId: "ws", createdAt: new Date().toISOString(), ...session }}
+        specialistLanguage="en"
+        availableProviders={[]}
+        specialists={[]}
+        codebases={[]}
+        allCodebaseIds={[]}
+        worktreeCache={{}}
+        onOpenDetail={vi.fn()}
+        onDelete={vi.fn()}
+        onPatchTask={vi.fn()}
+        onRetryTrigger={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows working with the running tool instead of a stale 'starting'", () => {
+    renderWithSession({
+      acpStatus: "connecting",
+      lastActivityAt: new Date(Date.now() - 20_000).toISOString(),
+      lastEventType: "tool_call",
+      lastToolName: "Bash",
+      lastToolStatus: "running",
+    });
+    expect(screen.getByTestId("kanban-card-run-status").getAttribute("data-run-status")).toBe("working");
+    expect(screen.getByTestId("kanban-card-activity").textContent).toContain("running Bash");
+    expect(screen.queryByText("Starting")).toBeNull();
+  });
+
+  it("calls out a silent run as possibly stuck", () => {
+    renderWithSession({
+      acpStatus: "ready",
+      lastActivityAt: new Date(Date.now() - 7 * 60_000).toISOString(),
+      lastEventType: "agent_message",
+    });
+    expect(screen.getByTestId("kanban-card-run-status").textContent).toContain("May be stuck");
+    expect(screen.getByTestId("kanban-card-activity").textContent).toContain("silent for 7 min");
+  });
+
+  it("shows the failure reason on the card face", () => {
+    renderWithSession({ acpStatus: "error", acpError: "dsh exited with code 1" });
+    expect(screen.getByTestId("kanban-card-run-status").getAttribute("data-run-status")).toBe("failed");
+    expect(screen.getByTestId("kanban-card-activity").textContent).toContain("dsh exited with code 1");
+  });
+});
