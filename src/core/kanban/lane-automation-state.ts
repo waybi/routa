@@ -100,14 +100,28 @@ export function resolveCurrentLaneAutomationState(
     | "assignedSpecialistName"
   >,
   boardColumns: KanbanColumn[] = [],
-  options?: { currentSessionId?: string },
+  options?: {
+    currentSessionId?: string;
+    /**
+     * Index of the step being launched in the current column. A session that is
+     * just starting is not in `laneSessions` yet, so session lookup would fall
+     * back to the previous step's `triggerSessionId`; an in-range index wins.
+     */
+    currentStepIndex?: number;
+  },
 ): CurrentLaneAutomationState {
   const currentColumnId = task.columnId ?? "backlog";
   const currentColumn = boardColumns.find((column) => column.id === currentColumnId);
   const steps = getKanbanAutomationSteps(currentColumn?.automation);
   const currentSession = findCurrentLaneSession(task, currentColumnId, options?.currentSessionId);
+  const explicitStepIndex = options?.currentStepIndex;
 
-  let currentStepIndex = currentSession?.stepIndex;
+  let currentStepIndex = typeof explicitStepIndex === "number"
+    && Number.isInteger(explicitStepIndex)
+    && explicitStepIndex >= 0
+    && explicitStepIndex < steps.length
+    ? explicitStepIndex
+    : currentSession?.stepIndex;
   if (
     typeof currentStepIndex !== "number"
     || currentStepIndex < 0
@@ -169,4 +183,71 @@ export function buildRemainingLaneStepsMessage(
     ?? `step ${typeof state.currentStepIndex === "number" ? state.currentStepIndex + 2 : 2}`;
 
   return `Cannot move "${taskTitle}" out of ${state.currentColumn?.name ?? state.currentColumnId} yet: ${currentLabel} is still active and ${nextLabel} must run next in the same lane.`;
+}
+
+function isSameAutomationStep(
+  candidate: Partial<Pick<KanbanAutomationStep, "id" | "specialistId" | "specialistName">> | undefined,
+  step: Partial<Pick<KanbanAutomationStep, "id" | "specialistId" | "specialistName">>,
+): boolean {
+  if (!candidate) return false;
+  if (step.id && candidate.id) return candidate.id === step.id;
+  if (step.specialistId && candidate.specialistId) return candidate.specialistId === step.specialistId;
+  if (step.specialistName && candidate.specialistName) return candidate.specialistName === step.specialistName;
+  return false;
+}
+
+/**
+ * Index of the step being launched within `steps`. An explicit `stepIndex` is
+ * trusted only when it is in range and, if `step` is known, points at that
+ * step; otherwise the step is matched by id, then specialist id/name.
+ * Returns `undefined` when nothing matches, so callers keep their existing
+ * fallback instead of assuming the last step.
+ */
+export function resolveLaunchStepIndex(
+  steps: KanbanAutomationStep[],
+  step: Partial<Pick<KanbanAutomationStep, "id" | "specialistId" | "specialistName">> | undefined,
+  stepIndex: number | undefined,
+): number | undefined {
+  const inRange = typeof stepIndex === "number"
+    && Number.isInteger(stepIndex)
+    && stepIndex >= 0
+    && stepIndex < steps.length;
+  if (!step) {
+    return inRange ? stepIndex : undefined;
+  }
+  if (inRange && isSameAutomationStep(steps[stepIndex!], step)) {
+    return stepIndex;
+  }
+  const matched = steps.findIndex((candidate) => isSameAutomationStep(candidate, step));
+  return matched >= 0 ? matched : undefined;
+}
+
+/**
+ * Shared "later steps still have to run" guard for moving a card out of its
+ * lane (PATCH /api/tasks/{id} and the move_card tool). Resolves the current
+ * step from the lane's trigger session with the same function the lane prompt
+ * uses, and returns the blocking message, or `undefined` when the move may go on.
+ */
+export function resolveRemainingLaneStepsMoveBlock(
+  task: Pick<
+    Task,
+    | "title"
+    | "columnId"
+    | "triggerSessionId"
+    | "laneSessions"
+    | "laneHandoffs"
+    | "assignedProvider"
+    | "assignedRole"
+    | "assignedSpecialistId"
+    | "assignedSpecialistName"
+  >,
+  boardColumns: KanbanColumn[],
+): string | undefined {
+  if (!task.triggerSessionId) {
+    return undefined;
+  }
+  const laneAutomationState = resolveCurrentLaneAutomationState(task, boardColumns, {
+    currentSessionId: task.triggerSessionId,
+  });
+  return buildRemainingLaneStepsMessage(task.title, laneAutomationState);
 }

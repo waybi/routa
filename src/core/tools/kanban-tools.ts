@@ -42,7 +42,7 @@ import {
   upsertTaskLaneHandoff,
 } from "../kanban/task-lane-history";
 import { finalizeActiveTaskSession } from "../kanban/task-session-transition";
-import { buildRemainingLaneStepsMessage, resolveCurrentLaneAutomationState } from "../kanban/lane-automation-state";
+import { resolveRemainingLaneStepsMoveBlock } from "../kanban/lane-automation-state";
 import { getInternalApiOrigin } from "../kanban/agent-trigger";
 import {
   formatRequiredTaskFieldLabel,
@@ -324,11 +324,8 @@ export class KanbanTools {
     const allowReviewFallbackToDev = fromColumnId === "review"
       && params.targetColumnId === "dev"
       && task.verificationVerdict === "NOT_APPROVED";
-    if (fromColumnId !== params.targetColumnId && task.triggerSessionId && !allowReviewFallbackToDev) {
-      const laneAutomationState = resolveCurrentLaneAutomationState(task, board.columns, {
-        currentSessionId: task.triggerSessionId,
-      });
-      const moveBlockedMessage = buildRemainingLaneStepsMessage(task.title, laneAutomationState);
+    if (fromColumnId !== params.targetColumnId && !allowReviewFallbackToDev) {
+      const moveBlockedMessage = resolveRemainingLaneStepsMoveBlock(task, board.columns);
       if (moveBlockedMessage) {
         return errorResult(moveBlockedMessage);
       }

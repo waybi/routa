@@ -254,6 +254,7 @@ async function startKanbanTaskSession(
     branch: worktreeBranch,
     task: taskForSession,
     step: sessionStep,
+    stepIndex: sessionStepIndex,
     specialistLocale: sessionStep?.specialistLocale ?? effectiveAutomation.step?.specialistLocale,
     boardColumns: board?.columns ?? [],
     summaryContext,

@@ -28,7 +28,7 @@ import {
   getKanbanSessionQueue,
   processKanbanColumnTransition,
 } from "@/core/kanban/workflow-orchestrator-singleton";
-import { buildRemainingLaneStepsMessage, resolveCurrentLaneAutomationState } from "@/core/kanban/lane-automation-state";
+import { resolveRemainingLaneStepsMoveBlock } from "@/core/kanban/lane-automation-state";
 import {
   buildTaskEvidenceSummary,
   buildTaskInvestValidation,
@@ -400,11 +400,8 @@ export async function PATCH(
       && targetColumnId === "dev"
       && incomingVerificationVerdict === VerificationVerdict.NOT_APPROVED;
     if (boardId && board) {
-        if (existing.triggerSessionId && !allowReviewFallbackToDev) {
-          const laneAutomationState = resolveCurrentLaneAutomationState(existing, board.columns, {
-            currentSessionId: existing.triggerSessionId,
-          });
-          const moveBlockedMessage = buildRemainingLaneStepsMessage(existing.title, laneAutomationState);
+        if (!allowReviewFallbackToDev) {
+          const moveBlockedMessage = resolveRemainingLaneStepsMoveBlock(existing, board.columns);
           if (moveBlockedMessage) {
             return NextResponse.json({ error: moveBlockedMessage }, { status: 400 });
           }

@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildTaskPrompt, resolveKanbanAutomationProvider, triggerAssignedTaskAgent } from "../agent-trigger";
 import { createTask } from "../../models/task";
+import type { KanbanColumn } from "../../models/kanban";
 import { AgentEventType, type EventBus } from "../../events/event-bus";
 import { saveReasoningMemory } from "@/core/harness/reasoning-memory";
 
@@ -30,6 +31,54 @@ vi.mock("../../a2a", () => ({
 }));
 
 import { isClaudeCodeSdkConfigured } from "../../acp/claude-code-sdk-adapter";
+
+const twoStepReviewColumns: KanbanColumn[] = [
+  { id: "dev", name: "Dev", position: 0, stage: "dev" },
+  {
+    id: "review",
+    name: "Review",
+    position: 1,
+    stage: "review",
+    automation: {
+      enabled: true,
+      steps: [
+        { id: "qa-frontend", role: "GATE", specialistId: "kanban-qa-frontend", specialistName: "QA Frontend" },
+        { id: "review-guard", role: "GATE", specialistId: "kanban-review-guard", specialistName: "Review Guard" },
+      ],
+      requiredArtifacts: ["screenshot", "test_results"],
+    },
+  },
+  { id: "done", name: "Done", position: 2, stage: "done" },
+];
+
+/** Review card whose triggerSessionId still points at the finished QA Frontend step. */
+function buildReviewTaskAfterQaFrontend(assignedStep: "qa" | "guard") {
+  return {
+    ...createTask({
+      id: "task-review-steps",
+      title: "Two-step review",
+      objective: "QA Frontend then Review Guard",
+      workspaceId: "default",
+      boardId: "board-1",
+      columnId: "review",
+      assignedProvider: "codex",
+      assignedRole: "GATE",
+      assignedSpecialistId: assignedStep === "guard" ? "kanban-review-guard" : "kanban-qa-frontend",
+      assignedSpecialistName: assignedStep === "guard" ? "Review Guard" : "QA Frontend",
+      triggerSessionId: "session-qa-frontend",
+    }),
+    laneSessions: [{
+      sessionId: "session-qa-frontend",
+      columnId: "review",
+      stepIndex: 0,
+      stepId: "qa-frontend",
+      role: "GATE",
+      specialistId: "kanban-qa-frontend",
+      status: "completed" as const,
+      startedAt: "2026-10-15T00:00:00.000Z",
+    }],
+  };
+}
 
 describe("buildTaskPrompt", () => {
   it("keeps backlog automation in planning mode", () => {
@@ -681,6 +730,27 @@ describe("buildTaskPrompt", () => {
     expect(prompt).toContain("Verifier");
     expect(prompt).not.toContain('targetColumnId: "dev"');
   });
+
+  it("does not tell the last review step that it is still pending when triggerSessionId points at the previous step", () => {
+    const prompt = buildTaskPrompt(buildReviewTaskAfterQaFrontend("guard"), twoStepReviewColumns, {
+      currentSessionId: "session-review-guard",
+      currentStepIndex: 1,
+    });
+
+    expect(prompt).not.toMatch(/still has .* pending/);
+    expect(prompt).not.toContain("Do not call `move_card` to leave review yet");
+    expect(prompt).toContain('targetColumnId: "done"');
+  });
+
+  it("still tells the first review step that Review Guard is pending", () => {
+    const prompt = buildTaskPrompt(buildReviewTaskAfterQaFrontend("qa"), twoStepReviewColumns, {
+      currentSessionId: "session-qa-frontend-2",
+      currentStepIndex: 0,
+    });
+
+    expect(prompt).toContain("This lane still has Review Guard pending");
+    expect(prompt).not.toContain('targetColumnId: "done"');
+  });
 });
 
 describe("triggerAssignedTaskAgent", () => {
@@ -840,6 +910,38 @@ describe("triggerAssignedTaskAgent ACP prompt lifecycle", () => {
       type: AgentEventType.AGENT_COMPLETED,
       agentId: "sess-1",
     }));
+  });
+
+  it("builds the launching step's prompt from the step being started, not the previous triggerSessionId", async () => {
+    for (const [assignedStep, stepIndex, sessionId] of [["guard", 1, "sess-review-guard"], ["qa", 0, "sess-qa-frontend"]] as const) {
+      dispatchSessionPromptMock.mockReset();
+      dispatchSessionPromptMock.mockResolvedValue(undefined);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: "new",
+        result: { sessionId },
+      }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+      await triggerAssignedTaskAgent({
+        origin: "http://127.0.0.1:3000",
+        workspaceId: "default",
+        cwd: "/tmp/project",
+        task: buildReviewTaskAfterQaFrontend(assignedStep),
+        step: twoStepReviewColumns[1]!.automation!.steps![stepIndex],
+        stepIndex,
+        boardColumns: twoStepReviewColumns,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const promptText = String(dispatchSessionPromptMock.mock.calls[0]?.[0]?.prompt?.[0]?.text ?? "");
+      expect(promptText).not.toBe("");
+      if (assignedStep === "guard") {
+        expect(promptText).not.toMatch(/still has .* pending/);
+        expect(promptText).toContain('targetColumnId: "done"');
+      } else {
+        expect(promptText).toContain("This lane still has Review Guard pending");
+      }
+    }
   });
 
   it("sets the kanban planning MCP profile when the lane needs artifact evidence", async () => {

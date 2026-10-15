@@ -13,9 +13,9 @@ import { getA2AOutboundClient } from "../a2a";
 import { resolveA2AAuthConfig } from "../a2a/a2a-auth-config";
 import { formatArtifactSummary, resolveKanbanTransitionArtifacts } from "./transition-artifacts";
 import type { TaskLaneSession } from "../models/task";
-import { resolveCurrentLaneAutomationState } from "./lane-automation-state";
+import { resolveCurrentLaneAutomationState, resolveLaunchStepIndex } from "./lane-automation-state";
 import { getLatestLaneSessionForColumn, getPreviousLaneRun } from "./task-lane-history";
-import type { KanbanAutomationStep, KanbanTransport } from "../models/kanban";
+import { getKanbanAutomationSteps, type KanbanAutomationStep, type KanbanTransport } from "../models/kanban";
 import type { McpServerProfile } from "../mcp/mcp-server-profiles";
 import type { FlowDiagnosisReport } from "./flow-ledger-types";
 import { formatFlowGuidanceForPrompt } from "./flow-ledger";
@@ -256,7 +256,13 @@ export function getInternalApiOrigin(): string {
 export function buildTaskPrompt(
   task: Task,
   boardColumns: KanbanColumn[] = [],
-  options?: { currentSessionId?: string; summaryContext?: TaskPromptSummaryContext; flowReport?: FlowDiagnosisReport },
+  options?: {
+    currentSessionId?: string;
+    /** Index of the lane step this prompt launches; see resolveCurrentLaneAutomationState. */
+    currentStepIndex?: number;
+    summaryContext?: TaskPromptSummaryContext;
+    flowReport?: FlowDiagnosisReport;
+  },
 ): string {
   const labels = task.labels.length > 0 ? `Labels: ${task.labels.join(", ")}` : "Labels: none";
   const currentColumnId = task.columnId ?? "backlog";
@@ -668,6 +674,7 @@ async function triggerAcpTaskAgent(params: {
   task: Task;
   specialistLocale?: string;
   boardColumns: KanbanColumn[];
+  currentStepIndex?: number;
   summaryContext?: TaskPromptSummaryContext;
   flowReport?: FlowDiagnosisReport;
   eventBus?: EventBus;
@@ -726,6 +733,7 @@ async function triggerAcpTaskAgent(params: {
         type: "text",
         text: buildTaskPrompt(params.task, params.boardColumns, {
           currentSessionId: sessionId,
+          currentStepIndex: params.currentStepIndex,
           summaryContext: params.summaryContext,
           flowReport: params.flowReport,
         }),
@@ -763,6 +771,7 @@ async function triggerA2ATaskAgent(params: {
   task: Task;
   boardColumns: KanbanColumn[];
   step?: KanbanAutomationStep;
+  currentStepIndex?: number;
   summaryContext?: TaskPromptSummaryContext;
   flowReport?: FlowDiagnosisReport;
   eventBus?: EventBus;
@@ -805,6 +814,7 @@ async function triggerA2ATaskAgent(params: {
     agentCardUrl,
     buildTaskPrompt(params.task, params.boardColumns, {
       currentSessionId: localSessionId,
+      currentStepIndex: params.currentStepIndex,
       summaryContext: params.summaryContext,
       flowReport: params.flowReport,
     }),
@@ -859,6 +869,8 @@ export async function triggerAssignedTaskAgent(params: {
   branch?: string;
   task: Task;
   step?: KanbanAutomationStep;
+  /** Index of `step` within the task's current column steps, when the caller knows it. */
+  stepIndex?: number;
   specialistLocale?: string;
   boardColumns?: KanbanColumn[];
   summaryContext?: TaskPromptSummaryContext;
@@ -872,6 +884,7 @@ export async function triggerAssignedTaskAgent(params: {
     branch,
     task,
     step,
+    stepIndex,
     specialistLocale,
     boardColumns = [],
     summaryContext,
@@ -879,12 +892,19 @@ export async function triggerAssignedTaskAgent(params: {
     eventBus,
   } = params;
   const transport = getStepTransport(step);
+  const currentColumn = boardColumns.find((column) => column.id === (task.columnId ?? "backlog"));
+  const currentStepIndex = resolveLaunchStepIndex(
+    getKanbanAutomationSteps(currentColumn?.automation),
+    step,
+    stepIndex,
+  );
   const runHandle = transport === "a2a"
     ? await triggerA2ATaskAgent({
         workspaceId,
         task,
         boardColumns,
         step,
+        currentStepIndex,
         summaryContext,
         flowReport,
         eventBus,
@@ -897,6 +917,7 @@ export async function triggerAssignedTaskAgent(params: {
         task,
         specialistLocale,
         boardColumns,
+        currentStepIndex,
         summaryContext,
         flowReport,
         eventBus,
