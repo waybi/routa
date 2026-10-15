@@ -43,10 +43,7 @@ import {
   registerSummarizeTaskHistoryContextTool,
 } from "./task-adaptive-mcp-tools";
 import type { McpServerProfile } from "./mcp-server-profiles";
-import {
-  blockedUpdateTaskFieldsForProfile,
-  updateTaskBoundaryError,
-} from "./mcp-task-write-boundary";
+import { protectedUpdateTaskFieldNote, resolveBlockedUpdateTaskFields, updateTaskBoundaryError } from "./mcp-task-write-boundary";
 
 /**
  * Tool registration mode for MCP server.
@@ -367,12 +364,14 @@ export class RoutaMcpToolManager {
   }
 
   private registerUpdateTask(server: McpServer) {
+    // Keep protected fields in the zod shape; the SDK would silently strip them (`updatedFields: []`).
+    const note = (field: string) => protectedUpdateTaskFieldNote(field, this.mcpProfile);
     const protectedWorkflowFields = {
-      status: z.string().optional().describe("Update the task status"),
-      completionSummary: z.string().optional().describe("Set completion summary"),
-      verificationVerdict: z.enum(["APPROVED", "NOT_APPROVED", "BLOCKED"]).optional().describe("Set verification verdict"),
-      verificationReport: z.string().optional().describe("Set verification report"),
-      assignedTo: z.string().optional().describe("Assign to agent ID"),
+      status: z.string().optional().describe(`Update the task status${note("status")}`),
+      completionSummary: z.string().optional().describe(`Set completion summary${note("completionSummary")}`),
+      verificationVerdict: z.enum(["APPROVED", "NOT_APPROVED", "BLOCKED"]).optional().describe(`Set verification verdict${note("verificationVerdict")}`),
+      verificationReport: z.string().optional().describe(`Set verification report${note("verificationReport")}`),
+      assignedTo: z.string().optional().describe(`Assign to agent ID${note("assignedTo")}`),
     };
     const inputSchema = {
       taskId: z.string().describe("ID of the task to update"),
@@ -386,17 +385,18 @@ export class RoutaMcpToolManager {
       testCases: z.array(z.string()).optional().describe("Update test cases"),
       contextSearchSpec: taskContextSearchSpecSchema.optional().describe("Confirmed retrieval hints for JIT Context and history search. In backlog planning, only persist this after repo inspection or load_feature_tree_context confirms the feature/files."),
       jitContextAnalysis: taskJitContextAnalysisSchema.nullable().optional().describe("Structured JIT/history analysis to persist on the task for later reuse."),
-      ...(this.mcpProfile === "kanban-planning" ? {} : protectedWorkflowFields),
+      ...protectedWorkflowFields,
     };
 
     server.tool(
       "update_task",
       this.mcpProfile === "kanban-planning"
-        ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, verification verdict, or assignment metadata; use move_card and gate-specific tools for workflow transitions. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate."
+        ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, or assignment metadata; use move_card and gate-specific tools for workflow transitions. Only the Review lane GATE session of this card may set verificationVerdict/verificationReport. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate."
         : "Atomically update structured task fields with optimistic locking. Use this for story-readiness fields such as scope, acceptance criteria, verification commands, and test cases. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate. agentId is optional for Kanban sessions.",
       inputSchema,
       async (params) => {
-        const blockedFields = blockedUpdateTaskFieldsForProfile(params, this.mcpProfile);
+        const blockedFields = await resolveBlockedUpdateTaskFields(params, this.mcpProfile, async () => (
+          this.kanbanTools?.canSessionWriteVerificationVerdict(params.taskId, this.sessionId) ?? false));
         if (blockedFields.length > 0 && this.mcpProfile) {
           return this.toMcpResult({
             success: false,

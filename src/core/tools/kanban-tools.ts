@@ -71,6 +71,7 @@ import {
   countContractGateFailures,
 } from "../kanban/task-contract-readiness";
 import { evaluateTaskDescriptionWriteGuard } from "../kanban/task-description-write-guard";
+import { canSessionWriteVerificationVerdict } from "../kanban/review-verdict-authority";
 import { cleanupDanglingDependencyReferences } from "../kanban/task-dependency-cleanup";
 import {
   evaluateKanbanTransitionGates,
@@ -281,6 +282,17 @@ export class KanbanTools {
       ...this.taskToCard(task),
       warnings: filteredContextSearchSpec.warning ? [filteredContextSearchSpec.warning] : [],
     });
+  }
+
+  /**
+   * Whether `sessionId` may record the review verdict on `taskId`: it must be a
+   * GATE lane session of the task's current Review-stage column.
+   */
+  async canSessionWriteVerificationVerdict(taskId: string, sessionId: string | undefined): Promise<boolean> {
+    const task = taskId && sessionId ? await this.taskStore.get(taskId) : undefined;
+    if (!task) return false;
+    const board = task.boardId ? await this.kanbanBoardStore.get(task.boardId) : undefined;
+    return canSessionWriteVerificationVerdict(task, sessionId, board?.columns ?? []);
   }
 
   async moveCard(params: {

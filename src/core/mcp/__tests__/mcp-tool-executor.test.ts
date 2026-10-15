@@ -302,8 +302,10 @@ describe("executeMcpTool", () => {
     expect(properties).toHaveProperty("acceptanceCriteria");
     expect(properties).not.toHaveProperty("status");
     expect(properties).not.toHaveProperty("completionSummary");
-    expect(properties).not.toHaveProperty("verificationVerdict");
     expect(properties).not.toHaveProperty("assignedTo");
+    // Exposed so the Review lane GATE session can record its verdict; other
+    // sessions are rejected at execution time.
+    expect(properties).toHaveProperty("verificationVerdict");
   });
 
   it("blocks kanban-planning update_task calls that try to write workflow metadata", async () => {

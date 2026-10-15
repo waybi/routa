@@ -19,10 +19,7 @@ import {
 import { readFeatureTreeSpecResource } from "@/core/spec/feature-tree-spec-resource-contract";
 import { ToolMode } from "./routa-mcp-tool-manager";
 import { getMcpProfileToolAllowlist, type McpServerProfile } from "./mcp-server-profiles";
-import {
-  blockedUpdateTaskFieldsForProfile,
-  updateTaskBoundaryError,
-} from "./mcp-task-write-boundary";
+import { KANBAN_PLANNING_VERDICT_PROPERTIES, resolveBlockedUpdateTaskFields, updateTaskBoundaryError } from "./mcp-task-write-boundary";
 import { parseTaskJitContextAnalysis } from "../models/task";
 import {
   CONFIRM_FEATURE_TREE_STORY_CONTEXT_DESCRIPTION,
@@ -192,7 +189,7 @@ function buildUpdateTaskToolDefinition(mcpProfile?: McpServerProfile) {
   };
 
   const properties = mcpProfile === "kanban-planning"
-    ? baseProperties
+    ? { ...baseProperties, ...KANBAN_PLANNING_VERDICT_PROPERTIES }
     : {
         ...baseProperties,
         status: { type: "string" },
@@ -205,7 +202,7 @@ function buildUpdateTaskToolDefinition(mcpProfile?: McpServerProfile) {
   return {
     name: "update_task",
     description: mcpProfile === "kanban-planning"
-      ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, verification verdict, or assignment metadata; use move_card and gate-specific tools for workflow transitions. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate."
+      ? "Update story-readiness task fields. This profile cannot change status, lane, dependencies, completion, or assignment metadata; use move_card and gate-specific tools for workflow transitions. Only the Review lane GATE session of this card may set verificationVerdict/verificationReport. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate."
       : "Atomically update structured task fields with optimistic locking. Use this for story-readiness fields such as scope, acceptance criteria, verification commands, and test cases. `objective` is the SAME stored field as update_card `description` — do not resend a short objective after writing the full description via update_card, or it will be rejected by the contract gate. agentId is optional for Kanban sessions. In backlog planning, only persist contextSearchSpec after repo inspection or feature-tree lookup confirms the feature/files.",
     inputSchema: {
       type: "object",
@@ -343,7 +340,8 @@ export async function executeMcpTool(
       );
     case "update_task":
       {
-        const blockedFields = blockedUpdateTaskFieldsForProfile(args, mcpProfile);
+        const blockedFields = await resolveBlockedUpdateTaskFields(args, mcpProfile, async () => (
+          kanbanTools?.canSessionWriteVerificationVerdict(args.taskId as string, args.sessionId as string | undefined) ?? false));
         if (blockedFields.length > 0 && mcpProfile) {
           return formatResult({
             success: false,
