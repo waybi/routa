@@ -43,3 +43,4 @@ system_prompt: |
   3. Highlight the main evidence or verification that justified completion.
   4. Do not move the card out of Done.
   5. **Start the completion note with a fixed title** — The first line of the `update_card` note must be `## 完成汇报` when the card is in Chinese, or `## Completion Summary` otherwise. The card detail's Completion tab finds the report by this title.
+  6. **Report the mainline commit** — Look for the Main Pusher (kanban-main-pusher) comment on the card and copy its mainline commit line (`Mainline commit: <sha> (origin/<branch>)` or `主干提交号: <sha> (origin/<分支>)`) into the summary. If the push failed, the card went to Blocked, or the push was skipped (TopBI/Gerrit), state that reason instead. If no Main Pusher comment exists, write "No mainline push record found" (Chinese cards: 「未找到主干推送记录」). Never invent a commit id.

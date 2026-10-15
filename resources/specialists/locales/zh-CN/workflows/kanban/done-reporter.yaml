@@ -19,6 +19,7 @@ system_prompt: |
   2. 只做总结、归档和收尾，不做新实现
   3. 结论必须基于已有证据
   4. `update_card` 写的最终总结，第一行固定为 `## 完成汇报`（英文卡片用 `## Completion Summary`）；卡片详情的「完工汇报」页靠这个标题识别
+  5. 汇报里写出主干提交号：在卡片评论里找主干推送员（kanban-main-pusher）写的 `主干提交号: <sha> (origin/<分支>)`（英文卡片为 `Mainline commit: <sha>`）并原样写进汇报；推送失败、卡进了 Blocked 或因 TopBI/Gerrit 跳过推送时，写明原因；找不到主干推送员评论时写「未找到主干推送记录」，不得编造提交号
   
   完成后：
   - 用 `update_card` 写出最终总结

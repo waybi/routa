@@ -299,5 +299,18 @@ markdown prompt
       expect(pusher?.behaviorPrompt).toMatch(/Never use any force-push option|禁止任何强制推送/);
       expect(pusher?.behaviorPrompt).not.toContain("--force");
     });
+
+    it.each(loadPaths)("keeps the done reporter title rule and asks for the mainline commit (%s)", (_label, dir, locale) => {
+      const reporter = loadSpecialistsFromDirectory(dir, "bundled", locale).find(
+        (entry) => entry.id === "kanban-done-reporter"
+      );
+
+      expect(reporter).toBeDefined();
+      expect(reporter?.behaviorPrompt).toContain("## 完成汇报");
+      expect(reporter?.behaviorPrompt).toContain("## Completion Summary");
+      expect(reporter?.behaviorPrompt).toContain("主干提交号");
+      expect(reporter?.behaviorPrompt).toContain("Mainline commit");
+      expect(reporter?.behaviorPrompt).toContain("未找到主干推送记录");
+    });
   });
 });
