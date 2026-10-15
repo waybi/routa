@@ -277,4 +277,27 @@ markdown prompt
     expect(englishOverlayIds).toEqual(runtimeIds);
     expect(chineseOverlayIds).toEqual(runtimeIds);
   });
+
+  describe("bundled kanban-main-pusher", () => {
+    const bundledRoot = path.join(process.cwd(), "resources", "specialists");
+    const loadPaths: Array<[string, string, string | undefined]> = [
+      ["default", bundledRoot, undefined],
+      ["en", path.join(bundledRoot, "locales", "en"), "en"],
+      ["zh-CN", path.join(bundledRoot, "locales", "zh-CN"), "zh-CN"],
+    ];
+
+    it.each(loadPaths)("loads from the %s path with a safe push prompt", (_label, dir, locale) => {
+      const pusher = loadSpecialistsFromDirectory(dir, "bundled", locale).find(
+        (entry) => entry.id === "kanban-main-pusher"
+      );
+
+      expect(pusher).toBeDefined();
+      expect(pusher?.frontmatter.role?.trim()).toBeTruthy();
+      expect(pusher?.behaviorPrompt.trim()).toBeTruthy();
+      expect(pusher?.behaviorPrompt).toContain("merge-base --is-ancestor");
+      expect(pusher?.behaviorPrompt).toContain("git push origin HEAD:");
+      expect(pusher?.behaviorPrompt).toMatch(/Never use any force-push option|禁止任何强制推送/);
+      expect(pusher?.behaviorPrompt).not.toContain("--force");
+    });
+  });
 });
