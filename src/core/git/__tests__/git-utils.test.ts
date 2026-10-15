@@ -28,6 +28,7 @@ const {
   isGitHubUrl,
   parseGitHubUrl,
   getRepoDeliveryStatus,
+  hasBranchAuthoredCommitsOnHead,
   getBranchStatus,
   listBranches,
   listRemoteBranches,
@@ -306,6 +307,59 @@ describe("delivery and branch status helpers", () => {
         expect.arrayContaining(["merge-base"]),
         expect.anything(),
       );
+    });
+  });
+
+  describe("hasBranchAuthoredCommitsOnHead", () => {
+    const reflogCommand = "git reflog show --format=%H %gs refs/heads/issue/abc";
+
+    function mockReflog(reflog: string | Error, ancestors: Record<string, boolean>) {
+      gitExecMock.mockImplementation((args: string[]) => {
+        const command = formatGitArgs(args);
+        if (command === reflogCommand) {
+          if (reflog instanceof Error) throw reflog;
+          return reflog;
+        }
+        const match = /^git merge-base --is-ancestor (\S+) HEAD$/.exec(command);
+        if (match) {
+          if (ancestors[match[1]]) return "";
+          throw new Error("exit 1");
+        }
+        throw new Error(`Unexpected command: ${command}`);
+      });
+    }
+
+    it("is true when the branch reflog records a commit that HEAD still contains", () => {
+      mockReflog([
+        "c2 commit (amend): fix: tighten gate",
+        "c1 commit: fix: first pass",
+        "b0 branch: Created from origin/main",
+      ].join("\n"), { c2: true, c1: true });
+
+      expect(hasBranchAuthoredCommitsOnHead("/tmp/repo", "issue/abc")).toBe(true);
+    });
+
+    it("is false for a branch that was only created and never committed on", () => {
+      mockReflog("b0 branch: Created from origin/main\n", { b0: true });
+
+      expect(hasBranchAuthoredCommitsOnHead("/tmp/repo", "issue/abc")).toBe(false);
+    });
+
+    it("ignores commits that were reset away from HEAD", () => {
+      mockReflog([
+        "b0 reset: moving to origin/main",
+        "c1 commit: wip",
+        "b0 branch: Created from origin/main",
+      ].join("\n"), { b0: true, c1: false });
+
+      expect(hasBranchAuthoredCommitsOnHead("/tmp/repo", "issue/abc")).toBe(false);
+    });
+
+    it("falls back to a recorded delivery head when the reflog is unavailable", () => {
+      mockReflog(new Error("no reflog"), { snap: true });
+
+      expect(hasBranchAuthoredCommitsOnHead("/tmp/repo", "issue/abc", { fallbackSha: "snap" })).toBe(true);
+      expect(hasBranchAuthoredCommitsOnHead("/tmp/repo", "issue/abc")).toBe(false);
     });
   });
 

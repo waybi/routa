@@ -911,6 +911,47 @@ function resolveLandedOnBase(
   return false;
 }
 
+/**
+ * Whether the task branch carries commits authored on it that HEAD still
+ * contains — used to tell "my work already fast-forwarded into base" apart
+ * from "a fresh branch with nothing committed" (both have HEAD reachable from
+ * base and zero `base..HEAD` commits).
+ *
+ * Reads the branch reflog for `commit…` entries (commit, commit (amend),
+ * commit (merge), …) whose sha is still an ancestor of HEAD. Falls back to
+ * `options.fallbackSha` (e.g. a captured delivery snapshot head) when the
+ * reflog is missing, expired, or disabled. Any failure counts as `false`.
+ */
+export function hasBranchAuthoredCommitsOnHead(
+  repoPath: string,
+  branch: string | undefined,
+  options?: { fallbackSha?: string | null },
+): boolean {
+  const normalizedBranch = branch?.trim();
+  if (normalizedBranch && normalizedBranch !== "unknown" && normalizedBranch !== "HEAD") {
+    try {
+      const reflog = gitExecSync(
+        ["reflog", "show", "--format=%H %gs", `refs/heads/${normalizedBranch}`],
+        repoPath,
+      );
+      for (const line of reflog.split("\n")) {
+        const separator = line.indexOf(" ");
+        if (separator <= 0) continue;
+        const sha = line.slice(0, separator);
+        const subject = line.slice(separator + 1);
+        if (/^commit( \([^)]*\))?:/.test(subject) && isRefAncestor(repoPath, sha, "HEAD")) {
+          return true;
+        }
+      }
+    } catch {
+      // Reflog unavailable; fall through to the recorded fallback sha.
+    }
+  }
+
+  const fallbackSha = options?.fallbackSha?.trim();
+  return Boolean(fallbackSha) && isRefAncestor(repoPath, fallbackSha!, "HEAD");
+}
+
 export interface RepoLandingStatus {
   baseBranch?: string;
   baseRef?: string;

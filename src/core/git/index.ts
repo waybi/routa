@@ -22,6 +22,7 @@ export {
   getRepoDeliveryStatus,
   getRepoLandingStatus,
   getRepoRefSha,
+  hasBranchAuthoredCommitsOnHead,
   parseGitStatusPorcelain,
   getCloneBaseDir,
   repoToDirName,

@@ -1,5 +1,6 @@
 import {
   getRepoDeliveryStatus,
+  hasBranchAuthoredCommitsOnHead,
   isBareGitRepository,
   isGitRepository,
   type RepoDeliveryStatus,
@@ -40,6 +41,13 @@ export interface TaskDeliveryReadiness {
    * `null`/absent when the check could not run (no base ref, not a git repo, unchecked).
    */
   landedOnBase?: boolean | null;
+  /**
+   * The branch already landed on base (no commits left since base) and it
+   * carries commits authored on the branch itself, so its work is delivered
+   * rather than never started. Only evaluated when `landedOnBase === true`
+   * and `hasCommitsSinceBase === false`; otherwise `false`/absent.
+   */
+  hasLandedOwnCommits?: boolean;
   reason?: string;
 }
 
@@ -87,6 +95,7 @@ function mapReadiness(
     isGitHubRepo: deliveryStatus.isGitHubRepo,
     canCreatePullRequest: deliveryStatus.canCreatePullRequest,
     landedOnBase: deliveryStatus.landedOnBase,
+    hasLandedOwnCommits: false,
   };
 }
 
@@ -108,6 +117,7 @@ export async function buildTaskDeliveryReadiness(
       isGitHubRepo: false,
       canCreatePullRequest: false,
       landedOnBase: null,
+      hasLandedOwnCommits: false,
       reason: "Task has no linked repository or worktree.",
     };
   }
@@ -126,6 +136,7 @@ export async function buildTaskDeliveryReadiness(
       isGitHubRepo: false,
       canCreatePullRequest: false,
       landedOnBase: null,
+      hasLandedOwnCommits: false,
       reason: "Linked repository is missing or is not a git repository.",
     };
   }
@@ -144,11 +155,12 @@ export async function buildTaskDeliveryReadiness(
       isGitHubRepo: false,
       canCreatePullRequest: false,
       landedOnBase: null,
+      hasLandedOwnCommits: false,
       reason: "Linked repository is a bare git repo. Attach a task worktree before checking delivery readiness.",
     };
   }
 
-  return mapReadiness(
+  const readiness = mapReadiness(
     context,
     getRepoDeliveryStatus(context.repoPath, {
       baseBranch: context.baseBranch,
@@ -156,6 +168,16 @@ export async function buildTaskDeliveryReadiness(
       sourceUrl: context.codebase?.sourceUrl,
     }),
   );
+
+  if (readiness.landedOnBase === true && !readiness.hasCommitsSinceBase) {
+    readiness.hasLandedOwnCommits = hasBranchAuthoredCommitsOnHead(
+      context.repoPath,
+      readiness.branch,
+      { fallbackSha: task.deliverySnapshot?.headSha },
+    );
+  }
+
+  return readiness;
 }
 
 function formatBaseReference(readiness: TaskDeliveryReadiness): string {
@@ -190,7 +212,11 @@ export function buildTaskDeliveryTransitionErrorFromRules(
     return `Cannot move task to "${targetColumnName}": ${readiness.reason}`;
   }
 
-  if (rules.requireCommittedChanges && !readiness.hasCommitsSinceBase) {
+  // A branch that already fast-forwarded into base has zero commits left
+  // since base, yet its own work is delivered; accept it as committed.
+  const landedOwnCommits = readiness.landedOnBase === true && readiness.hasLandedOwnCommits === true;
+
+  if (rules.requireCommittedChanges && !readiness.hasCommitsSinceBase && !landedOwnCommits) {
     return `Cannot move task to "${targetColumnName}": no committed changes detected on branch "${readiness.branch ?? "unknown"}" relative to "${formatBaseReference(readiness)}". Commit your implementation before requesting review.`;
   }
 
@@ -201,7 +227,12 @@ export function buildTaskDeliveryTransitionErrorFromRules(
     return `Cannot move task to "${targetColumnName}": branch "${readiness.branch ?? "unknown"}" still has uncommitted changes (${readiness.modified} modified, ${readiness.untracked} untracked). Commit the current card's work, then stash or restore unrelated leftovers before ${transitionAction}.`;
   }
 
-  if (rules.requirePullRequestReady && readiness.isGitHubRepo && !readiness.canCreatePullRequest) {
+  if (
+    rules.requirePullRequestReady
+    && readiness.isGitHubRepo
+    && !readiness.canCreatePullRequest
+    && !landedOwnCommits
+  ) {
     const baseBranch = readiness.baseBranch ?? "the base branch";
     return `Cannot move task to "${targetColumnName}": GitHub repo is not PR-ready yet. Use a feature branch instead of "${baseBranch}" so this task can open a pull request cleanly.`;
   }
