@@ -28,6 +28,7 @@ import {
   refreshExecutionBinding,
 } from "@/core/acp/execution-backend";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
+import { applySessionConfig } from "@/core/acp/session-config-apply";
 import { getModelForProvider, PROVIDER_MODEL_TIERS } from "@/core/acp/provider-registry";
 import { ModelTier } from "@/core/models/agent";
 import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
@@ -305,6 +306,7 @@ export async function handleSessionNew({
   const role = (p.role as string | undefined)?.toUpperCase() ?? specialist?.role;
   const parentSessionId = (p.parentSessionId as string | undefined) || undefined;
   let model = (p.model as string | undefined) ?? specialist?.model;
+  const reasoningEffort = typeof p.reasoningEffort === "string" ? p.reasoningEffort.trim() : undefined;
   let sandboxId = (p.sandboxId as string | undefined)?.trim() || undefined;
   const toolMode = p.toolMode === "full"
     ? "full"
@@ -638,6 +640,9 @@ export async function handleSessionNew({
         workspaceSessionAgentId = (agentResult.data as { agentId: string }).agentId;
       }
 
+      // Model the agent actually runs (tier-resolved / configOptions-confirmed).
+      let effectiveModel = model;
+      let effectiveReasoningEffort: string | undefined;
       if (isWorkspaceAgent) {
         const system = getRoutaSystem();
         acpSessionId = await manager.createWorkspaceAgentSession(
@@ -766,6 +771,20 @@ export async function handleSessionNew({
           },
           requestedAcpMcpServers.servers,
         );
+        effectiveModel = resolvedModel;
+      }
+
+      // Process-backed ACP agents (dsh, codex-acp, custom) expose standard
+      // configOptions: apply model first, then reasoning effort.
+      if (manager.getProcess(sessionId)) {
+        const applied = await applySessionConfig(
+          manager,
+          sessionId,
+          { model: effectiveModel, reasoningEffort },
+          "[ACP Route]",
+        );
+        effectiveModel = applied.model ?? effectiveModel;
+        effectiveReasoningEffort = applied.reasoningEffort;
       }
 
       let routaAgentId: string | undefined;

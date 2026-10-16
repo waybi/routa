@@ -37,6 +37,8 @@ const {
     hasActiveSession: vi.fn(),
     respondToUserInput: vi.fn(),
     getProcess: vi.fn(),
+    getConfigOptions: vi.fn(),
+    setConfigOption: vi.fn(),
     getClaudeProcess: vi.fn(),
     isClaudeSession: vi.fn(),
     getAcpSessionId: vi.fn(),
@@ -175,6 +177,9 @@ describe("/api/acp GET", () => {
     acpProcessManager.getDockerAdapter.mockReset();
     acpProcessManager.cancel.mockReset();
     acpProcessManager.getProcess.mockReturnValue(undefined);
+    acpProcessManager.getConfigOptions.mockReset();
+    acpProcessManager.setConfigOption.mockReset();
+    httpSessionStore.updateSessionAcpStatus.mockReset();
     acpProcessManager.getClaudeProcess.mockReturnValue(undefined);
     acpProcessManager.isClaudeSession.mockReturnValue(false);
     acpProcessManager.hasActiveSession.mockReturnValue(false);
@@ -458,6 +463,63 @@ describe("/api/acp POST", () => {
         acpStatus: "connecting",
       },
     });
+  });
+
+  it("applies model before reasoning effort for dsh session/new and passes DSH_ACP_MODEL", async () => {
+    const mv = (m: string) => JSON.stringify(["local-7357", m]);
+    const options = (m: string, effort: string) => [
+      { id: "model", currentValue: mv(m), options: [{ group: "local-7357", options: [{ value: mv("claude-opus-4-6") }, { value: mv("claude-opus-5-5-pool") }] }] },
+      { id: "reasoning_effort", currentValue: effort, options: [{ value: "" }, { value: "high" }] },
+    ];
+    acpProcessManager.createSession.mockResolvedValue("acp-dsh-1");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(options("claude-opus-5-5-pool", ""));
+    acpProcessManager.setConfigOption
+      .mockResolvedValueOnce(options("claude-opus-4-6", ""))
+      .mockResolvedValueOnce(options("claude-opus-4-6", "high"));
+
+    await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 31,
+          method: "session/new",
+          params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project", model: "claude-opus-4-6", reasoningEffort: "high" },
+        }),
+      }),
+    );
+
+    await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual({ DSH_ACP_MODEL: "claude-opus-4-6" });
+    expect(acpProcessManager.createSession.mock.calls[0][5]).toBeUndefined();
+    expect(acpProcessManager.setConfigOption.mock.calls.map((call) => call[1])).toEqual(["model", "reasoning_effort"]);
+    expect(acpProcessManager.setConfigOption.mock.calls[0][2]).toBe(mv("claude-opus-4-6"));
+  });
+
+  it("still creates the session when the agent declares no configOptions", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    acpProcessManager.createSession.mockResolvedValue("acp-dsh-2");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue([]);
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 32,
+          method: "session/new",
+          params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project", model: "claude-opus-4-6", reasoningEffort: "high" },
+        }),
+      }),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ result: { provider: "dsh" } });
+    await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    expect(acpProcessManager.setConfigOption).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("rejects prompt methods when an embedded session is owned by another instance", async () => {
