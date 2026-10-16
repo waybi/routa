@@ -7,6 +7,7 @@ import {
 import type { NotificationHandler } from "@/core/acp/protocol-types";
 import { SessionProcessNotFoundError, type AcpConfigOption } from "@/core/acp/config-options";
 import { handleSessionConfigOptionsChanged } from "@/core/acp/session-config-sync";
+import { recordProviderConfigOptions } from "@/core/acp/provider-config-probe";
 import {ClaudeCodeProcess, buildClaudeCodeConfig, mapClaudeModeToPermissionMode} from "@/core/acp/claude-code-process";
 import {
     cleanupMcpForProvider,
@@ -205,6 +206,7 @@ export class AcpProcessManager {
     private watchConfigOptions(proc: AcpProcess, sessionId: string): void {
         proc.setConfigOptionsListener((options) => {
             handleSessionConfigOptionsChanged(sessionId, options);
+            recordProviderConfigOptions(proc.presetId, options);
         });
     }
 
