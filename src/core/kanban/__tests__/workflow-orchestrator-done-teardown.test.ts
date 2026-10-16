@@ -323,6 +323,9 @@ describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
     await settle();
 
     expect(createSession).toHaveBeenCalledTimes(2);
+    // The failure-path kill (card 2db44ae2) must not end a teardown session a second time.
+    expect(killSession).toHaveBeenCalledTimes(5);
+    expect(Object.values(killCounts(killSession)).every((count) => count === 1)).toBe(true);
     const saved = await taskStore.get(taskId);
     expect(saved?.laneSessions?.filter((entry) => entry.status === "failed")).toEqual([]);
     expect(saved?.laneSessions?.filter((entry) => entry.recoveryReason)).toEqual([]);

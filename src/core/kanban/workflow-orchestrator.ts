@@ -471,6 +471,13 @@ export class KanbanWorkflowOrchestrator {
         event.type !== AgentEventType.AGENT_FAILED
         && event.type !== AgentEventType.AGENT_TIMEOUT
         && event.data?.success !== false;
+      if (!successEvent) {
+        // A failed or timed-out session keeps its agent process alive (and its
+        // memory) unless we end it. Kill it before any fallback/recovery starts
+        // a new session; only the failed session id is targeted.
+        await this.killFailedSession(eventSessionId);
+      }
+
       const completionSatisfied = await this.isCompletionSatisfied(task, automation, successEvent);
       const environmentFailure = !successEvent && isEnvironmentFailureMessage(
         typeof event.data?.error === "string" && event.data.error
@@ -683,6 +690,14 @@ export class KanbanWorkflowOrchestrator {
     }
     const laneSession = getTaskLaneSession(task, eventSessionId);
     return Boolean(laneSession?.columnId && laneSession.columnId !== task.columnId);
+  }
+
+  private async killFailedSession(sessionId: string): Promise<void> {
+    try {
+      await this.killSession(sessionId);
+    } catch (error) {
+      console.warn(`[WorkflowOrchestrator] Failed to kill failed session ${sessionId}:`, error);
+    }
   }
 
   private async scanForInactiveSessions(): Promise<void> {

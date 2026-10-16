@@ -334,7 +334,7 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 |---|---|---|
 | P0-1 | 熔断计数只统计**有实质运行**的条目：过滤掉 `completedAt-startedAt < 15s` 且无 `lastActivityAt` 的秒失败；秒失败连续 ≥2 次直接标 `infra_error` 并停止重试，不计入 repeat limit | `workflow-orchestrator.ts getNonDevAutomationRunCount` |
 | P0-2 | 把 `reviveMissingEntryAutomations` 从 `GET /api/kanban/boards` 移到服务启动钩子 + 显式 `POST /api/kanban/boards/:id/revive`；GET 必须无副作用。**状态（2026-10-16）：部分完成**——Next.js 与 Rust 两端 GET 已无副作用，新增 `POST /api/kanban/boards/{boardId}/revive` 显式触发恢复；服务启动钩子未做（另开卡），上线后卡住的卡只能手动 POST revive 恢复 | `src/app/api/kanban/boards/route.ts`、`src/app/api/kanban/boards/[boardId]/revive/route.ts`、`crates/routa-server/src/api/kanban.rs` |
-| P0-3 | 泳道会话 completed/failed 后回收 DSH 子进程（或至少 idle N 分钟后 kill），并让 `board-session-limits` 的 5 真正对应存活进程数 | `kanban-session-queue.ts` / process manager |
+| P0-3 | 泳道会话 completed/failed 后回收 DSH 子进程（或至少 idle N 分钟后 kill），并让 `board-session-limits` 的 5 真正对应存活进程数。**状态（2026-10-16）：部分完成**——failed/timed_out（含 acpStatus=error 看门狗）会话已由编排器调用 `killSession` 结束；completed 会话回收、并发数对齐存活进程未做；`killSession` 只对直接子进程发 SIGTERM，施工者 fork 的孙进程可能残留 | `kanban-session-queue.ts` / process manager |
 | P0-4 | `lastSyncError` 每次失败都覆盖写（去掉 `else if (!task.lastSyncError)`），泳道切列时清空 | `workflow-orchestrator.ts:505` |
 | P0-5 | 修 DSH profile：`local-7357` 改为已注册 provider 或走 env 注入 | `~/.dsh/profiles/acp/cordis.patch.yml` |
 | P0-6 | prompt dispatch timeout 时发射 `AGENT_FAILED` 事件（而非仅 warn） | `agent-trigger.ts:736-741` |
@@ -405,3 +405,4 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 |---|---|---|---|
 | 2026-10-16 | P0-2：GET /api/kanban/boards（Next.js + Rust）去掉 revive；新增 POST /api/kanban/boards/{boardId}/revive | 打开/刷新看板、外部探测不再改写卡片或拉起施工者进程；恢复改为显式写操作 | 本提交 |
 | 2026-10-16 | 环境故障单独计数：错误含 `Not registered in ProviderRegistry` / `Unknown provider:` 时，泳道会话记 `recoveryReason: "environment_failure"`（启动即失败也补记一条 failed 会话），`lastSyncError` 加 `[environment]` 前缀；不计入 `getNonDevAutomationRunCount` 与 dev 监督重试，不自动 recover/fallback，POST revive 也跳过，等人工修好环境后移卡 | provider 未注册不再白耗重试次数、不再反复拉起注定失败的会话（P0-1 的「秒失败标 infra_error」只做了识别规则明确的这一类） | 本提交 |
+| 2026-10-16 | 失败会话结束进程：`handleAgentCompletion` 收到 AGENT_FAILED / AGENT_TIMEOUT（看门狗发现 acpStatus=error 也走这里）时，先 `killSession(该会话 id)` 再走 fallback/recover；kill 抛错只记 warn | 启动失败或超时的施工者进程不再常驻（2026-10-12 每个约 280MB） | 本提交 |
