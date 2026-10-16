@@ -1,6 +1,8 @@
-import type { KanbanColumn, KanbanColumnStage } from "../models/kanban";
+import { resolveTaskStatusForBoardColumn, type KanbanColumn, type KanbanColumnStage } from "../models/kanban";
 import type { Task } from "../models/task";
+import type { ColumnTransitionData } from "./column-transition";
 import { resolveCurrentLaneAutomationState } from "./lane-automation-state";
+import { archiveActiveTaskSession } from "./task-session-transition";
 
 type ReviewConvergenceTask = Pick<
   Task,
@@ -51,4 +53,49 @@ export function resolveReviewLaneConvergenceTarget(
     default:
       return undefined;
   }
+}
+
+/**
+ * Moves a task whose review verdict is final into the converged column and
+ * releases the review session that was the trigger session (archived into
+ * sessionIds), so the next lane's automation starts a fresh session.
+ * Its lane entry stays running: update_task still emits the synthetic
+ * completion for it, and the next lane's start marks it completed.
+ * Returns the transition to emit after the task is saved, or undefined when
+ * the task stays where it is.
+ *
+ * update_task used to change only columnId/status here. It emitted no
+ * COLUMN_TRANSITION and kept the Review Guard as triggerSessionId, so a card
+ * approved through update_task (without a later move_card) sat in Done with
+ * no Done lane session (card 30dbf08e on 2026-10-16).
+ */
+export function applyReviewLaneConvergence(
+  task: Task,
+  boardColumns: KanbanColumn[] = [],
+): ColumnTransitionData | undefined {
+  const fromColumnId = task.columnId;
+  const toColumnId = resolveReviewLaneConvergenceTarget(task, boardColumns);
+  if (!toColumnId || toColumnId === fromColumnId) {
+    return undefined;
+  }
+
+  archiveActiveTaskSession(task);
+  task.triggerSessionId = undefined;
+  task.columnId = toColumnId;
+  task.status = resolveTaskStatusForBoardColumn(boardColumns, toColumnId);
+  task.lastSyncError = undefined;
+
+  if (!task.boardId || !fromColumnId) {
+    return undefined;
+  }
+  return {
+    cardId: task.id,
+    cardTitle: task.title,
+    boardId: task.boardId,
+    workspaceId: task.workspaceId,
+    fromColumnId,
+    toColumnId,
+    fromColumnName: boardColumns.find((column) => column.id === fromColumnId)?.name,
+    toColumnName: boardColumns.find((column) => column.id === toColumnId)?.name,
+  };
 }

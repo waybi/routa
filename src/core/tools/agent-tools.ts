@@ -52,9 +52,9 @@ import { getKanbanEventBroadcaster } from "../kanban/kanban-event-broadcaster";
 import type { TaskCreationSource } from "../kanban/task-creation-policy";
 import { ToolResult, successResult, errorResult } from './tool-result';
 import { applySandboxPermissionConstraints, SandboxPermissionConstraints } from "../sandbox";
-import { resolveTaskStatusForBoardColumn } from "../models/kanban";
 import { evaluateTaskDescriptionWriteGuard } from "../kanban/task-description-write-guard";
-import { resolveReviewLaneConvergenceTarget } from "../kanban/review-lane-convergence";
+import { applyReviewLaneConvergence } from "../kanban/review-lane-convergence";
+import { emitColumnTransition } from "../kanban/column-transition";
 import {
   PermissionStore,
   PermissionRequest,
@@ -945,15 +945,12 @@ export class AgentTools {
 
     // Always check review lane convergence when verification verdict is updated
     // This ensures cards move out of review lane even when status is explicitly set
+    let convergenceTransition: ReturnType<typeof applyReviewLaneConvergence>;
     if (updates.verificationVerdict !== undefined || updates.status === undefined) {
       const board = task.boardId && this.kanbanBoardStore
         ? await this.kanbanBoardStore.get(task.boardId)
         : undefined;
-      const convergenceColumnId = resolveReviewLaneConvergenceTarget(task, board?.columns ?? []);
-      if (convergenceColumnId && convergenceColumnId !== task.columnId) {
-        task.columnId = convergenceColumnId;
-        task.status = resolveTaskStatusForBoardColumn(board?.columns ?? [], convergenceColumnId);
-      }
+      convergenceTransition = applyReviewLaneConvergence(task, board?.columns ?? []);
     }
 
     task.updatedAt = new Date();
@@ -988,6 +985,8 @@ export class AgentTools {
         timestamp: new Date(),
       });
     }
+
+    if (convergenceTransition) emitColumnTransition(this.eventBus, convergenceTransition);
 
     if (oldStatus !== task.status) {
       this.eventBus.emit({

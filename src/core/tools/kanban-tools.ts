@@ -420,8 +420,14 @@ export class KanbanTools {
     }
 
     // Preserve the current active session in history before clearing
-    // This allows the next column's automation to create a fresh session
-    finalizeActiveTaskSession(task);
+    // This allows the next column's automation to create a fresh session.
+    // A move into the card's current column keeps that column's own running
+    // session (e.g. the Done lane pusher started by update_task convergence).
+    const keepsCurrentLaneSession = fromColumnId === params.targetColumnId
+      && getTaskLaneSession(task, task.triggerSessionId)?.columnId === params.targetColumnId;
+    if (!keepsCurrentLaneSession) {
+      finalizeActiveTaskSession(task);
+    }
 
     task.columnId = params.targetColumnId;
     task.status = columnIdToTaskStatus(params.targetColumnId);
