@@ -1,20 +1,13 @@
 /**
  * Completion report helpers for the kanban card detail.
  *
- * The Done-lane reporter (kanban-done-reporter) writes its final summary as a
- * card note via update_card. Notes carry no specialist id, so the report is
- * recognised by its first line: a heading or bracketed title that names the
- * completion report ("完成汇报" / "完工汇报" / "Completion Summary" / ...).
+ * Recognition of a completion report note lives in `@/core/kanban/completion-report`
+ * so the server (update_card dedupe) and this UI use the same rule.
  */
 
-const COMPLETION_REPORT_TITLE =
-  /^\s*(?:#{1,6}\s*|[【[]\s*)?(?:完成汇报|完工汇报|完成总结|完工总结|completion\s+(?:summary|report))/i;
+import { isCompletionReportNote } from "@/core/kanban/completion-report";
 
-export function isCompletionReportNote(body: string | undefined | null): boolean {
-  if (!body) return false;
-  const firstLine = body.split("\n").find((line) => line.trim().length > 0) ?? "";
-  return COMPLETION_REPORT_TITLE.test(firstLine);
-}
+export { isCompletionReportNote };
 
 export interface CompletionReportSplit<T> {
   /** Notes that are not completion reports, in original order. */

@@ -52,6 +52,7 @@ import {
 import {
   appendTaskComment,
   appendTaskCommentEntry,
+  upsertTaskCommentEntry,
 } from "../kanban/task-comment-log";
 import {
   buildTaskDeliveryReadiness,
@@ -490,7 +491,7 @@ export class KanbanTools {
     if (params.description !== undefined) task.objective = params.description;
     if (params.comment !== undefined) {
       task.comment = appendTaskComment(task.comment, params.comment);
-      task.comments = appendTaskCommentEntry(task.comments, params.comment, {
+      task.comments = upsertTaskCommentEntry(task.comments, params.comment, {
         agentId: params.agentId,
         sessionId: params.sessionId,
       });
