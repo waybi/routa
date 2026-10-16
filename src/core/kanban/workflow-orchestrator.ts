@@ -17,13 +17,14 @@ import type {
   KanbanDevSessionSupervisionMode,
 } from "../models/kanban";
 import { getKanbanAutomationSteps, resolveTaskStatusForBoardColumn } from "../models/kanban";
-import type { Task, TaskLaneSessionRecoveryReason } from "../models/task";
+import { TaskStatus, type Task, type TaskLaneSessionRecoveryReason } from "../models/task";
 import type { KanbanBoardStore } from "../store/kanban-board-store";
 import type { TaskStore } from "../store/task-store";
 import type { ColumnTransitionData } from "./column-transition";
 import { resolveTransitionAutomation } from "./column-transition";
 import { getDefaultKanbanDevSessionSupervision } from "./board-session-supervision";
-import { markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import { isLaneAutomationComplete } from "./done-lane-teardown";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
@@ -204,6 +205,8 @@ export class KanbanWorkflowOrchestrator {
   private sendKanbanSessionPrompt?: SendKanbanSessionPrompt;
   private ensureCompletionFallbackArtifact?: EnsureCompletionFallbackArtifact;
   private watchdogTimer?: ReturnType<typeof setInterval>;
+  /** Sessions Routa ended itself while winding down a finished card. */
+  private teardownSessionIds = new Set<string>();
 
   constructor(
     private eventBus: EventBus,
@@ -405,7 +408,8 @@ export class KanbanWorkflowOrchestrator {
 
       const task = await this.taskStore.get(cardId);
       const sessionId = automation.sessionId ?? task?.triggerSessionId;
-      if (!automation.sessionId && sessionId) {
+      const adoptedTriggerSession = !automation.sessionId && Boolean(sessionId);
+      if (adoptedTriggerSession) {
         automation.sessionId = sessionId;
         automation.status = "running";
       }
@@ -413,6 +417,17 @@ export class KanbanWorkflowOrchestrator {
       // Match only by the automation's own sessionId or the card's current triggerSessionId.
       const isRelated = Boolean(sessionId && eventSessionId === sessionId);
       if (!isRelated) continue;
+
+      if (task && this.isPostCompletionTeardownFailure(task, automation, eventSessionId, event)) {
+        // The exit of a finished card's session is teardown, not a step
+        // failure: do not mark it failed, record a recovery reason, or re-run.
+        if (adoptedTriggerSession) {
+          automation.sessionId = undefined;
+          automation.status = "queued";
+        }
+        automation.signaledSessionIds.add(eventSessionId);
+        return;
+      }
 
       const sessionStore = getHttpSessionStore();
       const sessionActivity = sessionStore.getSessionActivity(eventSessionId);
@@ -541,6 +556,37 @@ export class KanbanWorkflowOrchestrator {
       }, COMPLETED_AUTOMATION_CLEANUP_DELAY_MS);
       return;
     }
+  }
+
+  /**
+   * A failure event on a COMPLETED card is teardown when the session was ended
+   * by Routa while winding the card down, when the card's Done lane already
+   * finished, or when the session belongs to an earlier column. A failure of
+   * the Done lane step that is still running is a real failure and is kept.
+   */
+  private isPostCompletionTeardownFailure(
+    task: Task,
+    automation: ActiveAutomation,
+    eventSessionId: string,
+    event: AgentEvent,
+  ): boolean {
+    const failureEvent = event.type === AgentEventType.AGENT_FAILED
+      || event.type === AgentEventType.AGENT_TIMEOUT
+      || event.data?.success === false;
+    if (!failureEvent || task.status !== TaskStatus.COMPLETED) {
+      return false;
+    }
+    if (this.teardownSessionIds.has(eventSessionId)) {
+      return true;
+    }
+    if (
+      task.columnId === automation.columnId
+      && isLaneAutomationComplete(task, automation.columnId, automation.automation)
+    ) {
+      return true;
+    }
+    const laneSession = getTaskLaneSession(task, eventSessionId);
+    return Boolean(laneSession?.columnId && laneSession.columnId !== task.columnId);
   }
 
   private async scanForInactiveSessions(): Promise<void> {

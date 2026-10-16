@@ -9,6 +9,7 @@ import { resolveCurrentLaneAutomationState } from "./lane-automation-state";
 import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
+import { isLaneAutomationComplete } from "./done-lane-teardown";
 import {
   enqueueKanbanTaskSession,
   processKanbanColumnTransition,
@@ -229,6 +230,13 @@ export async function reviveMissingEntryAutomations(
       || getKanbanAutomationSteps(automation).length === 0
       || hasLaneSessionForCurrentColumn
     ) {
+      continue;
+    }
+
+    // A finished Done lane has nothing left to run. Its agent processes exit
+    // after the card completes; treating that as "missing automation" re-ran
+    // the pusher and reporter on finished cards (card 809c5012, defect 2).
+    if (column.stage === "done" && isLaneAutomationComplete(task, currentColumnId, automation)) {
       continue;
     }
 
