@@ -104,7 +104,9 @@ export type TaskLaneSessionCompletionRequirement =
 export type TaskLaneSessionRecoveryReason =
   | "watchdog_inactivity"
   | "agent_failed"
-  | "completion_criteria_not_met";
+  | "completion_criteria_not_met"
+  /** Session could not run because of the host environment (e.g. unregistered provider); never auto-retried. */
+  | "environment_failure";
 
 export type TaskLaneHandoffRequestType =
   | "environment_preparation"

@@ -49,6 +49,9 @@ pub enum TaskLaneSessionRecoveryReason {
     WatchdogInactivity,
     AgentFailed,
     CompletionCriteriaNotMet,
+    /// Session could not run because of the host environment (for example an
+    /// unregistered provider). Not counted as a retry and never auto-retried.
+    EnvironmentFailure,
 }
 
 /// Session associated with a task lane transition

@@ -182,7 +182,7 @@ export interface TaskInfo {
     objective?: string;
     lastActivityAt?: string;
     recoveredFromSessionId?: string;
-    recoveryReason?: "watchdog_inactivity" | "agent_failed" | "completion_criteria_not_met";
+    recoveryReason?: "watchdog_inactivity" | "agent_failed" | "completion_criteria_not_met" | "environment_failure";
     status: "running" | "completed" | "failed" | "timed_out" | "transitioned";
     startedAt: string;
     completedAt?: string;
