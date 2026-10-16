@@ -1,6 +1,7 @@
 import type { AcpProcessConfig, AcpSessionContext } from "@/core/acp/process-config";
 import type { JsonRpcMessage, NotificationHandler, PendingRequest } from "@/core/acp/protocol-types";
 import { awaitProcessReady, needsShell } from "@/core/acp/utils";
+import { extractConfigOptions, type AcpConfigOption } from "@/core/acp/config-options";
 import {getTerminalManager} from "@/core/acp/terminal-manager";
 import type {IProcessHandle} from "@/core/platform/interfaces";
 import {getServerBridge} from "@/core/platform";
@@ -80,6 +81,8 @@ export class AcpProcess {
     private _sessionContext: AcpSessionContext | null = null;
     private lastSyntheticTurnStopReason: string | null = null;
     private lastStderrErrorMessage: string | null = null;
+    private _configOptions: AcpConfigOption[] | undefined;
+    private configOptionsListener: ((options: AcpConfigOption[]) => void) | null = null;
 
     constructor(config: AcpProcessConfig, onNotification: NotificationHandler) {
         this._config = config;
@@ -108,6 +111,47 @@ export class AcpProcess {
 
     setSessionContext(context: AcpSessionContext): void {
         this._sessionContext = context;
+    }
+
+    /** Latest configOptions reported by the agent (session/new, session/load, updates). */
+    getConfigOptions(): AcpConfigOption[] | undefined {
+        return this._configOptions;
+    }
+
+    /** Observe every configOptions cache replacement (used for persistence/probe cache). */
+    setConfigOptionsListener(listener: ((options: AcpConfigOption[]) => void) | null): void {
+        this.configOptionsListener = listener;
+    }
+
+    private replaceConfigOptions(payload: unknown): AcpConfigOption[] | undefined {
+        const options = extractConfigOptions(payload);
+        if (!options) return undefined;
+        this._configOptions = options;
+        try {
+            this.configOptionsListener?.(options);
+        } catch (error) {
+            console.warn(
+                `[AcpProcess:${this._config.displayName}] configOptions listener failed:`,
+                error,
+            );
+        }
+        return options;
+    }
+
+    /**
+     * Change one session config option via session/set_config_option.
+     * The agent answers with the full option list, which replaces the cache.
+     */
+    async setConfigOption(configId: string, value: string): Promise<AcpConfigOption[]> {
+        if (!this._sessionId) {
+            throw new Error(`${this._config.displayName} has no active session`);
+        }
+        const result = await this.sendRequest("session/set_config_option", {
+            sessionId: this._sessionId,
+            configId,
+            value,
+        });
+        return this.replaceConfigOptions(result) ?? this._configOptions ?? [];
     }
 
     /**
@@ -308,9 +352,10 @@ export class AcpProcess {
             const result = (await this.sendRequest("session/new", {
                 cwd: cwd || this._config.cwd,
                 mcpServers: mcpServers ?? [],
-            })) as { sessionId: string };
+            })) as { sessionId: string; configOptions?: unknown };
 
             this._sessionId = result.sessionId;
+            this.replaceConfigOptions(result);
             console.log(
                 `[AcpProcess:${this._config.displayName}] Session created: ${this._sessionId}`
             );
@@ -355,12 +400,13 @@ export class AcpProcess {
         mcpServers?: Array<Record<string, unknown>>,
     ): Promise<void> {
         try {
-            await this.sendRequest("session/load", {
+            const result = await this.sendRequest("session/load", {
                 sessionId,
                 cwd: cwd || this._config.cwd,
                 mcpServers: mcpServers ?? [],
             });
             this._sessionId = sessionId;
+            this.replaceConfigOptions(result);
             console.log(
                 `[AcpProcess:${this._config.displayName}] Session loaded: ${this._sessionId}`
             );
@@ -640,6 +686,9 @@ export class AcpProcess {
             console.log(
                 `[AcpProcess:${this._config.displayName}] Notification: ${enrichedMsg.method} (${sessionUpdate ?? "unknown"})`
             );
+            if (sessionUpdate === "config_option_update") {
+                this.replaceConfigOptions(updateType ?? enrichedMsg.params);
+            }
             this.onNotification(enrichedMsg);
             return;
         }

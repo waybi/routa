@@ -53,6 +53,9 @@ vi.mock("@/core/acp/acp-process", () => ({
     loadSession = vi.fn(async () => {});
     setSessionContext = vi.fn();
     sendRequest = vi.fn(async () => {});
+    getConfigOptions = vi.fn(() => [{ id: "model", currentValue: "m" }]);
+    setConfigOption = vi.fn(async () => [{ id: "reasoning_effort", currentValue: "high" }]);
+    setConfigOptionsListener = vi.fn();
     respondToUserInput = vi.fn(() => false);
     kill = vi.fn(() => {
       this.alive = false;
@@ -220,6 +223,7 @@ vi.mock("@/core/db/pg-acp-session-store", () => ({
 }));
 
 const { AcpProcessManager } = await import("../acp-process-manager");
+const { SessionProcessNotFoundError } = await import("../config-options");
 
 describe("AcpProcessManager", () => {
   beforeEach(() => {
@@ -704,5 +708,20 @@ describe("AcpProcessManager", () => {
 
     expect(manager.respondToUserInput("session-1", "tool-1", { approved: true })).toBe(true);
     expect(manager.respondToUserInput("missing", "tool-1", { approved: true })).toBe(false);
+  });
+
+  it("exposes config options for live ACP sessions and rejects missing processes", async () => {
+    const manager = new AcpProcessManager();
+    await manager.createSession("session-cfg", "/repo", vi.fn(), "dsh");
+    const proc = acpInstances[0] as { setConfigOption: ReturnType<typeof vi.fn> };
+
+    expect(manager.getConfigOptions("session-cfg")).toEqual([{ id: "model", currentValue: "m" }]);
+    await expect(manager.setConfigOption("session-cfg", "reasoning_effort", "high")).resolves.toEqual([
+      { id: "reasoning_effort", currentValue: "high" },
+    ]);
+    expect(proc.setConfigOption).toHaveBeenCalledWith("reasoning_effort", "high");
+
+    expect(() => manager.getConfigOptions("missing")).toThrow(SessionProcessNotFoundError);
+    await expect(manager.setConfigOption("missing", "model", "x")).rejects.toBeInstanceOf(SessionProcessNotFoundError);
   });
 });

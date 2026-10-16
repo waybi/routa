@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { EventEmitter } from "node:events";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -557,5 +558,90 @@ describe("AcpProcess codex permission handling", () => {
         },
       },
     });
+  });
+});
+
+describe("AcpProcess configOptions cache", () => {
+  const modelOption = (model: string) => ({
+    id: "model",
+    name: "Model",
+    type: "select",
+    currentValue: JSON.stringify(["local-7357", model]),
+    options: [{ group: "local-7357", name: "local", options: [
+      { value: JSON.stringify(["local-7357", "claude-opus-4-6"]), name: "opus 4.6" },
+      { value: JSON.stringify(["local-7357", "claude-opus-5-5-pool"]), name: "opus 5.5" },
+    ] }],
+  });
+  const effortOption = (value: string) => ({
+    id: "reasoning_effort",
+    name: "Reasoning",
+    type: "select",
+    currentValue: value,
+    options: [{ value: "", name: "default" }, { value: "high", name: "high" }],
+  });
+
+  function createDshProcess(onNotification = vi.fn()) {
+    return new AcpProcess({ command: "dsh", args: [], cwd: "/tmp", displayName: "DSH" }, onNotification);
+  }
+
+  it("caches configOptions returned by session/new", async () => {
+    const proc = createDshProcess();
+    const sendRequest = vi.fn(async () => ({
+      sessionId: "acp-1",
+      configOptions: [modelOption("claude-opus-5-5-pool"), effortOption("")],
+    }));
+    (proc as any).sendRequest = sendRequest;
+
+    await proc.newSession("/tmp");
+
+    expect(proc.getConfigOptions()?.map((o) => o.id)).toEqual(["model", "reasoning_effort"]);
+  });
+
+  it("caches configOptions returned by session/load", async () => {
+    const proc = createDshProcess();
+    (proc as any).sendRequest = vi.fn(async () => ({ configOptions: [modelOption("claude-opus-4-6")] }));
+
+    await proc.loadSession("acp-1", "/tmp");
+
+    expect(proc.getConfigOptions()?.[0]?.currentValue).toBe(JSON.stringify(["local-7357", "claude-opus-4-6"]));
+  });
+
+  it("replaces the cache on config_option_update notifications and still forwards them", () => {
+    const onNotification = vi.fn();
+    const proc = createDshProcess(onNotification);
+    const listener = vi.fn();
+    proc.setConfigOptionsListener(listener);
+    const replacement = [modelOption("claude-opus-4-6"), effortOption("high")];
+
+    (proc as any).handleMessage({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: { sessionId: "acp-1", update: { sessionUpdate: "config_option_update", configOptions: replacement } },
+    });
+
+    expect(proc.getConfigOptions()).toEqual(replacement);
+    expect(listener).toHaveBeenCalledWith(replacement);
+    expect(onNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends session/set_config_option and replaces the cache with the result", async () => {
+    const proc = createDshProcess();
+    const after = [modelOption("claude-opus-5-5-pool"), effortOption("high")];
+    const sendRequest = vi
+      .fn()
+      .mockResolvedValueOnce({ sessionId: "acp-1", configOptions: [modelOption("claude-opus-5-5-pool"), effortOption("")] })
+      .mockResolvedValueOnce({ configOptions: after });
+    (proc as any).sendRequest = sendRequest;
+
+    await proc.newSession("/tmp");
+    const result = await proc.setConfigOption("reasoning_effort", "high");
+
+    expect(sendRequest).toHaveBeenLastCalledWith("session/set_config_option", {
+      sessionId: "acp-1",
+      configId: "reasoning_effort",
+      value: "high",
+    });
+    expect(result).toEqual(after);
+    expect(proc.getConfigOptions()).toEqual(after);
   });
 });

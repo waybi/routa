@@ -5,6 +5,7 @@ import {
     type AcpSessionContext,
 } from "@/core/acp/process-config";
 import type { NotificationHandler } from "@/core/acp/protocol-types";
+import { SessionProcessNotFoundError, type AcpConfigOption } from "@/core/acp/config-options";
 import {ClaudeCodeProcess, buildClaudeCodeConfig, mapClaudeModeToPermissionMode} from "@/core/acp/claude-code-process";
 import {
     cleanupMcpForProvider,
@@ -708,6 +709,35 @@ export class AcpProcessManager {
      */
     getProcess(sessionId: string): AcpProcess | undefined {
         return this.processes.get(sessionId)?.process;
+    }
+
+    /** Provider/preset id of the ACP process backing a session, if any. */
+    getProcessPresetId(sessionId: string): string | undefined {
+        return this.processes.get(sessionId)?.presetId;
+    }
+
+    /**
+     * Latest configOptions cached for a session's ACP process.
+     * Throws SessionProcessNotFoundError when no live ACP process exists.
+     */
+    getConfigOptions(sessionId: string): AcpConfigOption[] {
+        const proc = this.getProcess(sessionId);
+        if (!proc || !proc.alive) {
+            throw new SessionProcessNotFoundError(sessionId);
+        }
+        return proc.getConfigOptions() ?? [];
+    }
+
+    /**
+     * Send session/set_config_option for a session and return the full,
+     * refreshed configOptions list (the cache is replaced by AcpProcess).
+     */
+    async setConfigOption(sessionId: string, configId: string, value: string): Promise<AcpConfigOption[]> {
+        const proc = this.getProcess(sessionId);
+        if (!proc || !proc.alive) {
+            throw new SessionProcessNotFoundError(sessionId);
+        }
+        return proc.setConfigOption(configId, value);
     }
 
     /**
