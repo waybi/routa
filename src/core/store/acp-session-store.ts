@@ -27,6 +27,8 @@ export interface AcpSession {
   modeId?: string;
   /** Model used for this session */
   model?: string;
+  /** Reasoning effort applied via ACP configOptions ("" = provider default) */
+  reasoningEffort?: string;
   firstPromptSent?: boolean;
   messageHistory: AcpSessionNotification[];
   createdAt: Date;

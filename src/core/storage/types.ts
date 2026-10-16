@@ -33,6 +33,7 @@ export interface SessionMetadata {
   role?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   parentSessionId?: string;
   specialistId?: string;
   executionMode?: "embedded" | "runner";
@@ -63,6 +64,7 @@ export interface SessionRecord {
   role?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   firstPromptSent?: boolean;
   parentSessionId?: string;
   specialistId?: string;

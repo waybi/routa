@@ -45,6 +45,7 @@ export interface SessionPersistData {
   role: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   /** Parent session ID for child (CRAFTER/GATE) sessions */
   parentSessionId?: string;
   specialistId?: string;
@@ -68,6 +69,7 @@ export async function persistSessionToDb(data: SessionPersistData): Promise<void
     role: data.role,
     modeId: data.modeId,
     model: data.model,
+    reasoningEffort: data.reasoningEffort,
     firstPromptSent: false,
     messageHistory: [] as never[],
     parentSessionId: data.parentSessionId,
@@ -111,6 +113,7 @@ export async function persistSessionToDb(data: SessionPersistData): Promise<void
         role: data.role,
         modeId: data.modeId,
         model: data.model,
+        reasoningEffort: data.reasoningEffort,
         parentSessionId: data.parentSessionId,
         specialistId: data.specialistId,
         executionMode: data.executionMode,
@@ -183,6 +186,7 @@ export async function hydrateSessionsFromDb(): Promise<Array<{
   role?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   parentSessionId?: string;
   specialistId?: string;
   executionMode?: "embedded" | "runner";
@@ -219,6 +223,7 @@ export async function loadSessionFromDb(sessionId: string): Promise<{
   role?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   parentSessionId?: string;
   specialistId?: string;
   executionMode?: "embedded" | "runner";
@@ -255,6 +260,7 @@ export async function loadSessionFromLocalStorage(sessionId: string): Promise<{
   role?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   parentSessionId?: string;
   specialistId?: string;
   executionMode?: "embedded" | "runner";
@@ -307,6 +313,34 @@ export async function updateSessionExecutionBindingInDb(
     });
   } catch (err) {
     console.error(`[SessionDB] Failed to update execution binding in ${driver}:`, err);
+  }
+}
+
+/**
+ * Update the effective model / reasoning effort of a persisted session.
+ * Fields left undefined keep their stored value; "" is a valid effort.
+ */
+export async function updateSessionConfigInDb(
+  sessionId: string,
+  config: { model?: string; reasoningEffort?: string },
+): Promise<void> {
+  const driver = getDatabaseDriver();
+  if (driver === "memory") return;
+
+  try {
+    const store = driver === "postgres"
+      ? new PgAcpSessionStore(getPostgresDatabase())
+      : new SqliteAcpSessionStore((await loadSqliteDatabaseModule()).getSqliteDatabase());
+    const session = await store.get(sessionId);
+    if (!session) return;
+    await store.save({
+      ...session,
+      model: config.model ?? session.model,
+      reasoningEffort: config.reasoningEffort ?? session.reasoningEffort,
+      updatedAt: new Date(),
+    });
+  } catch (err) {
+    console.error(`[SessionDB] Failed to update session config in ${driver}:`, err);
   }
 }
 

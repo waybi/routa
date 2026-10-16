@@ -35,6 +35,7 @@ describe("sqlite ACP session retention", () => {
         role TEXT,
         mode_id TEXT,
         model TEXT,
+        reasoning_effort TEXT,
         first_prompt_sent INTEGER DEFAULT 0,
         message_history TEXT DEFAULT '[]',
         parent_session_id TEXT,
@@ -114,6 +115,28 @@ describe("sqlite ACP session retention", () => {
       expect(notification.update).not.toHaveProperty("accumulatedJson");
       expect(notification.update).not.toHaveProperty("parsedInput");
     }
+  });
+
+  it("round-trips the effective model and reasoning effort", async () => {
+    const base = {
+      id: "session-cfg",
+      cwd: "/repo",
+      workspaceId: "workspace-1",
+      provider: "dsh",
+      model: "claude-opus-4-6",
+      reasoningEffort: "high",
+      messageHistory: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await store.save(base);
+    expect(await store.get("session-cfg")).toMatchObject({ model: "claude-opus-4-6", reasoningEffort: "high" });
+
+    await store.save({ ...base, model: "claude-opus-5-5-pool", reasoningEffort: "" });
+    const row = sqlite
+      .prepare("SELECT model, reasoning_effort AS reasoningEffort FROM acp_sessions WHERE id = ?")
+      .get("session-cfg");
+    expect(row).toEqual({ model: "claude-opus-5-5-pool", reasoningEffort: "" });
   });
 });
 
