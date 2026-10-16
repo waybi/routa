@@ -8,10 +8,7 @@ import { getKanbanHistoryMemoryPolicy } from "@/core/kanban/board-history-memory
 import { getKanbanSessionConcurrencyLimit } from "@/core/kanban/board-session-limits";
 import { getKanbanDevSessionSupervision } from "@/core/kanban/board-session-supervision";
 import { getKanbanEventBroadcaster } from "@/core/kanban/kanban-event-broadcaster";
-import { reviveMissingEntryAutomations } from "@/core/kanban/restart-recovery";
 import { getKanbanSessionQueue } from "@/core/kanban/workflow-orchestrator-singleton";
-import { getHttpSessionStore } from "@/core/acp/http-session-store";
-import { getAcpProcessManager } from "@/core/acp/processer";
 import type { KanbanBoard, KanbanDevSessionSupervision } from "@/core/models/kanban";
 
 export const dynamic = "force-dynamic";
@@ -54,13 +51,8 @@ export async function GET(request: NextRequest) {
   const boards = await system.kanbanBoardStore.listByWorkspace(workspaceId);
   const workspace = await system.workspaceStore.get(workspaceId);
   const queue = getKanbanSessionQueue(system);
-  const sessionStore = getHttpSessionStore();
-  const processManager = getAcpProcessManager();
-  await sessionStore.hydrateFromDb();
-  await Promise.all(boards.map((board) => reviveMissingEntryAutomations(system, workspaceId, board.id, {
-    sessionStore,
-    processManager,
-  })));
+  // GET must stay side-effect free: browsers, health probes and scripts call it
+  // freely. Restart recovery is an explicit write: POST /api/kanban/boards/{boardId}/revive.
   return NextResponse.json({
     boards: await Promise.all(boards.map(async (board) => sanitizeBoard(board, {
       autoProviderId: getKanbanAutoProvider(workspace?.metadata, board.id),

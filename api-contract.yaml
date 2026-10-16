@@ -2156,6 +2156,37 @@ paths:
         "404":
           description: Board not found
 
+  /api/kanban/boards/{boardId}/revive:
+    post:
+      operationId: reviveKanbanBoard
+      summary: Re-run restart recovery for a Kanban board
+      description: >-
+        Clears stale lane sessions and re-triggers missing entry automations for
+        cards on this board. GET /api/kanban/boards is side-effect free; recovery
+        only runs through this explicit write.
+      parameters:
+        - name: boardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recovery executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boardId:
+                    type: string
+                  workspaceId:
+                    type: string
+                  revived:
+                    type: boolean
+        "404":
+          description: Board not found
+
   /api/kanban/decompose:
     post:
       operationId: decomposeKanbanTasks

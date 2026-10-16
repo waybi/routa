@@ -69,6 +69,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/boards", get(list_boards).post(create_board))
         .route("/boards/{boardId}", get(get_board).patch(update_board))
+        .route("/boards/{boardId}/revive", post(revive_board))
         .route("/export", get(export_config))
         .route("/import", post(import_config))
         .route("/events", get(kanban_events))
@@ -506,10 +507,9 @@ async fn list_boards(
         })
         .collect::<Vec<_>>();
 
-    for board_id in &board_ids {
-        revive_missing_entry_automations(&state, &workspace_id, board_id).await?;
-    }
-
+    // GET must stay side-effect free: browsers, health probes and scripts call
+    // it freely. Restart recovery is an explicit write:
+    // POST /api/kanban/boards/{boardId}/revive.
     let mut boards = Vec::with_capacity(board_ids.len());
     for board_id in board_ids {
         let rpc_board = rpc_result(
@@ -525,6 +525,26 @@ async fn list_boards(
     }
 
     Ok(Json(serde_json::json!({ "boards": boards })))
+}
+
+/// Explicitly re-run restart recovery for one board (clear stale lane
+/// sessions and re-trigger missing entry automations). This used to run on
+/// every GET /api/kanban/boards; it is now an explicit write.
+async fn revive_board(
+    State(state): State<AppState>,
+    Path(board_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ServerError> {
+    let Some(board) = state.kanban_store.get(&board_id).await? else {
+        return Err(ServerError::NotFound(format!(
+            "Board not found: {board_id}"
+        )));
+    };
+    revive_missing_entry_automations(&state, &board.workspace_id, &board.id).await?;
+    Ok(Json(serde_json::json!({
+        "boardId": board.id,
+        "workspaceId": board.workspace_id,
+        "revived": true,
+    })))
 }
 
 async fn kanban_events(
@@ -1106,12 +1126,15 @@ fn strip_board_cards(board: &serde_json::Value) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        persisted_session_is_explicitly_terminal, sanitize_stale_current_lane_automation,
-        translate_agent_event_to_kanban_payload, translate_agent_event_to_lifecycle_payload,
-        UpdateBoardRequest, LIFECYCLE_PREVIEW_MAX_CHARS,
+        list_boards, persisted_session_is_explicitly_terminal, revive_board,
+        sanitize_stale_current_lane_automation, translate_agent_event_to_kanban_payload,
+        translate_agent_event_to_lifecycle_payload, BoardsQuery, UpdateBoardRequest,
+        LIFECYCLE_PREVIEW_MAX_CHARS,
     };
+    use axum::extract::{Path, Query, State};
     use chrono::Utc;
     use routa_core::events::{AgentEvent, AgentEventType};
+    use routa_core::models::kanban::{default_kanban_columns, KanbanBoard};
     use routa_core::models::task::{Task, TaskLaneSession, TaskLaneSessionStatus, TaskStatus};
     use routa_core::store::acp_session_store::CreateAcpSessionParams;
     use routa_core::{AppState, AppStateInner, Database};
@@ -1679,5 +1702,129 @@ mod tests {
             TaskLaneSessionStatus::TimedOut
         );
         assert!(updated.lane_sessions[0].completed_at.is_some());
+    }
+
+    fn running_lane_session(session_id: &str, column_id: &str) -> TaskLaneSession {
+        TaskLaneSession {
+            session_id: session_id.to_string(),
+            routa_agent_id: None,
+            column_id: Some(column_id.to_string()),
+            column_name: None,
+            step_id: None,
+            step_index: None,
+            step_name: None,
+            provider: Some("codex-acp".to_string()),
+            role: Some("GATE".to_string()),
+            specialist_id: None,
+            specialist_name: None,
+            transport: Some("acp".to_string()),
+            external_task_id: None,
+            context_id: None,
+            attempt: Some(1),
+            loop_mode: None,
+            completion_requirement: None,
+            objective: None,
+            last_activity_at: None,
+            recovered_from_session_id: None,
+            recovery_reason: None,
+            status: TaskLaneSessionStatus::Running,
+            started_at: Utc::now().to_rfc3339(),
+            completed_at: None,
+        }
+    }
+
+    /// Board with a stale (no live process) running review session.
+    async fn seed_board_with_stale_task(state: &AppState) {
+        let now = Utc::now();
+        state
+            .kanban_store
+            .create(&KanbanBoard {
+                id: "board-1".to_string(),
+                workspace_id: "default".to_string(),
+                name: "Board".to_string(),
+                is_default: false,
+                github_token: None,
+                columns: default_kanban_columns(),
+                created_at: now,
+                updated_at: now,
+            })
+            .await
+            .expect("board should persist");
+        let mut task = build_task("task-stale");
+        task.trigger_session_id = Some("session-stale".to_string());
+        task.lane_sessions
+            .push(running_lane_session("session-stale", "review"));
+        state
+            .task_store
+            .save(&task)
+            .await
+            .expect("task should persist");
+    }
+
+    #[tokio::test]
+    async fn list_boards_get_does_not_revive_stale_automation() {
+        let state = setup_state().await;
+        seed_board_with_stale_task(&state).await;
+
+        let response = list_boards(
+            State(state.clone()),
+            Query(BoardsQuery {
+                workspace_id: Some("default".to_string()),
+            }),
+        )
+        .await
+        .expect("list boards should succeed");
+        let board_ids = response.0["boards"]
+            .as_array()
+            .expect("boards array")
+            .iter()
+            .filter_map(|board| board["id"].as_str())
+            .collect::<Vec<_>>();
+        assert!(board_ids.contains(&"board-1"));
+
+        let task = state
+            .task_store
+            .get("task-stale")
+            .await
+            .expect("task lookup should succeed")
+            .expect("task should exist");
+        assert_eq!(task.trigger_session_id.as_deref(), Some("session-stale"));
+        assert_eq!(task.lane_sessions.len(), 1);
+        assert_eq!(task.lane_sessions[0].status, TaskLaneSessionStatus::Running);
+        assert_eq!(task.last_sync_error, None);
+    }
+
+    #[tokio::test]
+    async fn revive_board_post_recovers_stale_automation() {
+        let state = setup_state().await;
+        seed_board_with_stale_task(&state).await;
+
+        let response = revive_board(State(state.clone()), Path("board-1".to_string()))
+            .await
+            .expect("revive should succeed");
+        assert_eq!(response.0["revived"].as_bool(), Some(true));
+        assert_eq!(response.0["workspaceId"].as_str(), Some("default"));
+
+        let task = state
+            .task_store
+            .get("task-stale")
+            .await
+            .expect("task lookup should succeed")
+            .expect("task should exist");
+        assert_eq!(task.trigger_session_id, None);
+        assert_eq!(
+            task.lane_sessions[0].status,
+            TaskLaneSessionStatus::TimedOut
+        );
+    }
+
+    #[tokio::test]
+    async fn revive_board_post_returns_not_found_for_unknown_board() {
+        let state = setup_state().await;
+        let result = revive_board(State(state), Path("missing".to_string())).await;
+        assert!(matches!(
+            result,
+            Err(crate::error::ServerError::NotFound(_))
+        ));
     }
 }

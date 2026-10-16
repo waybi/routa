@@ -333,7 +333,7 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | # | 改动 | 落点 |
 |---|---|---|
 | P0-1 | 熔断计数只统计**有实质运行**的条目：过滤掉 `completedAt-startedAt < 15s` 且无 `lastActivityAt` 的秒失败；秒失败连续 ≥2 次直接标 `infra_error` 并停止重试，不计入 repeat limit | `workflow-orchestrator.ts getNonDevAutomationRunCount` |
-| P0-2 | 把 `reviveMissingEntryAutomations` 从 `GET /api/kanban/boards` 移到服务启动钩子 + 显式 `POST /api/kanban/boards/:id/revive`；GET 必须无副作用 | `src/app/api/kanban/boards/route.ts:60` |
+| P0-2 | 把 `reviveMissingEntryAutomations` 从 `GET /api/kanban/boards` 移到服务启动钩子 + 显式 `POST /api/kanban/boards/:id/revive`；GET 必须无副作用。**状态（2026-10-16）：部分完成**——Next.js 与 Rust 两端 GET 已无副作用，新增 `POST /api/kanban/boards/{boardId}/revive` 显式触发恢复；服务启动钩子未做（另开卡），上线后卡住的卡只能手动 POST revive 恢复 | `src/app/api/kanban/boards/route.ts`、`src/app/api/kanban/boards/[boardId]/revive/route.ts`、`crates/routa-server/src/api/kanban.rs` |
 | P0-3 | 泳道会话 completed/failed 后回收 DSH 子进程（或至少 idle N 分钟后 kill），并让 `board-session-limits` 的 5 真正对应存活进程数 | `kanban-session-queue.ts` / process manager |
 | P0-4 | `lastSyncError` 每次失败都覆盖写（去掉 `else if (!task.lastSyncError)`），泳道切列时清空 | `workflow-orchestrator.ts:505` |
 | P0-5 | 修 DSH profile：`local-7357` 改为已注册 provider 或走 env 注入 | `~/.dsh/profiles/acp/cordis.patch.yml` |
@@ -398,3 +398,9 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 ## Issue Hygiene
 
 - 2026-09-22: `kind: analysis`, reviewed. Several items it raised shipped in `docs/exec-plans/completed/kanban-ux-feedback.md` (toast layer, completion notifications, list payload diet, live-tail push). Left `open` as reference material; not an active tracker.
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交号 |
+|---|---|---|---|
+| 2026-10-16 | P0-2：GET /api/kanban/boards（Next.js + Rust）去掉 revive；新增 POST /api/kanban/boards/{boardId}/revive | 打开/刷新看板、外部探测不再改写卡片或拉起施工者进程；恢复改为显式写操作 | 本提交 |
