@@ -29,6 +29,7 @@ import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
 import { pendingAcpCreations } from "@/core/acp/pending-acp-creations";
 import { persistSessionHistorySnapshot } from "@/core/acp/session-history";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
+import { buildRecoveryModelEnv, replayStoredSessionConfig } from "@/core/acp/session-config-apply";
 
 type JsonRpcResponseFactory = (
   id: string | number | null,
@@ -358,7 +359,10 @@ async function ensurePromptSessionExists(args: {
   const specialistId = recoveredSession?.specialistId;
   const specialistSystemPrompt = storedSession?.specialistSystemPrompt;
   const providerSessionId = recoveredSession?.routaAgentId ?? sessionId;
-  const modelArgs = buildProviderModelArgs(provider, recoveredSession?.model ?? storedSession?.model);
+  const storedModel = recoveredSession?.model ?? storedSession?.model;
+  const storedReasoningEffort = recoveredSession?.reasoningEffort ?? storedSession?.reasoningEffort;
+  const modelArgs = buildProviderModelArgs(provider, storedModel);
+  const recoveryEnv = buildRecoveryModelEnv(provider, storedModel);
 
   try {
     const isClaudeCode = isClaudeStreamJsonProvider(provider);
@@ -467,7 +471,7 @@ async function ensurePromptSessionExists(args: {
           provider,
           undefined,
           modelArgs,
-          undefined,
+          recoveryEnv,
           workspaceId,
           toolMode,
           mcpProfile,
@@ -487,7 +491,7 @@ async function ensurePromptSessionExists(args: {
         provider,
         undefined,
         modelArgs,
-        undefined,
+        recoveryEnv,
         workspaceId,
         toolMode,
         mcpProfile,
@@ -500,6 +504,14 @@ async function ensurePromptSessionExists(args: {
       );
     }
 
+    // Replay model first, then reasoning effort (model change resets effort).
+    const replayed = await replayStoredSessionConfig(manager, sessionId, {
+      model: storedModel,
+      reasoningEffort: storedReasoningEffort,
+    });
+    const effectiveModel = replayed?.model ?? storedModel;
+    const effectiveReasoningEffort = replayed?.reasoningEffort ?? storedReasoningEffort;
+
     const now = new Date();
     const executionBinding = buildExecutionBinding("embedded");
     store.upsertSession({
@@ -509,6 +521,8 @@ async function ensurePromptSessionExists(args: {
       routaAgentId: acpSessionId,
       provider,
       role,
+      model: effectiveModel,
+      reasoningEffort: effectiveReasoningEffort,
       toolMode,
       mcpProfile,
       allowedNativeTools,
@@ -525,6 +539,8 @@ async function ensurePromptSessionExists(args: {
       routaAgentId: acpSessionId,
       provider,
       role,
+      model: effectiveModel,
+      reasoningEffort: effectiveReasoningEffort,
       specialistId: specialistId ?? undefined,
       ...executionBinding,
     });

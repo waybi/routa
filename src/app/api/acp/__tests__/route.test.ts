@@ -795,6 +795,49 @@ describe("/api/acp POST", () => {
     });
   });
 
+  it("recreates a recovered dsh session with DSH_ACP_MODEL and replays model before reasoning effort", async () => {
+    const mv = (m: string) => JSON.stringify(["local-7357", m]);
+    const options = (m: string, effort: string) => [
+      { id: "model", currentValue: mv(m), options: [{ group: "local-7357", options: [{ value: mv("claude-opus-4-6") }, { value: mv("claude-opus-5-5-pool") }] }] },
+      { id: "reasoning_effort", currentValue: effort, options: [{ value: "" }, { value: "high" }] },
+    ];
+    httpSessionStore.getSession.mockReturnValue(undefined);
+    loadSessionFromDb.mockResolvedValue({
+      id: "session-dsh",
+      cwd: "/tmp/dsh",
+      workspaceId: "workspace-1",
+      provider: "dsh",
+      role: "CRAFTER",
+      model: "claude-opus-4-6",
+      reasoningEffort: "high",
+      createdAt: new Date("2026-10-16T00:00:00.000Z"),
+    });
+    acpProcessManager.createSession.mockResolvedValue("session-dsh");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(options("claude-opus-5-5-pool", ""));
+    acpProcessManager.setConfigOption
+      .mockResolvedValueOnce(options("claude-opus-4-6", ""))
+      .mockResolvedValueOnce(options("claude-opus-4-6", "high"));
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 10, method: "session/load", params: { sessionId: "session-dsh" } }),
+      }),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ result: { sessionId: "session-dsh", provider: "dsh" } });
+    expect(acpProcessManager.createSession.mock.calls[0][5]).toBeUndefined();
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual({ DSH_ACP_MODEL: "claude-opus-4-6" });
+    expect(acpProcessManager.setConfigOption.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ["model", mv("claude-opus-4-6")],
+      ["reasoning_effort", "high"],
+    ]);
+    expect(httpSessionStore.upsertSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "session-dsh", model: "claude-opus-4-6", reasoningEffort: "high" }),
+    );
+  });
+
   it("rejects prompt auto-recreate when recovered embedded session belongs to another instance", async () => {
     httpSessionStore.getSession.mockReturnValue(undefined);
     loadSessionFromDb.mockResolvedValue({

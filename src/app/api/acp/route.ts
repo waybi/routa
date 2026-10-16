@@ -55,6 +55,7 @@ import {
   runnerUnavailableResponse,
 } from "@/core/acp/runner-routing";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
+import { buildRecoveryModelEnv, replayStoredSessionConfig } from "@/core/acp/session-config-apply";
 import { handleSessionNew, parseRequestedAcpMcpServers } from "./acp-session-create";
 import { getSessionWriteBuffer } from "./acp-session-history";
 import { handleSessionPrompt } from "./acp-session-prompt";
@@ -592,6 +593,9 @@ export async function POST(request: NextRequest) {
       let resumeMode: "native" | "recreated" = "recreated";
       let nativeResumeError: string | undefined;
       const modelArgs = buildProviderModelArgs(provider, recoveredSession.model);
+      const storedReasoningEffort = "reasoningEffort" in recoveredSession
+        ? (recoveredSession as { reasoningEffort?: string }).reasoningEffort
+        : undefined;
 
       // Determine whether native resume should be attempted based on provider capabilities
       const preset = getPresetById(provider);
@@ -634,7 +638,7 @@ export async function POST(request: NextRequest) {
           provider,
           recoveredSession.modeId,
           modelArgs,
-          undefined,
+          buildRecoveryModelEnv(provider, recoveredSession.model),
           workspaceId,
           "toolMode" in recoveredSession
             ? (recoveredSession as { toolMode?: "essential" | "full" }).toolMode
@@ -650,6 +654,14 @@ export async function POST(request: NextRequest) {
           requestedAcpMcpServers.servers,
         );
       }
+
+      // Replay model first, then reasoning effort (native load and recreate alike).
+      const replayed = await replayStoredSessionConfig(manager, sessionId, {
+        model: recoveredSession.model,
+        reasoningEffort: storedReasoningEffort,
+      });
+      const effectiveModel = replayed?.model ?? recoveredSession.model;
+      const effectiveReasoningEffort = replayed?.reasoningEffort ?? storedReasoningEffort;
 
       const executionBinding = buildExecutionBinding("embedded");
       const now = new Date().toISOString();
@@ -669,7 +681,8 @@ export async function POST(request: NextRequest) {
           ? (recoveredSession as { mcpProfile?: McpServerProfile }).mcpProfile
           : undefined,
         modeId: recoveredSession.modeId,
-        model: recoveredSession.model,
+        model: effectiveModel,
+        reasoningEffort: effectiveReasoningEffort,
         parentSessionId: recoveredSession.parentSessionId,
         specialistId: recoveredSession.specialistId,
         createdAt: now,
@@ -688,7 +701,8 @@ export async function POST(request: NextRequest) {
         role,
         parentSessionId: recoveredSession.parentSessionId,
         modeId: recoveredSession.modeId,
-        model: recoveredSession.model,
+        model: effectiveModel,
+        reasoningEffort: effectiveReasoningEffort,
         specialistId: recoveredSession.specialistId,
         executionMode: sessionRecord.executionMode,
         ownerInstanceId: sessionRecord.ownerInstanceId,

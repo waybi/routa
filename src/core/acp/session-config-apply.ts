@@ -91,3 +91,30 @@ export async function applySessionConfig(
 
   return { ...summarizeConfigOptions(options), configOptions: options, warnings };
 }
+
+/**
+ * Startup env for recreating a session: DSH only accepts its startup model
+ * through DSH_ACP_MODEL (it ignores -m).
+ */
+export function buildRecoveryModelEnv(
+  provider: string,
+  storedModel: string | undefined,
+): Record<string, string> | undefined {
+  const model = storedModel?.trim();
+  return provider === "dsh" && model ? { DSH_ACP_MODEL: model } : undefined;
+}
+
+/**
+ * Replay the stored model, then the stored reasoning effort, onto a freshly
+ * recreated/loaded session. Only names are stored; values are re-mapped
+ * against the options the agent reports now. No-op without an ACP process.
+ */
+export async function replayStoredSessionConfig(
+  target: SessionConfigTarget & { getProcess(sessionId: string): unknown },
+  sessionId: string,
+  stored: RequestedSessionConfig,
+): Promise<AppliedSessionConfig | undefined> {
+  if (!target.getProcess(sessionId)) return undefined;
+  if (stored.model === undefined && stored.reasoningEffort === undefined) return undefined;
+  return applySessionConfig(target, sessionId, stored, "[SessionRecovery]");
+}

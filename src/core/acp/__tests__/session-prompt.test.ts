@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment node
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AcpError } from "../acp-process";
@@ -18,6 +21,9 @@ const managerMock = vi.hoisted(() => ({
   getProcess: vi.fn(),
   getAcpSessionId: vi.fn(),
   getPresetId: vi.fn(),
+  createSession: vi.fn(),
+  getConfigOptions: vi.fn((): unknown[] => []),
+  setConfigOption: vi.fn(),
 }));
 
 const storeMock = vi.hoisted(() => ({
@@ -76,6 +82,7 @@ vi.mock("@/core/acp/http-session-store", () => ({
 
 vi.mock("@/core/acp/acp-presets", () => ({
   getPresetById: getPresetByIdMock,
+  isClaudeStreamJsonProvider: (providerId?: string | null) => providerId === "claude",
 }));
 
 vi.mock("@/core/acp/api-based-providers", () => ({
@@ -395,5 +402,82 @@ describe("session-prompt", () => {
         stopReason: "end_turn",
       },
     });
+  });
+
+  it("recreates a dsh session with its stored model and replays model before reasoning effort", async () => {
+    const modelOption = (current: string) => ({
+      id: "model",
+      name: "Model",
+      type: "select",
+      currentValue: current,
+      options: [{
+        group: "local-7357",
+        name: "local-7357",
+        options: [
+          { value: JSON.stringify(["local-7357", "claude-opus-4-6"]), name: "opus 4.6" },
+          { value: JSON.stringify(["local-7357", "claude-opus-5-5-pool"]), name: "opus 5.5" },
+        ],
+      }],
+    });
+    const effortOption = (current: string) => ({
+      id: "reasoning_effort",
+      name: "Reasoning",
+      type: "select",
+      currentValue: current,
+      options: [{ value: "", name: "default" }, { value: "high", name: "high" }],
+    });
+    let options = [modelOption(JSON.stringify(["local-7357", "claude-opus-5-5-pool"])), effortOption("")];
+    const calls: string[] = [];
+
+    managerMock.hasActiveSession.mockReturnValue(false);
+    storeMock.getSession.mockImplementation((sessionId: string) => ({
+      sessionId,
+      cwd: "/workspace",
+      workspaceId: "ws-1",
+      provider: "dsh",
+      model: "claude-opus-4-6",
+      reasoningEffort: "high",
+      createdAt: new Date().toISOString(),
+    }));
+    managerMock.createSession.mockResolvedValue("agent-dsh");
+    managerMock.getConfigOptions.mockImplementation(() => options);
+    managerMock.setConfigOption.mockImplementation(async (_sid: string, configId: string, value: string) => {
+      calls.push(`${configId}=${value}`);
+      options = configId === "model"
+        ? [modelOption(value), effortOption("")]
+        : [options[0], effortOption(value)];
+      return options;
+    });
+    managerMock.getProcess.mockReturnValue({
+      alive: true,
+      prompt: vi.fn(async () => ({ stopReason: "end_turn" })),
+    });
+    managerMock.getAcpSessionId.mockReturnValue("agent-dsh");
+
+    await dispatchSessionPrompt({
+      sessionId: "dsh-recover-1",
+      prompt: "continue",
+      workspaceId: "ws-1",
+    });
+
+    expect(managerMock.createSession).toHaveBeenCalledOnce();
+    const createArgs = managerMock.createSession.mock.calls[0];
+    expect(createArgs[3]).toBe("dsh");
+    expect(createArgs[5]).toBeUndefined();
+    expect(createArgs[6]).toEqual({ DSH_ACP_MODEL: "claude-opus-4-6" });
+    expect(calls).toEqual([
+      `model=${JSON.stringify(["local-7357", "claude-opus-4-6"])}`,
+      "reasoning_effort=high",
+    ]);
+    expect(storeMock.upsertSession).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: "dsh-recover-1",
+      model: "claude-opus-4-6",
+      reasoningEffort: "high",
+    }));
+    expect(persistSessionToDbMock).toHaveBeenCalledWith(expect.objectContaining({
+      id: "dsh-recover-1",
+      model: "claude-opus-4-6",
+      reasoningEffort: "high",
+    }));
   });
 });
