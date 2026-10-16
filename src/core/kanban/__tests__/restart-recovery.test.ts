@@ -339,4 +339,40 @@ describe("kanban restart recovery", () => {
     expect(processKanbanColumnTransition).not.toHaveBeenCalled();
     expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
   });
+
+  it("does not revive a lane whose last run failed because of the environment", async () => {
+    kanbanBoardStore.get.mockResolvedValue({
+      id: "board-1",
+      columns: [{
+        id: "backlog",
+        name: "Backlog",
+        position: 0,
+        stage: "backlog",
+        automation: {
+          enabled: true,
+          transitionType: "entry",
+          steps: [{ id: "backlog-refiner", role: "CRAFTER" }],
+        },
+      }],
+    });
+    taskStore.listByWorkspace.mockResolvedValue([createTaskWithRunningSession({
+      triggerSessionId: undefined,
+      laneSessions: [{
+        sessionId: "environment-failure-1",
+        columnId: "backlog",
+        status: "failed",
+        recoveryReason: "environment_failure",
+        startedAt: "2025-01-01T00:00:00.000Z",
+        completedAt: "2025-01-01T00:00:00.000Z",
+      }],
+    })]);
+
+    await reviveMissingEntryAutomations(system as never, "workspace-1", "board-1", {
+      sessionStore: sessionStore as never,
+      processManager: processManager as never,
+    });
+
+    expect(processKanbanColumnTransition).not.toHaveBeenCalled();
+    expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
+  });
 });

@@ -404,3 +404,4 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | 日期 | 改了什么 | 效果 | 提交号 |
 |---|---|---|---|
 | 2026-10-16 | P0-2：GET /api/kanban/boards（Next.js + Rust）去掉 revive；新增 POST /api/kanban/boards/{boardId}/revive | 打开/刷新看板、外部探测不再改写卡片或拉起施工者进程；恢复改为显式写操作 | 本提交 |
+| 2026-10-16 | 环境故障单独计数：错误含 `Not registered in ProviderRegistry` / `Unknown provider:` 时，泳道会话记 `recoveryReason: "environment_failure"`（启动即失败也补记一条 failed 会话），`lastSyncError` 加 `[environment]` 前缀；不计入 `getNonDevAutomationRunCount` 与 dev 监督重试，不自动 recover/fallback，POST revive 也跳过，等人工修好环境后移卡 | provider 未注册不再白耗重试次数、不再反复拉起注定失败的会话（P0-1 的「秒失败标 infra_error」只做了识别规则明确的这一类） | 本提交 |

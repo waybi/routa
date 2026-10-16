@@ -9,6 +9,7 @@ import {
   KanbanWorkflowOrchestrator,
   type AutomationSessionSupervisionContext,
 } from "./workflow-orchestrator";
+import { v4 as uuidv4 } from "uuid";
 import type { RoutaSystem } from "../routa-system";
 import type {
   KanbanAutomationStep,
@@ -32,6 +33,7 @@ import { getKanbanSessionConcurrencyLimit as getBoardSessionConcurrencyLimit } f
 import { getKanbanDevSessionSupervision } from "./board-session-supervision";
 import { getKanbanAutoProvider } from "./board-auto-provider";
 import { upsertTaskLaneSession } from "./task-lane-history";
+import { formatEnvironmentFailureError, isEnvironmentFailureMessage } from "./environment-failure";
 import { refreshTaskLaneExperienceMemory } from "./task-lane-experience";
 import { completeRunningSessionsOutsideColumn } from "./task-session-transition";
 import { analyzeFlowForTasks } from "./flow-ledger";
@@ -302,6 +304,29 @@ async function startKanbanTaskSession(
     if (nextTask.worktreeId) {
       await system.worktreeStore.assignSession(nextTask.worktreeId, triggerResult.sessionId);
     }
+  } else if (triggerResult.error && isEnvironmentFailureMessage(triggerResult.error)) {
+    // The session never started because the environment is broken (for
+    // example an unregistered provider). Record it as a distinct failed lane
+    // run so it is counted separately and not auto-retried.
+    const currentColumn = board?.columns.find((column) => column.id === nextTask.columnId);
+    const failedAt = new Date().toISOString();
+    upsertTaskLaneSession(nextTask, {
+      sessionId: `environment-failure-${uuidv4()}`,
+      columnId: nextTask.columnId,
+      columnName: currentColumn?.name,
+      stepId: sessionStep?.id,
+      stepIndex: sessionStepIndex,
+      stepName: sessionStep?.specialistName ?? sessionStep?.specialistId ?? sessionStep?.role,
+      provider: sessionProviderId,
+      role: sessionStep?.role ?? effectiveAutomation.role,
+      attempt: params.supervision?.attempt,
+      recoveredFromSessionId: params.supervision?.recoveredFromSessionId,
+      recoveryReason: "environment_failure",
+      status: "failed",
+      startedAt: failedAt,
+      completedAt: failedAt,
+    });
+    nextTask.lastSyncError = formatEnvironmentFailureError(triggerResult.error);
   } else if (triggerResult.error) {
     nextTask.lastSyncError = triggerResult.error;
   }

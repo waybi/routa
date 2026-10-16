@@ -25,6 +25,11 @@ import { resolveTransitionAutomation } from "./column-transition";
 import { getDefaultKanbanDevSessionSupervision } from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
+import {
+  formatEnvironmentFailureError,
+  isEnvironmentFailureLaneSession,
+  isEnvironmentFailureMessage,
+} from "./environment-failure";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
@@ -61,7 +66,14 @@ function isRecoveryMode(mode: KanbanDevSessionSupervisionMode): mode is "watchdo
   return mode === "watchdog_retry" || mode === "ralph_loop";
 }
 
-function getRecoveryReason(event: AgentEvent, completionSatisfied: boolean): TaskLaneSessionRecoveryReason {
+function getRecoveryReason(
+  event: AgentEvent,
+  completionSatisfied: boolean,
+  environmentFailure = false,
+): TaskLaneSessionRecoveryReason {
+  if (environmentFailure) {
+    return "environment_failure";
+  }
   if (event.type === AgentEventType.AGENT_TIMEOUT) {
     return "watchdog_inactivity";
   }
@@ -112,6 +124,11 @@ export function getNonDevAutomationRunCount(
     const entry = laneSessions[index];
     if (entry.columnId !== columnId) {
       break;
+    }
+    // Environment failures are counted separately (see environment-failure.ts)
+    // and must not consume the normal repeat budget.
+    if (isEnvironmentFailureLaneSession(entry)) {
+      continue;
     }
     runCount += 1;
   }
@@ -455,7 +472,14 @@ export class KanbanWorkflowOrchestrator {
         && event.type !== AgentEventType.AGENT_TIMEOUT
         && event.data?.success !== false;
       const completionSatisfied = await this.isCompletionSatisfied(task, automation, successEvent);
-      const shouldRecover = task
+      const environmentFailure = !successEvent && isEnvironmentFailureMessage(
+        typeof event.data?.error === "string" && event.data.error
+          ? event.data.error
+          : sessionStore.getSession(eventSessionId)?.acpError,
+      );
+      // Environment failures cannot succeed on retry: no recovery, no fallback,
+      // and they do not consume the supervision retry budget.
+      const shouldRecover = task && !environmentFailure
         ? await this.shouldRecover(task, automation, event, completionSatisfied)
         : false;
 
@@ -469,7 +493,7 @@ export class KanbanWorkflowOrchestrator {
         if (!successEvent || !completionSatisfied) {
           upsertTaskLaneSession(task, {
             sessionId: eventSessionId,
-            recoveryReason: getRecoveryReason(event, completionSatisfied),
+            recoveryReason: getRecoveryReason(event, completionSatisfied, environmentFailure),
           });
         }
       }
@@ -491,6 +515,7 @@ export class KanbanWorkflowOrchestrator {
 
       // Automatic fallback: on failure, try next fallback agent step instead of retrying
       const canFallback = !successEvent
+        && !environmentFailure
         && automation.enableAutomaticFallback
         && nextStepIndex < automation.steps.length;
       if (task && canFallback) {
@@ -529,6 +554,10 @@ export class KanbanWorkflowOrchestrator {
       if (task) {
         if (!failedToAdvanceWithinLane && successEvent && completionSatisfied) {
           task.lastSyncError = undefined;
+        } else if (environmentFailure) {
+          task.lastSyncError = formatEnvironmentFailureError(
+            this.buildFailureMessage(automation, event, completionSatisfied),
+          );
         } else if (!task.lastSyncError) {
           task.lastSyncError = this.buildFailureMessage(automation, event, completionSatisfied);
         }

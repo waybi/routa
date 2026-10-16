@@ -10,6 +10,7 @@ import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { isLaneAutomationComplete } from "./done-lane-teardown";
+import { isAwaitingEnvironmentFix } from "./environment-failure";
 import {
   enqueueKanbanTaskSession,
   processKanbanColumnTransition,
@@ -246,6 +247,13 @@ export async function reviveMissingEntryAutomations(
     // automation, burning sessions and potentially pushing cards into wrong
     // lanes via side effects.
     if (hasExceededNonDevAutomationRepeatLimit(task, currentColumnId, column.stage)) {
+      continue;
+    }
+
+    // The last run in this lane failed because of the environment (for
+    // example an unregistered provider). Re-running cannot succeed until a
+    // human fixes it, so revive leaves the card alone.
+    if (isAwaitingEnvironmentFix(task, currentColumnId)) {
       continue;
     }
 

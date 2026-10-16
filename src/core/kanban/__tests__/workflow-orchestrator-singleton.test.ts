@@ -39,6 +39,8 @@ import {
   resetWorkflowOrchestrator,
   startWorkflowOrchestrator,
 } from "../workflow-orchestrator-singleton";
+import { getEnvironmentFailureCount } from "../environment-failure";
+import { getNonDevAutomationRunCount } from "../workflow-orchestrator";
 
 describe("workflow orchestrator singleton prompt path", () => {
   beforeEach(() => {
@@ -302,5 +304,89 @@ describe("workflow orchestrator singleton prompt path", () => {
         status: "running",
       }),
     ]));
+  });
+
+  it("records a session that fails to start because of the environment as environment_failure", async () => {
+    const system = createInMemorySystem();
+    const board = createKanbanBoard({
+      id: "board-env",
+      workspaceId: "default",
+      name: "Board",
+      isDefault: true,
+      columns: [
+        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
+        { id: "todo", name: "Todo", position: 1, stage: "todo" },
+      ],
+    });
+    await system.kanbanBoardStore.save(board);
+
+    const task = createTask({
+      id: "task-env",
+      title: "Provider missing",
+      objective: "Session cannot start",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "todo",
+      status: TaskStatus.PENDING,
+    });
+    await system.taskStore.save(task);
+
+    const error = 'Unknown provider: "local-7357". Not registered in ProviderRegistry.';
+    triggerAssignedTaskAgentMock.mockResolvedValue({ error });
+
+    const result = await enqueueKanbanTaskSession(system, {
+      task,
+      expectedColumnId: "todo",
+      ignoreExistingTrigger: true,
+      bypassQueue: true,
+    });
+
+    expect(result).toMatchObject({ queued: false, error });
+    expect(result.sessionId ?? null).toBeNull();
+    const updatedTask = await system.taskStore.get("task-env");
+    expect(updatedTask?.lastSyncError).toBe(`[environment] ${error}`);
+    expect(updatedTask?.laneSessions).toEqual([
+      expect.objectContaining({
+        columnId: "todo",
+        status: "failed",
+        recoveryReason: "environment_failure",
+      }),
+    ]);
+    expect(getEnvironmentFailureCount(updatedTask, "todo")).toBe(1);
+    expect(getNonDevAutomationRunCount(updatedTask, "todo", "todo")).toBe(0);
+  });
+
+  it("keeps ordinary start failures out of the environment failure class", async () => {
+    const system = createInMemorySystem();
+    const board = createKanbanBoard({
+      id: "board-plain",
+      workspaceId: "default",
+      name: "Board",
+      isDefault: true,
+      columns: [{ id: "todo", name: "Todo", position: 0, stage: "todo" }],
+    });
+    await system.kanbanBoardStore.save(board);
+    const task = createTask({
+      id: "task-plain",
+      title: "Plain failure",
+      objective: "Session cannot start",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "todo",
+      status: TaskStatus.PENDING,
+    });
+    await system.taskStore.save(task);
+    triggerAssignedTaskAgentMock.mockResolvedValue({ error: "Failed to create ACP session." });
+
+    await enqueueKanbanTaskSession(system, {
+      task,
+      expectedColumnId: "todo",
+      ignoreExistingTrigger: true,
+      bypassQueue: true,
+    });
+
+    const updatedTask = await system.taskStore.get("task-plain");
+    expect(updatedTask?.lastSyncError).toBe("Failed to create ACP session.");
+    expect(updatedTask?.laneSessions ?? []).toHaveLength(0);
   });
 });
