@@ -184,3 +184,163 @@ describe("KanbanWorkflowOrchestrator post-completion failures", () => {
     expect(orchestrator.getAutomationForCard(task.id)?.status).toBe("failed");
   });
 });
+
+async function setupDoneLane(prefix: string, status: TaskStatus = TaskStatus.COMPLETED) {
+  const eventBus = new EventBus();
+  const boardStore = new InMemoryKanbanBoardStore();
+  const taskStore = new InMemoryTaskStore();
+  const killSession = vi.fn(async (_sessionId: string) => undefined);
+  const taskId = `${prefix}-task`;
+  const createSession = vi.fn(async (params: { stepIndex: number }) => {
+    const sessionId = params.stepIndex === 0 ? "pusher-1" : "reporter-1";
+    const current = await taskStore.get(taskId);
+    await taskStore.save({
+      ...current!,
+      triggerSessionId: sessionId,
+      sessionIds: [...(current!.sessionIds ?? []), sessionId],
+      laneSessions: [...(current!.laneSessions ?? []), lane(sessionId, "done", "running", params.stepIndex)],
+    });
+    return sessionId;
+  });
+
+  const board = createKanbanBoard({
+    id: `${prefix}-board`,
+    workspaceId: "default",
+    name: "Main Board",
+    isDefault: true,
+    columns: [
+      { id: "review", name: "Review", stage: "review", position: 0 },
+      {
+        id: "done",
+        name: "Done",
+        stage: "done",
+        position: 1,
+        automation: { enabled: true, transitionType: "entry", steps: DONE_STEPS },
+      },
+    ],
+  });
+  await boardStore.save(board);
+  await taskStore.save({
+    ...createTask({
+      id: taskId,
+      title: "Done lane kill",
+      objective: "End the card's processes once the Done lane finishes",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "done",
+      status,
+    }),
+    sessionIds: ["old-only-1", "dev-1"],
+    laneSessions: [lane("dev-1", "dev", "completed", 0), lane("review-1", "review", "completed", 1)],
+  });
+
+  const orchestrator = new KanbanWorkflowOrchestrator(eventBus, boardStore, taskStore, createSession as never, killSession);
+  orchestrator.start();
+  await orchestrator.processColumnTransition({
+    cardId: taskId,
+    cardTitle: "Done lane kill",
+    boardId: board.id,
+    workspaceId: "default",
+    fromColumnId: "review",
+    toColumnId: "done",
+  });
+  expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "pusher-1", status: "running" });
+  return { eventBus, orchestrator, taskStore, taskId, createSession, killSession };
+}
+
+function killCounts(killSession: { mock: { calls: unknown[][] } }): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const [sessionId] of killSession.mock.calls) {
+    counts[sessionId as string] = (counts[sessionId as string] ?? 0) + 1;
+  }
+  return counts;
+}
+
+describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
+  it("ends every session of the card once when the last Done step completes", async () => {
+    const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("kill-all");
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1", currentStepIndex: 1 });
+    });
+    expect(killSession).toHaveBeenCalledTimes(0);
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)?.status).toBe("completed");
+      expect(killSession).toHaveBeenCalledTimes(5);
+    });
+    expect(killCounts(killSession)).toEqual({
+      "dev-1": 1,
+      "review-1": 1,
+      "pusher-1": 1,
+      "reporter-1": 1,
+      "old-only-1": 1,
+    });
+  });
+
+  it("does not end sessions when a Done step that is not the last one completes", async () => {
+    const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("not-last");
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" });
+    });
+    await settle();
+    expect(killSession).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not end sessions when the card is not COMPLETED", async () => {
+    const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("not-completed", TaskStatus.IN_PROGRESS);
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" });
+    });
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)?.status).toBe("completed");
+    });
+    await settle();
+    expect(killSession).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not re-run or mark failed the sessions it ended", async () => {
+    const { eventBus, orchestrator, taskStore, taskId, createSession, killSession } = await setupDoneLane("no-rerun");
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" });
+    });
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });
+    await vi.waitFor(() => expect(killSession).toHaveBeenCalledTimes(5));
+    expect(createSession).toHaveBeenCalledTimes(2);
+
+    for (const sessionId of ["dev-1", "review-1", "pusher-1", "reporter-1", "old-only-1"]) {
+      emit(eventBus, AgentEventType.AGENT_FAILED, sessionId, { success: false, error: "process exited" });
+    }
+    await settle();
+
+    expect(createSession).toHaveBeenCalledTimes(2);
+    const saved = await taskStore.get(taskId);
+    expect(saved?.laneSessions?.filter((entry) => entry.status === "failed")).toEqual([]);
+    expect(saved?.laneSessions?.filter((entry) => entry.recoveryReason)).toEqual([]);
+  });
+
+  it("waits for the reporter's turn to end when its completion was synthesized", async () => {
+    const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("synthetic");
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" });
+    });
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true, synthesizedBy: "updateTask" });
+    await vi.waitFor(() => expect(killSession).toHaveBeenCalledTimes(4));
+    expect(killSession).not.toHaveBeenCalledWith("reporter-1");
+
+    emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });
+    await vi.waitFor(() => expect(killSession).toHaveBeenCalledWith("reporter-1"));
+    expect(killCounts(killSession)["reporter-1"]).toBe(1);
+  });
+});

@@ -24,7 +24,7 @@ import type { ColumnTransitionData } from "./column-transition";
 import { resolveTransitionAutomation } from "./column-transition";
 import { getDefaultKanbanDevSessionSupervision } from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
-import { isLaneAutomationComplete } from "./done-lane-teardown";
+import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
@@ -178,6 +178,14 @@ export type CreateAutomationSession = (params: {
   supervision?: AutomationSessionSupervisionContext;
 }) => Promise<string | null>;
 
+/** Ends the process behind an ACP session. Must tolerate unknown or already-exited sessions. */
+export type KillAutomationSession = (sessionId: string) => Promise<void>;
+
+async function killSessionViaProcessManager(sessionId: string): Promise<void> {
+  const { getAcpProcessManager } = await import("../acp/processer");
+  await getAcpProcessManager().killSession(sessionId);
+}
+
 /** Callback to clean up a card's session queue entry before auto-advancing or recovering */
 export type CleanupCardSession = (cardId: string) => void;
 
@@ -207,12 +215,15 @@ export class KanbanWorkflowOrchestrator {
   private watchdogTimer?: ReturnType<typeof setInterval>;
   /** Sessions Routa ended itself while winding down a finished card. */
   private teardownSessionIds = new Set<string>();
+  /** Teardown sessions still inside their turn; ended on their next lifecycle event. */
+  private deferredTeardownSessionIds = new Set<string>();
 
   constructor(
     private eventBus: EventBus,
     private kanbanBoardStore: KanbanBoardStore,
     private taskStore: TaskStore,
     private createSession?: CreateAutomationSession,
+    private killSession: KillAutomationSession = killSessionViaProcessManager,
   ) {}
 
   /** Start listening for column transition events */
@@ -400,6 +411,7 @@ export class KanbanWorkflowOrchestrator {
   }
 
   private async handleAgentCompletion(event: AgentEvent): Promise<void> {
+    await this.finishDeferredTeardown(event);
     for (const [cardId, automation] of this.activeAutomations.entries()) {
       if (automation.status === "completed" || automation.status === "failed") continue;
 
@@ -548,6 +560,18 @@ export class KanbanWorkflowOrchestrator {
         await this.autoAdvanceCard(cardId, automation);
       }
 
+      if (
+        task
+        && !failedToAdvanceWithinLane
+        && successEvent
+        && completionSatisfied
+        && automation.stage === "done"
+        && task.columnId === automation.columnId
+        && task.status === TaskStatus.COMPLETED
+      ) {
+        await this.teardownFinishedCardSessions(task, eventSessionId, event);
+      }
+
       const completedAutomation = automation;
       setTimeout(() => {
         if (this.activeAutomations.get(cardId) === completedAutomation) {
@@ -555,6 +579,49 @@ export class KanbanWorkflowOrchestrator {
         }
       }, COMPLETED_AUTOMATION_CLEANUP_DELAY_MS);
       return;
+    }
+  }
+
+  /**
+   * The card's Done lane just finished: end every agent session the card has
+   * used. Ids are registered before any kill so the exits they cause are
+   * recognised as teardown. A session whose completion was synthesized from a
+   * tool call (or a report) is still inside its turn; it is ended on its next
+   * lifecycle event so its final writes are not cut off.
+   */
+  private async teardownFinishedCardSessions(task: Task, eventSessionId: string, event: AgentEvent): Promise<void> {
+    const deferCurrent = event.type === AgentEventType.REPORT_SUBMITTED
+      || typeof event.data?.synthesizedBy === "string";
+    const sessionIds = collectTaskSessionIds(task);
+    for (const sessionId of sessionIds) {
+      this.teardownSessionIds.add(sessionId);
+    }
+    for (const sessionId of sessionIds) {
+      if (deferCurrent && sessionId === eventSessionId) {
+        this.deferredTeardownSessionIds.add(sessionId);
+        continue;
+      }
+      await this.killTeardownSession(sessionId);
+    }
+  }
+
+  private async finishDeferredTeardown(event: AgentEvent): Promise<void> {
+    const sessionId = typeof event.data?.sessionId === "string" ? event.data.sessionId : undefined;
+    if (!sessionId || !this.deferredTeardownSessionIds.has(sessionId)) {
+      return;
+    }
+    if (event.type === AgentEventType.REPORT_SUBMITTED || typeof event.data?.synthesizedBy === "string") {
+      return;
+    }
+    this.deferredTeardownSessionIds.delete(sessionId);
+    await this.killTeardownSession(sessionId);
+  }
+
+  private async killTeardownSession(sessionId: string): Promise<void> {
+    try {
+      await this.killSession(sessionId);
+    } catch (error) {
+      console.warn(`[WorkflowOrchestrator] Failed to end session ${sessionId} of a finished card:`, error);
     }
   }
 
