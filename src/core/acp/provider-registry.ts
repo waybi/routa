@@ -49,10 +49,11 @@ export const PROVIDER_MODEL_TIERS: Record<string, Record<string, string>> = {
     smart: "smart",
   },
   dsh: {
-    // DSH via local AI Gateway (claude-pool lane for quota resilience)
-    fast: "claude-sonnet-5",
-    balanced: "claude-opus-4-6",
-    smart: "claude-opus-5-5-pool",
+    // DSH via local AI Gateway: every lane role runs Claude Opus 5.5
+    // (the claude-opus-5-5-pool lane ran out of quota on 2026-10-16).
+    fast: "claude-opus-5-5",
+    balanced: "claude-opus-5-5",
+    smart: "claude-opus-5-5",
   },
 };
 
