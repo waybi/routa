@@ -6,6 +6,7 @@ import {
 } from "@/core/acp/process-config";
 import type { NotificationHandler } from "@/core/acp/protocol-types";
 import { SessionProcessNotFoundError, type AcpConfigOption } from "@/core/acp/config-options";
+import { handleSessionConfigOptionsChanged } from "@/core/acp/session-config-sync";
 import {ClaudeCodeProcess, buildClaudeCodeConfig, mapClaudeModeToPermissionMode} from "@/core/acp/claude-code-process";
 import {
     cleanupMcpForProvider,
@@ -200,6 +201,13 @@ export class AcpProcessManager {
         await cleanupMcpForProvider(cleanup);
     }
 
+    /** Persist every configOptions change (session/new, updates, set) for this session. */
+    private watchConfigOptions(proc: AcpProcess, sessionId: string): void {
+        proc.setConfigOptionsListener((options) => {
+            handleSessionConfigOptionsChanged(sessionId, options);
+        });
+    }
+
     hasActiveSession(sessionId: string): boolean {
         return Boolean(
             this.processes.get(sessionId)?.process.alive ||
@@ -261,6 +269,7 @@ export class AcpProcessManager {
                 mcpSetup?.mcpConfigs,
             );
             const proc = new AcpProcess(config, onNotification);
+            this.watchConfigOptions(proc, sessionId);
 
             await proc.start();
             await proc.initialize();
@@ -335,6 +344,7 @@ export class AcpProcessManager {
                 mcpSetup?.mcpConfigs,
             );
             const proc = new AcpProcess(config, onNotification);
+            this.watchConfigOptions(proc, sessionId);
 
             await proc.start();
             await proc.initialize();
@@ -389,6 +399,7 @@ export class AcpProcessManager {
     ): Promise<string> {
         const config = buildConfigFromInline(command, args, cwd, displayName);
         const proc = new AcpProcess(config, onNotification);
+        this.watchConfigOptions(proc, sessionId);
 
         await proc.start();
         await proc.initialize();

@@ -495,6 +495,38 @@ describe("/api/acp POST", () => {
     expect(acpProcessManager.createSession.mock.calls[0][5]).toBeUndefined();
     expect(acpProcessManager.setConfigOption.mock.calls.map((call) => call[1])).toEqual(["model", "reasoning_effort"]);
     expect(acpProcessManager.setConfigOption.mock.calls[0][2]).toBe(mv("claude-opus-4-6"));
+    expect(httpSessionStore.upsertSession).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: "dsh", model: "claude-opus-4-6", reasoningEffort: "high" }),
+    );
+    await vi.waitFor(() => expect(persistSessionToDb).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "dsh", model: "claude-opus-4-6", reasoningEffort: "high" }),
+    ));
+  });
+
+  it("persists the model the agent actually runs when none was requested", async () => {
+    acpProcessManager.createSession.mockResolvedValue("acp-dsh-3");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue([
+      { id: "model", currentValue: JSON.stringify(["local-7357", "claude-opus-5-5-pool"]) },
+      { id: "reasoning_effort", currentValue: "" },
+    ]);
+
+    await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 33,
+          method: "session/new",
+          params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project" },
+        }),
+      }),
+    );
+
+    await vi.waitFor(() => expect(persistSessionToDb).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "dsh", model: "claude-opus-5-5-pool", reasoningEffort: "" }),
+    ));
+    expect(acpProcessManager.setConfigOption).not.toHaveBeenCalled();
   });
 
   it("still creates the session when the agent declares no configOptions", async () => {
