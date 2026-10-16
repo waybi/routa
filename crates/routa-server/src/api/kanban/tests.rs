@@ -7,8 +7,10 @@ use super::{
 use axum::extract::{Path, Query, State};
 use chrono::Utc;
 use routa_core::events::{AgentEvent, AgentEventType};
-use routa_core::models::kanban::{default_kanban_columns, KanbanBoard};
-use routa_core::models::task::{Task, TaskLaneSession, TaskLaneSessionStatus, TaskStatus};
+use routa_core::models::kanban::{default_kanban_columns, KanbanBoard, KanbanColumnAutomation};
+use routa_core::models::task::{
+    Task, TaskLaneSession, TaskLaneSessionRecoveryReason, TaskLaneSessionStatus, TaskStatus,
+};
 use routa_core::store::acp_session_store::CreateAcpSessionParams;
 use routa_core::{AppState, AppStateInner, Database};
 use serde_json::json;
@@ -681,6 +683,95 @@ async fn revive_board_post_recovers_stale_automation() {
     assert_eq!(
         task.lane_sessions[0].status,
         TaskLaneSessionStatus::TimedOut
+    );
+}
+
+#[tokio::test]
+async fn revive_board_post_skips_cards_awaiting_environment_fix() {
+    let state = setup_state().await;
+    let now = Utc::now();
+    let mut columns = default_kanban_columns();
+    let dev = columns
+        .iter_mut()
+        .find(|column| column.id == "dev")
+        .expect("dev column should exist");
+    dev.automation = Some(KanbanColumnAutomation {
+        enabled: true,
+        provider_id: Some("opencode".to_string()),
+        role: Some("CRAFTER".to_string()),
+        transition_type: Some("entry".to_string()),
+        ..Default::default()
+    });
+    state
+        .kanban_store
+        .create(&KanbanBoard {
+            id: "board-1".to_string(),
+            workspace_id: "default".to_string(),
+            name: "Board".to_string(),
+            is_default: false,
+            github_token: None,
+            columns,
+            created_at: now,
+            updated_at: now,
+        })
+        .await
+        .expect("board should persist");
+
+    let failed_session = |session_id: &str, reason| {
+        let mut entry = running_lane_session(session_id, "dev");
+        entry.status = TaskLaneSessionStatus::Failed;
+        entry.recovery_reason = Some(reason);
+        entry.completed_at = Some(Utc::now().to_rfc3339());
+        entry
+    };
+    for (task_id, session_id, reason) in [
+        (
+            "task-env",
+            "session-env",
+            TaskLaneSessionRecoveryReason::EnvironmentFailure,
+        ),
+        (
+            "task-agent",
+            "session-agent",
+            TaskLaneSessionRecoveryReason::AgentFailed,
+        ),
+    ] {
+        let mut task = build_task(task_id);
+        task.column_id = Some("dev".to_string());
+        task.status = TaskStatus::InProgress;
+        task.lane_sessions.push(failed_session(session_id, reason));
+        state
+            .task_store
+            .save(&task)
+            .await
+            .expect("task should persist");
+    }
+
+    let response = revive_board(State(state.clone()), Path("board-1".to_string()))
+        .await
+        .expect("revive should succeed");
+    assert_eq!(response.0["revived"].as_bool(), Some(true));
+
+    let env_task = state
+        .task_store
+        .get("task-env")
+        .await
+        .expect("task lookup should succeed")
+        .expect("task should exist");
+    assert_eq!(env_task.trigger_session_id, None);
+    assert_eq!(env_task.last_sync_error, None);
+    assert_eq!(env_task.lane_sessions.len(), 1);
+
+    // Control: an ordinary agent failure in the same lane is revived.
+    let agent_task = state
+        .task_store
+        .get("task-agent")
+        .await
+        .expect("task lookup should succeed")
+        .expect("task should exist");
+    assert!(
+        agent_task.trigger_session_id.is_some() || agent_task.last_sync_error.is_some(),
+        "revive should attempt to re-trigger an ordinary failed card"
     );
 }
 

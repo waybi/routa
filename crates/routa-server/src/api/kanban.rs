@@ -8,7 +8,9 @@ use axum::{
 use routa_core::events::{AgentEvent, AgentEventType, EventBus};
 use routa_core::models::kanban::KanbanColumn;
 use routa_core::models::kanban_config::{KanbanBoardConfig, KanbanColumnConfig, KanbanConfig};
-use routa_core::models::task::{Task, TaskLaneSessionStatus, TaskStatus};
+use routa_core::models::task::{
+    Task, TaskLaneSessionRecoveryReason, TaskLaneSessionStatus, TaskStatus,
+};
 use routa_core::models::workspace::Workspace;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -396,6 +398,21 @@ async fn has_active_current_lane_session(
     false
 }
 
+/// True when the latest lane session in `column_id` ended with an environment
+/// failure (for example an unregistered provider). Mirrors
+/// `isAwaitingEnvironmentFix` in `src/core/kanban/environment-failure.ts`:
+/// automated revive must leave the card alone until a human fixes the
+/// environment, because re-running cannot succeed.
+fn is_awaiting_environment_fix(task: &Task, column_id: &str) -> bool {
+    match task.lane_sessions.last() {
+        Some(entry) if entry.column_id.as_deref() == Some(column_id) => matches!(
+            entry.recovery_reason,
+            Some(TaskLaneSessionRecoveryReason::EnvironmentFailure)
+        ),
+        _ => false,
+    }
+}
+
 async fn revive_missing_entry_automations(
     state: &AppState,
     workspace_id: &str,
@@ -435,6 +452,7 @@ async fn revive_missing_entry_automations(
             || !matches!(transition_type, "entry" | "both")
             || automation.primary_step().is_none()
             || has_active_current_lane_session(state, &task, &current_column_id).await
+            || is_awaiting_environment_fix(&task, &current_column_id)
         {
             continue;
         }
