@@ -247,6 +247,8 @@ export const acpSessions = pgTable("acp_sessions", {
   modeId: text("mode_id"),
   /** Model used for this session */
   model: text("model"),
+  /** Reasoning effort applied via ACP configOptions ("" = provider default) */
+  reasoningEffort: text("reasoning_effort"),
   /** Whether the first prompt has been sent */
   firstPromptSent: boolean("first_prompt_sent").default(false),
   /** Message history stored as JSONB array */

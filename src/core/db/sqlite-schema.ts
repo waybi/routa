@@ -237,6 +237,8 @@ export const acpSessions = sqliteTable("acp_sessions", {
   modeId: text("mode_id"),
   /** Model used for this session */
   model: text("model"),
+  /** Reasoning effort applied via ACP configOptions ("" = provider default) */
+  reasoningEffort: text("reasoning_effort"),
   /** Whether the first prompt has been sent */
   firstPromptSent: integer("first_prompt_sent", { mode: "boolean" }).default(false),
   /** Message history stored as JSON array */
