@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import { getHttpSessionStore } from "@/core/acp/http-session-store";

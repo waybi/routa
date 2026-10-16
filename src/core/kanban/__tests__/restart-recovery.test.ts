@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTask, TaskStatus, VerificationVerdict, type Task } from "@/core/models/task";
 import { reviveMissingEntryAutomations } from "../restart-recovery";
