@@ -17,6 +17,11 @@ describe("buildProviderModelArgs", () => {
     ]);
   });
 
+  it("never builds CLI model args for dsh (model goes via DSH_ACP_MODEL)", () => {
+    expect(buildProviderModelArgs("dsh", "claude-opus-4-6")).toBeUndefined();
+    expect(buildProviderModelArgs("dsh", "anything")).toBeUndefined();
+  });
+
   it("omits blank model overrides", () => {
     expect(buildProviderModelArgs("codex", "  ")).toBeUndefined();
   });
