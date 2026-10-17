@@ -138,6 +138,50 @@ describe("/api/sessions/[sessionId] GET", () => {
     });
   });
 
+  it("returns reasoningEffort for an in-memory (hydrated) session", async () => {
+    getSession.mockReturnValue({
+      sessionId: "session-hydrated",
+      cwd: "/tmp/project",
+      workspaceId: "workspace-1",
+      provider: "dsh",
+      model: "claude-opus-5-5",
+      reasoningEffort: "high",
+      createdAt: "2026-10-18T00:00:00.000Z",
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/sessions/session-hydrated"),
+      { params: Promise.resolve({ sessionId: "session-hydrated" }) },
+    );
+    const data = await response.json();
+
+    expect(data.session.model).toBe("claude-opus-5-5");
+    expect(data.session.reasoningEffort).toBe("high");
+  });
+
+  it("returns reasoningEffort from the persisted DB fallback", async () => {
+    getSession.mockReturnValue(undefined);
+    loadSessionFromDb.mockResolvedValue({
+      id: "session-db-effort",
+      cwd: "/tmp/project",
+      workspaceId: "workspace-1",
+      provider: "dsh",
+      model: "claude-opus-5-5",
+      reasoningEffort: "high",
+      createdAt: new Date("2026-10-18T00:00:00.000Z"),
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/sessions/session-db-effort"),
+      { params: Promise.resolve({ sessionId: "session-db-effort" }) },
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.session.model).toBe("claude-opus-5-5");
+    expect(data.session.reasoningEffort).toBe("high");
+  });
+
   it("falls back to local JSONL metadata when DB storage has no session row", async () => {
     getSession.mockReturnValue(undefined);
     loadSessionFromDb.mockResolvedValue(null);

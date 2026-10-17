@@ -1071,6 +1071,8 @@ class HttpSessionStore {
           provider: s.provider,
           role: s.role,
           modeId: s.modeId,
+          model: s.model,
+          reasoningEffort: s.reasoningEffort,
           parentSessionId: s.parentSessionId,
           executionMode: s.executionMode,
           ownerInstanceId: s.ownerInstanceId,

@@ -41,6 +41,7 @@ export async function GET(
     role: persistedSession.role,
     modeId: persistedSession.modeId,
     model: persistedSession.model,
+    reasoningEffort: persistedSession.reasoningEffort,
     parentSessionId: persistedSession.parentSessionId,
     specialistId: persistedSession.specialistId,
     executionMode: persistedSession.executionMode,
@@ -58,6 +59,7 @@ export async function GET(
     role: localSession.role,
     modeId: localSession.modeId,
     model: localSession.model,
+    reasoningEffort: localSession.reasoningEffort,
     parentSessionId: localSession.parentSessionId,
     specialistId: localSession.specialistId,
     executionMode: localSession.executionMode,
@@ -90,6 +92,7 @@ export async function GET(
         ? (resolvedSession as { mcpProfile?: string }).mcpProfile
         : undefined,
       model: resolvedSession.model,
+      reasoningEffort: resolvedSession.reasoningEffort,
       createdAt: resolvedSession.createdAt,
       parentSessionId: resolvedSession.parentSessionId,
       specialistId: resolvedSession.specialistId,
