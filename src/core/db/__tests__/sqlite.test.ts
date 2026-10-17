@@ -128,6 +128,8 @@ describe("ensureSqliteDefaultWorkspace", () => {
           "fallback_agent_chain",
           "enable_automatic_fallback",
           "max_fallback_attempts",
+          "assigned_model",
+          "assigned_reasoning_effort",
         ]),
       );
     } finally {
