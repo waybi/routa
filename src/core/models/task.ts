@@ -135,6 +135,10 @@ export interface TaskLaneSession {
   role?: string;
   specialistId?: string;
   specialistName?: string;
+  /** Model requested in session/new for this lane session (if any). */
+  model?: string;
+  /** Reasoning effort requested in session/new for this lane session (if any). */
+  reasoningEffort?: string;
   /** Transport protocol used for this session */
   transport?: string;
   /** A2A-specific: External task ID from the agent system */
@@ -858,6 +862,10 @@ export interface Task {
   assignedRole?: string;
   assignedSpecialistId?: string;
   assignedSpecialistName?: string;
+  /** Card-level model override for lane sessions (wins over the column step model). */
+  assignedModel?: string;
+  /** Card-level reasoning effort override for lane sessions (wins over the column step effort). */
+  assignedReasoningEffort?: string;
   /** Ordered fallback agents to try when the primary agent fails */
   fallbackAgentChain?: FallbackAgent[];
   /** Whether to automatically try the next fallback agent on failure */
@@ -928,6 +936,8 @@ export function createTask(params: {
   assignedRole?: string;
   assignedSpecialistId?: string;
   assignedSpecialistName?: string;
+  assignedModel?: string;
+  assignedReasoningEffort?: string;
   fallbackAgentChain?: FallbackAgent[];
   enableAutomaticFallback?: boolean;
   maxFallbackAttempts?: number;
@@ -968,6 +978,8 @@ export function createTask(params: {
     assignedRole: params.assignedRole,
     assignedSpecialistId: params.assignedSpecialistId,
     assignedSpecialistName: params.assignedSpecialistName,
+    assignedModel: params.assignedModel,
+    assignedReasoningEffort: params.assignedReasoningEffort,
     fallbackAgentChain: params.fallbackAgentChain,
     enableAutomaticFallback: params.enableAutomaticFallback,
     maxFallbackAttempts: params.maxFallbackAttempts,

@@ -94,6 +94,8 @@ export const tasks = pgTable("tasks", {
   assignedRole: text("assigned_role"),
   assignedSpecialistId: text("assigned_specialist_id"),
   assignedSpecialistName: text("assigned_specialist_name"),
+  assignedModel: text("assigned_model"),
+  assignedReasoningEffort: text("assigned_reasoning_effort"),
   fallbackAgentChain: jsonb("fallback_agent_chain").$type<FallbackAgent[]>(),
   enableAutomaticFallback: boolean("enable_automatic_fallback"),
   maxFallbackAttempts: integer("max_fallback_attempts"),

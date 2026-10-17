@@ -96,6 +96,8 @@ export const tasks = sqliteTable("tasks", {
   assignedRole: text("assigned_role"),
   assignedSpecialistId: text("assigned_specialist_id"),
   assignedSpecialistName: text("assigned_specialist_name"),
+  assignedModel: text("assigned_model"),
+  assignedReasoningEffort: text("assigned_reasoning_effort"),
   fallbackAgentChain: text("fallback_agent_chain", { mode: "json" }).$type<FallbackAgent[]>(),
   enableAutomaticFallback: integer("enable_automatic_fallback", { mode: "boolean" }),
   maxFallbackAttempts: integer("max_fallback_attempts"),

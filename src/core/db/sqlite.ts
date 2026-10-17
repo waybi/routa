@@ -207,6 +207,8 @@ function initializeSqliteTables(db: SqliteDatabase): void {
       assigned_role TEXT,
       assigned_specialist_id TEXT,
       assigned_specialist_name TEXT,
+      assigned_model TEXT,
+      assigned_reasoning_effort TEXT,
       fallback_agent_chain TEXT,
       enable_automatic_fallback INTEGER,
       max_fallback_attempts INTEGER,
@@ -248,6 +250,8 @@ function initializeSqliteTables(db: SqliteDatabase): void {
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN assigned_role TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN assigned_specialist_id TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN assigned_specialist_name TEXT`);
+  runAddColumn(sql`ALTER TABLE tasks ADD COLUMN assigned_model TEXT`);
+  runAddColumn(sql`ALTER TABLE tasks ADD COLUMN assigned_reasoning_effort TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN fallback_agent_chain TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN enable_automatic_fallback INTEGER`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN max_fallback_attempts INTEGER`);

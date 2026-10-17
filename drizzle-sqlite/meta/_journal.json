@@ -120,6 +120,13 @@
       "when": 1792108800000,
       "tag": "0016_add_acp_session_reasoning_effort",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792195200000,
+      "tag": "0017_add_task_assigned_model",
+      "breakpoints": true
     }
   ]
 }

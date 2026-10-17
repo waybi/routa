@@ -63,6 +63,8 @@ describe("sqlite foundation stores", () => {
         assigned_role TEXT,
         assigned_specialist_id TEXT,
         assigned_specialist_name TEXT,
+        assigned_model TEXT,
+        assigned_reasoning_effort TEXT,
         trigger_session_id TEXT,
         session_ids TEXT DEFAULT '[]',
         lane_sessions TEXT DEFAULT '[]',
@@ -283,5 +285,28 @@ describe("sqlite foundation stores", () => {
     expect(await taskStore.get("task-blocked")).toBeUndefined();
     expect(await taskStore.deleteByWorkspace("workspace-1")).toBe(2);
     expect(await taskStore.listByWorkspace("workspace-1")).toEqual([]);
+  });
+
+  it("persists and clears the card-level model and reasoning effort override", async () => {
+    await workspaceStore.save(createWorkspace({ id: "workspace-1", title: "Workspace One" }));
+    const task = createTask({
+      id: "task-model",
+      title: "Model override",
+      objective: "Pin the lane model",
+      workspaceId: "workspace-1",
+      assignedModel: "claude-opus-5-5",
+      assignedReasoningEffort: "high",
+    });
+
+    await taskStore.save(task);
+    expect(await taskStore.get("task-model")).toMatchObject({
+      assignedModel: "claude-opus-5-5",
+      assignedReasoningEffort: "high",
+    });
+
+    await taskStore.save({ ...task, assignedModel: undefined, assignedReasoningEffort: undefined });
+    const cleared = await taskStore.get("task-model");
+    expect(cleared?.assignedModel).toBeUndefined();
+    expect(cleared?.assignedReasoningEffort).toBeUndefined();
   });
 });
