@@ -8,6 +8,7 @@ import type { ChecklistItem } from "../../../utils/checklist-parser";
 import { type FileChangesState, createFileChangesState } from "../../../utils/file-changes-tracker";
 import { extractTaskBlocks, hasTaskBlocks, type ParsedTask } from "../../../utils/task-block-parser";
 import { hydrateTranscriptMessages, type SessionTranscriptPayload } from "@/core/session-transcript";
+import type { AcpConfigOption } from "@/core/acp/config-options";
 import { processUpdate } from "./message-processor";
 
 export interface UseChatMessagesOptions {
@@ -19,8 +20,10 @@ export interface UseChatMessagesOptions {
 export interface UseChatMessagesResult {
   messagesBySession: Record<string, ChatMessage[]>;
   visibleMessages: ChatMessage[];
-  sessions: Array<{ sessionId: string; provider?: string; modeId?: string }>;
+  sessions: Array<{ sessionId: string; provider?: string; modeId?: string; model?: string }>;
   sessionModeById: Record<string, string>;
+  /** Latest configOptions pushed by config_option_update, per session. */
+  sessionConfigOptionsById: Record<string, AcpConfigOption[]>;
   isSessionRunning: boolean;
   checklistItems: ChecklistItem[];
   fileChangesState: FileChangesState;
@@ -37,8 +40,9 @@ export function useChatMessages({
   updates,
   onTasksDetected,
 }: UseChatMessagesOptions): UseChatMessagesResult {
-  const [sessions, setSessions] = useState<Array<{ sessionId: string; provider?: string; modeId?: string }>>([]);
+  const [sessions, setSessions] = useState<Array<{ sessionId: string; provider?: string; modeId?: string; model?: string }>>([]);
   const [sessionModeById, setSessionModeById] = useState<Record<string, string>>({});
+  const [sessionConfigOptionsById, setSessionConfigOptionsById] = useState<Record<string, AcpConfigOption[]>>({});
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({});
   const visibleMessages = useMemo(() => {
     if (!activeSessionId) return [];
@@ -176,6 +180,7 @@ export function useChatMessages({
     lastProcessedUpdateIndexRef.current = updates.length;
 
     const modeUpdates: Record<string, string> = {};
+    const configOptionUpdates: Record<string, AcpConfigOption[]> = {};
 
     setMessagesBySession((prev) => {
       const next = { ...prev };
@@ -235,7 +240,8 @@ export function useChatMessages({
           setChecklistItems,
           setFileChangesState,
           setUsageInfo,
-          modeUpdates
+          modeUpdates,
+          configOptionUpdates
         );
 
         // Track last update kind for streaming message grouping
@@ -257,6 +263,9 @@ export function useChatMessages({
 
     if (Object.keys(modeUpdates).length > 0) {
       setSessionModeById((prev) => ({ ...prev, ...modeUpdates }));
+    }
+    if (Object.keys(configOptionUpdates).length > 0) {
+      setSessionConfigOptionsById((prev) => ({ ...prev, ...configOptionUpdates }));
     }
 
     for (const notification of pending) {
@@ -328,6 +337,7 @@ export function useChatMessages({
     visibleMessages,
     sessions,
     sessionModeById,
+    sessionConfigOptionsById,
     isSessionRunning,
     checklistItems,
     fileChangesState,

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { AcpSessionNotification } from "../../../acp-client";
 import type { ChatMessage, PlanEntry, UsageInfo } from "../types";
 import type { TraceRecord } from "@/core/trace";
+import { extractConfigOptions, type AcpConfigOption } from "@/core/acp/config-options";
 import {
   historyNotificationsToMessages,
   traceRecordsToMessages,
@@ -275,7 +276,8 @@ export function processUpdate(
   setChecklistItems: SetState<ChecklistItem[]>,
   setFileChangesState: SetState<FileChangesState>,
   setUsageInfo: SetState<UsageInfo | null>,
-  modeUpdates: Record<string, string>
+  modeUpdates: Record<string, string>,
+  configOptionUpdates?: Record<string, AcpConfigOption[]>
 ): void {
   switch (kind) {
     case "agent_message_chunk": {
@@ -545,8 +547,16 @@ export function processUpdate(
       break;
     }
 
+    case "config_option_update": {
+      // Full replacement of the session's configOptions (model, effort…).
+      const configOptions = extractConfigOptions(update);
+      if (configOptions && configOptionUpdates) {
+        configOptionUpdates[sid] = configOptions;
+      }
+      break;
+    }
+
     case "available_commands_update":
-    case "config_option_update":
     case "session_info_update":
       break;
 

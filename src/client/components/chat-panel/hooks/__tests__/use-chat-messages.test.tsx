@@ -187,6 +187,37 @@ describe("useChatMessages", () => {
     });
   });
 
+  it("collects config_option_update payloads per session", async () => {
+    const fetchMock = vi.mocked(desktopAwareFetch);
+    fetchMock.mockResolvedValue(okJson({ history: [], messages: [], latestEventKind: "turn_complete" }));
+    const configOptions = [
+      { id: "model", currentValue: "m2", options: [{ value: "m1" }, { value: "m2" }] },
+      { id: "reasoning_effort", currentValue: "", options: [{ value: "" }, { value: "high" }] },
+    ];
+    const firstBatch = [
+      { sessionId: "session-1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } } },
+    ];
+    const secondBatch = [
+      ...firstBatch,
+      { sessionId: "session-1", update: { sessionUpdate: "config_option_update", configOptions } },
+    ];
+
+    const { result, rerender } = renderHook(
+      ({ incomingUpdates }) => useChatMessages({ activeSessionId: "session-1", updates: incomingUpdates }),
+      { initialProps: { incomingUpdates: [] as typeof secondBatch } },
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    rerender({ incomingUpdates: firstBatch });
+    await waitFor(() => expect(result.current.visibleMessages).toHaveLength(1));
+    expect(result.current.sessionConfigOptionsById).toEqual({});
+
+    rerender({ incomingUpdates: secondBatch });
+    await waitFor(() => expect(result.current.sessionConfigOptionsById["session-1"]).toEqual(configOptions));
+    // The notification is state, not a chat message.
+    expect(result.current.visibleMessages).toHaveLength(1);
+  });
+
   it("starts a fresh assistant message after a tool call", async () => {
     const fetchMock = vi.mocked(desktopAwareFetch);
     fetchMock.mockResolvedValue(okJson({
