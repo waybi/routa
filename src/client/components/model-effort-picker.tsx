@@ -50,7 +50,28 @@ export interface ModelEffortPickerProps {
   allowDefaultEffort?: boolean;
 }
 
-type PanelPosition = { left: number; top?: number; bottom?: number; maxHeight: number; minWidth: number };
+type PanelPosition = { left: number; top?: number; bottom?: number; maxHeight: number; width: number };
+
+/** Wide enough for "Default / Low / Medium / High / Xhigh / Max" on one or two rows. */
+export const PANEL_MIN_WIDTH = 320;
+/** Gap kept between the panel and the viewport edge. */
+const VIEWPORT_PADDING = 8;
+
+/**
+ * Left edge for a panel of `panelWidth` anchored to `rect`: start at the
+ * button's left edge; if that runs past the viewport, align to the button's
+ * right edge, then clamp into [padding, innerWidth - padding - panelWidth].
+ */
+export function resolvePanelLeft(
+  rect: Pick<DOMRect, "left" | "right">,
+  panelWidth: number,
+  viewportWidth: number,
+): number {
+  const maxRight = viewportWidth - VIEWPORT_PADDING;
+  if (rect.left + panelWidth <= maxRight) return Math.max(VIEWPORT_PADDING, rect.left);
+  const rightAligned = rect.right - panelWidth;
+  return Math.max(VIEWPORT_PADDING, Math.min(rightAligned, maxRight - panelWidth));
+}
 
 interface ModelGroup {
   label: string | undefined;
@@ -151,10 +172,11 @@ export function ModelEffortPicker({
     if (!button) return;
     const rect = button.getBoundingClientRect();
     const preferredHeight = 420;
-    const padding = 8;
+    const padding = VIEWPORT_PADDING;
     const spaceAbove = rect.top - padding;
     const spaceBelow = window.innerHeight - rect.bottom - padding;
-    const base = { left: rect.left, minWidth: variant === "form" ? rect.width : 0 };
+    const width = Math.max(PANEL_MIN_WIDTH, variant === "form" ? rect.width : 0);
+    const base = { left: resolvePanelLeft(rect, width, window.innerWidth), width };
     setPosition(spaceBelow >= spaceAbove
       ? { ...base, top: rect.bottom + 4, maxHeight: Math.min(spaceBelow, preferredHeight) }
       : { ...base, bottom: window.innerHeight - rect.top + 4, maxHeight: Math.min(spaceAbove, preferredHeight) });
@@ -270,12 +292,14 @@ export function ModelEffortPicker({
           aria-label={resolvedAriaLabel}
           data-testid={`${testIdPrefix}-panel`}
           onKeyDown={handlePanelKeyDown}
-          className="fixed w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-[9999] dark:border-slate-700 dark:bg-[#1e2130]"
+          className="fixed overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-[9999] dark:border-slate-700 dark:bg-[#1e2130]"
           style={{
             left: position.left,
             top: position.top,
             bottom: position.bottom,
-            minWidth: position.minWidth || undefined,
+            width: position.width,
+            minWidth: PANEL_MIN_WIDTH,
+            maxWidth: `calc(100vw - ${VIEWPORT_PADDING * 2}px)`,
             maxHeight: `${position.maxHeight}px`,
           }}
         >
@@ -328,7 +352,7 @@ export function ModelEffortPicker({
                         data-testid={`${testIdPrefix}-effort-option`}
                         data-value={choice.value}
                         onClick={() => selectEffort(choice.value)}
-                        className={`min-w-0 flex-1 truncate rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${
+                        className={`flex-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${
                           selected
                             ? "bg-white text-blue-700 shadow-sm dark:bg-[#0b1119] dark:text-blue-300"
                             : "text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-white/5"

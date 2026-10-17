@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { ModelEffortPicker, type ModelEffortPickerProps } from "../model-effort-picker";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ModelEffortPicker, resolvePanelLeft, type ModelEffortPickerProps } from "../model-effort-picker";
 import type { ModelEffortChoices } from "../../model-effort/model-effort-choices";
 
 const choices: ModelEffortChoices = {
@@ -146,6 +146,114 @@ describe("ModelEffortPicker", () => {
 
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith({ model: "gpt-6.1-sol", reasoningEffort: "high" });
+  });
+});
+
+describe("ModelEffortPicker panel layout", () => {
+  const originalInnerWidth = window.innerWidth;
+  const originalInnerHeight = window.innerHeight;
+
+  function placeButton(rect: { left: number; right: number; top?: number; bottom?: number }) {
+    const top = rect.top ?? 100;
+    const bottom = rect.bottom ?? 124;
+    const button = screen.getByTestId("model-effort-picker");
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue({
+      left: rect.left,
+      right: rect.right,
+      width: rect.right - rect.left,
+      top,
+      bottom,
+      height: bottom - top,
+      x: rect.left,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  function panelBox(panel: HTMLElement) {
+    // jsdom does not lay out; the component drives size and position through style.
+    return { left: parseFloat(panel.style.left), width: parseFloat(panel.style.width) };
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", { value: 1500, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 950, configurable: true });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { value: originalInnerWidth, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: originalInnerHeight, configurable: true });
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the panel inside the viewport when the capsule sits at the right edge", () => {
+    renderPicker();
+    placeButton({ left: 1400, right: 1490 });
+    const { left, width } = panelBox(openPanel());
+    expect(left).toBeGreaterThanOrEqual(8);
+    expect(left + width).toBeLessThanOrEqual(1500 - 8);
+  });
+
+  it("applies the same clamp when the panel opens upwards", () => {
+    renderPicker();
+    placeButton({ left: 1400, right: 1490, top: 900, bottom: 924 });
+    const panel = openPanel();
+    expect(panel.style.bottom).not.toBe("");
+    const { left, width } = panelBox(panel);
+    expect(left).toBeGreaterThanOrEqual(8);
+    expect(left + width).toBeLessThanOrEqual(1500 - 8);
+  });
+
+  it("still anchors to the capsule's left edge when there is room", () => {
+    renderPicker();
+    placeButton({ left: 40, right: 130 });
+    expect(openPanel().style.left).toBe("40px");
+  });
+
+  it("is at least 320px wide and keeps a wider form trigger's width", () => {
+    renderPicker();
+    placeButton({ left: 40, right: 130 });
+    const panel = openPanel();
+    expect(panelBox(panel).width).toBeGreaterThanOrEqual(320);
+    expect(parseFloat(panel.style.minWidth)).toBeGreaterThanOrEqual(320);
+  });
+
+  it("matches a form trigger that is wider than 320px", () => {
+    renderPicker({ variant: "form" });
+    placeButton({ left: 40, right: 440 });
+    expect(panelBox(openPanel()).width).toBe(400);
+  });
+
+  it("shows every effort label in full without truncation", () => {
+    renderPicker({
+      choices: {
+        ...choices,
+        reasoningEfforts: [
+          { value: "low", label: "Low" },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High" },
+          { value: "xhigh", label: "Xhigh" },
+          { value: "max", label: "Max" },
+        ],
+      },
+    });
+    openPanel();
+    const radios = screen.getAllByRole("radio");
+    expect(radios.map((radio) => radio.textContent)).toEqual(["Default", "Low", "Medium", "High", "Xhigh", "Max"]);
+    for (const radio of radios) {
+      expect(radio.className).not.toContain("truncate");
+      expect(radio.className).toContain("whitespace-nowrap");
+    }
+    expect(screen.getByRole("radiogroup").className).toContain("flex-wrap");
+  });
+});
+
+describe("resolvePanelLeft", () => {
+  it("right-aligns to the trigger, then clamps into the viewport", () => {
+    expect(resolvePanelLeft({ left: 40, right: 130 }, 320, 1500)).toBe(40);
+    expect(resolvePanelLeft({ left: 1400, right: 1490 }, 320, 1500)).toBe(1170);
+    expect(resolvePanelLeft({ left: 1450, right: 1499 }, 320, 1500)).toBe(1172);
+    expect(resolvePanelLeft({ left: 10, right: 100 }, 320, 300)).toBe(8);
   });
 });
 
