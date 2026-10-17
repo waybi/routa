@@ -1,11 +1,17 @@
 "use client";
 
 /**
- * Model / reasoning-effort selects plus a short "current value" label for the
- * active session. Which select renders is decided only by the configOptions
- * the agent advertised (no provider-name checks).
+ * Model / reasoning-effort capsule for the active session, rendered in the
+ * composer toolbar. Which parts show is decided only by the configOptions the
+ * agent advertised (no provider-name checks).
+ *
+ * Values stay in the agent's raw form (DSH model values are
+ * `["<provider>","<model>"]` JSON strings) because POST
+ * /api/sessions/{id}/config-options only accepts advertised values. The POST
+ * reply replaces the whole configOptions array, so nothing is stored here.
  */
 
+import { useMemo } from "react";
 import {
   MODEL_CONFIG_ID,
   REASONING_EFFORT_CONFIG_ID,
@@ -14,82 +20,32 @@ import {
   parseModelValue,
   summarizeConfigOptions,
   type AcpConfigOption,
-  type AcpConfigSelectGroup,
-  type AcpConfigSelectValue,
 } from "@/core/acp/config-options";
+import { parseModelEffortChoices } from "@/client/model-effort/model-effort-choices";
 import { useTranslation } from "@/i18n";
+import { ModelEffortPicker } from "../../model-effort-picker";
 
 export interface SessionConfigSelectsProps {
   configOptions: AcpConfigOption[] | null;
   /** Session has no live agent process (404): read-only. */
   unavailable: boolean;
-  /** A change is in flight: disable both selects. */
+  /** A change is in flight: the picker is disabled. */
   pending: boolean;
   /** Model stored for the session (used read-only when unavailable). */
   fallbackModel?: string;
-  onChange: (configId: string, value: string) => void;
+  /** Called once per changed option, model first (changing the model resets the effort). */
+  onChange: (configId: string, value: string) => void | Promise<void>;
 }
 
-function isGroup(entry: AcpConfigSelectValue | AcpConfigSelectGroup): entry is AcpConfigSelectGroup {
-  return Array.isArray((entry as AcpConfigSelectGroup).options);
-}
-
-function valueLabel(entry: AcpConfigSelectValue, isModel: boolean): string {
-  if (entry.name) return entry.name;
-  return isModel ? parseModelValue(entry.value)?.model ?? entry.value : entry.value;
-}
-
-const selectClass =
-  "max-w-[220px] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-700 "
-  + "disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-[#161922] dark:text-slate-300";
-
-function ConfigSelect({
-  option,
-  isModel,
-  label,
-  defaultLabel,
-  disabled,
-  onChange,
-}: {
-  option: AcpConfigOption;
-  isModel: boolean;
-  label: string;
-  /** Shown for the "" (provider default) value when the agent lists no such entry. */
-  defaultLabel: string;
-  disabled: boolean;
-  onChange: (value: string) => void;
-}) {
-  // "" is a real value (provider default effort); never coerce it with `||`.
-  const current = typeof option.currentValue === "string" ? option.currentValue : "";
-  const known = flattenOptionValues(option).some((entry) => entry.value === current);
-  return (
-    <select
-      aria-label={label}
-      title={label}
-      data-testid={`session-config-select-${option.id}`}
-      className={selectClass}
-      value={current}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {!known && (
-        <option value={current}>
-          {current === "" ? defaultLabel : isModel ? parseModelValue(current)?.model ?? current : current}
-        </option>
-      )}
-      {(option.options ?? []).map((entry) =>
-        isGroup(entry) ? (
-          <optgroup key={`group-${entry.group}`} label={entry.name ?? entry.group}>
-            {entry.options.map((child) => (
-              <option key={child.value} value={child.value}>{valueLabel(child, isModel)}</option>
-            ))}
-          </optgroup>
-        ) : (
-          <option key={entry.value} value={entry.value}>{valueLabel(entry, isModel)}</option>
-        ),
-      )}
-    </select>
-  );
+/** Whether the toolbar should reserve a slot for the session capsule. */
+export function hasSessionConfigPicker({
+  configOptions,
+  unavailable,
+  fallbackModel,
+}: Pick<SessionConfigSelectsProps, "configOptions" | "unavailable" | "fallbackModel">): boolean {
+  const options = configOptions ?? undefined;
+  const hasOptions = Boolean(findOption(options, MODEL_CONFIG_ID) || findOption(options, REASONING_EFFORT_CONFIG_ID));
+  return hasOptions || Boolean(unavailable && fallbackModel);
 }
 
 export function SessionConfigSelects({
@@ -101,50 +57,45 @@ export function SessionConfigSelects({
 }: SessionConfigSelectsProps) {
   const { t } = useTranslation();
   const labels = t.chat.sessionConfig;
-  const modelOption = findOption(configOptions ?? undefined, MODEL_CONFIG_ID);
-  const effortOption = findOption(configOptions ?? undefined, REASONING_EFFORT_CONFIG_ID);
-  const hasSelects = Boolean(modelOption || effortOption);
+  const options = configOptions ?? undefined;
+  const modelOption = findOption(options, MODEL_CONFIG_ID);
+  const rawModel = typeof modelOption?.currentValue === "string" ? modelOption.currentValue : "";
+  const model = rawModel || (unavailable ? fallbackModel ?? "" : "");
+  const choices = useMemo(() => {
+    const parsed = parseModelEffortChoices({ configOptions: options ?? [] }, { keepRawModelValues: true });
+    // A current value the agent does not list still shows its model id, not the raw JSON.
+    if (!model || parsed.models.some((choice) => choice.value === model)) return parsed;
+    const label = parseModelValue(model)?.model ?? model;
+    return { ...parsed, models: [...parsed.models, { value: model, label }] };
+  }, [options, model]);
 
-  // Nothing to show: the agent has no such options and we are not in read-only mode.
-  if (!hasSelects && !(unavailable && fallbackModel)) return null;
+  if (!hasSessionConfigPicker({ configOptions, unavailable, fallbackModel })) return null;
 
-  const summary = summarizeConfigOptions(configOptions ?? undefined);
-  const modelText = summary.model ?? (unavailable ? fallbackModel : undefined) ?? labels.unknownModel;
-  const effortText = summary.reasoningEffort === undefined
-    ? labels.unknownEffort
-    : summary.reasoningEffort === "" ? labels.defaultEffort : summary.reasoningEffort;
-  const disabled = unavailable || pending;
+  const effortOption = findOption(options, REASONING_EFFORT_CONFIG_ID);
+  const summary = summarizeConfigOptions(options);
+  // "" is a real value (provider default effort); never coerce it with `||`.
+  const effort = summary.reasoningEffort ?? "";
+  const effortListsDefault = flattenOptionValues(effortOption).some((entry) => entry.value === "");
+
+  const handleChange = async (next: { model: string; reasoningEffort: string }) => {
+    if (next.model && next.model !== model) await onChange(MODEL_CONFIG_ID, next.model);
+    if (effortOption && next.reasoningEffort !== effort) await onChange(REASONING_EFFORT_CONFIG_ID, next.reasoningEffort);
+  };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="session-config-bar">
-      <span className="font-mono" data-testid="session-config-label">
-        {labels.model}: {modelText} · {labels.reasoningEffort}: {effortText}
-      </span>
-      {modelOption && (
-        <ConfigSelect
-          option={modelOption}
-          isModel
-          label={labels.model}
-          defaultLabel={labels.unknownModel}
-          disabled={disabled}
-          onChange={(value) => onChange(MODEL_CONFIG_ID, value)}
-        />
-      )}
-      {effortOption && (
-        <ConfigSelect
-          option={effortOption}
-          isModel={false}
-          label={labels.reasoningEffort}
-          defaultLabel={labels.defaultEffort}
-          disabled={disabled}
-          onChange={(value) => onChange(REASONING_EFFORT_CONFIG_ID, value)}
-        />
-      )}
-      {unavailable && (
-        <span className="text-amber-600 dark:text-amber-400" data-testid="session-config-resume-hint">
-          {labels.resumeToSwitch}
-        </span>
-      )}
-    </div>
+    <ModelEffortPicker
+      choices={choices}
+      model={model}
+      reasoningEffort={effort}
+      onChange={(next) => void handleChange(next)}
+      disabled={pending}
+      readOnlyReason={unavailable ? labels.resumeToSwitch : undefined}
+      emptyLabel={labels.unknownModel}
+      effortEmptyLabel={summary.reasoningEffort === undefined ? labels.unknownEffort : labels.defaultEffort}
+      allowDefaultModel={false}
+      allowDefaultEffort={effortListsDefault}
+      ariaLabel={`${labels.model} / ${labels.reasoningEffort}`}
+      testIdPrefix="session-config-picker"
+    />
   );
 }

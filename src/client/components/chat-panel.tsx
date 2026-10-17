@@ -13,7 +13,7 @@ import type {UseAcpActions, UseAcpState} from "../hooks/use-acp";
 import {type InputContext, TiptapInput} from "./tiptap-input";
 import type {SkillSummary} from "../skill-client";
 import { shortenRepoPath, type RepoSelection } from "./repo-picker";
-import {SessionConfigSelects, SetupView} from "./chat-panel/components";
+import {SessionConfigSelects, SetupView, hasSessionConfigPicker} from "./chat-panel/components";
 import {useChatMessages} from "./chat-panel/hooks";
 import {useSessionConfigOptions} from "./chat-panel/hooks/use-session-config-options";
 import {MODEL_CONFIG_ID, findOption} from "@/core/acp/config-options";
@@ -887,13 +887,6 @@ export function ChatPanel({
               {(taskInfos.length > 0 || fileChangesSummary) && (
                 <TaskProgressBar tasks={taskInfos} fileChanges={fileChangesSummary} />
               )}
-              <SessionConfigSelects
-                configOptions={sessionConfig.configOptions}
-                unavailable={sessionConfig.unavailable}
-                pending={sessionConfig.pending}
-                fallbackModel={storedSessionModel}
-                onChange={(configId, value) => void sessionConfig.setOption(configId, value)}
-              />
               <div className="flex gap-2 items-end">
                 {onPrepareCanvasPrompt && canvasPromptLabel && canvasPromptShortLabel && (
                   <button
@@ -941,6 +934,19 @@ export function ChatPanel({
                   usageInfo={usageInfo}
                   onFetchModels={acp.listProviderModels}
                   hideLegacyModelPicker={sessionHasModelOption}
+                  beforeProviderSlot={hasSessionConfigPicker({
+                    configOptions: sessionConfig.configOptions,
+                    unavailable: sessionConfig.unavailable,
+                    fallbackModel: storedSessionModel,
+                  }) ? (
+                    <SessionConfigSelects
+                      configOptions={sessionConfig.configOptions}
+                      unavailable={sessionConfig.unavailable}
+                      pending={sessionConfig.pending}
+                      fallbackModel={storedSessionModel}
+                      onChange={sessionConfig.setOption}
+                    />
+                  ) : undefined}
                   prefillText={inputPrefill}
                   onPrefillConsumed={onInputPrefillConsumed}
                 />
