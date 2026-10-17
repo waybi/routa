@@ -203,6 +203,9 @@ export function applyRecommendedAutomationToColumns(columns: KanbanColumn[]): Ka
       return {
         ...step,
         providerId: currentStep?.providerId ?? step.providerId,
+        // Model/effort are user choices, never part of the recommendation.
+        ...(currentStep?.model ? { model: currentStep.model } : {}),
+        ...(currentStep?.reasoningEffort ? { reasoningEffort: currentStep.reasoningEffort } : {}),
         role: currentStep?.role ?? step.role,
         specialistLocale: currentStep?.specialistLocale
           ?? currentAutomation.specialistLocale

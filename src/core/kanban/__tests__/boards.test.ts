@@ -128,6 +128,33 @@ describe("applyRecommendedAutomationToColumns", () => {
     expect(columns[0].automation?.autoAdvanceOnSuccess).toBe(true);
   });
 
+  it("keeps the step model and reasoning effort when refreshing system-owned lane steps", () => {
+    const columns = applyRecommendedAutomationToColumns([
+      {
+        ...DEFAULT_KANBAN_COLUMNS[0],
+        automation: {
+          enabled: true,
+          steps: [{
+            id: "backlog-refiner",
+            role: "CRAFTER",
+            specialistId: "kanban-backlog-refiner",
+            specialistName: "Backlog Refiner",
+            model: "claude-opus-5-5",
+            reasoningEffort: "high",
+          }],
+          specialistId: "kanban-backlog-refiner",
+          specialistName: "Backlog Refiner",
+        },
+      },
+    ]);
+
+    expect(columns[0].automation?.steps?.[0]).toMatchObject({
+      specialistId: "kanban-backlog-refiner",
+      model: "claude-opus-5-5",
+      reasoningEffort: "high",
+    });
+  });
+
   it("preserves specialist locale on system-owned default lane automation", () => {
     const columns = applyRecommendedAutomationToColumns([
       {
