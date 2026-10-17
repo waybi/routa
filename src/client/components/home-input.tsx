@@ -13,6 +13,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { TiptapInput, type InputContext } from "./tiptap-input";
+import { ModelEffortPicker } from "./model-effort-picker";
+import { useModelEffortChoices } from "../model-effort/use-model-effort-choices";
 import { useAcp } from "../hooks/use-acp";
 import { useSkills } from "../hooks/use-skills";
 import { useWorkspaces, useCodebases } from "../hooks/use-workspaces";
@@ -180,6 +182,8 @@ export function HomeInput({
   const isSubmittingRef = useRef(false);
   const repoSelectionRef = useRef<RepoSelection | null>(null);
   const [pendingSkill, setPendingSkill] = useState<string | null>(null);
+  // Model / effort picked in the composer before the session exists ("" = default).
+  const [pickedModelEffort, setPickedModelEffort] = useState({ model: "", reasoningEffort: "" });
 
   // Specialists
   const [specialists, setSpecialists] = useState<SpecialistSummary[]>([]);
@@ -363,6 +367,23 @@ export function HomeInput({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Options for the composer picker; one cached request per provider.
+  const pickerProviderId = acp.selectedProvider?.trim() ?? "";
+  const modelEffortChoicesByProvider = useModelEffortChoices(pickerProviderId ? [pickerProviderId] : []);
+  const pickerChoices = pickerProviderId ? modelEffortChoicesByProvider[pickerProviderId] : undefined;
+  const showModelEffortPicker = Boolean(
+    pickerChoices && (pickerChoices.models.length > 0 || pickerChoices.reasoningEfforts.length > 0),
+  );
+  // Model ids are provider-specific: switching provider resets the pick to default
+  // (adjust-state-on-prop-change pattern, so the reset lands in the same render).
+  const [pickerProviderSeen, setPickerProviderSeen] = useState(pickerProviderId);
+  if (pickerProviderSeen !== pickerProviderId) {
+    setPickerProviderSeen(pickerProviderId);
+    setPickedModelEffort({ model: "", reasoningEffort: "" });
+  }
+  const pickedModel = showModelEffortPicker ? pickedModelEffort.model : "";
+  const pickedEffort = showModelEffortPicker ? pickedModelEffort.reasoningEffort : "";
+
   const handleSend = useCallback(
     async (text: string, context: InputContext) => {
       if (!text.trim() || !acp.connected) return;
@@ -386,7 +407,8 @@ export function HomeInput({
         const selectedSpec = effectiveSpecialistId ? specialists.find((s) => s.id === effectiveSpecialistId) : undefined;
         const effectiveProvider = context.provider ?? selectedSpec?.defaultProvider ?? acp.selectedProvider;
         const conn = loadProviderConnectionConfig(effectiveProvider);
-        const modelAliasOrName = context.model ?? selectedSpec?.model ?? conn.model;
+        // Picker choice ranks after the legacy toolbar model and before the specialist/connection default.
+        const modelAliasOrName = context.model ?? (pickedModel || undefined) ?? selectedSpec?.model ?? conn.model;
         const def = modelAliasOrName ? getModelDefinitionByAlias(modelAliasOrName) : undefined;
         // When a custom specialist is selected, use the specialist's role
         const effectiveRole = activeSessionConfig?.role ?? (selectedSpec?.role as typeof selectedRole) ?? selectedRole;
@@ -410,6 +432,10 @@ export function HomeInput({
           undefined,
           activeSessionConfig?.mcpProfile as Parameters<typeof acp.createSession>[14],
           resolvedSystemPrompt,
+          undefined,
+          undefined,
+          undefined,
+          pickedEffort || undefined,
         );
 
         if (result?.sessionId) {
@@ -447,7 +473,7 @@ export function HomeInput({
         setIsSubmitting(false);
       }
     },
-    [acp, activeSessionConfig, allowCustomSpecialist, effectiveBuildSessionUrl, effectiveDispatchMode, effectiveLockedSpecialistId, effectiveRequireRepoSelection, router, onSessionCreated, selectedRole, selectedSpecialistId, selectedWorkspaceId, specialists],
+    [acp, activeSessionConfig, allowCustomSpecialist, effectiveBuildSessionUrl, effectiveDispatchMode, effectiveLockedSpecialistId, effectiveRequireRepoSelection, pickedEffort, pickedModel, router, onSessionCreated, selectedRole, selectedSpecialistId, selectedWorkspaceId, specialists],
   );
 
   const activeWorkspace = workspacesHook.workspaces.find((w) => w.id === selectedWorkspaceId);
@@ -532,6 +558,17 @@ export function HomeInput({
             pendingSkill={pendingSkill}
             onSkillInserted={() => setPendingSkill(null)}
             variant={variant}
+            beforeProviderSlot={showModelEffortPicker ? (
+              <ModelEffortPicker
+                choices={pickerChoices}
+                model={pickedModel}
+                reasoningEffort={pickedEffort}
+                onChange={setPickedModelEffort}
+                disabled={!acp.connected || isSubmitting}
+                emptyLabel={t.chat.sessionConfig.defaultModel}
+                testIdPrefix="home-model-effort-picker"
+              />
+            ) : undefined}
           />
 
           {/* ─── Bottom Control Bar ─────────────────────────────────── */}

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeInput, resolveHomeInputSpecialistId } from "../home-input";
+import { resetModelEffortChoicesCache } from "../../model-effort/use-model-effort-choices";
 
 const {
   pushMock,
@@ -18,6 +19,7 @@ const {
   collectAccessibleRepoPathsMock,
   loadProviderConnectionConfigMock,
   getModelDefinitionByAliasMock,
+  acpState,
 } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   createSessionMock: vi.fn(),
@@ -34,6 +36,7 @@ const {
   collectAccessibleRepoPathsMock: vi.fn(),
   loadProviderConnectionConfigMock: vi.fn(),
   getModelDefinitionByAliasMock: vi.fn(),
+  acpState: { selectedProvider: "provider-default" },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -50,6 +53,7 @@ vi.mock("../tiptap-input", () => ({
     repoSelection?: { path?: string; name?: string; branch?: string } | null;
     skills?: Array<{ name: string }>;
     repoSkills?: Array<{ name: string }>;
+    beforeProviderSlot?: React.ReactNode;
   }) => (
     <div>
       <div data-testid="pending-skill">{props.pendingSkill ?? ""}</div>
@@ -57,6 +61,13 @@ vi.mock("../tiptap-input", () => ({
       <div data-testid="disabled-state">{String(Boolean(props.disabled))}</div>
       <div data-testid="skills-count">{props.skills?.length ?? 0}</div>
       <div data-testid="repo-skills-count">{props.repoSkills?.length ?? 0}</div>
+      {props.beforeProviderSlot}
+      <button
+        type="button"
+        onClick={() => void props.onSend("Ship it", { cwd: props.repoSelection?.path })}
+      >
+        Send default toolbar
+      </button>
       <button
         type="button"
         onClick={() => void props.onSend("Ship it", {
@@ -84,7 +95,7 @@ vi.mock("../../hooks/use-acp", () => ({
     connected: true,
     loading: false,
     providers: [{ id: "provider-x", name: "Provider X" }],
-    selectedProvider: "provider-default",
+    selectedProvider: acpState.selectedProvider,
     setProvider: setProviderMock,
     connect: vi.fn(),
     createSession: createSessionMock,
@@ -124,6 +135,17 @@ vi.mock("@/client/utils/repo-validation", () => ({
 vi.mock("@/i18n", () => ({
   useTranslation: () => ({
     t: {
+      chat: {
+        sessionConfig: { defaultModel: "Default model" },
+      },
+      kanbanModelSelection: {
+        model: "Model",
+        reasoningEffort: "Reasoning effort",
+        followDefault: "Follow default",
+        defaultEffort: "Default",
+        pickerAriaLabel: "Model and reasoning effort",
+        noModels: "No models",
+      },
       common: {
         session: "Session",
         clearSpecialist: "Clear specialist",
@@ -150,6 +172,8 @@ vi.mock("@/i18n", () => ({
 describe("HomeInput", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetModelEffortChoicesCache();
+    acpState.selectedProvider = "provider-default";
 
     useWorkspacesMock.mockReturnValue({
       workspaces: [
@@ -335,5 +359,115 @@ describe("HomeInput", () => {
     expect(args[14]).toBe("kanban-planning");
     expect(args[15]).toBe("System: Ship it");
     expect(storePendingPromptMock).not.toHaveBeenCalled();
+  });
+
+  describe("model / reasoning effort picker", () => {
+    const configOptions = {
+      configOptions: [
+        {
+          id: "model",
+          options: [{
+            group: "local-7357",
+            name: "Local 7357",
+            options: [
+              { value: "[\"local-7357\",\"claude-opus-5-5\"]", name: "Claude Opus 5.5" },
+              { value: "[\"local-7357\",\"gpt-6.1-sol\"]", name: "GPT 6.1 Sol" },
+            ],
+          }],
+        },
+        { id: "reasoning_effort", options: [{ value: "low", name: "Low" }, { value: "high", name: "High" }] },
+      ],
+    };
+
+    function stubFetch(byProvider: Record<string, unknown>) {
+      desktopAwareFetchMock.mockImplementation(async (url: string) => {
+        const match = /\/api\/providers\/([^/]+)\/config-options/.exec(String(url));
+        if (match) {
+          const body = byProvider[decodeURIComponent(match[1])];
+          return body
+            ? { ok: true, json: async () => body }
+            : { ok: false, status: 500, json: async () => ({ error: "probe failed" }) };
+        }
+        return { ok: true, json: async () => ({ specialists: [] }) };
+      });
+    }
+
+    async function renderReady() {
+      const view = render(<HomeInput workspaceId="ws-1" />);
+      await waitFor(() => expect(screen.getByTestId("repo-selection").textContent).toBe("/repo/main"));
+      return view;
+    }
+
+    it("loads options for the current provider and sends the chosen model and effort", async () => {
+      stubFetch({ "provider-default": configOptions });
+      getModelDefinitionByAliasMock.mockReturnValue(undefined);
+      await renderReady();
+
+      const picker = await screen.findByTestId("home-model-effort-picker");
+      expect(desktopAwareFetchMock.mock.calls.some(([url]) => String(url).includes("/api/providers/provider-default/config-options"))).toBe(true);
+      expect(picker.textContent).toContain("Default model");
+
+      fireEvent.click(picker);
+      fireEvent.click(screen.getByRole("option", { name: "GPT 6.1 Sol" }));
+      fireEvent.click(screen.getByRole("radio", { name: "High" }));
+      expect(screen.getByTestId("home-model-effort-picker-label").textContent).toBe("GPT 6.1 Sol · High");
+
+      fireEvent.click(screen.getByRole("button", { name: "Send default toolbar" }));
+      await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
+      const args = createSessionMock.mock.calls[0];
+      expect(args[1]).toBe("provider-default");
+      expect(args[5]).toBe("gpt-6.1-sol");
+      expect(args[19]).toBe("high");
+      // The three positions in between keep their previous (unset) behavior.
+      expect(args.slice(16, 19)).toEqual([undefined, undefined, undefined]);
+    });
+
+    it("keeps the previous model logic and omits the effort when nothing is picked", async () => {
+      stubFetch({ "provider-default": configOptions });
+      getModelDefinitionByAliasMock.mockReturnValue(undefined);
+      await renderReady();
+      await screen.findByTestId("home-model-effort-picker");
+
+      fireEvent.click(screen.getByRole("button", { name: "Send default toolbar" }));
+      await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
+      const args = createSessionMock.mock.calls[0];
+      expect(args[5]).toBe("provider-default-model");
+      expect(args[19]).toBeUndefined();
+    });
+
+    it("refetches on provider switch and resets the pick to default", async () => {
+      stubFetch({ "provider-default": configOptions, "provider-other": configOptions });
+      const view = await renderReady();
+
+      fireEvent.click(await screen.findByTestId("home-model-effort-picker"));
+      fireEvent.click(screen.getByRole("option", { name: "GPT 6.1 Sol" }));
+      expect(screen.getByTestId("home-model-effort-picker-label").textContent).toContain("GPT 6.1 Sol");
+
+      acpState.selectedProvider = "provider-other";
+      view.rerender(<HomeInput workspaceId="ws-1" />);
+
+      await waitFor(() => {
+        expect(desktopAwareFetchMock.mock.calls.some(([url]) => String(url).includes("/api/providers/provider-other/config-options"))).toBe(true);
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("home-model-effort-picker-label").textContent).toBe("Default model · Default");
+      });
+    });
+
+    it("renders no picker when the provider lists no model / effort options or the request fails", async () => {
+      stubFetch({ "provider-default": { configOptions: [{ id: "mode", options: [] }] } });
+      const view = await renderReady();
+      await waitFor(() => {
+        expect(desktopAwareFetchMock.mock.calls.some(([url]) => String(url).includes("/config-options"))).toBe(true);
+      });
+      expect(screen.queryByTestId("home-model-effort-picker")).toBeNull();
+
+      acpState.selectedProvider = "provider-broken";
+      view.rerender(<HomeInput workspaceId="ws-1" />);
+      await waitFor(() => {
+        expect(desktopAwareFetchMock.mock.calls.some(([url]) => String(url).includes("/api/providers/provider-broken/config-options"))).toBe(true);
+      });
+      expect(screen.queryByTestId("home-model-effort-picker")).toBeNull();
+    });
   });
 });
