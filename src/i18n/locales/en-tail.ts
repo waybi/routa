@@ -255,6 +255,14 @@ export const enTail: TailTranslationDictionarySections = {
     connectFirst: "Connect first...",
     availableAuthMethods: "Available authentication methods:",
     working: "Working...",
+    sessionConfig: {
+      model: "Model",
+      reasoningEffort: "Reasoning effort",
+      defaultEffort: "Default",
+      unknownEffort: "Unknown",
+      unknownModel: "Unknown",
+      resumeToSwitch: "Send a message to resume the session, then you can switch",
+    },
   },
 
   // GitHub Webhook Panel

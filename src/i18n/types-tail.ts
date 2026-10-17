@@ -253,6 +253,14 @@ export interface TailTranslationDictionarySections {
     connectFirst: string;
     availableAuthMethods: string;
     working: string;
+    sessionConfig: {
+      model: string;
+      reasoningEffort: string;
+      defaultEffort: string;
+      unknownEffort: string;
+      unknownModel: string;
+      resumeToSwitch: string;
+    };
   };
 
   // GitHub Webhook Panel

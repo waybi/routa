@@ -249,6 +249,14 @@ export const zhTail: TailTranslationDictionarySections = {
     connectFirst: "请先连接...",
     availableAuthMethods: "可用的身份验证方式：",
     working: "正在处理中...",
+    sessionConfig: {
+      model: "模型",
+      reasoningEffort: "推理档位",
+      defaultEffort: "默认",
+      unknownEffort: "未知",
+      unknownModel: "未知",
+      resumeToSwitch: "发一条消息恢复会话后可切换",
+    },
   },
 
   // GitHub Webhook 面板
