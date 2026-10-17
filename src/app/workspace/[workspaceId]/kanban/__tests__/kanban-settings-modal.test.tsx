@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanSettingsModal } from "../kanban-settings-modal";
+import { resetModelEffortChoicesCache } from "../kanban-model-effort-fields";
 import { ConfirmDialogProvider } from "@/client/components/confirm-dialog";
 import type { KanbanBoardInfo } from "../../types";
 
@@ -776,6 +777,132 @@ describe("KanbanSettingsModal", () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("step model and reasoning effort", () => {
+    const configOptionsResponse = {
+      providerId: "dsh",
+      configOptions: [
+        {
+          id: "model",
+          currentValue: "[\"local-7357\",\"claude-opus-5-5\"]",
+          options: [{
+            group: "local-7357",
+            options: [
+              { value: "[\"local-7357\",\"claude-opus-5-5\"]", name: "Claude Opus 5.5" },
+              { value: "[\"local-7357\",\"gpt-6.1-sol\"]", name: "GPT 6.1 Sol" },
+            ],
+          }],
+        },
+        {
+          id: "reasoning_effort",
+          currentValue: "",
+          options: [
+            { value: "", name: "Default" },
+            { value: "low", name: "Low" },
+            { value: "high", name: "High" },
+          ],
+        },
+      ],
+    };
+    const reviewOnlyBoard: KanbanBoardInfo = {
+      ...board,
+      autoProviderId: "dsh",
+      columns: [board.columns[1]],
+    };
+
+    const stubConfigOptions = () => {
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify(configOptionsResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    };
+
+    const renderModal = (
+      columnAutomation: Record<string, NonNullable<KanbanBoardInfo["columns"][0]["automation"]>>,
+      onSave = vi.fn(async () => {}),
+    ) => {
+      render(
+        <KanbanSettingsModal
+          board={reviewOnlyBoard}
+          columnAutomation={columnAutomation}
+          availableProviders={[{ id: "dsh", name: "DSH", description: "DSH", command: "dsh" }]}
+          specialists={[]}
+          specialistLanguage="en"
+          onClose={vi.fn()}
+          onClearAll={vi.fn(async () => {})}
+          onSave={onSave}
+        />,
+      );
+      return onSave;
+    };
+
+    // Earlier cases render without a fetch stub and leave a failed probe cached.
+    beforeEach(() => resetModelEffortChoicesCache());
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      resetModelEffortChoicesCache();
+    });
+
+    it("loads options from the board provider and saves the chosen model and effort", async () => {
+      const fetchMock = stubConfigOptions();
+      const onSave = renderModal({ review: { enabled: true, steps: [{ id: "step-1", role: "GATE" }] } });
+
+      const modelSelect = await screen.findByTestId("kanban-settings-step-1-model") as HTMLSelectElement;
+      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
+      expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/providers/dsh/config-options");
+      expect(Array.from(modelSelect.options).map((option) => option.textContent)).toEqual([
+        "Follow default",
+        "Claude Opus 5.5",
+        "GPT 6.1 Sol",
+      ]);
+
+      fireEvent.change(modelSelect, { target: { value: "gpt-6.1-sol" } });
+      fireEvent.change(screen.getByTestId("kanban-settings-step-1-reasoning-effort"), { target: { value: "high" } });
+      fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
+
+      await waitFor(() => {
+        expect(onSave).toHaveBeenCalledWith(
+          expect.anything(),
+          {
+            review: expect.objectContaining({
+              steps: [expect.objectContaining({ id: "step-1", model: "gpt-6.1-sol", reasoningEffort: "high" })],
+            }),
+          },
+          expect.anything(),
+          expect.anything(),
+          expect.anything(),
+          undefined,
+        );
+      });
+    });
+
+    it("shows saved values on reopen and drops the field when Follow default is chosen", async () => {
+      stubConfigOptions();
+      const onSave = renderModal({
+        review: {
+          enabled: true,
+          steps: [{ id: "step-1", role: "GATE", model: "retired-model", reasoningEffort: "low" }],
+        },
+      });
+
+      const modelSelect = await screen.findByTestId("kanban-settings-step-1-model") as HTMLSelectElement;
+      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
+      // A stored value missing from the options is kept and shown, not reset.
+      expect(modelSelect.value).toBe("retired-model");
+      expect((screen.getByTestId("kanban-settings-step-1-reasoning-effort") as HTMLSelectElement).value).toBe("low");
+
+      fireEvent.change(modelSelect, { target: { value: "" } });
+      fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
+
+      await waitFor(() => expect(onSave).toHaveBeenCalled());
+      const savedStep = (onSave.mock.calls[0] as unknown as [unknown, Record<string, { steps: Array<Record<string, unknown>> }>])[1]
+        .review.steps[0];
+      expect(savedStep).not.toHaveProperty("model");
+      expect(savedStep).toMatchObject({ reasoningEffort: "low" });
     });
   });
 });

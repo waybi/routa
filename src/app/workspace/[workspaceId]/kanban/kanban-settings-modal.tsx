@@ -968,6 +968,7 @@ export function KanbanSettingsModal({
                       specialists={specialists}
                       specialistCategory={specialistCategory}
                       specialistLanguage={specialistLanguage}
+                      autoProviderId={board.autoProviderId}
                       onSpecialistCategoryChange={setSpecialistCategory}
                       onUpdate={(updated) => updateColumnAutomation(selectedColumn.id, updated)}
                     />

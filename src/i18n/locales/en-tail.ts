@@ -419,4 +419,11 @@ export const enTail: TailTranslationDictionarySections = {
     waitingFirst: "waiting for first output",
     error: "error: {reason}",
   },
+  kanbanModelSelection: {
+    model: "Model",
+    reasoningEffort: "Reasoning effort",
+    followDefault: "Follow default",
+    cardModelOverride: "Model override",
+    cardReasoningEffortOverride: "Reasoning effort override",
+  },
 };

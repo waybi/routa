@@ -428,4 +428,12 @@ export interface TailTranslationDictionarySections {
     waitingFirst: string;
     error: string;
   };
+  kanbanModelSelection: {
+    model: string;
+    reasoningEffort: string;
+    /** First dropdown item: leave the field unset so the default applies. */
+    followDefault: string;
+    cardModelOverride: string;
+    cardReasoningEffortOverride: string;
+  };
 }

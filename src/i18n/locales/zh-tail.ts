@@ -413,4 +413,11 @@ export const zhTail: TailTranslationDictionarySections = {
     waitingFirst: "等待首个输出",
     error: "出错：{reason}",
   },
+  kanbanModelSelection: {
+    model: "模型",
+    reasoningEffort: "推理档位",
+    followDefault: "跟随默认",
+    cardModelOverride: "模型覆盖",
+    cardReasoningEffortOverride: "推理档位覆盖",
+  },
 };

@@ -32,6 +32,8 @@ import {
   getTaskFieldLabel,
   TASK_FIELD_OPTIONS,
 } from "./kanban-settings-automation-helpers";
+import { ModelEffortSelects, useModelEffortChoices } from "./kanban-model-effort-fields";
+import { applyStepModelEffort, resolveModelOptionsProviderId } from "./kanban-model-effort-options";
 
 export interface SpecialistOption {
   id: string;
@@ -232,6 +234,8 @@ export function normalizeAutomationForDirtyCheck(
           id: step.id?.trim() || `step-${index + 1}`,
           transport: getStepTransport(step),
           providerId: step.providerId ?? null,
+          model: step.model ?? null,
+          reasoningEffort: step.reasoningEffort ?? null,
           role: step.role ?? "DEVELOPER",
           specialistId: step.specialistId ?? null,
           agentCardUrl: step.agentCardUrl ?? null,
@@ -622,11 +626,14 @@ export function ColumnAutomationWorkspace({
   specialists,
   specialistCategory,
   specialistLanguage,
+  autoProviderId,
   onSpecialistCategoryChange,
   onUpdate,
 }: {
   column: KanbanBoardInfo["columns"][0];
   automation: ColumnAutomationConfig;
+  /** Board default provider; used to load model options for steps without one. */
+  autoProviderId?: string;
   availableProviders: AcpProviderInfo[];
   specialists: SpecialistOption[];
   specialistCategory: SpecialistCategory;
@@ -656,6 +663,31 @@ export function ColumnAutomationWorkspace({
   }, [automationSteps, specialistCategory, specialists]);
   const firstStep = automationSteps[0];
   const firstStepTransport = getStepTransport(firstStep);
+  const stepOptionsProviderIds = automationSteps.map((step) => (
+    resolveModelOptionsProviderId(step.providerId, autoProviderId)
+  ));
+  const modelEffortChoices = useModelEffortChoices(stepOptionsProviderIds);
+  const renderStepModelEffort = (
+    step: KanbanAutomationStep | undefined,
+    index: number,
+    labelSuffix: string,
+  ) => (
+    <ModelEffortSelects
+      choices={modelEffortChoices[stepOptionsProviderIds[index] ?? ""]}
+      model={step?.model}
+      reasoningEffort={step?.reasoningEffort}
+      labelSuffix={labelSuffix}
+      testIdPrefix={`kanban-settings-step-${index + 1}`}
+      selectClassName={`${SELECT_CLASS} pr-3`}
+      renderField={(label, control) => <ConfigField label={label}>{control}</ConfigField>}
+      onModelChange={(value) => onUpdate(updateAutomationSteps(automation, (steps) => steps.map((currentStep, stepIndex) => (
+        stepIndex === index ? applyStepModelEffort(currentStep, "model", value) : currentStep
+      ))))}
+      onReasoningEffortChange={(value) => onUpdate(updateAutomationSteps(automation, (steps) => steps.map((currentStep, stepIndex) => (
+        stepIndex === index ? applyStepModelEffort(currentStep, "reasoningEffort", value) : currentStep
+      ))))}
+    />
+  );
   const [advancedExpanded, setAdvancedExpanded] = useState(() => automationSteps.length > 1);
   const applyDefaultAutomation = () => {
     onUpdate(getDefaultAutomationForStage(column.stage, specialistLanguage));
@@ -779,6 +811,7 @@ export function ColumnAutomationWorkspace({
                   <option value="both">{t.kanban.bothDirections}</option>
                 </SelectControl>
               </ConfigField>
+              {firstStepTransport === "acp" ? renderStepModelEffort(firstStep, 0, "") : null}
             </div>
           </div>
           <section className="mt-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-white to-slate-50/80 p-1 shadow-[0_1px_0_rgba(15,23,42,0.06)] dark:border-amber-500/25 dark:from-amber-950/35 dark:via-[#0d1118] dark:to-[#0a0f16] dark:shadow-[0_1px_0_rgba(0,0,0,0.35)]">
@@ -920,6 +953,7 @@ export function ColumnAutomationWorkspace({
                             ))}
                           </SelectControl>
                         </ConfigField>
+                        {stepTransport === "acp" ? renderStepModelEffort(step, index, ` ${index + 1}`) : null}
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
                         <button
