@@ -243,3 +243,44 @@ describe("BrowserAcpClient", () => {
     });
   });
 });
+
+describe("BrowserAcpClient session/new reasoningEffort", () => {
+  beforeEach(() => {
+    MockEventSource.reset();
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function sessionNewParams(params: Parameters<BrowserAcpClient["newSession"]>[0]) {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      return new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: body?.id ?? 1,
+        result: { sessionId: "session-effort-1", provider: "dsh" },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new BrowserAcpClient("");
+    await client.newSession(params);
+    client.disconnect();
+    const [, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit];
+    return JSON.parse(String(init.body)).params as Record<string, unknown>;
+  }
+
+  it("sends the chosen model and reasoning effort", async () => {
+    const params = await sessionNewParams({ provider: "dsh", model: "gpt-6.1-sol", reasoningEffort: "high" });
+    expect(params.model).toBe("gpt-6.1-sol");
+    expect(params.reasoningEffort).toBe("high");
+  });
+
+  it("omits the reasoningEffort key when none is chosen", async () => {
+    const params = await sessionNewParams({ provider: "dsh", model: "gpt-6.1-sol" });
+    expect(params).not.toHaveProperty("reasoningEffort");
+    const emptyParams = await sessionNewParams({ provider: "dsh", reasoningEffort: "" });
+    expect(emptyParams).not.toHaveProperty("reasoningEffort");
+  });
+});

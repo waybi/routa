@@ -241,6 +241,8 @@ export class BrowserAcpClient {
     /** Optional logical MCP profile, such as kanban-planning. */
     mcpProfile?: McpServerProfile;
     model?: string;
+    /** Reasoning effort applied right after session/new; omitted = agent default. */
+    reasoningEffort?: string;
     idempotencyKey?: string;
     specialistId?: string;
     specialistLocale?: string;
@@ -280,6 +282,8 @@ export class BrowserAcpClient {
       allowedNativeTools: params.allowedNativeTools,
       mcpProfile: params.mcpProfile,
       model: params.model,
+      // Only send the key when chosen: "follow default" must not reach the server.
+      ...(params.reasoningEffort ? { reasoningEffort: params.reasoningEffort } : {}),
       idempotencyKey: params.idempotencyKey,
       specialistId: params.specialistId,
       specialistLocale: params.specialistLocale,

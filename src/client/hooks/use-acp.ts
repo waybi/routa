@@ -220,6 +220,8 @@ export interface UseAcpActions {
       taskAdaptiveHarness?: AcpTaskAdaptiveHarnessOptions,
       /** Board-scoped runtime policy lookup for Kanban sessions. */
       boardId?: string,
+      /** Reasoning effort for the new session; undefined = agent default. */
+      reasoningEffort?: string,
     ) => Promise<AcpNewSessionResult | null>;
   resumeSession: (
     sessionId: string,
@@ -495,6 +497,7 @@ export function useAcp(baseUrl: string = ""): UseAcpState & UseAcpActions {
       autoApprovePermissions?: boolean,
       taskAdaptiveHarness?: AcpTaskAdaptiveHarnessOptions,
       boardId?: string,
+      reasoningEffort?: string,
     ): Promise<AcpNewSessionResult | null> => {
       const client = clientRef.current;
       if (!client) return null;
@@ -521,6 +524,7 @@ export function useAcp(baseUrl: string = ""): UseAcpState & UseAcpActions {
           allowedNativeTools,
           mcpProfile,
           model,
+          reasoningEffort,
           idempotencyKey,
           specialistId,
           specialistLocale,
