@@ -16,7 +16,7 @@
  *   - GitHub clone button (bottom-left)
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { desktopAwareFetch } from "../utils/diagnostics";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -532,6 +532,8 @@ interface TiptapInputProps {
   onPrefillConsumed?: () => void;
   /** Larger presentation used by landing/team launch surfaces */
   variant?: "default" | "hero";
+  /** Optional toolbar control rendered right before the provider capsule (e.g. model / effort picker). */
+  beforeProviderSlot?: ReactNode;
 }
 
 export function TiptapInput({
@@ -560,6 +562,7 @@ export function TiptapInput({
   prefillText,
   onPrefillConsumed,
   variant = "default",
+  beforeProviderSlot,
 }: TiptapInputProps) {
   const { t } = useTranslation();
   const tRef = useRef(t);
@@ -969,6 +972,8 @@ export function TiptapInput({
               pathDisplay={repoPathDisplay}
             />
           </div>
+
+          {beforeProviderSlot ? <div className="shrink-0">{beforeProviderSlot}</div> : null}
 
           {/* Provider dropdown */}
           <div className="shrink-0">

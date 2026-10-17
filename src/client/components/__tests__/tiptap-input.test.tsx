@@ -118,3 +118,36 @@ describe("TiptapInput legacy model picker", () => {
   });
 });
 
+
+describe("TiptapInput beforeProviderSlot", () => {
+  function toolbarTestIds(container: HTMLElement): string[] {
+    const provider = container.querySelector("[data-testid=\"provider-dropdown\"]");
+    const toolbar = provider?.parentElement?.parentElement;
+    return Array.from(toolbar?.querySelectorAll("[data-testid]") ?? []).map((node) => node.getAttribute("data-testid") ?? "");
+  }
+
+  it("renders the slot right before the provider capsule", () => {
+    const { container } = render(
+      <TiptapInput
+        onSend={vi.fn()}
+        selectedProvider="dsh"
+        onRepoChange={vi.fn()}
+        repoSelection={null}
+        beforeProviderSlot={<div data-testid="slot-picker" />}
+      />,
+    );
+    const ids = toolbarTestIds(container);
+    expect(ids.indexOf("slot-picker")).toBeGreaterThan(-1);
+    expect(ids.indexOf("slot-picker")).toBe(ids.indexOf("provider-dropdown") - 1);
+  });
+
+  it("adds no extra node when the slot is not passed", () => {
+    const { container } = render(
+      <TiptapInput onSend={vi.fn()} selectedProvider="dsh" onRepoChange={vi.fn()} repoSelection={null} />,
+    );
+    const providerWrapper = container.querySelector("[data-testid=\"provider-dropdown\"]")?.parentElement;
+    // The provider capsule wrapper directly follows the repo picker wrapper, as before.
+    expect(providerWrapper?.previousElementSibling?.querySelector("[data-testid=\"repo-picker\"]")).toBeTruthy();
+    expect(toolbarTestIds(container).slice(0, 2)).toEqual(["repo-picker", "provider-dropdown"]);
+  });
+});
