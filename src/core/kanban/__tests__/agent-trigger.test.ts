@@ -3,9 +3,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildTaskPrompt, resolveKanbanAutomationProvider, triggerAssignedTaskAgent } from "../agent-trigger";
+import {
+  buildTaskPrompt,
+  resolveKanbanAutomationProvider,
+  resolveSessionModelSelection,
+  triggerAssignedTaskAgent,
+} from "../agent-trigger";
+import { resolveKanbanAutomationStep } from "../effective-task-automation";
 import { createTask } from "../../models/task";
-import type { KanbanColumn } from "../../models/kanban";
+import type { KanbanAutomationStep, KanbanColumn } from "../../models/kanban";
 import { AgentEventType, type EventBus } from "../../events/event-bus";
 import { saveReasoningMemory } from "@/core/harness/reasoning-memory";
 
@@ -943,6 +949,91 @@ describe("triggerAssignedTaskAgent ACP prompt lifecycle", () => {
         expect(promptText).toContain("This lane still has Review Guard pending");
       }
     }
+  });
+
+  describe("session/new model and reasoning effort", () => {
+    const launch = async (options: {
+      assignedModel?: string;
+      assignedReasoningEffort?: string;
+      step?: KanbanAutomationStep;
+    }) => {
+      const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: "new",
+        result: { sessionId: "sess-model" },
+      }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      vi.stubGlobal("fetch", fetchMock);
+      dispatchSessionPromptMock.mockResolvedValue(undefined);
+      // Run the step through the same resolver the orchestrator uses so a
+      // field dropped on the way would fail here.
+      const resolvedStep = resolveKanbanAutomationStep(options.step, undefined, { autoProviderId: "dsh" });
+      const result = await triggerAssignedTaskAgent({
+        origin: "http://127.0.0.1:3000",
+        workspaceId: "default",
+        cwd: "/tmp/project",
+        task: createTask({
+          id: "task-model",
+          title: "Pick a model",
+          objective: "Pass model and effort to session/new",
+          workspaceId: "default",
+          columnId: "dev",
+          assignedProvider: "dsh",
+          assignedRole: "CRAFTER",
+          assignedModel: options.assignedModel,
+          assignedReasoningEffort: options.assignedReasoningEffort,
+        }),
+        step: resolvedStep,
+        stepModel: resolvedStep?.model,
+        stepReasoningEffort: resolvedStep?.reasoningEffort,
+      });
+      const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+      return { params: requestBody.params as Record<string, unknown>, result };
+    };
+
+    it("prefers the card override over the column step setting", async () => {
+      const { params, result } = await launch({
+        assignedModel: "gpt-6.1-sol",
+        assignedReasoningEffort: "high",
+        step: { id: "dev-1", model: "claude-opus-5-5", reasoningEffort: "low" },
+      });
+      expect(params).toMatchObject({ model: "gpt-6.1-sol", reasoningEffort: "high" });
+      expect(result).toMatchObject({ model: "gpt-6.1-sol", reasoningEffort: "high" });
+    });
+
+    it("uses the column step setting when the card has no override", async () => {
+      const { params } = await launch({
+        step: { id: "dev-1", model: "claude-opus-5-5", reasoningEffort: "medium" },
+      });
+      expect(params).toMatchObject({ model: "claude-opus-5-5", reasoningEffort: "medium" });
+    });
+
+    it("leaves both keys out of params when neither card nor step sets them", async () => {
+      const { params, result } = await launch({
+        assignedModel: "   ",
+        step: { id: "dev-1", model: "", reasoningEffort: undefined },
+      });
+      expect(params).not.toHaveProperty("model");
+      expect(params).not.toHaveProperty("reasoningEffort");
+      expect(result.model).toBeUndefined();
+      expect(result.reasoningEffort).toBeUndefined();
+    });
+
+    it("decides model and effort independently", async () => {
+      const { params } = await launch({
+        assignedReasoningEffort: "xhigh",
+        step: { id: "dev-1", model: "claude-opus-5-5" },
+      });
+      expect(params).toMatchObject({ model: "claude-opus-5-5", reasoningEffort: "xhigh" });
+    });
+  });
+
+  it("resolveSessionModelSelection trims values and drops blanks", () => {
+    expect(resolveSessionModelSelection({
+      task: { assignedModel: " m1 ", assignedReasoningEffort: "" },
+      stepModel: "m2",
+      stepReasoningEffort: " low ",
+    })).toEqual({ model: "m1", reasoningEffort: "low" });
+    expect(resolveSessionModelSelection({ task: {} })).toEqual({});
   });
 
   it("sets the kanban planning MCP profile when the lane needs artifact evidence", async () => {

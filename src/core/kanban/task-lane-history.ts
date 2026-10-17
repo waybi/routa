@@ -54,6 +54,8 @@ export function upsertTaskLaneSession(
     stepIndex: session.stepIndex,
     stepName: session.stepName,
     provider: session.provider,
+    model: session.model,
+    reasoningEffort: session.reasoningEffort,
     role: session.role,
     specialistId: session.specialistId,
     specialistName: session.specialistName,

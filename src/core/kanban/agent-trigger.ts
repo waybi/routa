@@ -608,12 +608,42 @@ export function resolveKanbanAutomationProvider(provider?: string): string {
   return provider ?? "opencode";
 }
 
+function normalizeSelectionValue(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/**
+ * The single place that decides which model / reasoning effort a lane session
+ * asks for: card override > column step setting > nothing (acp-session-create
+ * then falls back to the specialist file, PROVIDER_MODEL_TIERS, and the acp
+ * default). Model and effort are decided independently.
+ */
+export function resolveSessionModelSelection(params: {
+  task: Pick<Task, "assignedModel" | "assignedReasoningEffort">;
+  stepModel?: string;
+  stepReasoningEffort?: string;
+}): { model?: string; reasoningEffort?: string } {
+  const model = normalizeSelectionValue(params.task.assignedModel)
+    ?? normalizeSelectionValue(params.stepModel);
+  const reasoningEffort = normalizeSelectionValue(params.task.assignedReasoningEffort)
+    ?? normalizeSelectionValue(params.stepReasoningEffort);
+  return {
+    ...(model ? { model } : {}),
+    ...(reasoningEffort ? { reasoningEffort } : {}),
+  };
+}
+
 export interface AutomationRunHandle {
   transport: KanbanTransport;
   localSessionId?: string;
   externalTaskId?: string;
   contextId?: string;
   displayTarget?: string;
+  /** Model requested in session/new (absent when the default applies). */
+  model?: string;
+  /** Reasoning effort requested in session/new (absent when the default applies). */
+  reasoningEffort?: string;
 }
 
 function emitAutomationEvent(params: {
@@ -675,11 +705,20 @@ async function triggerAcpTaskAgent(params: {
   specialistLocale?: string;
   boardColumns: KanbanColumn[];
   currentStepIndex?: number;
+  stepModel?: string;
+  stepReasoningEffort?: string;
   summaryContext?: TaskPromptSummaryContext;
   flowReport?: FlowDiagnosisReport;
   eventBus?: EventBus;
 }): Promise<AutomationRunHandle | { error: string }> {
   const provider = resolveKanbanAutomationProvider(params.task.assignedProvider);
+  // Read only here, when the session is created: changing the card or column
+  // setting later never touches sessions that are already running.
+  const modelSelection = resolveSessionModelSelection({
+    task: params.task,
+    stepModel: params.stepModel,
+    stepReasoningEffort: params.stepReasoningEffort,
+  });
   const role = params.task.assignedRole ?? "CRAFTER";
   const sessionLabel = params.task.assignedSpecialistName
     ?? params.task.assignedSpecialistId
@@ -707,6 +746,7 @@ async function triggerAcpTaskAgent(params: {
         workspaceId: params.workspaceId,
         specialistId: params.task.assignedSpecialistId,
         specialistLocale: params.specialistLocale,
+        ...modelSelection,
         name: `${params.task.title} · ${sessionLabel}`,
         taskAdaptiveHarness: buildKanbanTaskAdaptiveHarnessOptions(params.task.title, {
           locale: params.specialistLocale,
@@ -763,6 +803,7 @@ async function triggerAcpTaskAgent(params: {
     transport: "acp",
     localSessionId: sessionId,
     displayTarget: provider,
+    ...modelSelection,
   };
 }
 
@@ -871,12 +912,25 @@ export async function triggerAssignedTaskAgent(params: {
   step?: KanbanAutomationStep;
   /** Index of `step` within the task's current column steps, when the caller knows it. */
   stepIndex?: number;
+  /** Column step model; passed separately so it is never persisted on the task. */
+  stepModel?: string;
+  /** Column step reasoning effort; passed separately so it is never persisted on the task. */
+  stepReasoningEffort?: string;
   specialistLocale?: string;
   boardColumns?: KanbanColumn[];
   summaryContext?: TaskPromptSummaryContext;
   flowReport?: FlowDiagnosisReport;
   eventBus?: EventBus;
-}): Promise<{ sessionId?: string; error?: string; transport?: KanbanTransport; externalTaskId?: string; contextId?: string; displayTarget?: string }> {
+}): Promise<{
+  sessionId?: string;
+  error?: string;
+  transport?: KanbanTransport;
+  externalTaskId?: string;
+  contextId?: string;
+  displayTarget?: string;
+  model?: string;
+  reasoningEffort?: string;
+}> {
   const {
     origin,
     workspaceId,
@@ -885,6 +939,8 @@ export async function triggerAssignedTaskAgent(params: {
     task,
     step,
     stepIndex,
+    stepModel,
+    stepReasoningEffort,
     specialistLocale,
     boardColumns = [],
     summaryContext,
@@ -918,6 +974,8 @@ export async function triggerAssignedTaskAgent(params: {
         specialistLocale,
         boardColumns,
         currentStepIndex,
+        stepModel,
+        stepReasoningEffort,
         summaryContext,
         flowReport,
         eventBus,
@@ -933,5 +991,7 @@ export async function triggerAssignedTaskAgent(params: {
     externalTaskId: runHandle.externalTaskId,
     contextId: runHandle.contextId,
     displayTarget: runHandle.displayTarget,
+    model: runHandle.model,
+    reasoningEffort: runHandle.reasoningEffort,
   };
 }

@@ -45,6 +45,10 @@ export interface KanbanAutomationStep {
   specialistId?: string;
   specialistName?: string;
   specialistLocale?: string;
+  /** Model passed to session/new for this step (a card-level override wins). */
+  model?: string;
+  /** Reasoning effort passed to session/new for this step (a card-level override wins). */
+  reasoningEffort?: string;
   /** A2A-specific: URL of the agent card to invoke */
   agentCardUrl?: string;
   /** A2A-specific: Skill ID to invoke on the agent */

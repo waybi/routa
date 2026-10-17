@@ -257,6 +257,10 @@ async function startKanbanTaskSession(
     task: taskForSession,
     step: sessionStep,
     stepIndex: sessionStepIndex,
+    // Column step model/effort travel as their own params instead of being
+    // folded into taskForSession, which can be persisted.
+    stepModel: sessionStep?.model,
+    stepReasoningEffort: sessionStep?.reasoningEffort,
     specialistLocale: sessionStep?.specialistLocale ?? effectiveAutomation.step?.specialistLocale,
     boardColumns: board?.columns ?? [],
     summaryContext,
@@ -285,6 +289,8 @@ async function startKanbanTaskSession(
       stepIndex: sessionStepIndex,
       stepName: sessionStep?.specialistName ?? sessionStep?.specialistId ?? sessionStep?.role,
       provider: sessionProviderId,
+      model: triggerResult.model,
+      reasoningEffort: triggerResult.reasoningEffort,
       role: sessionStep?.role ?? effectiveAutomation.role,
       specialistId: sessionStep?.specialistId ?? effectiveAutomation.specialistId,
       specialistName: sessionStep?.specialistName ?? effectiveAutomation.specialistName,
