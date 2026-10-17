@@ -638,6 +638,25 @@ describe("ChatPanel session model / reasoning effort", () => {
     expect(screen.getByTestId("session-config-label").textContent).toContain("Default");
   });
 
+  it("labels a reset effort as Default even when the agent lists no \"\" entry (real DSH shape)", async () => {
+    const withoutDefault = (model: string, effort: string) => configOptions(model, effort).map((option) =>
+      option.id === "reasoning_effort"
+        ? { ...option, options: [{ value: "low" }, { value: "medium" }, { value: "high" }, { value: "xhigh" }, { value: "max" }] }
+        : option);
+    mockDesktopAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: withoutDefault(OPUS, "high") }))
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: withoutDefault(DEEPSEEK, "") }));
+    renderSessionPanel();
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: DEEPSEEK } });
+
+    await waitFor(() => {
+      expect((screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement).value).toBe("");
+    });
+    const effortSelect = screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement;
+    expect(effortSelect.selectedOptions[0]?.textContent).toBe("Default");
+  });
+
   it("posts reasoning_effort changes with configId reasoning_effort", async () => {
     mockDesktopAwareFetch
       .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }))

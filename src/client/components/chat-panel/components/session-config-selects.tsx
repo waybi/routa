@@ -47,12 +47,15 @@ function ConfigSelect({
   option,
   isModel,
   label,
+  defaultLabel,
   disabled,
   onChange,
 }: {
   option: AcpConfigOption;
   isModel: boolean;
   label: string;
+  /** Shown for the "" (provider default) value when the agent lists no such entry. */
+  defaultLabel: string;
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
@@ -69,7 +72,11 @@ function ConfigSelect({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
-      {!known && <option value={current}>{isModel ? parseModelValue(current)?.model ?? current : current}</option>}
+      {!known && (
+        <option value={current}>
+          {current === "" ? defaultLabel : isModel ? parseModelValue(current)?.model ?? current : current}
+        </option>
+      )}
       {(option.options ?? []).map((entry) =>
         isGroup(entry) ? (
           <optgroup key={`group-${entry.group}`} label={entry.name ?? entry.group}>
@@ -118,6 +125,7 @@ export function SessionConfigSelects({
           option={modelOption}
           isModel
           label={labels.model}
+          defaultLabel={labels.unknownModel}
           disabled={disabled}
           onChange={(value) => onChange(MODEL_CONFIG_ID, value)}
         />
@@ -127,6 +135,7 @@ export function SessionConfigSelects({
           option={effortOption}
           isModel={false}
           label={labels.reasoningEffort}
+          defaultLabel={labels.defaultEffort}
           disabled={disabled}
           onChange={(value) => onChange(REASONING_EFFORT_CONFIG_ID, value)}
         />
