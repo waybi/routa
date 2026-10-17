@@ -65,6 +65,7 @@ function toSessionSummary(
     acpError: session.acpError,
     modeId: session.modeId,
     model: session.model,
+    reasoningEffort: session.reasoningEffort,
     parentSessionId: session.parentSessionId,
     specialistId: session.specialistId,
     createdAt: session.createdAt,

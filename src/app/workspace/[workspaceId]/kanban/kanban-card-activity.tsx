@@ -30,6 +30,7 @@ import {
 import type { KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useTaskRuns } from "./use-task-runs";
+import { formatSessionModelLabel } from "./kanban-session-activity";
 
 type ActivityTabId = "runs" | "handoffs" | "github";
 
@@ -626,6 +627,7 @@ function SessionHistoryPanel({
           );
           const stepLabel = getLaneSessionStepLabel(laneSession);
           const isA2ARun = laneSession?.transport === "a2a";
+          const modelLabel = isA2ARun ? undefined : formatSessionModelLabel(session, laneSession);
           const reconnectLabel = run?.resumeTarget?.type === "external_task" ? t.kanban.inspectLabel : t.kanban.openLabel;
 
           return (
@@ -695,6 +697,11 @@ function SessionHistoryPanel({
                         laneSpecialist,
                       ].filter(Boolean).join(" · ")}
                   </div>
+                  {modelLabel && (
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500 dark:text-slate-400" data-testid="kanban-run-model">
+                      {modelLabel}
+                    </div>
+                  )}
                   <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                     {formatSessionTimestamp(run?.startedAt ?? session?.createdAt ?? laneSession?.startedAt)}
                   </div>

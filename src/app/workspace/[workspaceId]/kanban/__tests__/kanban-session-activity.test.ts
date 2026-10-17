@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "../../types";
-import { mergeSessionActivity, resolveCardLinkedSession } from "../kanban-session-activity";
+import { formatSessionModelLabel, mergeSessionActivity, resolveCardLinkedSession } from "../kanban-session-activity";
 
 function session(overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -62,5 +62,25 @@ describe("resolveCardLinkedSession", () => {
         { sessionId: "s1", columnId: "review", status: "completed", startedAt: "2026-10-14T02:05:00.000Z" },
       ],
     } as never, map)).toBeUndefined();
+  });
+});
+
+describe("formatSessionModelLabel", () => {
+  it("shows the session's actual model and effort", () => {
+    expect(formatSessionModelLabel(
+      session({ model: "claude-opus-5-5", reasoningEffort: "high" }),
+      { model: "requested-model", reasoningEffort: "low" },
+    )).toBe("claude-opus-5-5 / high");
+  });
+
+  it("falls back to the lane record per field, or shows only what is known", () => {
+    expect(formatSessionModelLabel(session({ model: "gpt-6.1-sol" }), { reasoningEffort: "medium" }))
+      .toBe("gpt-6.1-sol / medium");
+    expect(formatSessionModelLabel(undefined, { model: "claude-opus-5-5" })).toBe("claude-opus-5-5");
+  });
+
+  it("returns undefined when neither side has a value, so nothing is rendered", () => {
+    expect(formatSessionModelLabel(session(), undefined)).toBeUndefined();
+    expect(formatSessionModelLabel(session({ model: " ", reasoningEffort: "" }), { model: "" })).toBeUndefined();
   });
 });

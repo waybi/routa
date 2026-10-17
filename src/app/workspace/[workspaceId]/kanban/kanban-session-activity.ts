@@ -75,3 +75,19 @@ export function resolveCardLinkedSession(
     .sort((left, right) => toMs(right.startedAt) - toMs(left.startedAt))[0];
   return failed ? sessionMap.get(failed.sessionId) : undefined;
 }
+
+/**
+ * "model / effort" for a lane run, or undefined when neither is known (the
+ * caller then renders nothing). The session record is what the agent actually
+ * runs; the lane record is what session/new asked for, used until the session
+ * list has it.
+ */
+export function formatSessionModelLabel(
+  session: Pick<SessionInfo, "model" | "reasoningEffort"> | undefined,
+  laneSession: { model?: string; reasoningEffort?: string } | undefined,
+): string | undefined {
+  const model = session?.model?.trim() || laneSession?.model?.trim();
+  const effort = session?.reasoningEffort?.trim() || laneSession?.reasoningEffort?.trim();
+  const parts = [model, effort].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" / ") : undefined;
+}

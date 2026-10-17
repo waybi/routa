@@ -30,6 +30,8 @@ describe("/api/sessions GET", () => {
         branch: "main",
         provider: "codex",
         role: "DEVELOPER",
+        model: "gpt-6.1-sol",
+        reasoningEffort: "high",
         toolMode: "full",
         allowedNativeTools: ["Bash"],
         createdAt: "2026-04-03T10:02:00.000Z",
@@ -94,6 +96,8 @@ describe("/api/sessions GET", () => {
       branch: "main",
       provider: "codex",
       role: "DEVELOPER",
+      model: "gpt-6.1-sol",
+      reasoningEffort: "high",
     });
     expect(data.sessions[0].toolMode).toBeUndefined();
     expect(data.sessions[0].allowedNativeTools).toBeUndefined();
