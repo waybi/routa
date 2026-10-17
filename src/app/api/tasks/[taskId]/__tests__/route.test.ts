@@ -233,6 +233,83 @@ describe("/api/tasks/[taskId]", () => {
     });
   });
 
+  describe("card-level model and reasoning effort override", () => {
+    const patchTask = async (body: Record<string, unknown>) => {
+      const response = await PATCH(new NextRequest("http://localhost/api/tasks/task-1", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      }), {
+        params: Promise.resolve({ taskId: "task-1" }),
+      });
+      return { response, data: await response.json() };
+    };
+    const existingWithOverride = () => createTask({
+      id: "task-1",
+      title: "Model override",
+      objective: "Model override",
+      workspaceId: "workspace-1",
+      boardId: "board-1",
+      columnId: "todo",
+      status: TaskStatus.PENDING,
+      assignedModel: "claude-opus-5-5",
+      assignedReasoningEffort: "high",
+    });
+
+    it("writes trimmed values and reads them back on GET", async () => {
+      const { response, data } = await patchTask({
+        assignedModel: "  gpt-6.1-sol  ",
+        assignedReasoningEffort: "medium",
+      });
+
+      expect(response.status).toBe(200);
+      expect(taskStore.save).toHaveBeenCalledWith(expect.objectContaining({
+        assignedModel: "gpt-6.1-sol",
+        assignedReasoningEffort: "medium",
+      }));
+      expect(data.task).toMatchObject({ assignedModel: "gpt-6.1-sol", assignedReasoningEffort: "medium" });
+
+      taskStore.get.mockResolvedValueOnce(existingWithOverride());
+      const getResponse = await GET(new NextRequest("http://localhost/api/tasks/task-1"), {
+        params: Promise.resolve({ taskId: "task-1" }),
+      });
+      expect((await getResponse.json()).task).toMatchObject({
+        assignedModel: "claude-opus-5-5",
+        assignedReasoningEffort: "high",
+      });
+    });
+
+    it("clears the override when null is sent", async () => {
+      taskStore.get.mockResolvedValueOnce(existingWithOverride());
+      const { data } = await patchTask({ assignedModel: null, assignedReasoningEffort: null });
+
+      const saved = taskStore.save.mock.calls.at(-1)?.[0] as Task;
+      expect(saved.assignedModel).toBeUndefined();
+      expect(saved.assignedReasoningEffort).toBeUndefined();
+      expect(data.task.assignedModel).toBeUndefined();
+    });
+
+    it("clears the override when an empty or blank string is sent", async () => {
+      taskStore.get.mockResolvedValueOnce(existingWithOverride());
+      await patchTask({ assignedModel: "", assignedReasoningEffort: "   " });
+
+      const saved = taskStore.save.mock.calls.at(-1)?.[0] as Task;
+      expect(saved.assignedModel).toBeUndefined();
+      expect(saved.assignedReasoningEffort).toBeUndefined();
+    });
+
+    it("keeps the stored override when the keys are absent", async () => {
+      taskStore.get.mockResolvedValueOnce(existingWithOverride());
+      await patchTask({ assignedProvider: "dsh" });
+
+      expect(taskStore.save).toHaveBeenCalledWith(expect.objectContaining({
+        assignedProvider: "dsh",
+        assignedModel: "claude-opus-5-5",
+        assignedReasoningEffort: "high",
+      }));
+    });
+  });
+
   it("links replacement sessions through PATCH sessionIds", async () => {
     // The card-detail panel calls this after recovering a dead session. It
     // used to be silently ignored, so the card never learned about the new

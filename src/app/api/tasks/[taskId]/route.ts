@@ -99,6 +99,17 @@ function applyTaskAdaptivePersistenceGuards(task: Task): Task {
   return task;
 }
 
+/**
+ * PATCH semantics for optional string overrides: a missing key leaves the
+ * field alone (handled by the caller), null / "" / whitespace clears it, and
+ * any other string is stored trimmed.
+ */
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function sanitizeLabels(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) return undefined;
@@ -217,7 +228,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
 
-  let body: Partial<Task> & {
+  let body: Omit<Partial<Task>, "assignedModel" | "assignedReasoningEffort"> & {
+    assignedModel?: string | null;
+    assignedReasoningEffort?: string | null;
     repoPath?: string;
     syncToGitHub?: boolean;
     retryTrigger?: boolean;
@@ -227,12 +240,7 @@ export async function PATCH(
     jitContextAnalysis?: unknown;
   };
   try {
-    body = await request.json() as Partial<Task> & {
-      repoPath?: string;
-      syncToGitHub?: boolean;
-      retryTrigger?: boolean;
-      retryProviderId?: string;
-    };
+    body = await request.json() as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -525,6 +533,12 @@ export async function PATCH(
   if (body.assignedRole !== undefined) nextTask.assignedRole = body.assignedRole;
   if (body.assignedSpecialistId !== undefined) nextTask.assignedSpecialistId = body.assignedSpecialistId;
   if (body.assignedSpecialistName !== undefined) nextTask.assignedSpecialistName = body.assignedSpecialistName;
+  // Model / effort overrides only apply when the next lane session starts;
+  // they deliberately stay out of the assignedWhileInDev trigger below.
+  if ("assignedModel" in body) nextTask.assignedModel = normalizeOptionalString(body.assignedModel);
+  if ("assignedReasoningEffort" in body) {
+    nextTask.assignedReasoningEffort = normalizeOptionalString(body.assignedReasoningEffort);
+  }
   if (body.fallbackAgentChain !== undefined) nextTask.fallbackAgentChain = body.fallbackAgentChain;
   if (body.enableAutomaticFallback !== undefined) nextTask.enableAutomaticFallback = body.enableAutomaticFallback;
   if (body.maxFallbackAttempts !== undefined) nextTask.maxFallbackAttempts = body.maxFallbackAttempts;

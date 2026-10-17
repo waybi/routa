@@ -558,6 +558,8 @@ async function serializeTask(
     assignedRole: task.assignedRole,
     assignedSpecialistId: task.assignedSpecialistId,
     assignedSpecialistName: task.assignedSpecialistName,
+    assignedModel: task.assignedModel,
+    assignedReasoningEffort: task.assignedReasoningEffort,
     triggerSessionId: task.triggerSessionId,
     sessionIds: task.sessionIds ?? [],
     laneSessions: task.laneSessions ?? [],
