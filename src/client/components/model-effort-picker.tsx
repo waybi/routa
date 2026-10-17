@@ -44,6 +44,10 @@ export interface ModelEffortPickerProps {
   variant?: "toolbar" | "form";
   ariaLabel?: string;
   testIdPrefix?: string;
+  /** Offer the "Follow default" model item (off for a live session, which always has a model). */
+  allowDefaultModel?: boolean;
+  /** Make the "Default" effort segment selectable (off when the agent does not accept ""). */
+  allowDefaultEffort?: boolean;
 }
 
 type PanelPosition = { left: number; top?: number; bottom?: number; maxHeight: number; minWidth: number };
@@ -83,6 +87,8 @@ export function ModelEffortPicker({
   variant = "toolbar",
   ariaLabel,
   testIdPrefix = "model-effort-picker",
+  allowDefaultModel = true,
+  allowDefaultEffort = true,
 }: ModelEffortPickerProps) {
   const { t } = useTranslation();
   const copy = t.kanbanModelSelection;
@@ -280,7 +286,7 @@ export function ModelEffortPicker({
               </p>
             </div>
             <div role="listbox" aria-label={copy.model} className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-              {renderOption("", copy.followDefault)}
+              {allowDefaultModel && renderOption("", copy.followDefault)}
               {modelGroups.map((group, index) => (
                 <div key={`${group.label ?? "ungrouped"}-${index}`} role="group" aria-label={group.label}>
                   {group.label && (
@@ -305,15 +311,20 @@ export function ModelEffortPicker({
                   aria-label={copy.reasoningEffort}
                   className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800/70"
                 >
-                  {[{ value: "", label: copy.defaultEffort }, ...effortChoices].map((choice) => {
+                  {[
+                    // Not selectable: still shown while it is the current value.
+                    ...(allowDefaultEffort || !currentEffort ? [{ value: "", label: copy.defaultEffort }] : []),
+                    ...effortChoices,
+                  ].map((choice) => {
                     const selected = choice.value === currentEffort;
+                    const locked = !choice.value && !allowDefaultEffort;
                     return (
                       <button
                         key={choice.value || "__default__"}
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        disabled={disabled}
+                        disabled={disabled || locked}
                         data-testid={`${testIdPrefix}-effort-option`}
                         data-value={choice.value}
                         onClick={() => selectEffort(choice.value)}

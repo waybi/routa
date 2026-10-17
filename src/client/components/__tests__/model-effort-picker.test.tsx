@@ -148,3 +148,22 @@ describe("ModelEffortPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ model: "gpt-6.1-sol", reasoningEffort: "high" });
   });
 });
+
+describe("ModelEffortPicker without default choices", () => {
+  it("hides Follow default and locks the Default effort segment", () => {
+    const { onChange } = renderPicker({ allowDefaultModel: false, allowDefaultEffort: false, reasoningEffort: "" });
+    openPanel();
+    expect(screen.queryByRole("option", { name: "Follow default" })).toBeNull();
+    const defaultSegment = screen.getByRole("radio", { name: "Default" }) as HTMLButtonElement;
+    expect(defaultSegment.getAttribute("aria-checked")).toBe("true");
+    expect(defaultSegment.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "Low" }));
+    expect(onChange).toHaveBeenCalledWith({ model: "claude-opus-5-5", reasoningEffort: "low" });
+  });
+
+  it("drops the Default segment once a concrete effort is set", () => {
+    renderPicker({ allowDefaultEffort: false });
+    openPanel();
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Low", "High", "X-Max"]);
+  });
+});
