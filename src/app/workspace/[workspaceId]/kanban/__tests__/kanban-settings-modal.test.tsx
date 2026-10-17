@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanSettingsModal } from "../kanban-settings-modal";
 import { resetModelEffortChoicesCache } from "../kanban-model-effort-fields";
@@ -851,17 +851,24 @@ describe("KanbanSettingsModal", () => {
       const fetchMock = stubConfigOptions();
       const onSave = renderModal({ review: { enabled: true, steps: [{ id: "step-1", role: "GATE" }] } });
 
-      const modelSelect = await screen.findByTestId("kanban-settings-step-1-model") as HTMLSelectElement;
-      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
+      const picker = await screen.findByTestId("kanban-settings-step-1-model-effort");
       expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/providers/dsh/config-options");
-      expect(Array.from(modelSelect.options).map((option) => option.textContent)).toEqual([
+      // One combined field in the step row, not two selects.
+      expect(screen.getByText("Model / reasoning effort")).toBeTruthy();
+      expect(screen.queryByTestId("kanban-settings-step-1-model")).toBeNull();
+      expect(screen.queryByTestId("kanban-settings-step-1-reasoning-effort")).toBeNull();
+
+      fireEvent.click(picker);
+      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
+      const panel = screen.getByTestId("kanban-settings-step-1-model-effort-panel");
+      expect(within(panel).getAllByRole("option").map((option) => option.textContent)).toEqual([
         "Follow default",
         "Claude Opus 5.5",
         "GPT 6.1 Sol",
       ]);
-
-      fireEvent.change(modelSelect, { target: { value: "gpt-6.1-sol" } });
-      fireEvent.change(screen.getByTestId("kanban-settings-step-1-reasoning-effort"), { target: { value: "high" } });
+      fireEvent.click(screen.getByRole("option", { name: "GPT 6.1 Sol" }));
+      fireEvent.click(screen.getByRole("radio", { name: "High" }));
+      expect(screen.getByTestId("kanban-settings-step-1-model-effort-label").textContent).toBe("GPT 6.1 Sol · High");
       fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
 
       await waitFor(() => {
@@ -889,13 +896,14 @@ describe("KanbanSettingsModal", () => {
         },
       });
 
-      const modelSelect = await screen.findByTestId("kanban-settings-step-1-model") as HTMLSelectElement;
-      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
       // A stored value missing from the options is kept and shown, not reset.
-      expect(modelSelect.value).toBe("retired-model");
-      expect((screen.getByTestId("kanban-settings-step-1-reasoning-effort") as HTMLSelectElement).value).toBe("low");
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-settings-step-1-model-effort-label").textContent).toBe("retired-model · Low");
+      });
 
-      fireEvent.change(modelSelect, { target: { value: "" } });
+      fireEvent.click(screen.getByTestId("kanban-settings-step-1-model-effort"));
+      expect(screen.getByRole("option", { name: "retired-model" }).getAttribute("aria-selected")).toBe("true");
+      fireEvent.click(screen.getByRole("option", { name: "Follow default" }));
       fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
 
       await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -903,6 +911,24 @@ describe("KanbanSettingsModal", () => {
         .review.steps[0];
       expect(savedStep).not.toHaveProperty("model");
       expect(savedStep).toMatchObject({ reasoningEffort: "low" });
+    });
+
+    it("drops reasoningEffort when the Default effort is chosen", async () => {
+      stubConfigOptions();
+      const onSave = renderModal({
+        review: { enabled: true, steps: [{ id: "step-1", role: "GATE", model: "gpt-6.1-sol", reasoningEffort: "high" }] },
+      });
+
+      fireEvent.click(await screen.findByTestId("kanban-settings-step-1-model-effort"));
+      await screen.findByRole("option", { name: "GPT 6.1 Sol" });
+      fireEvent.click(screen.getByRole("radio", { name: "Default" }));
+      fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
+
+      await waitFor(() => expect(onSave).toHaveBeenCalled());
+      const savedStep = (onSave.mock.calls[0] as unknown as [unknown, Record<string, { steps: Array<Record<string, unknown>> }>])[1]
+        .review.steps[0];
+      expect(savedStep).toMatchObject({ model: "gpt-6.1-sol" });
+      expect(savedStep).not.toHaveProperty("reasoningEffort");
     });
   });
 });

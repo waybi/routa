@@ -32,7 +32,8 @@ import {
   getTaskFieldLabel,
   TASK_FIELD_OPTIONS,
 } from "./kanban-settings-automation-helpers";
-import { ModelEffortSelects, useModelEffortChoices } from "./kanban-model-effort-fields";
+import { useModelEffortChoices } from "./kanban-model-effort-fields";
+import { ModelEffortPicker } from "@/client/components/model-effort-picker";
 import { applyStepModelEffort, resolveModelOptionsProviderId } from "./kanban-model-effort-options";
 
 export interface SpecialistOption {
@@ -672,22 +673,24 @@ export function ColumnAutomationWorkspace({
     index: number,
     labelSuffix: string,
   ) => (
-    <ModelEffortSelects
-      choices={modelEffortChoices[stepOptionsProviderIds[index] ?? ""]}
-      model={step?.model}
-      reasoningEffort={step?.reasoningEffort}
-      modelLabel={`${t.kanbanModelSelection.model}${labelSuffix}`}
-      reasoningEffortLabel={`${t.kanbanModelSelection.reasoningEffort}${labelSuffix}`}
-      testIdPrefix={`kanban-settings-step-${index + 1}`}
-      selectClassName={`${SELECT_CLASS} pr-3`}
-      renderField={(label, control) => <ConfigField label={label}>{control}</ConfigField>}
-      onModelChange={(value) => onUpdate(updateAutomationSteps(automation, (steps) => steps.map((currentStep, stepIndex) => (
-        stepIndex === index ? applyStepModelEffort(currentStep, "model", value) : currentStep
-      ))))}
-      onReasoningEffortChange={(value) => onUpdate(updateAutomationSteps(automation, (steps) => steps.map((currentStep, stepIndex) => (
-        stepIndex === index ? applyStepModelEffort(currentStep, "reasoningEffort", value) : currentStep
-      ))))}
-    />
+    <ConfigField label={`${t.kanbanModelSelection.modelAndEffort}${labelSuffix}`}>
+      <ModelEffortPicker
+        variant="form"
+        choices={modelEffortChoices[stepOptionsProviderIds[index] ?? ""]}
+        model={step?.model}
+        reasoningEffort={step?.reasoningEffort}
+        emptyLabel={t.kanbanModelSelection.followDefault}
+        effortEmptyLabel={t.kanbanModelSelection.followDefault}
+        ariaLabel={`${t.kanbanModelSelection.modelAndEffort}${labelSuffix}`}
+        testIdPrefix={`kanban-settings-step-${index + 1}-model-effort`}
+        // Two fields stay separate on the step; "" removes the field.
+        onChange={(next) => onUpdate(updateAutomationSteps(automation, (steps) => steps.map((currentStep, stepIndex) => (
+          stepIndex === index
+            ? applyStepModelEffort(applyStepModelEffort(currentStep, "model", next.model), "reasoningEffort", next.reasoningEffort)
+            : currentStep
+        ))))}
+      />
+    </ConfigField>
   );
   const [advancedExpanded, setAdvancedExpanded] = useState(() => automationSteps.length > 1);
   const applyDefaultAutomation = () => {
