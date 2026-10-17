@@ -18,8 +18,7 @@ import { splitCompletionReports } from "./kanban-completion-report";
 import { KanbanDescriptionEditor } from "./kanban-description-editor";
 import { KanbanTaskChangesTab } from "./components/kanban-task-changes-tab";
 import { MarkdownViewer } from "@/client/components/markdown/markdown-viewer";
-import { splitLegacyTaskComment } from "@/core/models/task";
-import type { FallbackAgent } from "@/core/models/task";
+import { splitLegacyTaskComment, type FallbackAgent } from "@/core/models/task";
 import {
   createKanbanSpecialistResolver,
   getOrderedSessionIds,
@@ -28,7 +27,7 @@ import {
 } from "./kanban-card-session-utils";
 export { KanbanCardActivityBar } from "./kanban-card-activity";
 import { KanbanCardArtifacts } from "./kanban-card-artifacts";
-import { KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-override-dropdown";
+import { KanbanCardModelEffortOverride, KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-override-dropdown";
 // Legacy imports - removed, functionality replaced by KanbanTaskGitWorkflowPanel
 // import { TaskFileDiffPreview, TaskCommitDiffPreview, CommitRow } from "./kanban-diff-preview";
 import { StoryReadinessPanel, EvidenceBundlePanel, JitContextPanel, ReviewFeedbackPanel } from "./kanban-detail-panels";
@@ -1233,6 +1232,7 @@ function ExecutionSection({
             onPatchTask={onPatchTask}
             onProviderChange={onProviderChange}
           />
+          <KanbanCardModelEffortOverride task={task} providerIds={[effectiveAutomation.providerId, selectedProvider]} compact={compact} onPatchTask={onPatchTask} />
           {hasCardOverride && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Select

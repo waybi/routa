@@ -43,7 +43,9 @@ describe("kanban model / effort options", () => {
   });
 
   it("removes the field for Follow default and stores trimmed values otherwise", () => {
-    expect(applyStepModelEffort({ id: "s", model: "m1" }, "model", "")).toEqual({ id: "s" });
-    expect(applyStepModelEffort({ id: "s" }, "reasoningEffort", " high ")).toEqual({ id: "s", reasoningEffort: "high" });
+    const withModel: { id: string; model?: string; reasoningEffort?: string } = { id: "s", model: "m1" };
+    expect(applyStepModelEffort(withModel, "model", "")).toEqual({ id: "s" });
+    expect(applyStepModelEffort({ ...withModel, model: undefined }, "reasoningEffort", " high "))
+      .toEqual({ id: "s", model: undefined, reasoningEffort: "high" });
   });
 });

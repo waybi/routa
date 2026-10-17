@@ -24,6 +24,7 @@ export interface SessionInfo {
   acpError?: string;
   modeId?: string;
   model?: string;
+  reasoningEffort?: string;
   parentSessionId?: string;
   specialistId?: string;
   createdAt: string;
@@ -157,6 +158,8 @@ export interface TaskInfo {
   assignedRole?: string;
   assignedSpecialistId?: string;
   assignedSpecialistName?: string;
+  assignedModel?: string;
+  assignedReasoningEffort?: string;
   triggerSessionId?: string;
   /** All session IDs that have been associated with this task (history) */
   sessionIds?: string[];
@@ -170,6 +173,8 @@ export interface TaskInfo {
     stepIndex?: number;
     stepName?: string;
     provider?: string;
+    model?: string;
+    reasoningEffort?: string;
     role?: string;
     specialistId?: string;
     specialistName?: string;
@@ -293,6 +298,8 @@ export interface KanbanColumnAutomationInfo {
     specialistId?: string;
     specialistName?: string;
     specialistLocale?: string;
+    model?: string;
+    reasoningEffort?: string;
     agentCardUrl?: string;
     skillId?: string;
     authConfigId?: string;

@@ -676,7 +676,8 @@ export function ColumnAutomationWorkspace({
       choices={modelEffortChoices[stepOptionsProviderIds[index] ?? ""]}
       model={step?.model}
       reasoningEffort={step?.reasoningEffort}
-      labelSuffix={labelSuffix}
+      modelLabel={`${t.kanbanModelSelection.model}${labelSuffix}`}
+      reasoningEffortLabel={`${t.kanbanModelSelection.reasoningEffort}${labelSuffix}`}
       testIdPrefix={`kanban-settings-step-${index + 1}`}
       selectClassName={`${SELECT_CLASS} pr-3`}
       renderField={(label, control) => <ConfigField label={label}>{control}</ConfigField>}

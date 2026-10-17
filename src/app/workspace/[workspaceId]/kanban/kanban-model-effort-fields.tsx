@@ -78,7 +78,8 @@ export function ModelEffortSelects({
   onReasoningEffortChange,
   selectClassName,
   testIdPrefix,
-  labelSuffix = "",
+  modelLabel: modelLabelProp,
+  reasoningEffortLabel: reasoningEffortLabelProp,
   renderField = (_label, control) => control,
 }: {
   choices: ModelEffortChoices | undefined;
@@ -88,7 +89,10 @@ export function ModelEffortSelects({
   onReasoningEffortChange: (value: string) => void;
   selectClassName: string;
   testIdPrefix: string;
-  labelSuffix?: string;
+  /** Defaults to the shared "Model" label. */
+  modelLabel?: string;
+  /** Defaults to the shared "Reasoning effort" label. */
+  reasoningEffortLabel?: string;
   renderField?: (label: string, control: ReactNode) => ReactNode;
 }) {
   const { t } = useTranslation();
@@ -101,8 +105,8 @@ export function ModelEffortSelects({
     () => withStoredChoice(choices?.reasoningEfforts ?? [], reasoningEffort),
     [choices, reasoningEffort],
   );
-  const modelLabel = `${copy.model}${labelSuffix}`;
-  const effortLabel = `${copy.reasoningEffort}${labelSuffix}`;
+  const modelLabel = modelLabelProp ?? copy.model;
+  const effortLabel = reasoningEffortLabelProp ?? copy.reasoningEffort;
 
   return (
     <>

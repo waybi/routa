@@ -813,7 +813,7 @@ describe("KanbanSettingsModal", () => {
     };
 
     const stubConfigOptions = () => {
-      const fetchMock = vi.fn(async () => new Response(JSON.stringify(configOptionsResponse), {
+      const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify(configOptionsResponse), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }));
