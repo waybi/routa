@@ -92,3 +92,29 @@ describe("TiptapInput paste handling", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("TiptapInput legacy model picker", () => {
+  function renderWith(hideLegacyModelPicker?: boolean) {
+    return render(
+      <TiptapInput
+        onSend={vi.fn()}
+        selectedProvider="opencode"
+        onRepoChange={vi.fn()}
+        repoSelection={null}
+        onFetchModels={vi.fn(async () => ["anthropic/claude"])}
+        hideLegacyModelPicker={hideLegacyModelPicker}
+      />,
+    );
+  }
+
+  it("keeps the opencode model picker by default", () => {
+    renderWith();
+    expect(screen.getByTitle("Select model")).toBeTruthy();
+  });
+
+  it("hides the opencode model picker when the session has its own model option", () => {
+    renderWith(true);
+    expect(screen.queryByTitle("Select model")).toBeNull();
+  });
+});
+

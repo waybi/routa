@@ -8,11 +8,29 @@ const {
   mockSetMessagesBySession,
   mockFetchSessions,
   mockChatMessagesState,
+  mockDesktopAwareFetch,
+  mockToastError,
+  mockTiptapProps,
 } = vi.hoisted(() => ({
   mockVisibleMessages: [] as Array<Record<string, unknown>>,
   mockSetMessagesBySession: vi.fn(),
   mockFetchSessions: vi.fn(),
-  mockChatMessagesState: { isSessionRunning: false },
+  mockChatMessagesState: {
+    isSessionRunning: false,
+    sessions: [] as Array<{ sessionId: string; model?: string }>,
+    sessionConfigOptionsById: {} as Record<string, unknown[]>,
+  },
+  mockDesktopAwareFetch: vi.fn(),
+  mockToastError: vi.fn(),
+  mockTiptapProps: { current: null as null | Record<string, unknown> },
+}));
+
+vi.mock("../../utils/diagnostics", () => ({
+  desktopAwareFetch: mockDesktopAwareFetch,
+}));
+
+vi.mock("../toast", () => ({
+  toast: { error: mockToastError, success: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/i18n", () => ({
@@ -28,6 +46,14 @@ vi.mock("@/i18n", () => ({
         viewToggle: {
           chat: "Chat",
           trace: "Trace",
+        },
+        sessionConfig: {
+          model: "Model",
+          reasoningEffort: "Reasoning effort",
+          defaultEffort: "Default",
+          unknownEffort: "Unknown",
+          unknownModel: "Unknown",
+          resumeToSwitch: "Send a message to resume the session, then you can switch",
         },
       },
       sessions: {
@@ -62,18 +88,22 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("../tiptap-input", () => ({
-  TiptapInput: ({ onSend }: { onSend: (text: string, context: Record<string, unknown>) => Promise<void> }) => (
-    <button type="button" onClick={() => void onSend("continue", {})}>
-      Send mock prompt
-    </button>
-  ),
+  TiptapInput: (props: { onSend: (text: string, context: Record<string, unknown>) => Promise<void> }) => {
+    mockTiptapProps.current = props as unknown as Record<string, unknown>;
+    return (
+      <button type="button" onClick={() => void props.onSend("continue", {})}>
+        Send mock prompt
+      </button>
+    );
+  },
 }));
 
 vi.mock("../chat-panel/hooks", () => ({
   useChatMessages: () => ({
     visibleMessages: mockVisibleMessages,
-    sessions: [],
+    sessions: mockChatMessagesState.sessions,
     sessionModeById: {},
+    sessionConfigOptionsById: mockChatMessagesState.sessionConfigOptionsById,
     isSessionRunning: mockChatMessagesState.isSessionRunning,
     checklistItems: [],
     fileChangesState: { files: new Map(), totalAdded: 0, totalRemoved: 0 },
@@ -91,6 +121,10 @@ describe("ChatPanel session targeting", () => {
     mockSetMessagesBySession.mockReset();
     mockFetchSessions.mockReset();
     mockChatMessagesState.isSessionRunning = false;
+    mockChatMessagesState.sessions = [];
+    mockChatMessagesState.sessionConfigOptionsById = {};
+    mockDesktopAwareFetch.mockReset();
+    mockDesktopAwareFetch.mockResolvedValue(new Response("{}", { status: 404 }));
   });
 
   it("dismisses stale permission cards when the server reports no pending interactive request", async () => {
@@ -466,3 +500,205 @@ describe("ChatPanel session targeting", () => {
     expect(onPrepareCanvasPrompt).not.toHaveBeenCalled();
   });
 });
+
+function makeSessionAcp(): UseAcpState & UseAcpActions {
+  return {
+    connected: true,
+    sessionId: "session-123",
+    updates: [],
+    providers: [],
+    selectedProvider: "opencode",
+    loading: false,
+    error: null,
+    authError: null,
+    dockerConfigError: null,
+    connect: vi.fn(),
+    createSession: vi.fn(),
+    resumeSession: vi.fn(),
+    forkSession: vi.fn(),
+    selectSession: vi.fn(),
+    setProvider: vi.fn(),
+    setMode: vi.fn(),
+    prompt: vi.fn(),
+    promptSession: vi.fn(async () => {}),
+    respondToUserInput: vi.fn(),
+    respondToUserInputForSession: vi.fn(),
+    writeTerminal: vi.fn(),
+    resizeTerminal: vi.fn(),
+    cancel: vi.fn(),
+    disconnect: vi.fn(),
+    clearAuthError: vi.fn(),
+    clearDockerConfigError: vi.fn(),
+    listProviderModels: vi.fn(),
+  } satisfies Partial<UseAcpState & UseAcpActions> as UseAcpState & UseAcpActions;
+}
+
+function configOptions(model: string, effort: string) {
+  return [
+    {
+      id: "model",
+      name: "Model",
+      currentValue: model,
+      options: [
+        { group: "deepseek", name: "DeepSeek", options: [{ value: "[\"deepseek\",\"deepseek-v4-pro\"]", name: "deepseek-v4-pro" }] },
+        { group: "local-7357", name: "Local 7357", options: [{ value: "[\"local-7357\",\"claude-opus-5-5\"]", name: "claude-opus-5-5" }] },
+      ],
+    },
+    {
+      id: "reasoning_effort",
+      name: "Reasoning effort",
+      currentValue: effort,
+      options: [{ value: "", name: "Default" }, { value: "low", name: "Low" }, { value: "high", name: "High" }],
+    },
+  ];
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+function renderSessionPanel() {
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  mockVisibleMessages.splice(0, mockVisibleMessages.length, {
+    id: "assistant-1",
+    role: "assistant",
+    content: "Done",
+    timestamp: new Date(),
+  });
+  return render(
+    <ChatPanel
+      acp={makeSessionAcp()}
+      activeSessionId="session-123"
+      onEnsureSession={vi.fn(async () => "session-123")}
+      onSelectSession={vi.fn(async () => {})}
+      repoSelection={null}
+      onRepoChange={vi.fn()}
+    />,
+  );
+}
+
+describe("ChatPanel session model / reasoning effort", () => {
+  const OPUS = "[\"local-7357\",\"claude-opus-5-5\"]";
+  const DEEPSEEK = "[\"deepseek\",\"deepseek-v4-pro\"]";
+
+  beforeEach(() => {
+    mockVisibleMessages.splice(0, mockVisibleMessages.length);
+    mockChatMessagesState.isSessionRunning = false;
+    mockChatMessagesState.sessions = [];
+    mockChatMessagesState.sessionConfigOptionsById = {};
+    mockDesktopAwareFetch.mockReset();
+    mockToastError.mockReset();
+    mockTiptapProps.current = null;
+  });
+
+  it("shows grouped model and effort selects from GET config-options and hides the legacy picker", async () => {
+    mockDesktopAwareFetch.mockResolvedValue(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }));
+    renderSessionPanel();
+
+    const modelSelect = await screen.findByRole("combobox", { name: "Model" }) as HTMLSelectElement;
+    const effortSelect = screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement;
+    expect(mockDesktopAwareFetch.mock.calls[0][0]).toContain("/api/sessions/session-123/config-options");
+    expect(modelSelect.value).toBe(OPUS);
+    expect(effortSelect.value).toBe("high");
+    expect(Array.from(modelSelect.querySelectorAll("optgroup")).map((group) => group.label)).toEqual(["DeepSeek", "Local 7357"]);
+    expect(screen.getByTestId("session-config-label").textContent).toContain("claude-opus-5-5");
+    expect(screen.getByTestId("session-config-label").textContent).toContain("high");
+    expect(mockTiptapProps.current?.hideLegacyModelPicker).toBe(true);
+  });
+
+  it("renders no selects when configOptions has neither model nor reasoning_effort", async () => {
+    mockDesktopAwareFetch.mockResolvedValue(jsonResponse({ sessionId: "session-123", configOptions: [{ id: "mode", currentValue: "build" }] }));
+    renderSessionPanel();
+
+    await waitFor(() => expect(mockDesktopAwareFetch).toHaveBeenCalled());
+    await waitFor(() => expect(mockTiptapProps.current?.hideLegacyModelPicker).toBe(false));
+    expect(screen.queryByTestId("session-config-bar")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("posts the model change and trusts the returned effort even when it was reset", async () => {
+    mockDesktopAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }))
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(DEEPSEEK, "") }));
+    renderSessionPanel();
+
+    const modelSelect = await screen.findByRole("combobox", { name: "Model" });
+    fireEvent.change(modelSelect, { target: { value: DEEPSEEK } });
+
+    await waitFor(() => expect(mockDesktopAwareFetch).toHaveBeenCalledTimes(2));
+    const [, init] = mockDesktopAwareFetch.mock.calls[1] as [string, RequestInit];
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ configId: "model", value: DEEPSEEK });
+
+    await waitFor(() => {
+      expect((screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement).value).toBe("");
+    });
+    expect((screen.getByRole("combobox", { name: "Model" }) as HTMLSelectElement).value).toBe(DEEPSEEK);
+    expect(screen.getByTestId("session-config-label").textContent).toContain("deepseek-v4-pro");
+    expect(screen.getByTestId("session-config-label").textContent).toContain("Default");
+  });
+
+  it("posts reasoning_effort changes with configId reasoning_effort", async () => {
+    mockDesktopAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }))
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "low") }));
+    renderSessionPanel();
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Reasoning effort" }), { target: { value: "low" } });
+
+    await waitFor(() => expect(mockDesktopAwareFetch).toHaveBeenCalledTimes(2));
+    const [, init] = mockDesktopAwareFetch.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ configId: "reasoning_effort", value: "low" });
+    await waitFor(() => expect(screen.getByTestId("session-config-label").textContent).toContain("low"));
+  });
+
+  it("goes read-only on 404 with the stored model, unknown effort and a resume hint, without a toast", async () => {
+    mockChatMessagesState.sessions = [{ sessionId: "session-123", model: "claude-opus-5-5" }];
+    mockDesktopAwareFetch.mockResolvedValue(jsonResponse({ error: "会话进程不在，需先恢复会话", code: "SESSION_PROCESS_NOT_FOUND" }, 404));
+    renderSessionPanel();
+
+    expect(await screen.findByTestId("session-config-resume-hint")).toBeTruthy();
+    expect(screen.getByText("Send a message to resume the session, then you can switch")).toBeTruthy();
+    const label = screen.getByTestId("session-config-label").textContent ?? "";
+    expect(label).toContain("claude-opus-5-5");
+    expect(label).toContain("Unknown");
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("disables the selects when POST returns 404", async () => {
+    mockDesktopAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }))
+      .mockResolvedValueOnce(jsonResponse({ error: "gone" }, 404));
+    renderSessionPanel();
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: DEEPSEEK } });
+
+    await waitFor(() => expect(screen.getByTestId("session-config-resume-hint")).toBeTruthy());
+    expect((screen.getByRole("combobox", { name: "Model" }) as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement).disabled).toBe(true);
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("applies config_option_update payloads to the selects and label", async () => {
+    mockDesktopAwareFetch.mockResolvedValue(jsonResponse({ sessionId: "session-123", configOptions: configOptions(OPUS, "high") }));
+    const view = renderSessionPanel();
+    await screen.findByRole("combobox", { name: "Model" });
+
+    mockChatMessagesState.sessionConfigOptionsById = { "session-123": configOptions(DEEPSEEK, "low") };
+    view.rerender(
+      <ChatPanel
+        acp={makeSessionAcp()}
+        activeSessionId="session-123"
+        onEnsureSession={vi.fn(async () => "session-123")}
+        onSelectSession={vi.fn(async () => {})}
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Model" }) as HTMLSelectElement).value).toBe(DEEPSEEK));
+    expect((screen.getByRole("combobox", { name: "Reasoning effort" }) as HTMLSelectElement).value).toBe("low");
+    expect(screen.getByTestId("session-config-label").textContent).toContain("deepseek-v4-pro");
+  });
+});
+
