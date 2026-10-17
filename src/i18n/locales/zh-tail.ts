@@ -256,6 +256,7 @@ export const zhTail: TailTranslationDictionarySections = {
       unknownEffort: "未知",
       unknownModel: "未知",
       resumeToSwitch: "发一条消息恢复会话后可切换",
+      defaultModel: "默认模型",
     },
   },
 
@@ -427,5 +428,10 @@ export const zhTail: TailTranslationDictionarySections = {
     followDefault: "跟随默认",
     cardModelOverride: "模型覆盖",
     cardReasoningEffortOverride: "推理档位覆盖",
+    modelAndEffort: "模型 / 推理档位",
+    cardModelEffortOverride: "模型 / 推理档位覆盖",
+    defaultEffort: "默认",
+    pickerAriaLabel: "模型与推理档位",
+    noModels: "该 Provider 没有列出可选模型",
   },
 };

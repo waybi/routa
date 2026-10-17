@@ -260,6 +260,8 @@ export interface TailTranslationDictionarySections {
       unknownEffort: string;
       unknownModel: string;
       resumeToSwitch: string;
+      /** Composer picker text when no model is chosen (session/new uses the default). */
+      defaultModel: string;
     };
   };
 
@@ -443,5 +445,15 @@ export interface TailTranslationDictionarySections {
     followDefault: string;
     cardModelOverride: string;
     cardReasoningEffortOverride: string;
+    /** Single lane-step field combining model and effort. */
+    modelAndEffort: string;
+    /** Single card-override field combining model and effort. */
+    cardModelEffortOverride: string;
+    /** Effort segment that leaves the effort to the agent default. */
+    defaultEffort: string;
+    /** aria-label / title of the model + effort picker button. */
+    pickerAriaLabel: string;
+    /** Shown in the picker panel when the provider lists no models. */
+    noModels: string;
   };
 }

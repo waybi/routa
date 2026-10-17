@@ -262,6 +262,7 @@ export const enTail: TailTranslationDictionarySections = {
       unknownEffort: "Unknown",
       unknownModel: "Unknown",
       resumeToSwitch: "Send a message to resume the session, then you can switch",
+      defaultModel: "Default model",
     },
   },
 
@@ -433,5 +434,10 @@ export const enTail: TailTranslationDictionarySections = {
     followDefault: "Follow default",
     cardModelOverride: "Model override",
     cardReasoningEffortOverride: "Reasoning effort override",
+    modelAndEffort: "Model / reasoning effort",
+    cardModelEffortOverride: "Model / reasoning effort override",
+    defaultEffort: "Default",
+    pickerAriaLabel: "Model and reasoning effort",
+    noModels: "No models listed for this provider",
   },
 };
