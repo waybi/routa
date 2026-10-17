@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "../../types";
-import { formatSessionModelLabel, mergeSessionActivity, resolveCardLinkedSession } from "../kanban-session-activity";
+import {
+  formatSessionModelLabel,
+  mergeSessionActivity,
+  resolveCardLinkedSession,
+  resolveSessionModelChips,
+} from "../kanban-session-activity";
 
 function session(overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -82,5 +87,35 @@ describe("formatSessionModelLabel", () => {
   it("returns undefined when neither side has a value, so nothing is rendered", () => {
     expect(formatSessionModelLabel(session(), undefined)).toBeUndefined();
     expect(formatSessionModelLabel(session({ model: " ", reasoningEffort: "" }), { model: "" })).toBeUndefined();
+  });
+});
+
+describe("resolveSessionModelChips", () => {
+  const choices = {
+    models: [{ value: "claude-opus-5-5", label: "Claude Opus 5.5" }],
+    reasoningEfforts: [{ value: "high", label: "High" }],
+  };
+
+  it("uses config-options display names when they are listed", () => {
+    expect(resolveSessionModelChips(session({ model: "claude-opus-5-5", reasoningEffort: "high" }), undefined, choices))
+      .toEqual({
+        model: { id: "claude-opus-5-5", label: "Claude Opus 5.5" },
+        effort: { id: "high", label: "High" },
+      });
+  });
+
+  it("falls back to the raw id when no display name is found or choices are missing", () => {
+    expect(resolveSessionModelChips(session({ model: "retired-model" }), { reasoningEffort: "medium" }, choices))
+      .toEqual({
+        model: { id: "retired-model", label: "retired-model" },
+        effort: { id: "medium", label: "medium" },
+      });
+    expect(resolveSessionModelChips(undefined, { model: "claude-opus-5-5" }))
+      .toEqual({ model: { id: "claude-opus-5-5", label: "claude-opus-5-5" } });
+  });
+
+  it("returns undefined when both values are empty, so no chip renders", () => {
+    expect(resolveSessionModelChips(session(), undefined, choices)).toBeUndefined();
+    expect(resolveSessionModelChips(session({ model: " ", reasoningEffort: "" }), { model: "" }, choices)).toBeUndefined();
   });
 });

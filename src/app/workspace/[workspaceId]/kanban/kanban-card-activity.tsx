@@ -30,7 +30,8 @@ import {
 import type { KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useTaskRuns } from "./use-task-runs";
-import { formatSessionModelLabel } from "./kanban-session-activity";
+import { resolveSessionModelChips } from "./kanban-session-activity";
+import { useModelEffortChoices } from "./kanban-model-effort-fields";
 
 type ActivityTabId = "runs" | "handoffs" | "github";
 
@@ -586,6 +587,14 @@ function SessionHistoryPanel({
   const copy = getKanbanSessionCopy(specialistLanguage);
   const laneSessions = task.laneSessions ?? [];
   const orderedSessionIds = getStableOrderedSessionIds(task, runs);
+  // Display names for the model / effort chips; a provider without options
+  // (or still loading) just shows the raw ids.
+  const chipProviderIds = orderedSessionIds.map((sessionId) => (
+    sessions.find((session) => session.sessionId === sessionId)?.provider
+      ?? laneSessions.find((entry) => entry.sessionId === sessionId)?.provider
+      ?? ""
+  ));
+  const chipChoicesByProvider = useModelEffortChoices(chipProviderIds);
 
   if (orderedSessionIds.length === 0) {
     return (
@@ -627,7 +636,13 @@ function SessionHistoryPanel({
           );
           const stepLabel = getLaneSessionStepLabel(laneSession);
           const isA2ARun = laneSession?.transport === "a2a";
-          const modelLabel = isA2ARun ? undefined : formatSessionModelLabel(session, laneSession);
+          const modelChips = isA2ARun
+            ? undefined
+            : resolveSessionModelChips(
+              session,
+              laneSession,
+              chipChoicesByProvider[session?.provider ?? laneSession?.provider ?? ""],
+            );
           const reconnectLabel = run?.resumeTarget?.type === "external_task" ? t.kanban.inspectLabel : t.kanban.openLabel;
 
           return (
@@ -697,9 +712,28 @@ function SessionHistoryPanel({
                         laneSpecialist,
                       ].filter(Boolean).join(" · ")}
                   </div>
-                  {modelLabel && (
-                    <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500 dark:text-slate-400" data-testid="kanban-run-model">
-                      {modelLabel}
+                  {modelChips && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="kanban-run-model">
+                      {modelChips.model && (
+                        <span
+                          className="max-w-full truncate rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                          title={`${t.kanbanModelSelection.model}: ${modelChips.model.id}`}
+                          aria-label={`${t.kanbanModelSelection.model}: ${modelChips.model.label}`}
+                          data-testid="kanban-run-model-chip"
+                        >
+                          {modelChips.model.label}
+                        </span>
+                      )}
+                      {modelChips.effort && (
+                        <span
+                          className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          title={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips.effort.id}`}
+                          aria-label={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips.effort.label}`}
+                          data-testid="kanban-run-effort-chip"
+                        >
+                          {modelChips.effort.label}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">

@@ -11,6 +11,10 @@
  * lands after a heartbeat cannot roll the card back.
  */
 
+import {
+  findChoiceLabel,
+  type ModelEffortChoices,
+} from "@/client/model-effort/model-effort-choices";
 import type { SessionInfo, TaskInfo } from "../types";
 
 export interface SessionActivityPatch {
@@ -90,4 +94,34 @@ export function formatSessionModelLabel(
   const effort = session?.reasoningEffort?.trim() || laneSession?.reasoningEffort?.trim();
   const parts = [model, effort].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" / ") : undefined;
+}
+
+export interface SessionModelChip {
+  id: string;
+  label: string;
+}
+
+export interface SessionModelChips {
+  model?: SessionModelChip;
+  effort?: SessionModelChip;
+}
+
+/**
+ * Model / effort chips for a lane run, using the same value priority as
+ * formatSessionModelLabel. Labels come from the provider's config-options
+ * names; an id no option lists (or missing choices) shows as-is. Undefined
+ * when neither value is known, so the caller renders no chips.
+ */
+export function resolveSessionModelChips(
+  session: Pick<SessionInfo, "model" | "reasoningEffort"> | undefined,
+  laneSession: { model?: string; reasoningEffort?: string } | undefined,
+  choices?: ModelEffortChoices,
+): SessionModelChips | undefined {
+  const model = session?.model?.trim() || laneSession?.model?.trim();
+  const effort = session?.reasoningEffort?.trim() || laneSession?.reasoningEffort?.trim();
+  if (!model && !effort) return undefined;
+  return {
+    ...(model ? { model: { id: model, label: findChoiceLabel(choices?.models, model) ?? model } } : {}),
+    ...(effort ? { effort: { id: effort, label: findChoiceLabel(choices?.reasoningEfforts, effort) ?? effort } } : {}),
+  };
 }
