@@ -1973,7 +1973,7 @@ describe("KanbanTab card detail manual runs", () => {
 
     const runButton = await screen.findByTestId("kanban-detail-run");
     expect(runButton.textContent).toBe("Run");
-    expect(screen.getByText(/lane default/i)).toBeTruthy();
+    expect(screen.getByTestId("kanban-detail-provider-override").textContent).toMatch(/lane default/i);
 
     fireEvent.click(runButton);
 
