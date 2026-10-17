@@ -21,8 +21,8 @@ describe("kanban model / effort options", () => {
       ],
     });
     expect(choices.models).toEqual([
-      { value: "m1", label: "Model One" },
-      { value: "m2", label: "m2" },
+      { value: "m1", label: "Model One", group: "a" },
+      { value: "m2", label: "m2", group: "b" },
     ]);
     expect(choices.reasoningEfforts).toEqual([{ value: "high", label: "High" }]);
     expect(parseModelEffortChoices({ error: "probe failed" })).toEqual({ models: [], reasoningEfforts: [] });

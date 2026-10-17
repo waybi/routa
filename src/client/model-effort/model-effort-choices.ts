@@ -21,6 +21,8 @@ export const MODEL_EFFORT_FALLBACK_PROVIDER_ID = "dsh";
 export interface ModelEffortChoice {
   value: string;
   label: string;
+  /** Display name of the config-options group the value came from (models only). */
+  group?: string;
 }
 
 export interface ModelEffortChoices {
@@ -41,16 +43,38 @@ export function resolveModelOptionsProviderId(
   return MODEL_EFFORT_FALLBACK_PROVIDER_ID;
 }
 
+export interface ParseModelEffortChoicesOptions {
+  /**
+   * Keep the agent's raw model select value (DSH: `["<provider>","<model>"]`)
+   * instead of the plain model id. The live-session POST needs the raw value;
+   * session/new and Kanban fields store the plain id.
+   */
+  keepRawModelValues?: boolean;
+}
+
 /** Parse a config-options response body into deduplicated model / effort choices. */
-export function parseModelEffortChoices(payload: unknown): ModelEffortChoices {
+export function parseModelEffortChoices(
+  payload: unknown,
+  { keepRawModelValues = false }: ParseModelEffortChoicesOptions = {},
+): ModelEffortChoices {
   const options = extractConfigOptions(payload);
+  const modelOption = findOption(options, MODEL_CONFIG_ID);
+  const groupLabels = new Map<string, string>();
+  for (const entry of modelOption?.options ?? []) {
+    if (entry && typeof entry === "object" && "group" in entry && typeof entry.group === "string") {
+      groupLabels.set(entry.group, entry.name?.trim() || entry.group);
+    }
+  }
+
   const models: ModelEffortChoice[] = [];
   const seenModels = new Set<string>();
-  for (const entry of flattenOptionValues(findOption(options, MODEL_CONFIG_ID))) {
+  for (const entry of flattenOptionValues(modelOption)) {
     const modelId = parseModelValue(entry.value)?.model;
-    if (!modelId || seenModels.has(modelId)) continue;
-    seenModels.add(modelId);
-    models.push({ value: modelId, label: entry.name?.trim() || modelId });
+    const value = keepRawModelValues ? entry.value : modelId;
+    if (!modelId || !value || seenModels.has(value)) continue;
+    seenModels.add(value);
+    const group = entry.group ? groupLabels.get(entry.group) ?? entry.group : undefined;
+    models.push({ value, label: entry.name?.trim() || modelId, ...(group ? { group } : {}) });
   }
 
   const reasoningEfforts: ModelEffortChoice[] = [];
@@ -63,6 +87,16 @@ export function parseModelEffortChoices(payload: unknown): ModelEffortChoices {
   }
 
   return { models, reasoningEfforts };
+}
+
+/** Display name for a stored value, falling back to the raw id when no choice lists it. */
+export function findChoiceLabel(
+  choices: ModelEffortChoice[] | undefined,
+  value: string | undefined,
+): string | undefined {
+  const wanted = value?.trim();
+  if (!wanted) return undefined;
+  return choices?.find((choice) => choice.value === wanted)?.label ?? wanted;
 }
 
 /**
