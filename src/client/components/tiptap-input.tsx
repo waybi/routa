@@ -520,6 +520,8 @@ interface TiptapInputProps {
   usageInfo?: UsageInfo | null;
   /** Fetch available models for a provider (returns model IDs like "anthropic/claude-3-5-sonnet") */
   onFetchModels?: (provider: string) => Promise<string[]>;
+  /** Hide the legacy opencode/gemini model picker (the session exposes its own model config option). */
+  hideLegacyModelPicker?: boolean;
   /** When set, programmatically inserts this skill mention into the editor */
   pendingSkill?: string | null;
   /** Called after pendingSkill has been inserted so the parent can clear it */
@@ -552,6 +554,7 @@ export function TiptapInput({
   repoPathDisplay = "hidden",
   usageInfo,
   onFetchModels,
+  hideLegacyModelPicker = false,
   pendingSkill,
   onSkillInserted,
   prefillText,
@@ -979,7 +982,7 @@ export function TiptapInput({
           </div>
 
           {/* Model selector — shown for providers that support model listing */}
-          {onFetchModels && (selectedProvider === "opencode" || selectedProvider === "gemini") && (
+          {onFetchModels && !hideLegacyModelPicker && (selectedProvider === "opencode" || selectedProvider === "gemini") && (
             <div ref={modelDropdownRef}>
               <button
                 ref={modelBtnRef}

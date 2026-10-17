@@ -13,8 +13,10 @@ import type {UseAcpActions, UseAcpState} from "../hooks/use-acp";
 import {type InputContext, TiptapInput} from "./tiptap-input";
 import type {SkillSummary} from "../skill-client";
 import { shortenRepoPath, type RepoSelection } from "./repo-picker";
-import {SetupView} from "./chat-panel/components";
+import {SessionConfigSelects, SetupView} from "./chat-panel/components";
 import {useChatMessages} from "./chat-panel/hooks";
+import {useSessionConfigOptions} from "./chat-panel/hooks/use-session-config-options";
+import {MODEL_CONFIG_ID, findOption} from "@/core/acp/config-options";
 import {type ParsedTask,} from "../utils/task-block-parser";
 import {type TaskInfo, TaskProgressBar, type FileChangesSummary} from "./task-progress-bar";
 import {
@@ -205,6 +207,7 @@ export function ChatPanel({
     visibleMessages,
     sessions,
     sessionModeById,
+    sessionConfigOptionsById,
     isSessionRunning,
     checklistItems,
     fileChangesState,
@@ -218,6 +221,18 @@ export function ChatPanel({
     updates,
     onTasksDetected,
   });
+
+  // Model / reasoning-effort config of the live session (GET/POST config-options).
+  const sessionConfig = useSessionConfigOptions({
+    sessionId: activeSessionId,
+    notifiedOptions: activeSessionId ? sessionConfigOptionsById?.[activeSessionId] : undefined,
+    // Re-read when a turn starts or ends, e.g. after a resume brought the process back.
+    refreshKey: isSessionRunning,
+  });
+  const sessionHasModelOption = Boolean(findOption(sessionConfig.configOptions ?? undefined, MODEL_CONFIG_ID));
+  const storedSessionModel = activeSessionId
+    ? sessions.find((session) => session.sessionId === activeSessionId)?.model
+    : undefined;
 
   // Extract task-type tool calls for TaskProgressBar (existing behavior)
   const delegatedTasks = useMemo<TaskInfo[]>(() => {
@@ -872,6 +887,13 @@ export function ChatPanel({
               {(taskInfos.length > 0 || fileChangesSummary) && (
                 <TaskProgressBar tasks={taskInfos} fileChanges={fileChangesSummary} />
               )}
+              <SessionConfigSelects
+                configOptions={sessionConfig.configOptions}
+                unavailable={sessionConfig.unavailable}
+                pending={sessionConfig.pending}
+                fallbackModel={storedSessionModel}
+                onChange={(configId, value) => void sessionConfig.setOption(configId, value)}
+              />
               <div className="flex gap-2 items-end">
                 {onPrepareCanvasPrompt && canvasPromptLabel && canvasPromptShortLabel && (
                   <button
@@ -918,6 +940,7 @@ export function ChatPanel({
                   agentRole={agentRole}
                   usageInfo={usageInfo}
                   onFetchModels={acp.listProviderModels}
+                  hideLegacyModelPicker={sessionHasModelOption}
                   prefillText={inputPrefill}
                   onPrefillConsumed={onInputPrefillConsumed}
                 />
