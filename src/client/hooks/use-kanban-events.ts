@@ -21,8 +21,9 @@ export interface KanbanTaskLifecyclePayload {
   taskId: string;
   taskTitle: string;
   sessionId?: string;
-  phase: "started" | "completed" | "failed" | "blocked" | "needs_review";
+  phase: "started" | "completed" | "failed" | "blocked" | "rejected" | "needs_review";
   columnId?: string;
+  boardId?: string;
   lastMessagePreview?: string;
   source?: "agent" | "user" | "system";
   timestamp?: string;

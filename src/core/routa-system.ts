@@ -413,11 +413,12 @@ export function getRoutaSystem(): RoutaSystem {
     // Persist every Kanban SSE frame so a reload / reconnect can replay.
     setupKanbanEventPersistence(system);
 
-    // Bridge agent lifecycle (completed / failed) onto card-level events so the
-    // UI can notify the user instead of silently refetching.
+    // Bridge card moves (done / blocked / sent back) and run failures onto
+    // card-level events so the UI can notify the user instead of silently refetching.
     setupTaskLifecycleBridge({
       eventBus: system.eventBus,
       taskStore: system.taskStore,
+      kanbanBoardStore: system.kanbanBoardStore,
     });
   }
   return g[GLOBAL_KEY] as RoutaSystem;

@@ -36,12 +36,18 @@ export type KanbanFitnessChangedEvent = {
  * `kanban:changed` only says "something changed, refetch"; it cannot tell the
  * UI that a run finished, which is why completion never reached the user.
  * This event carries that semantics explicitly.
+ *
+ * Emitted today: `completed` (entered Done), `blocked` (entered Blocked),
+ * `rejected` (sent back from Review), `failed` (agent run failed).
+ * `started` and `needs_review` are no longer emitted but stay in the type
+ * because persisted frames from older builds are still replayed.
  */
 export type KanbanTaskLifecyclePhase =
   | "started"
   | "completed"
   | "failed"
   | "blocked"
+  | "rejected"
   | "needs_review";
 
 export type KanbanTaskLifecycleEvent = {
@@ -52,6 +58,8 @@ export type KanbanTaskLifecycleEvent = {
   sessionId?: string;
   phase: KanbanTaskLifecyclePhase;
   columnId?: string;
+  /** Board holding the card, so a notification can deep-link to it. */
+  boardId?: string;
   /** Short preview of the agent's last message, so cards can drop the 1 MB history poll. */
   lastMessagePreview?: string;
   source: "agent" | "user" | "system";
