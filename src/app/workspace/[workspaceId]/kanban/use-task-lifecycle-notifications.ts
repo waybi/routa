@@ -19,15 +19,27 @@ import type { KanbanTaskLifecyclePayload } from "@/client/hooks/use-kanban-event
 
 type LifecyclePhase = KanbanTaskLifecyclePayload["phase"];
 
+/**
+ * Only states the human must act on. `needs_review` and `started` are still
+ * replayed from frames persisted by older builds, so they are filtered here.
+ */
 const NOTIFIED_PHASES: ReadonlySet<LifecyclePhase> = new Set<LifecyclePhase>([
   "completed",
-  "failed",
-  "needs_review",
   "blocked",
+  "rejected",
+  "failed",
 ]);
 
 function formatTitle(template: string, taskTitle: string): string {
   return template.replace("{title}", taskTitle);
+}
+
+/** Deep link that opens the card on its board (read by kanban-tab's URL state). */
+export function buildTaskNotificationLink(event: Pick<KanbanTaskLifecyclePayload, "workspaceId" | "taskId" | "boardId">): string {
+  const params = new URLSearchParams();
+  if (event.boardId) params.set("boardId", event.boardId);
+  params.set("taskId", event.taskId);
+  return `/workspace/${encodeURIComponent(event.workspaceId)}/kanban?${params.toString()}`;
 }
 
 function notificationTypeFor(phase: LifecyclePhase): AppNotification["type"] {
@@ -70,6 +82,8 @@ export function useTaskLifecycleNotifications({
     if (!enabled) return;
     if (!NOTIFIED_PHASES.has(event.phase)) return;
 
+    // The server only emits on real state changes; this key just stops an SSE
+    // reconnect replaying the same frame (same timestamp) from notifying twice.
     const eventKey = `${event.taskId}:${event.phase}:${event.timestamp ?? ""}`;
     if (seenEventKeysRef.current.has(eventKey)) return;
     seenEventKeysRef.current.add(eventKey);
@@ -77,11 +91,11 @@ export function useTaskLifecycleNotifications({
       seenEventKeysRef.current = new Set(Array.from(seenEventKeysRef.current).slice(-100));
     }
 
-    const templates: Record<string, string> = {
+    const templates: Partial<Record<LifecyclePhase, string>> = {
       completed: t.feedback.taskCompleted,
       failed: t.feedback.taskFailed,
-      needs_review: t.feedback.taskNeedsReview,
       blocked: t.feedback.taskBlocked,
+      rejected: t.feedback.taskRejected,
     };
     const title = formatTitle(templates[event.phase] ?? t.feedback.taskCompleted, event.taskTitle);
     const description = event.lastMessagePreview;
@@ -99,7 +113,13 @@ export function useTaskLifecycleNotifications({
       type: notificationTypeFor(event.phase),
       title,
       message: description ?? "",
-      metadata: { taskId: event.taskId, sessionId: event.sessionId, phase: event.phase },
+      link: buildTaskNotificationLink(event),
+      metadata: {
+        taskId: event.taskId,
+        boardId: event.boardId,
+        sessionId: event.sessionId,
+        phase: event.phase,
+      },
     });
 
     if (

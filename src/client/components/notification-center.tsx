@@ -40,6 +40,17 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
 /**
+ * Task id carried in `metadata`, if any. Entries persisted by older builds may
+ * have no metadata, `null`, or a non-object value, so read defensively.
+ */
+function readNotificationTaskId(notification: Partial<AppNotification> | null | undefined): string | undefined {
+  const metadata: unknown = notification?.metadata;
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const taskId = (metadata as Record<string, unknown>).taskId;
+  return typeof taskId === "string" && taskId.length > 0 ? taskId : undefined;
+}
+
+/**
  * Inert fallback for trees rendered without the provider (unit tests,
  * Storybook, any surface that mounts a shell fragment in isolation).
  *
@@ -86,7 +97,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       timestamp: new Date().toISOString(),
       read: false,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+    // One entry per card: a newer notification about the same task replaces
+    // the older one instead of stacking.
+    const taskId = readNotificationTaskId(newNotif);
+    setNotifications((prev) => [
+      newNotif,
+      ...(taskId ? prev.filter((item) => readNotificationTaskId(item) !== taskId) : prev),
+    ]);
   }, []);
 
   const markAsRead = useCallback((id: string) => {

@@ -421,6 +421,7 @@ export interface TailTranslationDictionarySections {
     taskFailed: string;
     taskNeedsReview: string;
     taskBlocked: string;
+    taskRejected: string;
     openCard: string;
     // Browser notification permission
     notificationsEnabled: string;
