@@ -791,7 +791,7 @@ export function KanbanEmptySessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-slate-200/80 p-2 dark:border-[#202433]">
+      <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-12 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           specialistLanguage={specialistLanguage}

@@ -87,6 +87,27 @@ function expectWindowedOverlay() {
   expect(screen.getByRole("button", { name: /Enter fullscreen/i })).toBeTruthy();
 }
 
+const WARNING_COLOR_CLASS = /(?:^|\s)(?:[a-z-]+:)*(?:bg|text|border|ring)-(?:red|rose|amber|orange)-/;
+
+function expectTopRightCloseButton(containerHeightClass: string) {
+  const closeButtons = screen.getAllByRole("button", { name: /Close card detail/i });
+  expect(closeButtons).toHaveLength(1);
+  const [closeButton] = closeButtons;
+  const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
+  expect(toolbar.contains(closeButton)).toBe(false);
+  expect(closeButton.parentElement).toBe(getDetailOverlay().inner);
+  expectClasses(closeButton.parentElement, [containerHeightClass]);
+  expectClasses(closeButton, [
+    "absolute", "top-2", "right-2", "z-30", "h-9", "w-9",
+    "border-slate-300", "text-slate-500", "hover:bg-slate-100", "hover:text-slate-800", "focus-visible:ring-2",
+    "dark:border-slate-600", "dark:text-slate-400", "dark:hover:bg-slate-800", "dark:hover:text-slate-100",
+  ]);
+  expect(closeButton.className).not.toMatch(WARNING_COLOR_CLASS);
+  expectClasses(closeButton.querySelector("svg"), ["h-5", "w-5"]);
+  expect(closeButton.textContent?.trim()).toBe("");
+  expect(closeButton.getAttribute("title")).toBe("Close (Esc)");
+}
+
 beforeEach(() => {
   resetDesktopAwareFetchToGlobalFetch(desktopAwareFetch);
   window.history.replaceState({}, "", "/workspace/workspace-1/kanban");
@@ -180,7 +201,7 @@ describe("KanbanTab URL state", () => {
     expectFullscreenOverlay();
   });
 
-  it("keeps exit-fullscreen across board refreshes and reopens fullscreen with a prominent close button", async () => {
+  it("keeps exit-fullscreen across board refreshes and reopens fullscreen with a muted top-right close icon", async () => {
     const props = {
       workspaceId: "workspace-1",
       boards: [board],
@@ -198,15 +219,12 @@ describe("KanbanTab URL state", () => {
     await screen.findByText("Card Detail");
     expectFullscreenOverlay();
 
-    const closeButton = screen.getByRole("button", { name: /Close card detail/i });
-    expectClasses(closeButton, ["h-9", "text-sm", "bg-red-600", "text-white", "hover:bg-red-700", "focus-visible:ring-2", "dark:bg-red-500"]);
-    expectClasses(closeButton.querySelector("svg"), ["h-5", "w-5"]);
-    expect(closeButton.getAttribute("title")).toBe(closeButton.getAttribute("aria-label"));
-    const toolbarButtons = screen.getByTestId("kanban-detail-sticky-toolbar").querySelectorAll("button");
-    expect(toolbarButtons[toolbarButtons.length - 1]).toBe(closeButton);
+    expectTopRightCloseButton("h-screen");
+    expectClasses(screen.getByTestId("kanban-detail-sticky-toolbar"), ["pr-12"]);
 
     fireEvent.click(screen.getByRole("button", { name: /Exit fullscreen/i }));
     expectWindowedOverlay();
+    expectTopRightCloseButton("h-[88vh]");
 
     rerender(
       <KanbanTab

@@ -70,7 +70,6 @@ export interface KanbanCardDetailProps {
   onOpenJitContextHistoryAnalysis?: (prompt: string, targetWindow: Window | null) => Promise<void>;
   isFullscreen?: boolean;
   onToggleFullscreen?: (next: boolean) => void;
-  onClose?: () => void;
   canShowSessionPane?: boolean;
   isSessionPaneVisible?: boolean;
   onShowSessionPane?: () => void;
@@ -257,7 +256,6 @@ export function KanbanCardDetail({
   onOpenJitContextHistoryAnalysis,
   isFullscreen = false,
   onToggleFullscreen,
-  onClose,
   canShowSessionPane = false,
   isSessionPaneVisible = false,
   onShowSessionPane,
@@ -353,7 +351,7 @@ export function KanbanCardDetail({
   return (
     <div className="h-full w-full overflow-y-auto">
       <div className={`mx-auto flex min-h-full max-w-6xl flex-col ${compactMode ? "gap-2 p-3" : "gap-3 p-4"}`}>
-        <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 px-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 px-4 pb-1.5 pt-4"}`} data-testid="kanban-detail-sticky-toolbar">
+        <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 pl-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 pl-4 pb-1.5 pt-4"} ${isSessionPaneVisible ? (compactMode ? "pr-3" : "pr-4") : "pr-12"}`} data-testid="kanban-detail-sticky-toolbar">
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
             {t.kanbanDetail.cardDetail}
           </div>
@@ -385,18 +383,6 @@ export function KanbanCardDetail({
             >
               {t.common.refresh}
             </button>
-            {onClose ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus-visible:ring-offset-[#12141c]"
-                aria-label={t.kanbanDetail.closeCardDetail}
-                title={t.kanbanDetail.closeCardDetail}
-              >
-                <X className="h-5 w-5" />
-                <span>{t.kanbanDetail.closeCardDetail}</span>
-              </button>
-            ) : null}
           </div>
         </div>
         <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>
