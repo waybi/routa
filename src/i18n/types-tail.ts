@@ -465,4 +465,9 @@ export interface TailTranslationDictionarySections {
     collapse: string;
     expand: string;
   };
+  /** Card detail overlay: top-right close icon button. */
+  kanbanDetailOverlay: {
+    /** Hover title of the close icon button, mentions the Esc shortcut. */
+    closeWithEscHint: string;
+  };
 }

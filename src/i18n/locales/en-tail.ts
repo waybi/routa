@@ -447,4 +447,7 @@ export const enTail: TailTranslationDictionarySections = {
     collapse: "Collapse",
     expand: "Expand",
   },
+  kanbanDetailOverlay: {
+    closeWithEscHint: "Close (Esc)",
+  },
 };

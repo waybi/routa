@@ -441,4 +441,7 @@ export const zhTail: TailTranslationDictionarySections = {
     collapse: "折叠",
     expand: "展开",
   },
+  kanbanDetailOverlay: {
+    closeWithEscHint: "关闭（Esc）",
+  },
 };

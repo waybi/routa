@@ -992,7 +992,7 @@ export function KanbanTaskDetailOverlay({
             onClick={closeTaskDetail}
             className="absolute right-2 top-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white/90 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-600 dark:bg-[#12141c]/90 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             aria-label={t.kanbanDetail.closeCardDetail}
-            title={t.common.closeEsc}
+            title={t.kanbanDetailOverlay.closeWithEscHint}
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
