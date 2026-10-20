@@ -879,18 +879,18 @@ export function KanbanTab({
     if (requestedTask.boardId) {
       setSelectedBoardId(requestedTask.boardId);
     }
-    // This runs on every localTasks change (dependency below), not only on
-    // real URL navigation. Re-picking the preferred session while the same
-    // card is already open would discard a session the user switched to —
-    // including the replacement after a dead-session Resume. Only reset the
-    // session when the card itself changed. (Read the current id from a ref:
-    // calling setState inside another setState's updater is not reliable.)
+    // Runs on every localTasks change, not only on URL navigation. Only reset
+    // session + fullscreen when the card itself changed: re-picking would drop
+    // a session the user switched to (e.g. after dead-session Resume), and
+    // re-entering fullscreen would undo the user's "Exit fullscreen". New cards
+    // default to fullscreen. (Read the current id from a ref: setState inside
+    // another setState's updater is not reliable.)
     const isSameCard = activeTaskIdRef.current === requestedTask.id;
     setActiveTaskId(requestedTask.id);
     if (!isSameCard) {
       setActiveSessionId(getPreferredTaskSessionId(requestedTask) ?? null);
+      setIsTaskDetailFullscreen(true);
     }
-    setIsTaskDetailFullscreen(false);
   }, [defaultBoardId, localBoards, localTasks, selectedBoardId]);
 
   useEffect(() => {
@@ -908,7 +908,7 @@ export function KanbanTab({
     setActiveTaskId(task.id);
     const latestSession = getPreferredTaskSessionId(task);
     setActiveSessionId(latestSession ?? null);
-    setIsTaskDetailFullscreen(false);
+    setIsTaskDetailFullscreen(true);
     updateKanbanUrlState({
       boardId: task.boardId ?? selectedBoardId ?? defaultBoardId ?? null,
       taskId: task.id,

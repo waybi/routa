@@ -62,6 +62,31 @@ function createTask(id: string, title: string, overrides: Partial<TaskInfo> = {}
   };
 }
 
+function expectClasses(element: Element | null, present: string[], absent: string[] = []) {
+  const classes = Array.from(element?.classList ?? []);
+  for (const name of present) expect(classes).toContain(name);
+  for (const name of absent) expect(classes).not.toContain(name);
+}
+
+function getDetailOverlay() {
+  const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
+  const outer = toolbar.closest(".fixed.inset-0") as HTMLElement;
+  return { outer, inner: outer.firstElementChild as HTMLElement };
+}
+
+function expectFullscreenOverlay() {
+  const { outer, inner } = getDetailOverlay();
+  expectClasses(outer, ["items-stretch"], ["px-4", "py-6"]);
+  expectClasses(inner, ["h-screen", "max-w-none", "border-0"], ["h-[88vh]", "max-w-7xl"]);
+  expect(screen.getByRole("button", { name: /Exit fullscreen/i })).toBeTruthy();
+}
+
+function expectWindowedOverlay() {
+  const { inner } = getDetailOverlay();
+  expectClasses(inner, ["h-[88vh]", "max-w-7xl"], ["h-screen"]);
+  expect(screen.getByRole("button", { name: /Enter fullscreen/i })).toBeTruthy();
+}
+
 beforeEach(() => {
   resetDesktopAwareFetchToGlobalFetch(desktopAwareFetch);
   window.history.replaceState({}, "", "/workspace/workspace-1/kanban");
@@ -86,6 +111,7 @@ describe("KanbanTab URL state", () => {
     await screen.findByText("Card Detail");
 
     expect(window.location.search).toContain("taskId=task-1");
+    expectFullscreenOverlay();
 
     fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
 
@@ -122,6 +148,84 @@ describe("KanbanTab URL state", () => {
 
     await screen.findByText("Card Detail");
     expect(screen.getByDisplayValue("Story One")).toBeTruthy();
+    expectFullscreenOverlay();
+
+    fireEvent.click(screen.getByRole("button", { name: /Exit fullscreen/i }));
+    expectWindowedOverlay();
+
+    window.history.pushState({}, "", "/workspace/workspace-1/kanban?taskId=task-2");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await screen.findByDisplayValue("Story Two");
+    expectFullscreenOverlay();
+  });
+
+  it("opens card detail fullscreen from a deep link", async () => {
+    window.history.replaceState({}, "", "/workspace/workspace-1/kanban?taskId=task-1");
+
+    render(
+      <KanbanTab
+        workspaceId="workspace-1"
+        boards={[board]}
+        tasks={[createTask("task-1", "Story One")]}
+        sessions={[]}
+        providers={[]}
+        specialists={[]}
+        codebases={[]}
+        onRefresh={vi.fn()}
+      />,
+    );
+
+    await screen.findByDisplayValue("Story One");
+    expectFullscreenOverlay();
+  });
+
+  it("keeps exit-fullscreen across board refreshes and reopens fullscreen with a prominent close button", async () => {
+    const props = {
+      workspaceId: "workspace-1",
+      boards: [board],
+      sessions: [],
+      providers: [],
+      specialists: [],
+      codebases: [],
+      onRefresh: vi.fn(),
+    };
+    const { rerender } = render(
+      <KanbanTab {...props} tasks={[createTask("task-1", "Story One"), createTask("task-2", "Story Two")]} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
+    await screen.findByText("Card Detail");
+    expectFullscreenOverlay();
+
+    const closeButton = screen.getByRole("button", { name: /Close card detail/i });
+    expectClasses(closeButton, ["h-9", "text-sm", "bg-red-600", "text-white", "hover:bg-red-700", "focus-visible:ring-2", "dark:bg-red-500"]);
+    expectClasses(closeButton.querySelector("svg"), ["h-5", "w-5"]);
+    expect(closeButton.getAttribute("title")).toBe(closeButton.getAttribute("aria-label"));
+    const toolbarButtons = screen.getByTestId("kanban-detail-sticky-toolbar").querySelectorAll("button");
+    expect(toolbarButtons[toolbarButtons.length - 1]).toBe(closeButton);
+
+    fireEvent.click(screen.getByRole("button", { name: /Exit fullscreen/i }));
+    expectWindowedOverlay();
+
+    rerender(
+      <KanbanTab
+        {...props}
+        tasks={[createTask("task-1", "Story One", { title: "Story One refreshed" }), createTask("task-2", "Story Two")]}
+      />,
+    );
+    await screen.findByDisplayValue("Story One refreshed");
+    expectWindowedOverlay();
+
+    fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
+    await waitFor(() => {
+      expect(screen.queryByText("Card Detail")).toBeNull();
+    });
+    expect(window.location.search).not.toContain("taskId=");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Story Two" }));
+    await screen.findByDisplayValue("Story Two");
+    expectFullscreenOverlay();
   });
 
   it("syncs board selection with boardId and restores a deep-linked board/task combination", async () => {

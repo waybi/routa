@@ -358,18 +358,6 @@ export function KanbanCardDetail({
             {t.kanbanDetail.cardDetail}
           </div>
           <div className="flex items-center gap-1.5">
-            {onClose ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
-                aria-label={t.kanbanDetail.closeCardDetail}
-                title={t.kanbanDetail.closeCardDetail}
-              >
-                <X className="h-3 w-3" />
-                <span>{t.kanbanDetail.closeCardDetail}</span>
-              </button>
-            ) : null}
             {canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? (
               <button
                 type="button"
@@ -397,6 +385,18 @@ export function KanbanCardDetail({
             >
               {t.common.refresh}
             </button>
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus-visible:ring-offset-[#12141c]"
+                aria-label={t.kanbanDetail.closeCardDetail}
+                title={t.kanbanDetail.closeCardDetail}
+              >
+                <X className="h-5 w-5" />
+                <span>{t.kanbanDetail.closeCardDetail}</span>
+              </button>
+            ) : null}
           </div>
         </div>
         <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>
