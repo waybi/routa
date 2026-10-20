@@ -135,7 +135,14 @@ export function useKanbanCardMove({
     const nextPosition = boardTasks.filter((task) => task.columnId === targetColumnId).length;
     setLocalTasks(localTasks.map((task) =>
       task.id === taskId
-        ? { ...task, columnId: targetColumnId, position: nextPosition, status: statusForColumn(targetColumnId) }
+        ? {
+          ...task,
+          columnId: targetColumnId,
+          position: nextPosition,
+          status: statusForColumn(targetColumnId),
+          // Done sorts newest first by updatedAt; stamp it so the card lands on top before refresh.
+          ...(targetColumnId === "done" ? { updatedAt: new Date().toISOString() } : {}),
+        }
         : task,
     ));
 

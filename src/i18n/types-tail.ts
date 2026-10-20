@@ -457,4 +457,12 @@ export interface TailTranslationDictionarySections {
     /** Shown in the picker panel when the provider lists no models. */
     noModels: string;
   };
+  /** Done column windowing: only the most recent cards render by default. */
+  kanbanDoneColumn: {
+    /** "{count}" = how many more cards the next click reveals. */
+    showEarlier: string;
+    showLess: string;
+    collapse: string;
+    expand: string;
+  };
 }

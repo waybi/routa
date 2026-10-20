@@ -441,4 +441,10 @@ export const enTail: TailTranslationDictionarySections = {
     pickerAriaLabel: "Model and reasoning effort",
     noModels: "No models listed for this provider",
   },
+  kanbanDoneColumn: {
+    showEarlier: "Show {count} earlier",
+    showLess: "Show less",
+    collapse: "Collapse",
+    expand: "Expand",
+  },
 };

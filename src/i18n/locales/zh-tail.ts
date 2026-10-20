@@ -435,4 +435,10 @@ export const zhTail: TailTranslationDictionarySections = {
     pickerAriaLabel: "模型与推理档位",
     noModels: "该 Provider 没有列出可选模型",
   },
+  kanbanDoneColumn: {
+    showEarlier: "显示更早的 {count} 张",
+    showLess: "收起",
+    collapse: "折叠",
+    expand: "展开",
+  },
 };

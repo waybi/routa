@@ -46,6 +46,8 @@ import { ChevronRight as _ChevronRight, GitBranch as _GitBranch } from "lucide-r
 import { GitLogPanel, RealGitAdapter, MockGitAdapter } from "./git-log";
 import { resolveCardMergeState } from "./kanban-card-status";
 import { resolveCardLinkedSession } from "./kanban-session-activity";
+import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-done-column-window";
+import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -402,6 +404,7 @@ export function KanbanBoardSurface({
   const [gitLogRepoPath, setGitLogRepoPath] = useState<string | null>(null);
   const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
   const [activeDragCardWidth, setActiveDragCardWidth] = useState<number | null>(null);
+  const doneColumn = useDoneColumnWindow(board.id);
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 3 },
@@ -517,6 +520,12 @@ export function KanbanBoardSurface({
                     const unmergedCount = column.id === "done"
                       ? columnTasks.filter((task) => resolveCardMergeState(task) === "unmerged").length
                       : 0;
+                    const isDoneColumn = column.id === DONE_COLUMN_ID;
+                    // Board has no search/filter yet; pass `unlimited: true` once it does.
+                    const doneWindow = isDoneColumn
+                      ? windowDoneTasks(columnTasks, { visibleCount: doneColumn.visibleCount })
+                      : null;
+                    const renderedTasks = doneWindow ? (doneColumn.collapsed ? [] : doneWindow.visible) : columnTasks;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
                     const widthClass = column.width === "compact" ? "w-[14rem]" : column.width === "wide" ? "w-[24rem]" : "w-[18rem]";
 
@@ -539,7 +548,10 @@ export function KanbanBoardSurface({
                                   {t.kanbanDetail.unmergedCount.replace("{count}", String(unmergedCount))}
                                 </span>
                               )}
-                              <span>{columnTasks.length} {t.kanbanBoard.cards}</span>
+                              <span data-testid={`kanban-column-count-${column.id}`}>{columnTasks.length} {t.kanbanBoard.cards}</span>
+                              {isDoneColumn && (
+                                <KanbanDoneCollapseToggle collapsed={doneColumn.collapsed} onToggle={doneColumn.toggleCollapsed} />
+                              )}
                             </div>
                           </div>
                           <div
@@ -562,7 +574,7 @@ export function KanbanBoardSurface({
                         </div>
 
                         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
-                          {columnTasks.map((task) => (
+                          {renderedTasks.map((task) => (
                             <KanbanCard
                               key={task.id}
                               task={task}
@@ -584,6 +596,13 @@ export function KanbanBoardSurface({
                               onRefresh={onRefresh}
                             />
                           ))}
+                          {doneWindow && !doneColumn.collapsed && (
+                            <KanbanDoneColumnFooter
+                              doneWindow={doneWindow}
+                              onShowMore={doneColumn.showMore}
+                              onShowLess={doneColumn.showLess}
+                            />
+                          )}
                         </div>
                       </KanbanDropColumn>
                     );
