@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { KanbanTab } from "../kanban-tab";
 import { KanbanCardDetail } from "../kanban-card-detail";
@@ -2030,7 +2030,10 @@ describe("KanbanTab card detail manual runs", () => {
     expect(await screen.findByText("当前还没有启动 session")).toBeTruthy();
     expect(screen.getByText("还没有自动化运行记录")).toBeTruthy();
     expect(screen.getAllByText(/右侧 session pane 会先显示等待中的空态/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "隐藏 session 面板" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "隐藏 session 面板" })).toBeNull();
+    fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail|关闭卡片详情/ }));
+    await waitFor(() => expect(screen.queryByTestId("kanban-detail-sticky-toolbar")).toBeNull());
+    expect(screen.queryByText("当前还没有启动 session")).toBeNull();
   });
 
   it("recovers when the trigger session appears after the detail view is already open", async () => {
@@ -2802,7 +2805,7 @@ describe("KanbanTab card detail manual runs", () => {
     });
   });
 
-  it("closes the card detail from the run tabs close button", async () => {
+  it("does not render a hide-session-pane close button in the run tabs row", async () => {
     vi.stubGlobal("scrollIntoView", vi.fn());
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
@@ -2898,16 +2901,12 @@ describe("KanbanTab card detail manual runs", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
 
-    await screen.findByRole("button", { name: /Hide session pane/i });
+    await screen.findByTestId("kanban-session-pane-top-row");
     expect(screen.getByText("Card Detail")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /Hide session pane/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /Hide session pane/i })).toBeNull();
-    });
-    expect(screen.getByText("Card Detail")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Show session pane/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Hide session pane/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show session pane/i })).toBeNull();
+    expect(screen.getByTestId("kanban-session-pane-top-row")).toBeTruthy();
   });
 
   it("closes the card detail from the detail header close button", async () => {
@@ -2961,7 +2960,7 @@ describe("KanbanTab card detail manual runs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
     await screen.findByText("Card Detail");
 
-    fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
+    fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail/i }));
 
     await waitFor(() => {
       expect(screen.queryByText("Card Detail")).toBeNull();

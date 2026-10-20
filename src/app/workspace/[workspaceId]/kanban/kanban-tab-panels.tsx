@@ -741,7 +741,6 @@ function A2ASessionPane({
   refreshSignal,
   currentSessionId,
   onSelectSession,
-  onCloseSession,
 }: {
   task: TaskInfo;
   laneSession?: NonNullable<TaskInfo["laneSessions"]>[number];
@@ -751,7 +750,6 @@ function A2ASessionPane({
   refreshSignal?: number;
   currentSessionId?: string;
   onSelectSession: (sessionId: string) => void;
-  onCloseSession: () => void;
 }) {
   const metadata = [
     { label: "Transport", value: (laneSession?.transport ?? "a2a").toUpperCase() },
@@ -774,7 +772,6 @@ function A2ASessionPane({
           specialistLanguage={specialistLanguage}
           currentSessionId={currentSessionId}
           onSelectSession={onSelectSession}
-          onCloseSession={onCloseSession}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-white via-sky-50/40 to-amber-50/30 p-5 dark:from-[#12141c] dark:via-[#101824] dark:to-[#17131c]">
@@ -1090,6 +1087,7 @@ export function KanbanTaskDetailOverlay({
                     : undefined}
                   isFullscreen={isTaskDetailFullscreen}
                   onToggleFullscreen={onToggleTaskDetailFullscreen}
+                  onClose={closeTaskDetail}
                   canShowSessionPane={canShowSessionPane}
                   isSessionPaneVisible={hasSessionPane}
                   onShowSessionPane={() => setHiddenSessionPaneTaskId(null)}
@@ -1143,7 +1141,6 @@ export function KanbanTaskDetailOverlay({
                     specialists={specialists}
                     specialistLanguage={specialistLanguage}
                     autoProviderId={resolveKanbanBoardAutoProviderId(board, boardAutoProviderId)}
-                    onCloseSession={() => setHiddenSessionPaneTaskId(activeTask?.id ?? null)}
                   />
                 </div>
               );
@@ -1162,7 +1159,6 @@ export function KanbanTaskDetailOverlay({
                       specialistLanguage={specialistLanguage}
                       currentSessionId={activeSessionId ?? undefined}
                       onSelectSession={(sessionId) => selectTaskSession(activeTask, sessionId)}
-                      onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
                     />
                   </div>
                 )}
@@ -1176,7 +1172,6 @@ export function KanbanTaskDetailOverlay({
                     refreshSignal={refreshSignal}
                     currentSessionId={activeSessionId ?? undefined}
                     onSelectSession={(sessionId) => selectTaskSession(activeTask, sessionId)}
-                    onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
                   />
                 ) : acp && (
                   <div className="min-h-0 flex-1">

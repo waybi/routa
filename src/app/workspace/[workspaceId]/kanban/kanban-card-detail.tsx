@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { Select } from "@/client/components/select";
@@ -14,6 +14,7 @@ import { formatArtifactSummary, resolveKanbanTransitionArtifacts } from "@/core/
 import { getKanbanAutomationSteps, type KanbanAutomationStep } from "@/core/models/kanban";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { KanbanCardActivityPanel } from "./kanban-card-activity";
+import { KanbanCardDetailToolbar } from "./kanban-card-detail-toolbar";
 import { splitCompletionReports } from "./kanban-completion-report";
 import { KanbanDescriptionEditor } from "./kanban-description-editor";
 import { KanbanTaskChangesTab } from "./components/kanban-task-changes-tab";
@@ -70,6 +71,7 @@ export interface KanbanCardDetailProps {
   onOpenJitContextHistoryAnalysis?: (prompt: string, targetWindow: Window | null) => Promise<void>;
   isFullscreen?: boolean;
   onToggleFullscreen?: (next: boolean) => void;
+  onClose?: () => void;
   canShowSessionPane?: boolean;
   isSessionPaneVisible?: boolean;
   onShowSessionPane?: () => void;
@@ -256,6 +258,7 @@ export function KanbanCardDetail({
   onOpenJitContextHistoryAnalysis,
   isFullscreen = false,
   onToggleFullscreen,
+  onClose,
   canShowSessionPane = false,
   isSessionPaneVisible = false,
   onShowSessionPane,
@@ -351,40 +354,16 @@ export function KanbanCardDetail({
   return (
     <div className="h-full w-full overflow-y-auto">
       <div className={`mx-auto flex min-h-full max-w-6xl flex-col ${compactMode ? "gap-2 p-3" : "gap-3 p-4"}`}>
-        <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 pl-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 pl-4 pb-1.5 pt-4"} ${isSessionPaneVisible ? (compactMode ? "pr-3" : "pr-4") : "pr-12"}`} data-testid="kanban-detail-sticky-toolbar">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-            {t.kanbanDetail.cardDetail}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? (
-              <button
-                type="button"
-                onClick={onShowSessionPane}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
-              >
-                {sessionCopy.showSessionPane}
-              </button>
-            ) : null}
-            {onToggleFullscreen ? (
-              <button
-                type="button"
-                onClick={() => onToggleFullscreen(!isFullscreen)}
-                className="inline-flex h-6 w-6 items-center justify-center border border-slate-300/80 text-slate-500 transition-colors hover:border-amber-400 hover:text-amber-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-amber-700 dark:hover:text-amber-200"
-                aria-label={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
-                title={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
-              >
-                {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200"
-            >
-              {t.common.refresh}
-            </button>
-          </div>
-        </div>
+        <KanbanCardDetailToolbar
+          compactMode={compactMode}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={onToggleFullscreen}
+          onClose={onClose}
+          onRefresh={onRefresh}
+          showSessionPaneLabel={canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? sessionCopy.showSessionPane : undefined}
+          isSessionPaneVisible={isSessionPaneVisible}
+          onShowSessionPane={onShowSessionPane}
+        />
         <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>
           <textarea
             ref={titleInputRef}

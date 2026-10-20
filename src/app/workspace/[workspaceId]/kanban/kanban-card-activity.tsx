@@ -416,14 +416,12 @@ export function KanbanCardActivityBar({
   specialistLanguage = "en",
   currentSessionId,
   onSelectSession,
-  onCloseSession,
 }: {
   task: TaskInfo;
   sessions?: SessionInfo[];
   specialistLanguage?: KanbanSpecialistLanguage;
   currentSessionId?: string;
   onSelectSession?: (sessionId: string) => void;
-  onCloseSession?: () => void;
 }) {
   const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
@@ -457,17 +455,6 @@ export function KanbanCardActivityBar({
     return (
       <div className="flex items-center justify-between gap-3 border-b border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <span>{copy.noRunsInline}</span>
-        {onCloseSession && (
-          <button
-            type="button"
-            onClick={onCloseSession}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center border border-slate-200 text-sm font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-200"
-            aria-label={copy.closeSessionPane}
-            title={copy.closeSessionPane}
-          >
-            ×
-          </button>
-        )}
       </div>
     );
   }
@@ -519,17 +506,6 @@ export function KanbanCardActivityBar({
             );
           })}
         </div>
-        {onCloseSession && (
-          <button
-            type="button"
-            onClick={onCloseSession}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center border border-slate-200 text-sm font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-200"
-            aria-label={copy.closeSessionPane}
-            title={copy.closeSessionPane}
-          >
-            ×
-          </button>
-        )}
       </div>
       {(selectedLaneSession?.columnName || selectedStepLabel || selectedLaneSession?.status) && (
         <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-1 text-[10px] dark:border-[#232736]">
@@ -768,7 +744,6 @@ export function KanbanEmptySessionPane({
   specialists,
   specialistLanguage = "en",
   autoProviderId,
-  onCloseSession,
 }: {
   task: TaskInfo;
   boardColumns: KanbanColumnInfo[];
@@ -776,7 +751,6 @@ export function KanbanEmptySessionPane({
   specialists: KanbanSpecialistOption[];
   specialistLanguage?: KanbanSpecialistLanguage;
   autoProviderId?: string;
-  onCloseSession?: () => void;
 }) {
   const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
@@ -795,7 +769,6 @@ export function KanbanEmptySessionPane({
         <KanbanCardActivityBar
           task={task}
           specialistLanguage={specialistLanguage}
-          onCloseSession={onCloseSession}
         />
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">

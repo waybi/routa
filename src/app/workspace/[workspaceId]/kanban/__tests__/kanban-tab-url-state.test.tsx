@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanTab } from "../kanban-tab";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
@@ -89,12 +89,42 @@ function expectWindowedOverlay() {
 
 const WARNING_COLOR_CLASS = /(?:^|\s)(?:[a-z-]+:)*(?:bg|text|border|ring)-(?:red|rose|amber|orange)-/;
 
-function expectTopRightCloseButton(containerHeightClass: string) {
-  const closeButtons = screen.getAllByRole("button", { name: /Close card detail/i });
-  expect(closeButtons).toHaveLength(1);
-  const [closeButton] = closeButtons;
+const RED_COLOR_CLASS = /(?:^|\s)(?:[a-z-]+:)*(?:bg|text|border|ring)-(?:red|rose)-/;
+
+function getTopRightCloseButton(): HTMLElement {
   const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
-  expect(toolbar.contains(closeButton)).toBe(false);
+  const outsideToolbar = screen
+    .getAllByRole("button", { name: /Close card detail/i })
+    .filter((button) => !toolbar.contains(button));
+  expect(outsideToolbar).toHaveLength(1);
+  return outsideToolbar[0];
+}
+
+function getToolbarCloseButton(): HTMLElement {
+  return within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail/i });
+}
+
+function expectToolbarCloseButton() {
+  const closeButtons = screen.getAllByRole("button", { name: /Close card detail/i });
+  expect(closeButtons).toHaveLength(2);
+  const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
+  const inToolbar = within(toolbar).getAllByRole("button", { name: /Close card detail/i });
+  expect(inToolbar).toHaveLength(1);
+  const [closeButton] = inToolbar;
+  expect(closeButton.parentElement?.firstElementChild).toBe(closeButton);
+  expectClasses(closeButton, [
+    "rounded-full", "h-8", "text-[13px]", "border-slate-300", "text-slate-700",
+    "dark:border-slate-600", "dark:text-slate-200",
+    "hover:border-amber-300", "hover:bg-amber-50", "hover:text-amber-700",
+  ]);
+  expect(closeButton.className).not.toMatch(RED_COLOR_CLASS);
+  expectClasses(closeButton.querySelector("svg"), ["h-4", "w-4"]);
+  expect(closeButton.textContent?.trim()).toBe("Close card detail");
+  expect(closeButton.getAttribute("title")).toBe("Close (Esc)");
+}
+
+function expectTopRightCloseButton(containerHeightClass: string) {
+  const closeButton = getTopRightCloseButton();
   expect(closeButton.parentElement).toBe(getDetailOverlay().inner);
   expectClasses(closeButton.parentElement, [containerHeightClass]);
   expectClasses(closeButton, [
@@ -134,7 +164,7 @@ describe("KanbanTab URL state", () => {
     expect(window.location.search).toContain("taskId=task-1");
     expectFullscreenOverlay();
 
-    fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
+    fireEvent.click(getToolbarCloseButton());
 
     await waitFor(() => {
       expect(screen.queryByText("Card Detail")).toBeNull();
@@ -159,7 +189,7 @@ describe("KanbanTab URL state", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Story Two" }));
     await screen.findByDisplayValue("Story Two");
 
-    fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
+    fireEvent.click(getTopRightCloseButton());
     await waitFor(() => {
       expect(screen.queryByText("Card Detail")).toBeNull();
     });
@@ -220,11 +250,13 @@ describe("KanbanTab URL state", () => {
     expectFullscreenOverlay();
 
     expectTopRightCloseButton("h-screen");
+    expectToolbarCloseButton();
     expectClasses(screen.getByTestId("kanban-detail-sticky-toolbar"), ["pr-12"]);
 
     fireEvent.click(screen.getByRole("button", { name: /Exit fullscreen/i }));
     expectWindowedOverlay();
     expectTopRightCloseButton("h-[88vh]");
+    expectToolbarCloseButton();
 
     rerender(
       <KanbanTab
@@ -235,7 +267,7 @@ describe("KanbanTab URL state", () => {
     await screen.findByDisplayValue("Story One refreshed");
     expectWindowedOverlay();
 
-    fireEvent.click(screen.getByRole("button", { name: /Close card detail/i }));
+    fireEvent.click(getToolbarCloseButton());
     await waitFor(() => {
       expect(screen.queryByText("Card Detail")).toBeNull();
     });
