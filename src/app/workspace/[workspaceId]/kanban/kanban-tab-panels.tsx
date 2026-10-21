@@ -48,6 +48,7 @@ import { resolveCardMergeState } from "./kanban-card-status";
 import { resolveCardLinkedSession } from "./kanban-session-activity";
 import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-done-column-window";
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
+import { KanbanDoneSegments } from "./kanban-done-segments";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -525,7 +526,7 @@ export function KanbanBoardSurface({
                     const doneWindow = isDoneColumn
                       ? windowDoneTasks(columnTasks, { visibleCount: doneColumn.visibleCount })
                       : null;
-                    const renderedTasks = doneWindow ? (doneColumn.collapsed ? [] : doneWindow.visible) : columnTasks;
+                    const renderedTasks = doneWindow ? [] : columnTasks;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
                     const widthClass = column.width === "compact" ? "w-[14rem]" : column.width === "wide" ? "w-[24rem]" : "w-[18rem]";
 
@@ -574,6 +575,9 @@ export function KanbanBoardSurface({
                         </div>
 
                         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
+                          {doneWindow && !doneColumn.collapsed && (
+                            <KanbanDoneSegments tasks={doneWindow.visible} now={new Date()} onOpenTask={(task) => void openTaskDetail(task)} />
+                          )}
                           {renderedTasks.map((task) => (
                             <KanbanCard
                               key={task.id}

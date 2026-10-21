@@ -441,6 +441,14 @@ export const zhTail: TailTranslationDictionarySections = {
     collapse: "折叠",
     expand: "展开",
   },
+  kanbanDoneSegments: {
+    today: "今天",
+    yesterday: "昨天",
+    thisWeek: "本周",
+    older: "更早",
+    reportPending: "汇报生成中",
+    leftover: "遗留",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "关闭（Esc）",
   },

@@ -465,6 +465,17 @@ export interface TailTranslationDictionarySections {
     collapse: string;
     expand: string;
   };
+  /** Done column day segments and compact two-line Done cards. */
+  kanbanDoneSegments: {
+    today: string;
+    yesterday: string;
+    thisWeek: string;
+    older: string;
+    /** Second line while the completion reporter is still running. */
+    reportPending: string;
+    /** Pill when the completion report lists leftover work. */
+    leftover: string;
+  };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {
     /** Hover title of the close icon button, mentions the Esc shortcut. */

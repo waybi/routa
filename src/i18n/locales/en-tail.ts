@@ -447,6 +447,14 @@ export const enTail: TailTranslationDictionarySections = {
     collapse: "Collapse",
     expand: "Expand",
   },
+  kanbanDoneSegments: {
+    today: "Today",
+    yesterday: "Yesterday",
+    thisWeek: "This week",
+    older: "Earlier",
+    reportPending: "Report in progress",
+    leftover: "Leftover",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "Close (Esc)",
   },
