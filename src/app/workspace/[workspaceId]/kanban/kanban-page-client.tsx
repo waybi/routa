@@ -30,6 +30,7 @@ import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import { toast } from "@/client/components/toast";
 import { useTaskLifecycleNotifications } from "./use-task-lifecycle-notifications";
 import { mergeSessionActivity } from "./kanban-session-activity";
+import { publishKanbanTaskChanges } from "./kanban-task-change-signal";
 
 interface SpecialistOption {
   id: string;
@@ -163,22 +164,28 @@ export function KanbanPageClient() {
     [locale],
   );
 
-  // Fetch tasks
-  useEffect(() => {
+  // Fetch tasks. A newer fetch aborts the one in flight so the latest response wins,
+  // whether it came from a full refresh or a tasks-only invalidate.
+  const tasksFetchControllerRef = useRef<AbortController | null>(null);
+  const fetchTasks = useCallback(async () => {
+    tasksFetchControllerRef.current?.abort();
     const controller = new AbortController();
-    (async () => {
-      try {
-        const res = await desktopAwareFetch(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (controller.signal.aborted) return;
-        setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
-      } catch { /* ignore */ }
-    })();
-    return () => controller.abort();
-  }, [workspaceId, refreshKey]);
+    tasksFetchControllerRef.current = controller;
+    try {
+      const res = await desktopAwareFetch(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (controller.signal.aborted) return;
+      setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+    } catch { /* ignore */ }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    void fetchTasks();
+    return () => tasksFetchControllerRef.current?.abort();
+  }, [fetchTasks, refreshKey]);
 
   // Fetch sessions
   useEffect(() => {
@@ -376,6 +383,15 @@ export function KanbanPageClient() {
     handleRefresh();
   }, [handleRefresh]);
 
+  // `kanban:changed` for a task only touches task rows: refetch /api/tasks and
+  // leave boards, sessions, codebases and repo changes alone (no refreshKey bump).
+  // Open card panels that load their own data (artifacts, changes, runs) reload
+  // through the per-card signal instead.
+  const handleTasksInvalidate = useCallback((taskIds: string[]) => {
+    void fetchTasks();
+    publishKanbanTaskChanges(taskIds);
+  }, [fetchTasks]);
+
   const handleOpenTaskFromNotification = useCallback((taskId: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set("taskId", taskId);
@@ -399,6 +415,7 @@ export function KanbanPageClient() {
   useKanbanEvents({
     workspaceId,
     onInvalidate: handleKanbanInvalidate,
+    onTasksInvalidate: handleTasksInvalidate,
     onTaskLifecycle: handleTaskLifecycle,
     onSessionTail: handleSessionTail,
     onSessionActivity: handleSessionActivity,

@@ -29,6 +29,7 @@ import {
 } from "./kanban-card-session-utils";
 export { KanbanCardActivityBar } from "./kanban-card-activity";
 import { KanbanCardArtifacts } from "./kanban-card-artifacts";
+import { useKanbanTaskChangeSignal } from "./kanban-task-change-signal";
 import { KanbanCardModelEffortOverride, KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-override-dropdown";
 // Legacy imports - removed, functionality replaced by KanbanTaskGitWorkflowPanel
 // import { TaskFileDiffPreview, TaskCommitDiffPreview, CommitRow } from "./kanban-diff-preview";
@@ -250,6 +251,10 @@ export function KanbanCardDetail({
   onShowSessionPane,
 }: KanbanCardDetailProps) {
   const { t } = useTranslation();
+  // Board-wide refreshes bump `refreshSignal`; task-only refreshes bump this
+  // card's own signal. Panels that load per-card data reload on either.
+  const taskChangeSignal = useKanbanTaskChangeSignal(task.id);
+  const detailRefreshSignal = (refreshSignal ?? 0) + taskChangeSignal;
   const { progressNotes, completionReports } = useMemo(
     () => splitCompletionReports(hydrateTaskComments(task.comments, task.comment)),
     [task],
@@ -719,7 +724,7 @@ export function KanbanCardDetail({
                 codebases={codebases}
                 taskId={task.id}
                 workspaceId={resolvedWorkspaceId}
-                refreshSignal={refreshSignal}
+                refreshSignal={detailRefreshSignal}
                 onRefresh={onRefresh}
                 onRunPullRequest={onRunPullRequest}
                 onSelectSession={onSelectSession}
@@ -741,7 +746,7 @@ export function KanbanCardDetail({
                 taskId={task.id}
                 compact={compactMode}
                 requiredArtifacts={nextTransitionArtifacts.nextRequiredArtifacts}
-                refreshSignal={refreshSignal}
+                refreshSignal={detailRefreshSignal}
               />
             </>
           )}
@@ -798,7 +803,7 @@ export function KanbanCardDetail({
           {activeTab === "runs" && (
             <KanbanCardActivityPanel
               task={task}
-              refreshSignal={refreshSignal}
+              refreshSignal={detailRefreshSignal}
               sessions={sessions ?? []}
               specialists={specialists}
               specialistLanguage={specialistLanguage}

@@ -11,6 +11,14 @@ const FITNESS_INVALIDATE_THROTTLE_MS = 750;
  * within this window collapse into a single onInvalidate.
  */
 export const INVALIDATE_COALESCE_MS = 150;
+/**
+ * `kanban:changed` with `entity: "task"` only refetches tasks. Frames are
+ * debounced: one refetch 400 ms after the last frame. While frames keep coming
+ * (an agent writing a card in a loop), a refetch still fires at most 1500 ms
+ * after the first unhandled frame, so the board never starves.
+ */
+export const TASK_INVALIDATE_DEBOUNCE_MS = 400;
+export const TASK_INVALIDATE_MAX_WAIT_MS = 1500;
 /** On a fresh page load, ask the server for this much recent history. */
 export const FRESH_LOAD_REPLAY_WINDOW_MS = 60 * 60 * 1000;
 
@@ -59,6 +67,13 @@ interface UseKanbanEventsOptions {
   workspaceId: string;
   onInvalidate: () => void;
   /**
+   * Called for `kanban:changed` frames with `entity: "task"` (debounced, see
+   * TASK_INVALIDATE_DEBOUNCE_MS). Should refetch tasks only. Receives the
+   * `resourceId`s of the coalesced frames. When omitted, task frames fall back
+   * to `onInvalidate`.
+   */
+  onTasksInvalidate?: (taskIds: string[]) => void;
+  /**
    * On first connect, replay events from the last hour so the notification
    * bell can rebuild from server truth after a reload. Defaults to true.
    * Reconnects always resume from the last seen id regardless.
@@ -81,6 +96,7 @@ interface UseKanbanEventsOptions {
 export function useKanbanEvents({
   workspaceId,
   onInvalidate,
+  onTasksInvalidate,
   onTaskLifecycle,
   onSessionTail,
   onSessionActivity,
@@ -93,6 +109,7 @@ export function useKanbanEvents({
   const tearingDownRef = useRef(false);
   const hasConnectedOnceRef = useRef(false);
   const onInvalidateRef = useRef(onInvalidate);
+  const onTasksInvalidateRef = useRef(onTasksInvalidate);
   const onTaskLifecycleRef = useRef(onTaskLifecycle);
   const onSessionTailRef = useRef(onSessionTail);
   const onSessionActivityRef = useRef(onSessionActivity);
@@ -102,18 +119,55 @@ export function useKanbanEvents({
   // a fresh EventSource, which does not, so we pass it as a query param.
   const lastEventIdRef = useRef<string | null>(null);
   const invalidateCoalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tasksInvalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // When the oldest task frame not yet refetched arrived; null when none is pending.
+  const tasksFirstPendingAtRef = useRef<number | null>(null);
+  const tasksPendingIdsRef = useRef<Set<string>>(new Set());
+
+  const cancelTasksInvalidate = useCallback(() => {
+    if (tasksInvalidateTimerRef.current) {
+      clearTimeout(tasksInvalidateTimerRef.current);
+      tasksInvalidateTimerRef.current = null;
+    }
+    tasksFirstPendingAtRef.current = null;
+    tasksPendingIdsRef.current = new Set();
+  }, []);
 
   const scheduleInvalidate = useCallback(() => {
     if (invalidateCoalesceTimerRef.current) return;
     invalidateCoalesceTimerRef.current = setTimeout(() => {
       invalidateCoalesceTimerRef.current = null;
+      // A full refresh refetches tasks too; drop any pending tasks-only refetch.
+      cancelTasksInvalidate();
       onInvalidateRef.current();
     }, INVALIDATE_COALESCE_MS);
+  }, [cancelTasksInvalidate]);
+
+  const scheduleTasksInvalidate = useCallback((taskId?: string) => {
+    // A full refresh is already queued and will include tasks.
+    if (invalidateCoalesceTimerRef.current) return;
+    if (taskId) tasksPendingIdsRef.current.add(taskId);
+    const now = Date.now();
+    if (tasksFirstPendingAtRef.current === null) tasksFirstPendingAtRef.current = now;
+    const remainingMaxWait = TASK_INVALIDATE_MAX_WAIT_MS - (now - tasksFirstPendingAtRef.current);
+    const delay = Math.max(0, Math.min(TASK_INVALIDATE_DEBOUNCE_MS, remainingMaxWait));
+    if (tasksInvalidateTimerRef.current) clearTimeout(tasksInvalidateTimerRef.current);
+    tasksInvalidateTimerRef.current = setTimeout(() => {
+      tasksInvalidateTimerRef.current = null;
+      tasksFirstPendingAtRef.current = null;
+      const taskIds = [...tasksPendingIdsRef.current];
+      tasksPendingIdsRef.current = new Set();
+      onTasksInvalidateRef.current?.(taskIds);
+    }, delay);
   }, []);
 
   useEffect(() => {
     onInvalidateRef.current = onInvalidate;
   }, [onInvalidate]);
+
+  useEffect(() => {
+    onTasksInvalidateRef.current = onTasksInvalidate;
+  }, [onTasksInvalidate]);
 
   useEffect(() => {
     onTaskLifecycleRef.current = onTaskLifecycle;
@@ -147,7 +201,7 @@ export function useKanbanEvents({
     es.onmessage = (event) => {
       if (event.lastEventId) lastEventIdRef.current = event.lastEventId;
       try {
-        const data = JSON.parse(event.data) as { type?: string };
+        const data = JSON.parse(event.data) as { type?: string; entity?: string; resourceId?: string };
         if (data.type === "connected") {
           if (hasConnectedOnceRef.current) {
             scheduleInvalidate();
@@ -157,7 +211,11 @@ export function useKanbanEvents({
           return;
         }
         if (data.type === "kanban:changed") {
-          scheduleInvalidate();
+          if (data.entity === "task" && onTasksInvalidateRef.current) {
+            scheduleTasksInvalidate(typeof data.resourceId === "string" ? data.resourceId : undefined);
+          } else {
+            scheduleInvalidate();
+          }
           return;
         }
         if (data.type === "kanban:task-lifecycle") {
@@ -182,6 +240,7 @@ export function useKanbanEvents({
           const elapsed = now - lastFitnessInvalidateAtRef.current;
           if (elapsed >= FITNESS_INVALIDATE_THROTTLE_MS) {
             lastFitnessInvalidateAtRef.current = now;
+            cancelTasksInvalidate();
             onInvalidateRef.current();
             return;
           }
@@ -191,6 +250,7 @@ export function useKanbanEvents({
           fitnessInvalidateTimerRef.current = setTimeout(() => {
             fitnessInvalidateTimerRef.current = null;
             lastFitnessInvalidateAtRef.current = Date.now();
+            cancelTasksInvalidate();
             onInvalidateRef.current();
           }, FITNESS_INVALIDATE_THROTTLE_MS - elapsed);
         }
@@ -210,7 +270,7 @@ export function useKanbanEvents({
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = setTimeout(() => connectSseRef.current(), 3000);
     };
-  }, [workspaceId, replayOnFreshLoad, scheduleInvalidate]);
+  }, [workspaceId, replayOnFreshLoad, scheduleInvalidate, scheduleTasksInvalidate, cancelTasksInvalidate]);
 
   useEffect(() => {
     connectSseRef.current = connectSSE;
@@ -240,10 +300,11 @@ export function useKanbanEvents({
         clearTimeout(invalidateCoalesceTimerRef.current);
         invalidateCoalesceTimerRef.current = null;
       }
+      cancelTasksInvalidate();
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
     };
-  }, [connectSSE, workspaceId]);
+  }, [connectSSE, workspaceId, cancelTasksInvalidate]);
 }

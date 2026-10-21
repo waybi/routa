@@ -1,6 +1,11 @@
 import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { INVALIDATE_COALESCE_MS, useKanbanEvents } from "../use-kanban-events";
+import {
+  INVALIDATE_COALESCE_MS,
+  TASK_INVALIDATE_DEBOUNCE_MS,
+  TASK_INVALIDATE_MAX_WAIT_MS,
+  useKanbanEvents,
+} from "../use-kanban-events";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -31,14 +36,22 @@ class MockEventSource {
 function HookHarness({
   workspaceId,
   onInvalidate,
+  onTasksInvalidate,
   onSessionTail,
+  onTaskLifecycle,
 }: {
   workspaceId: string;
   onInvalidate: () => void;
+  onTasksInvalidate?: (taskIds: string[]) => void;
   onSessionTail?: (event: { sessionId: string; tail: string }) => void;
+  onTaskLifecycle?: () => void;
 }) {
-  useKanbanEvents({ workspaceId, onInvalidate, onSessionTail });
+  useKanbanEvents({ workspaceId, onInvalidate, onTasksInvalidate, onSessionTail, onTaskLifecycle });
   return null;
+}
+
+function taskChanged(resourceId = "task-1") {
+  return { type: "kanban:changed", entity: "task", action: "updated", resourceId, source: "agent" };
 }
 
 describe("useKanbanEvents", () => {
@@ -176,5 +189,125 @@ describe("useKanbanEvents", () => {
     expect(onSessionTail).toHaveBeenCalledTimes(1);
     expect(onSessionTail.mock.calls[0][0]).toMatchObject({ sessionId: "session-9", tail: "Running tests…" });
     expect(onInvalidate).not.toHaveBeenCalled();
+  });
+
+  describe("task-only refresh", () => {
+    function setup() {
+      vi.useFakeTimers();
+      const onInvalidate = vi.fn();
+      const onTasksInvalidate = vi.fn();
+      vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+      render(<HookHarness workspaceId="workspace-1" onInvalidate={onInvalidate} onTasksInvalidate={onTasksInvalidate} onTaskLifecycle={vi.fn()} />);
+      const source = MockEventSource.instances[0];
+      source.emit({ type: "connected" });
+      return { onInvalidate, onTasksInvalidate, source };
+    }
+
+    it("routes entity=task frames to onTasksInvalidate only", () => {
+      const { onInvalidate, onTasksInvalidate, source } = setup();
+      source.emit(taskChanged("task-7"));
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS * 2);
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(1);
+      expect(onTasksInvalidate).toHaveBeenCalledWith(["task-7"]);
+      expect(onInvalidate).not.toHaveBeenCalled();
+    });
+
+    it.each(["board", "column", "queue"])("keeps the full refresh for entity=%s", (entity) => {
+      const { onInvalidate, onTasksInvalidate, source } = setup();
+      source.emit({ type: "kanban:changed", entity, action: "updated" });
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS * 2);
+      expect(onTasksInvalidate).not.toHaveBeenCalled();
+    });
+
+    it("keeps the full refresh for task-lifecycle, reconnect, and fitness frames", () => {
+      const { onInvalidate, onTasksInvalidate, source } = setup();
+
+      source.emit({ type: "kanban:task-lifecycle", workspaceId: "workspace-1", taskId: "task-1", taskTitle: "T", phase: "completed" });
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).toHaveBeenCalledTimes(1);
+
+      source.emit({ type: "fitness:changed" });
+      expect(onInvalidate).toHaveBeenCalledTimes(2);
+
+      source.fail();
+      vi.advanceTimersByTime(3_000);
+      MockEventSource.instances[1].emit({ type: "connected" });
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).toHaveBeenCalledTimes(3);
+
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS * 2);
+      expect(onTasksInvalidate).not.toHaveBeenCalled();
+    });
+
+    it("refreshes a single task frame after exactly 400ms", () => {
+      const { onTasksInvalidate, source } = setup();
+      source.emit(taskChanged());
+      vi.advanceTimersByTime(TASK_INVALIDATE_DEBOUNCE_MS - 1);
+      expect(onTasksInvalidate).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(1);
+    });
+
+    it("never waits more than 1500ms while frames keep arriving every 100ms", () => {
+      const { onTasksInvalidate, source } = setup();
+      const fireTimes: number[] = [];
+      onTasksInvalidate.mockImplementation(() => fireTimes.push(Date.now()));
+      const start = Date.now();
+
+      for (let elapsed = 0; elapsed < 3_000; elapsed += 100) {
+        source.emit(taskChanged(`task-${elapsed}`));
+        vi.advanceTimersByTime(100);
+      }
+
+      expect(fireTimes.length).toBeGreaterThanOrEqual(2);
+      expect(fireTimes[0] - start).toBeLessThanOrEqual(TASK_INVALIDATE_MAX_WAIT_MS);
+      for (let index = 1; index < fireTimes.length; index += 1) {
+        expect(fireTimes[index] - fireTimes[index - 1]).toBeLessThanOrEqual(TASK_INVALIDATE_MAX_WAIT_MS);
+      }
+      // Ids are coalesced per refresh.
+      expect((onTasksInvalidate.mock.calls[0][0] as string[]).length).toBeGreaterThan(1);
+    });
+
+    it("restarts the debounce window after a refresh", () => {
+      const { onTasksInvalidate, source } = setup();
+      for (let elapsed = 0; elapsed < TASK_INVALIDATE_MAX_WAIT_MS; elapsed += 100) {
+        source.emit(taskChanged());
+        vi.advanceTimersByTime(100);
+      }
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(1);
+
+      // Quiet for a while, then a fresh frame waits the full 400ms again.
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS * 2);
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(1);
+      source.emit(taskChanged("task-next"));
+      vi.advanceTimersByTime(TASK_INVALIDATE_DEBOUNCE_MS - 1);
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      expect(onTasksInvalidate).toHaveBeenCalledTimes(2);
+      expect(onTasksInvalidate).toHaveBeenLastCalledWith(["task-next"]);
+    });
+
+    it("drops a pending tasks-only refresh when a full refresh fires", () => {
+      const { onInvalidate, onTasksInvalidate, source } = setup();
+      source.emit(taskChanged());
+      source.emit({ type: "kanban:changed", entity: "board", action: "updated" });
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS * 2);
+      expect(onInvalidate).toHaveBeenCalledTimes(1);
+      expect(onTasksInvalidate).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the full refresh when no onTasksInvalidate is given", () => {
+      vi.useFakeTimers();
+      const onInvalidate = vi.fn();
+      vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+      render(<HookHarness workspaceId="workspace-1" onInvalidate={onInvalidate} />);
+      const source = MockEventSource.instances[0];
+      source.emit({ type: "connected" });
+      source.emit(taskChanged());
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).toHaveBeenCalledTimes(1);
+    });
   });
 });
