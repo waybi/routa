@@ -538,7 +538,7 @@ describe("KanbanTab stale worktree recovery", () => {
     vi.unstubAllGlobals();
   });
 
-  it("clears orphaned worktree ids after the worktree lookup returns 404", async () => {
+  it("hides orphaned worktree ids locally after a 404 without patching the task", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (!init?.method && url === "/api/worktrees/wt-missing") {
@@ -548,23 +548,16 @@ describe("KanbanTab stale worktree recovery", () => {
           json: async () => ({ error: "Worktree not found" }),
         } as Response;
       }
-      if (init?.method === "PATCH" && url === "/api/tasks/task-1") {
-        return {
-          ok: true,
-          json: async () => ({
-            task: createTask("task-1", "Story One"),
-          }),
-        } as Response;
-      }
       throw new Error(`Unexpected fetch: ${init?.method ?? "GET"} ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
 
+    const staleTask = createTask("task-1", "Story One", { worktreeId: "wt-missing" });
     const { rerender } = render(
       <KanbanTab
         workspaceId="workspace-1"
         boards={[board]}
-        tasks={[createTask("task-1", "Story One", { worktreeId: "wt-missing" })]}
+        tasks={[staleTask]}
         sessions={[]}
         providers={[]}
         specialists={[]}
@@ -575,20 +568,21 @@ describe("KanbanTab stale worktree recovery", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/worktrees/wt-missing", { cache: "no-store" });
-      expect(fetchMock).toHaveBeenCalledWith("/api/tasks/task-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ worktreeId: null }),
-      });
     });
+    await waitFor(() => {
+      expect(screen.queryByText(/^worktree /)).toBeNull();
+    });
+    // Loading the board is read-only: no PATCH to /api/tasks/:id.
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "PATCH")).toBe(false);
 
     fetchMock.mockClear();
 
+    // A refetch brings the same stale id back from the server.
     rerender(
       <KanbanTab
         workspaceId="workspace-1"
         boards={[board]}
-        tasks={[createTask("task-1", "Story One")]}
+        tasks={[{ ...staleTask }]}
         sessions={[]}
         providers={[]}
         specialists={[]}
@@ -598,8 +592,56 @@ describe("KanbanTab stale worktree recovery", () => {
     );
 
     await waitFor(() => {
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.queryByText(/^worktree /)).toBeNull();
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not PATCH any task when the board only renders", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!init?.method && url.startsWith("/api/worktrees/")) {
+        const id = decodeURIComponent(url.slice("/api/worktrees/".length));
+        if (id === "wt-live") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ worktree: { id: "wt-live", status: "active", branch: "issue/live", worktreePath: "/tmp/wt-live" } }),
+          } as Response;
+        }
+        return { ok: false, status: 404, json: async () => ({ error: "Worktree not found" }) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <KanbanTab
+        workspaceId="workspace-1"
+        boards={[board]}
+        tasks={[
+          createTask("task-1", "Live", { worktreeId: "wt-live" }),
+          createTask("task-2", "Gone A", { worktreeId: "wt-gone-a" }),
+          createTask("task-3", "Gone B", { worktreeId: "wt-gone-b" }),
+        ]}
+        sessions={[]}
+        providers={[]}
+        specialists={[]}
+        codebases={[]}
+        onRefresh={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/worktrees/wt-gone-b", { cache: "no-store" });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/worktree active · issue\/live/)).toBeTruthy();
+    });
+    const patchCalls = fetchMock.mock.calls.filter(([url, init]) => (
+      String(url).startsWith("/api/tasks/") && (init as RequestInit | undefined)?.method === "PATCH"
+    ));
+    expect(patchCalls).toEqual([]);
   });
 });
 

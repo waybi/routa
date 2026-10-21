@@ -309,4 +309,24 @@ describe("sqlite foundation stores", () => {
     expect(cleared?.assignedModel).toBeUndefined();
     expect(cleared?.assignedReasoningEffort).toBeUndefined();
   });
+
+  it("clears worktreeId when a task is saved with worktreeId undefined", async () => {
+    await workspaceStore.save(createWorkspace({ id: "workspace-1", title: "Workspace One" }));
+    const task = createTask({
+      id: "task-worktree",
+      title: "Worktree link",
+      objective: "Clear a stale worktree",
+      workspaceId: "workspace-1",
+    });
+
+    await taskStore.save({ ...task, worktreeId: "wt-1" });
+    expect((await taskStore.get("task-worktree"))?.worktreeId).toBe("wt-1");
+
+    await taskStore.save({ ...task, worktreeId: undefined });
+    expect((await taskStore.get("task-worktree"))?.worktreeId).toBeUndefined();
+    const row = sqlite
+      .prepare("SELECT worktree_id FROM tasks WHERE id = ?")
+      .get("task-worktree") as { worktree_id: string | null };
+    expect(row.worktree_id).toBeNull();
+  });
 });

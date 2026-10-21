@@ -460,7 +460,6 @@ export function KanbanTab({
   const { worktreeCache, setWorktreeCache } = useKanbanWorktreeCache({
     localTasks,
     setLocalTasks,
-    patchTask,
   });
 
   // Everything about the "repositories" modal lives in its own hook; the board

@@ -119,7 +119,9 @@ export class SqliteTaskStore implements TaskStore {
           codebaseIds: task.codebaseIds ?? [],
           contextSearchSpec: task.contextSearchSpec,
           jitContextSnapshot: task.jitContextSnapshot,
-          worktreeId: task.worktreeId,
+          // `?? null` so clearing a worktree really writes NULL; drizzle skips
+          // undefined fields in the conflict update set.
+          worktreeId: task.worktreeId ?? null,
           deliverySnapshot: task.deliverySnapshot,
           completionSummary: task.completionSummary,
           verificationVerdict: task.verificationVerdict,
