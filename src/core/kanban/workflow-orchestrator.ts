@@ -206,6 +206,22 @@ async function killSessionViaProcessManager(sessionId: string): Promise<void> {
 /** Callback to clean up a card's session queue entry before auto-advancing or recovering */
 export type CleanupCardSession = (cardId: string) => void;
 
+/**
+ * Removes a finished card's worktree after every session of the card has
+ * ended. Must run its own safety checks and must not write the task.
+ */
+export type DoneWorktreeCleanup = (params: {
+  task: Task;
+  columnId: string;
+  automation: KanbanColumnAutomation;
+}) => Promise<void>;
+
+interface PendingWorktreeCleanup {
+  taskId: string;
+  columnId: string;
+  automation: KanbanColumnAutomation;
+}
+
 export type ResolveDevSessionSupervision = (params: {
   workspaceId: string;
   boardId: string;
@@ -234,6 +250,12 @@ export class KanbanWorkflowOrchestrator {
   private teardownSessionIds = new Set<string>();
   /** Teardown sessions still inside their turn; ended on their next lifecycle event. */
   private deferredTeardownSessionIds = new Set<string>();
+  private doneWorktreeCleanup?: DoneWorktreeCleanup;
+  /**
+   * Worktree removals waiting for a deferred teardown session to end, keyed by
+   * that session id. In memory only: a restart in between keeps the copy.
+   */
+  private pendingWorktreeCleanup = new Map<string, PendingWorktreeCleanup>();
 
   constructor(
     private eventBus: EventBus,
@@ -304,6 +326,11 @@ export class KanbanWorkflowOrchestrator {
 
   setEnsureCompletionFallbackArtifact(fn: EnsureCompletionFallbackArtifact): void {
     this.ensureCompletionFallbackArtifact = fn;
+  }
+
+  /** Set the callback that removes a finished card's worktree once all its sessions ended */
+  setDoneWorktreeCleanup(fn: DoneWorktreeCleanup): void {
+    this.doneWorktreeCleanup = fn;
   }
 
   /** Get all active automations */
@@ -605,7 +632,7 @@ export class KanbanWorkflowOrchestrator {
         && task.columnId === automation.columnId
         && task.status === TaskStatus.COMPLETED
       ) {
-        await this.teardownFinishedCardSessions(task, eventSessionId, event);
+        await this.teardownFinishedCardSessions(task, eventSessionId, event, automation);
       }
 
       const completedAutomation = automation;
@@ -624,21 +651,40 @@ export class KanbanWorkflowOrchestrator {
    * recognised as teardown. A session whose completion was synthesized from a
    * tool call (or a report) is still inside its turn; it is ended on its next
    * lifecycle event so its final writes are not cut off.
+   * The card's worktree is removed only after every session has ended,
+   * including a deferred one.
    */
-  private async teardownFinishedCardSessions(task: Task, eventSessionId: string, event: AgentEvent): Promise<void> {
+  private async teardownFinishedCardSessions(
+    task: Task,
+    eventSessionId: string,
+    event: AgentEvent,
+    automation: ActiveAutomation,
+  ): Promise<void> {
     const deferCurrent = event.type === AgentEventType.REPORT_SUBMITTED
       || typeof event.data?.synthesizedBy === "string";
     const sessionIds = collectTaskSessionIds(task);
     for (const sessionId of sessionIds) {
       this.teardownSessionIds.add(sessionId);
     }
+    let deferred = false;
     for (const sessionId of sessionIds) {
       if (deferCurrent && sessionId === eventSessionId) {
         this.deferredTeardownSessionIds.add(sessionId);
+        deferred = true;
         continue;
       }
       await this.killTeardownSession(sessionId);
     }
+    const pending: PendingWorktreeCleanup = {
+      taskId: task.id,
+      columnId: automation.columnId,
+      automation: automation.automation,
+    };
+    if (deferred) {
+      this.pendingWorktreeCleanup.set(eventSessionId, pending);
+      return;
+    }
+    void this.runDoneWorktreeCleanup(pending);
   }
 
   private async finishDeferredTeardown(event: AgentEvent): Promise<void> {
@@ -651,6 +697,27 @@ export class KanbanWorkflowOrchestrator {
     }
     this.deferredTeardownSessionIds.delete(sessionId);
     await this.killTeardownSession(sessionId);
+    const pending = this.pendingWorktreeCleanup.get(sessionId);
+    if (pending) {
+      this.pendingWorktreeCleanup.delete(sessionId);
+      void this.runDoneWorktreeCleanup(pending);
+    }
+  }
+
+  /** Never throws and never writes the task: a cleanup failure must not re-run the lane. */
+  private async runDoneWorktreeCleanup(pending: PendingWorktreeCleanup): Promise<void> {
+    if (!this.doneWorktreeCleanup) {
+      return;
+    }
+    try {
+      const task = await this.taskStore.get(pending.taskId);
+      if (!task) {
+        return;
+      }
+      await this.doneWorktreeCleanup({ task, columnId: pending.columnId, automation: pending.automation });
+    } catch (error) {
+      console.warn(`[DoneWorktreeCleanup] card=${pending.taskId} result=failed reason=`, error);
+    }
   }
 
   private async killTeardownSession(sessionId: string): Promise<void> {

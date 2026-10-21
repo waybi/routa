@@ -38,6 +38,7 @@ import { refreshTaskLaneExperienceMemory } from "./task-lane-experience";
 import { completeRunningSessionsOutsideColumn } from "./task-session-transition";
 import { analyzeFlowForTasks } from "./flow-ledger";
 import { resolveTaskWorktreeTruth } from "./task-worktree-truth";
+import { runDoneWorktreeCleanup } from "./done-worktree-cleanup";
 import { getHttpSessionStore } from "../acp/http-session-store";
 import { getSpecialistById } from "../orchestration/specialist-prompts";
 import { dispatchSessionPrompt } from "@/core/acp/session-prompt";
@@ -487,6 +488,18 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
       transport: params.transport === "a2a" ? "a2a" : "acp",
       artifactStore: system.artifactStore,
     });
+  });
+  orchestrator.setDoneWorktreeCleanup(async ({ task, columnId, automation }) => {
+    await runDoneWorktreeCleanup(
+      {
+        task,
+        columnId,
+        automation,
+        worktreeStore: system.worktreeStore,
+        codebaseStore: system.codebaseStore,
+      },
+      new GitWorktreeService(system.worktreeStore, system.codebaseStore),
+    );
   });
   orchestrator.start();
   queue.start();
