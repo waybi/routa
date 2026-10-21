@@ -99,13 +99,17 @@ export function KanbanBoardSearchInput({
   onQueryChange,
   onClear,
   inputRef,
+  placeholder,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
   onClear: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
+  /** Defaults to the single-board placeholder. */
+  placeholder?: string;
 }) {
   const { t } = useTranslation();
+  const label = placeholder ?? t.kanbanSearch.placeholder;
   return (
     <label className="flex h-7 w-64 shrink-0 items-center border border-slate-200 bg-white transition-colors focus-within:border-amber-400/80 focus-within:ring-2 focus-within:ring-amber-400/15 dark:border-slate-700 dark:bg-[#12141c]">
       <Search className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
@@ -120,8 +124,8 @@ export function KanbanBoardSearchInput({
             onClear();
           }
         }}
-        placeholder={t.kanbanSearch.placeholder}
-        aria-label={t.kanbanSearch.placeholder}
+        placeholder={label}
+        aria-label={label}
         title={t.kanbanSearch.shortcutHint}
         autoComplete="off"
         className="h-7 min-w-0 flex-1 bg-transparent px-2 text-[12px] text-slate-800 placeholder-slate-400 outline-none dark:text-slate-200 dark:placeholder-slate-500"

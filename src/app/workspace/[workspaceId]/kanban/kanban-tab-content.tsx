@@ -24,6 +24,7 @@ import type { AcpProviderInfo } from "@/client/acp-client";
 import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
 import { KanbanAttentionBar } from "./kanban-attention-bar";
+import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
@@ -223,13 +224,16 @@ export function KanbanTabContent({
 }: KanbanTabContentProps) {
   const { t } = useTranslation();
   const search = useKanbanBoardSearch();
+  const { view, setView } = useKanbanViewMode();
+  const overview = view === "all" ? <KanbanOverview onShowBoard={() => setView("board")}/> : null;
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
   };
 
   const headerActionSlot = (
     <>
-    {headerProps.board && (
+    <KanbanViewToggle view={view} onChange={setView}/>
+    {headerProps.board && view === "board" && (
       <KanbanBoardSearchInput
         query={search.query}
         onQueryChange={search.setQuery}
@@ -264,13 +268,13 @@ export function KanbanTabContent({
     return (
       <div className="flex h-full flex-col space-y-2">
         <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
-        {boardsSettled ? (
+        {overview ?? (boardsSettled ? (
           <div className="rounded-2xl border border-gray-200/60 bg-white p-6 text-sm text-gray-500 dark:border-[#1c1f2e] dark:bg-[#12141c] dark:text-gray-400">
             {t.kanban.noBoardAvailable}
           </div>
         ) : (
           <KanbanBoardSkeleton label={t.common.loading} />
-        )}
+        ))}
       </div>
     );
   }
@@ -278,12 +282,16 @@ export function KanbanTabContent({
   return (
     <div className="flex flex-col h-full">
       <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
-      <KanbanAttentionBar
-        board={boardSurfaceProps.board}
-        tasks={boardSurfaceProps.boardTasks}
-        onOpenTask={(task) => void boardSurfaceProps.openTaskDetail(task)}
-      />
-      <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
+      {overview ?? (
+        <>
+          <KanbanAttentionBar
+            board={boardSurfaceProps.board}
+            tasks={boardSurfaceProps.boardTasks}
+            onOpenTask={(task) => void boardSurfaceProps.openTaskDetail(task)}
+          />
+          <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
+        </>
+      )}
       <KanbanCreateTaskModal {...createTaskModalProps}/>
       <KanbanGitHubImportModal {...githubImportModalProps}/>
       <KanbanTaskDetailOverlay {...taskDetailOverlayProps}/>
