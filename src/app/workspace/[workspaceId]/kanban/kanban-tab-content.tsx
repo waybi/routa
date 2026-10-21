@@ -23,6 +23,7 @@ import type { KanbanCodebaseModalProps } from "./kanban-tab-modals";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
+import { KanbanAttentionBar } from "./kanban-attention-bar";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
@@ -277,6 +278,11 @@ export function KanbanTabContent({
   return (
     <div className="flex flex-col h-full">
       <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
+      <KanbanAttentionBar
+        board={boardSurfaceProps.board}
+        tasks={boardSurfaceProps.boardTasks}
+        onOpenTask={(task) => void boardSurfaceProps.openTaskDetail(task)}
+      />
       <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
       <KanbanCreateTaskModal {...createTaskModalProps}/>
       <KanbanGitHubImportModal {...githubImportModalProps}/>

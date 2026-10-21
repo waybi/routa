@@ -457,6 +457,14 @@ export const zhTail: TailTranslationDictionarySections = {
     shortcutHint: "按 / 聚焦搜索，Esc 清空",
     matchCount: "{hits} / {total}",
   },
+  kanbanAttention: {
+    title: "需要你看",
+    blocked: "被阻塞",
+    doneFailed: "Done 岗位失败",
+    noReport: "跑完没汇报",
+    unmerged: "未合入 +{count}",
+    dismiss: "知道了",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "关闭（Esc）",
   },

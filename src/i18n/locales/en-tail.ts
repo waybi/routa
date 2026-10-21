@@ -463,6 +463,14 @@ export const enTail: TailTranslationDictionarySections = {
     shortcutHint: "Press / to search, Esc to clear",
     matchCount: "{hits} / {total}",
   },
+  kanbanAttention: {
+    title: "Needs your attention",
+    blocked: "Blocked",
+    doneFailed: "Done lane failed",
+    noReport: "Finished without report",
+    unmerged: "Unmerged +{count}",
+    dismiss: "Got it",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "Close (Esc)",
   },

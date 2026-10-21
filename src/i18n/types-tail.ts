@@ -489,6 +489,16 @@ export interface TailTranslationDictionarySections {
     /** Column count while searching; "{hits}" / "{total}". */
     matchCount: string;
   };
+  /** "Needs your attention" strip under the kanban toolbar. */
+  kanbanAttention: {
+    title: string;
+    blocked: string;
+    doneFailed: string;
+    noReport: string;
+    /** "{count}" = commits ahead of base. */
+    unmerged: string;
+    dismiss: string;
+  };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {
     /** Hover title of the close icon button, mentions the Esc shortcut. */
