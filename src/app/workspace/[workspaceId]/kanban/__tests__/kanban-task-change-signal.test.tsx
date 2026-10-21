@@ -2,8 +2,8 @@ import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { publishKanbanTaskChanges, useKanbanTaskChangeSignal } from "../kanban-task-change-signal";
 
-function Probe({ taskId, seen }: { taskId: string; seen: number[] }) {
-  seen.push(useKanbanTaskChangeSignal(taskId));
+function Probe({ taskId, seen, base }: { taskId: string; seen: number[]; base?: number }) {
+  seen.push(useKanbanTaskChangeSignal(taskId, base));
   return null;
 }
 
@@ -28,5 +28,15 @@ describe("kanban task change signal", () => {
 
     act(() => publishKanbanTaskChanges([]));
     expect(seenA.at(-1)).toBe(2);
+  });
+
+  it("adds the board-wide signal so either source reloads the panel", () => {
+    const seen: number[] = [];
+    const { rerender } = render(<Probe taskId="task-c" seen={seen} base={5} />);
+    expect(seen.at(-1)).toBe(5);
+    act(() => publishKanbanTaskChanges(["task-c"]));
+    expect(seen.at(-1)).toBe(6);
+    rerender(<Probe taskId="task-c" seen={seen} base={6} />);
+    expect(seen.at(-1)).toBe(7);
   });
 });

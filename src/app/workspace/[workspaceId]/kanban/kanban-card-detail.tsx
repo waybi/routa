@@ -31,8 +31,6 @@ export { KanbanCardActivityBar } from "./kanban-card-activity";
 import { KanbanCardArtifacts } from "./kanban-card-artifacts";
 import { useKanbanTaskChangeSignal } from "./kanban-task-change-signal";
 import { KanbanCardModelEffortOverride, KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-override-dropdown";
-// Legacy imports - removed, functionality replaced by KanbanTaskGitWorkflowPanel
-// import { TaskFileDiffPreview, TaskCommitDiffPreview, CommitRow } from "./kanban-diff-preview";
 import { StoryReadinessPanel, EvidenceBundlePanel, JitContextPanel, ReviewFeedbackPanel } from "./kanban-detail-panels";
 import { KanbanHumanReadablePanel } from "./kanban-human-readable-panel";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
@@ -251,10 +249,7 @@ export function KanbanCardDetail({
   onShowSessionPane,
 }: KanbanCardDetailProps) {
   const { t } = useTranslation();
-  // Board-wide refreshes bump `refreshSignal`; task-only refreshes bump this
-  // card's own signal. Panels that load per-card data reload on either.
-  const taskChangeSignal = useKanbanTaskChangeSignal(task.id);
-  const detailRefreshSignal = (refreshSignal ?? 0) + taskChangeSignal;
+  const detailRefreshSignal = useKanbanTaskChangeSignal(task.id, refreshSignal);
   const { progressNotes, completionReports } = useMemo(
     () => splitCompletionReports(hydrateTaskComments(task.comments, task.comment)),
     [task],

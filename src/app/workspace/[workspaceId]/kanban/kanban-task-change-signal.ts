@@ -21,8 +21,11 @@ export function publishKanbanTaskChanges(taskIds: readonly string[]): void {
   for (const listener of listeners) listener(ids);
 }
 
-/** Returns a counter that increments each time `taskId` is published. */
-export function useKanbanTaskChangeSignal(taskId: string): number {
+/**
+ * Returns a refresh signal for one card's detail panels: the board-wide
+ * `baseSignal` plus a counter that increments each time `taskId` is published.
+ */
+export function useKanbanTaskChangeSignal(taskId: string, baseSignal = 0): number {
   const [signal, setSignal] = useState(0);
   useEffect(() => {
     const listener: Listener = (ids) => {
@@ -33,5 +36,5 @@ export function useKanbanTaskChangeSignal(taskId: string): number {
       listeners.delete(listener);
     };
   }, [taskId]);
-  return signal;
+  return baseSignal + signal;
 }
