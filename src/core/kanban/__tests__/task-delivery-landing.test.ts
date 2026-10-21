@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTask } from "@/core/models/task";
-import { buildTaskDeliveryLanding, shouldProbeTaskDeliveryLanding } from "../task-delivery-landing";
+import {
+  __resetTaskDeliveryLandingCacheForTests,
+  buildTaskDeliveryLanding,
+  shouldProbeTaskDeliveryLanding,
+} from "../task-delivery-landing";
 
 const isGitRepository = vi.fn();
 const getRepoLandingStatus = vi.fn();
+const getRepoRefSha = vi.fn();
 
 vi.mock("@/core/git", () => ({
   isGitRepository: (...args: unknown[]) => isGitRepository(...args),
   getRepoLandingStatus: (...args: unknown[]) => getRepoLandingStatus(...args),
+  getRepoRefSha: (...args: unknown[]) => getRepoRefSha(...args),
 }));
 
 function system(worktree?: Record<string, unknown>, codebase?: Record<string, unknown>) {
@@ -28,7 +34,9 @@ const worktree = {
 describe("task delivery landing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetTaskDeliveryLandingCacheForTests();
     isGitRepository.mockReturnValue(true);
+    getRepoRefSha.mockReturnValue("sha-1");
     getRepoLandingStatus.mockReturnValue({
       baseBranch: "feat/base",
       baseRef: "feat/base",
@@ -87,5 +95,55 @@ describe("task delivery landing", () => {
     isGitRepository.mockReturnValue(false);
     expect(await buildTaskDeliveryLanding(task, system(worktree))).toBeUndefined();
     expect(getRepoLandingStatus).not.toHaveBeenCalled();
+  });
+
+  describe("landed-result cache", () => {
+    const doneTask = createTask({ id: "t", title: "t", objective: "o", workspaceId: "w", worktreeId: "wt-1", columnId: "done" });
+    const landed = { baseBranch: "feat/base", baseRef: "feat/base", commitsSinceBase: 0, landedOnBase: true };
+
+    it("skips the git probe on a hit for the same worktree and HEAD", async () => {
+      getRepoLandingStatus.mockReturnValue(landed);
+
+      const first = await buildTaskDeliveryLanding(doneTask, system(worktree));
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(1);
+      getRepoLandingStatus.mockClear();
+
+      const second = await buildTaskDeliveryLanding(doneTask, system(worktree));
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(0);
+      expect(second).toEqual(first);
+      expect(getRepoRefSha).toHaveBeenCalledWith("/repo/worktrees/task-1", "HEAD");
+    });
+
+    it.each([false, null])("probes every time when landedOnBase is %s", async (value) => {
+      getRepoLandingStatus.mockReturnValue({ ...landed, commitsSinceBase: 1, landedOnBase: value });
+
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(3);
+    });
+
+    it("probes again after HEAD changes", async () => {
+      getRepoLandingStatus.mockReturnValue(landed);
+
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(1);
+
+      getRepoRefSha.mockReturnValue("sha-2");
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cache when HEAD cannot be read", async () => {
+      getRepoRefSha.mockReturnValue(null);
+      getRepoLandingStatus.mockReturnValue(landed);
+
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+      await buildTaskDeliveryLanding(doneTask, system(worktree));
+
+      expect(getRepoLandingStatus).toHaveBeenCalledTimes(2);
+    });
   });
 });
