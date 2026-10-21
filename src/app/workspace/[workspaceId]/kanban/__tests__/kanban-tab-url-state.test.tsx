@@ -93,20 +93,26 @@ function getToolbarCloseButton(): HTMLElement {
   return within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail/i });
 }
 
+/** Close card detail / Hide session pane / Show session pane share one pill style without uppercase. */
+function expectDetailPaneButtonStyle(button: HTMLElement, text: string) {
+  expectClasses(button, [
+    "rounded-full", "h-8", "text-[13px]", "border-slate-300", "text-slate-700",
+    "dark:border-slate-600", "dark:text-slate-200", "whitespace-nowrap", "shrink-0",
+    "hover:border-amber-300", "hover:bg-amber-50", "hover:text-amber-700",
+  ], ["uppercase", "text-[10px]", "border-slate-200"]);
+  expectClasses(button.querySelector("svg"), ["h-4", "w-4"]);
+  expect(button.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  expect(button.textContent?.trim()).toBe(text);
+}
+
 function expectToolbarCloseButton() {
   const closeButtons = screen.getAllByRole("button", { name: /Close card detail/i });
   expect(closeButtons).toHaveLength(1);
   const [closeButton] = closeButtons;
   expect(screen.getByTestId("kanban-detail-sticky-toolbar").contains(closeButton)).toBe(true);
   expect(closeButton.parentElement?.firstElementChild).toBe(closeButton);
-  expectClasses(closeButton, [
-    "rounded-full", "h-8", "text-[13px]", "border-slate-300", "text-slate-700",
-    "dark:border-slate-600", "dark:text-slate-200",
-    "hover:border-amber-300", "hover:bg-amber-50", "hover:text-amber-700",
-  ]);
+  expectDetailPaneButtonStyle(closeButton, "Close card detail");
   expect(closeButton.className).not.toMatch(RED_COLOR_CLASS);
-  expectClasses(closeButton.querySelector("svg"), ["h-4", "w-4"]);
-  expect(closeButton.textContent?.trim()).toBe("Close card detail");
   expect(closeButton.getAttribute("title")).toBe("Close (Esc)");
 }
 
@@ -282,7 +288,7 @@ describe("KanbanTab URL state", () => {
     const hideButtons = within(topRow).getAllByRole("button", { name: /Hide session pane/i });
     expect(hideButtons).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /Hide session pane/i })).toHaveLength(1);
-    expect(hideButtons[0].textContent?.trim()).toBe("Hide session pane");
+    expectDetailPaneButtonStyle(hideButtons[0], "Hide session pane");
     expect(screen.getByTestId("kanban-detail-split-handle")).toBeTruthy();
 
     fireEvent.click(hideButtons[0]);
@@ -294,7 +300,10 @@ describe("KanbanTab URL state", () => {
     expect(screen.getByText("Card Detail")).toBeTruthy();
     expect(window.location.search).toContain("taskId=task-1");
 
-    fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Show session pane/i }));
+    const showButton = within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: "Show session pane" });
+    expectDetailPaneButtonStyle(showButton, "Show session pane");
+    expectToolbarCloseButton();
+    fireEvent.click(showButton);
     expect(await screen.findByTestId("kanban-session-pane-top-row")).toBeTruthy();
     expect(screen.getByTestId("kanban-detail-split-handle")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Show session pane/i })).toBeNull();

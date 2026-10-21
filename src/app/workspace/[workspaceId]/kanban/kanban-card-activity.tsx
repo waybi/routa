@@ -28,6 +28,7 @@ import {
   getSpecialistName,
   type KanbanSpecialistOption,
 } from "./kanban-card-session-utils";
+import { DETAIL_PANE_BUTTON_CLASS } from "./kanban-card-detail-toolbar";
 import type { KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useTaskRuns } from "./use-task-runs";
@@ -411,8 +412,6 @@ export function KanbanCardActivityPanel({
   );
 }
 
-const HIDE_SESSION_PANE_BUTTON_CLASS = "inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
-
 export function KanbanCardActivityBar({
   task,
   sessions = [],
@@ -450,11 +449,11 @@ export function KanbanCardActivityBar({
     <button
       type="button"
       onClick={onCloseSession}
-      className={HIDE_SESSION_PANE_BUTTON_CLASS}
+      className={DETAIL_PANE_BUTTON_CLASS}
       aria-label={copy.closeSessionPane}
       title={copy.closeSessionPane}
     >
-      <PanelRightClose className="h-3.5 w-3.5" aria-hidden="true" />
+      <PanelRightClose className="h-4 w-4" aria-hidden="true" />
       <span>{copy.closeSessionPane}</span>
     </button>
   ) : null;

@@ -1,11 +1,12 @@
 "use client";
 
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, PanelRightOpen, X } from "lucide-react";
 import { useTranslation } from "@/i18n";
 
 const PILL_BUTTON_CLASS = "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
 
-const CLOSE_BUTTON_CLASS = "inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-3.5 text-[13px] font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-[#0d1018] dark:text-slate-200 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
+/** Shared pill style for the card-detail pane buttons: close card detail, hide session pane, show session pane. */
+export const DETAIL_PANE_BUTTON_CLASS = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-300 bg-slate-50 px-3.5 text-[13px] font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-[#0d1018] dark:text-slate-200 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
 
 export interface KanbanCardDetailToolbarProps {
   compactMode: boolean;
@@ -39,7 +40,7 @@ export function KanbanCardDetailToolbar({
           <button
             type="button"
             onClick={onClose}
-            className={CLOSE_BUTTON_CLASS}
+            className={DETAIL_PANE_BUTTON_CLASS}
             aria-label={t.kanbanDetail.closeCardDetail}
             title={t.kanbanDetailOverlay.closeWithEscHint}
           >
@@ -48,8 +49,9 @@ export function KanbanCardDetailToolbar({
           </button>
         ) : null}
         {showSessionPaneLabel && onShowSessionPane ? (
-          <button type="button" onClick={onShowSessionPane} className={PILL_BUTTON_CLASS}>
-            {showSessionPaneLabel}
+          <button type="button" onClick={onShowSessionPane} className={DETAIL_PANE_BUTTON_CLASS}>
+            <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+            <span>{showSessionPaneLabel}</span>
           </button>
         ) : null}
         {onToggleFullscreen ? (
