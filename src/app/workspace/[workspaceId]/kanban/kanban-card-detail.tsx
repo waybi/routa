@@ -354,7 +354,6 @@ export function KanbanCardDetail({
           onClose={onClose}
           onRefresh={onRefresh}
           showSessionPaneLabel={canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? sessionCopy.showSessionPane : undefined}
-          isSessionPaneVisible={isSessionPaneVisible}
           onShowSessionPane={onShowSessionPane}
         />
         <section className={`border-b border-slate-200/80 pb-2 dark:border-[#232736] ${compactMode ? "pt-0" : "pt-0.5"}`}>

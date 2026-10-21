@@ -15,7 +15,6 @@ export interface KanbanCardDetailToolbarProps {
   onRefresh: () => void;
   /** Label for the "show session pane" button; the button is hidden when undefined. */
   showSessionPaneLabel?: string;
-  isSessionPaneVisible: boolean;
   onShowSessionPane?: () => void;
 }
 
@@ -26,13 +25,12 @@ export function KanbanCardDetailToolbar({
   onClose,
   onRefresh,
   showSessionPaneLabel,
-  isSessionPaneVisible,
   onShowSessionPane,
 }: KanbanCardDetailToolbarProps) {
   const { t } = useTranslation();
 
   return (
-    <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 pl-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 pl-4 pb-1.5 pt-4"} ${isSessionPaneVisible ? (compactMode ? "pr-3" : "pr-4") : "pr-12"}`} data-testid="kanban-detail-sticky-toolbar">
+    <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 pl-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 pl-4 pb-1.5 pt-4"} ${compactMode ? "pr-3" : "pr-4"}`} data-testid="kanban-detail-sticky-toolbar">
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
         {t.kanbanDetail.cardDetail}
       </div>

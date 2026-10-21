@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { KanbanTab } from "../kanban-tab";
 import { KanbanCardDetail } from "../kanban-card-detail";
-import { KanbanCardActivityBar, KanbanCardActivityPanel } from "../kanban-card-activity";
+import { KanbanCardActivityBar, KanbanCardActivityPanel, KanbanEmptySessionPane } from "../kanban-card-activity";
 import type { KanbanBoardInfo } from "../../types";
 import type { UseAcpActions, UseAcpState } from "@/client/hooks/use-acp";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
@@ -633,6 +633,49 @@ describe("KanbanCardActivityBar", () => {
     );
     expect(screen.getByLabelText("Backlog")).toBeTruthy();
     expect(screen.getByTitle("Backlog 梳理员 · Backlog · Run 1").parentElement?.className).toContain("flex-wrap");
+  });
+
+  it("renders a labelled hide-session-pane pill next to the run tabs only when onCloseSession is provided", async () => {
+    desktopAwareFetch.mockImplementation(async () => new Response(JSON.stringify({ runs: [] }), { status: 200 }));
+    const task = createTask("task-hide", "Hide pane", {
+      laneSessions: [{ sessionId: "session-1", columnName: "Dev", status: "running", startedAt: "2025-01-01T00:00:00.000Z" }],
+      triggerSessionId: "session-1",
+    });
+    const onCloseSession = vi.fn();
+    const { rerender } = render(<KanbanCardActivityBar task={task} specialistLanguage="zh-CN" onCloseSession={onCloseSession} />);
+
+    const button = await screen.findByRole("button", { name: "隐藏 session 面板" });
+    expect(button.textContent?.trim()).toBe("隐藏 session 面板");
+    expect(button.className).toContain("rounded-full");
+    expect(button.className).toContain("hover:border-amber-300");
+    expect(button.querySelector("svg")).toBeTruthy();
+    fireEvent.click(button);
+    expect(onCloseSession).toHaveBeenCalledTimes(1);
+
+    rerender(<KanbanCardActivityBar task={task} specialistLanguage="zh-CN" />);
+    expect(screen.queryByRole("button", { name: "隐藏 session 面板" })).toBeNull();
+  });
+
+  it("shows exactly one hide-session-pane pill in the empty session pane", async () => {
+    desktopAwareFetch.mockImplementation(async () => new Response(JSON.stringify({ runs: [] }), { status: 200 }));
+    const onCloseSession = vi.fn();
+    render(
+      <KanbanEmptySessionPane
+        task={createTask("task-empty", "Empty pane")}
+        boardColumns={board.columns}
+        availableProviders={[]}
+        specialists={[]}
+        onCloseSession={onCloseSession}
+      />,
+    );
+
+    const topRow = screen.getByTestId("kanban-session-pane-top-row");
+    expect(topRow.className).toContain("pr-2");
+    expect(topRow.className).not.toContain("pr-12");
+    const buttons = screen.getAllByRole("button", { name: "Hide session pane" });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect(onCloseSession).toHaveBeenCalledTimes(1);
   });
 });
 

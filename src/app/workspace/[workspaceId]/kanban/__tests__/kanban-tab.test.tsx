@@ -1960,7 +1960,7 @@ describe("KanbanTab card detail manual runs", () => {
     expect(await screen.findByText("当前还没有启动 session")).toBeTruthy();
     expect(screen.getByText("还没有自动化运行记录")).toBeTruthy();
     expect(screen.getAllByText(/右侧 session pane 会先显示等待中的空态/).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "隐藏 session 面板" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "隐藏 session 面板" })).toHaveLength(1);
     fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail|关闭卡片详情/ }));
     await waitFor(() => expect(screen.queryByTestId("kanban-detail-sticky-toolbar")).toBeNull());
     expect(screen.queryByText("当前还没有启动 session")).toBeNull();
@@ -2834,9 +2834,9 @@ describe("KanbanTab card detail manual runs", () => {
     await screen.findByTestId("kanban-session-pane-top-row");
     expect(screen.getByText("Card Detail")).toBeTruthy();
 
-    expect(screen.queryByRole("button", { name: /Hide session pane/i })).toBeNull();
+    expect(within(screen.getByTestId("kanban-session-pane-top-row")).getByRole("button", { name: /Hide session pane/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Show session pane/i })).toBeNull();
-    expect(screen.getByTestId("kanban-session-pane-top-row")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Close card detail/i })).toHaveLength(1);
   });
 
   it("closes the card detail from the detail header close button", async () => {

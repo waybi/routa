@@ -87,18 +87,7 @@ function expectWindowedOverlay() {
   expect(screen.getByRole("button", { name: /Enter fullscreen/i })).toBeTruthy();
 }
 
-const WARNING_COLOR_CLASS = /(?:^|\s)(?:[a-z-]+:)*(?:bg|text|border|ring)-(?:red|rose|amber|orange)-/;
-
 const RED_COLOR_CLASS = /(?:^|\s)(?:[a-z-]+:)*(?:bg|text|border|ring)-(?:red|rose)-/;
-
-function getTopRightCloseButton(): HTMLElement {
-  const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
-  const outsideToolbar = screen
-    .getAllByRole("button", { name: /Close card detail/i })
-    .filter((button) => !toolbar.contains(button));
-  expect(outsideToolbar).toHaveLength(1);
-  return outsideToolbar[0];
-}
 
 function getToolbarCloseButton(): HTMLElement {
   return within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail/i });
@@ -106,11 +95,9 @@ function getToolbarCloseButton(): HTMLElement {
 
 function expectToolbarCloseButton() {
   const closeButtons = screen.getAllByRole("button", { name: /Close card detail/i });
-  expect(closeButtons).toHaveLength(2);
-  const toolbar = screen.getByTestId("kanban-detail-sticky-toolbar");
-  const inToolbar = within(toolbar).getAllByRole("button", { name: /Close card detail/i });
-  expect(inToolbar).toHaveLength(1);
-  const [closeButton] = inToolbar;
+  expect(closeButtons).toHaveLength(1);
+  const [closeButton] = closeButtons;
+  expect(screen.getByTestId("kanban-detail-sticky-toolbar").contains(closeButton)).toBe(true);
   expect(closeButton.parentElement?.firstElementChild).toBe(closeButton);
   expectClasses(closeButton, [
     "rounded-full", "h-8", "text-[13px]", "border-slate-300", "text-slate-700",
@@ -120,21 +107,6 @@ function expectToolbarCloseButton() {
   expect(closeButton.className).not.toMatch(RED_COLOR_CLASS);
   expectClasses(closeButton.querySelector("svg"), ["h-4", "w-4"]);
   expect(closeButton.textContent?.trim()).toBe("Close card detail");
-  expect(closeButton.getAttribute("title")).toBe("Close (Esc)");
-}
-
-function expectTopRightCloseButton(containerHeightClass: string) {
-  const closeButton = getTopRightCloseButton();
-  expect(closeButton.parentElement).toBe(getDetailOverlay().inner);
-  expectClasses(closeButton.parentElement, [containerHeightClass]);
-  expectClasses(closeButton, [
-    "absolute", "top-2", "right-2", "z-30", "h-9", "w-9",
-    "border-slate-300", "text-slate-500", "hover:bg-slate-100", "hover:text-slate-800", "focus-visible:ring-2",
-    "dark:border-slate-600", "dark:text-slate-400", "dark:hover:bg-slate-800", "dark:hover:text-slate-100",
-  ]);
-  expect(closeButton.className).not.toMatch(WARNING_COLOR_CLASS);
-  expectClasses(closeButton.querySelector("svg"), ["h-5", "w-5"]);
-  expect(closeButton.textContent?.trim()).toBe("");
   expect(closeButton.getAttribute("title")).toBe("Close (Esc)");
 }
 
@@ -189,7 +161,7 @@ describe("KanbanTab URL state", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Story Two" }));
     await screen.findByDisplayValue("Story Two");
 
-    fireEvent.click(getTopRightCloseButton());
+    fireEvent.click(getToolbarCloseButton());
     await waitFor(() => {
       expect(screen.queryByText("Card Detail")).toBeNull();
     });
@@ -231,7 +203,7 @@ describe("KanbanTab URL state", () => {
     expectFullscreenOverlay();
   });
 
-  it("keeps exit-fullscreen across board refreshes and reopens fullscreen with a muted top-right close icon", async () => {
+  it("keeps exit-fullscreen across board refreshes and reopens fullscreen with a single toolbar close button", async () => {
     const props = {
       workspaceId: "workspace-1",
       boards: [board],
@@ -249,13 +221,11 @@ describe("KanbanTab URL state", () => {
     await screen.findByText("Card Detail");
     expectFullscreenOverlay();
 
-    expectTopRightCloseButton("h-screen");
     expectToolbarCloseButton();
-    expectClasses(screen.getByTestId("kanban-detail-sticky-toolbar"), ["pr-12"]);
+    expectClasses(screen.getByTestId("kanban-detail-sticky-toolbar"), ["pr-4"], ["pr-12"]);
 
     fireEvent.click(screen.getByRole("button", { name: /Exit fullscreen/i }));
     expectWindowedOverlay();
-    expectTopRightCloseButton("h-[88vh]");
     expectToolbarCloseButton();
 
     rerender(
@@ -276,6 +246,63 @@ describe("KanbanTab URL state", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Story Two" }));
     await screen.findByDisplayValue("Story Two");
     expectFullscreenOverlay();
+  });
+
+  it("hides only the session pane from its top row and restores it from the toolbar", async () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    render(
+      <KanbanTab
+        workspaceId="workspace-1"
+        boards={[board]}
+        tasks={[createTask("task-1", "Story One", {
+          sessionIds: ["a2a-session-1"],
+          triggerSessionId: "a2a-session-1",
+          laneSessions: [{
+            sessionId: "a2a-session-1",
+            transport: "a2a",
+            status: "completed",
+            columnId: "backlog",
+            columnName: "Backlog",
+            externalTaskId: "remote-task-1",
+            startedAt: "2025-01-01T00:00:00.000Z",
+          }],
+        })]}
+        sessions={[]}
+        providers={[]}
+        specialists={[]}
+        codebases={[]}
+        onRefresh={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
+    const topRow = await screen.findByTestId("kanban-session-pane-top-row");
+    expectClasses(topRow, ["pr-2"], ["pr-12"]);
+    expect(screen.getAllByRole("button", { name: /Close card detail/i })).toHaveLength(1);
+    const hideButtons = within(topRow).getAllByRole("button", { name: /Hide session pane/i });
+    expect(hideButtons).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /Hide session pane/i })).toHaveLength(1);
+    expect(hideButtons[0].textContent?.trim()).toBe("Hide session pane");
+    expect(screen.getByTestId("kanban-detail-split-handle")).toBeTruthy();
+
+    fireEvent.click(hideButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("kanban-session-pane-top-row")).toBeNull();
+    });
+    expect(screen.queryByTestId("kanban-detail-split-handle")).toBeNull();
+    expect(screen.getByText("Card Detail")).toBeTruthy();
+    expect(window.location.search).toContain("taskId=task-1");
+
+    fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Show session pane/i }));
+    expect(await screen.findByTestId("kanban-session-pane-top-row")).toBeTruthy();
+    expect(screen.getByTestId("kanban-detail-split-handle")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Show session pane/i })).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByText("Card Detail")).toBeNull();
+    });
   });
 
   it("syncs board selection with boardId and restores a deep-linked board/task combination", async () => {

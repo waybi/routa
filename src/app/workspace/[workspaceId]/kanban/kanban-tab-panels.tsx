@@ -42,7 +42,7 @@ import type { ColumnAutomationConfig } from "./kanban-settings-modal";
 import type { KanbanBoardInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import type { KanbanRepoChanges } from "./kanban-file-changes-types";
 import { buildKanbanTaskAdaptiveHarnessOptions } from "./kanban-task-adaptive";
-import { ChevronRight as _ChevronRight, GitBranch as _GitBranch, X } from "lucide-react";
+import { ChevronRight as _ChevronRight, GitBranch as _GitBranch } from "lucide-react";
 import { GitLogPanel, RealGitAdapter, MockGitAdapter } from "./git-log";
 import { resolveCardMergeState } from "./kanban-card-status";
 import { resolveCardLinkedSession } from "./kanban-session-activity";
@@ -770,6 +770,7 @@ function A2ASessionPane({
   refreshSignal,
   currentSessionId,
   onSelectSession,
+  onCloseSession,
 }: {
   task: TaskInfo;
   laneSession?: NonNullable<TaskInfo["laneSessions"]>[number];
@@ -779,6 +780,7 @@ function A2ASessionPane({
   refreshSignal?: number;
   currentSessionId?: string;
   onSelectSession: (sessionId: string) => void;
+  onCloseSession: () => void;
 }) {
   const metadata = [
     { label: "Transport", value: (laneSession?.transport ?? "a2a").toUpperCase() },
@@ -794,13 +796,14 @@ function A2ASessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-slate-200/80 bg-slate-50/80 py-2 pl-2 pr-12 dark:border-[#202433] dark:bg-[#10131a]" data-testid="kanban-session-pane-top-row">
+      <div className="shrink-0 border-b border-slate-200/80 bg-slate-50/80 py-2 pl-2 pr-2 dark:border-[#202433] dark:bg-[#10131a]" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           sessions={sessions}
           specialistLanguage={specialistLanguage}
           currentSessionId={currentSessionId}
           onSelectSession={onSelectSession}
+          onCloseSession={onCloseSession}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-white via-sky-50/40 to-amber-50/30 p-5 dark:from-[#12141c] dark:via-[#101824] dark:to-[#17131c]">
@@ -1012,17 +1015,6 @@ export function KanbanTaskDetailOverlay({
           isTaskDetailFullscreen ? "h-screen max-w-none border-0" : "h-[88vh] max-w-7xl"
         }`}
       >
-        {activeTaskId ? (
-          <button
-            type="button"
-            onClick={closeTaskDetail}
-            className="absolute right-2 top-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white/90 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-600 dark:bg-[#12141c]/90 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-            aria-label={t.kanbanDetail.closeCardDetail}
-            title={t.kanbanDetailOverlay.closeWithEscHint}
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        ) : null}
         <div ref={detailSplitContainerRef} className="flex h-full">
           {activeTaskId && (() => {
             const task = activeTask;
@@ -1170,6 +1162,7 @@ export function KanbanTaskDetailOverlay({
                     specialists={specialists}
                     specialistLanguage={specialistLanguage}
                     autoProviderId={resolveKanbanBoardAutoProviderId(board, boardAutoProviderId)}
+                    onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
                   />
                 </div>
               );
@@ -1181,13 +1174,14 @@ export function KanbanTaskDetailOverlay({
                 style={activeTaskId ? { width: `${(1 - detailSplitRatio) * 100}%` } : undefined}
               >
                 {activeTask && !isA2ASessionPane && (
-                  <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-12 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
+                  <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-2 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
                     <KanbanCardActivityBar
                       task={activeTask}
                       sessions={combinedSessions}
                       specialistLanguage={specialistLanguage}
                       currentSessionId={activeSessionId ?? undefined}
                       onSelectSession={(sessionId) => selectTaskSession(activeTask, sessionId)}
+                      onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
                     />
                   </div>
                 )}
@@ -1201,6 +1195,7 @@ export function KanbanTaskDetailOverlay({
                     refreshSignal={refreshSignal}
                     currentSessionId={activeSessionId ?? undefined}
                     onSelectSession={(sessionId) => selectTaskSession(activeTask, sessionId)}
+                    onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
                   />
                 ) : acp && (
                   <div className="min-h-0 flex-1">

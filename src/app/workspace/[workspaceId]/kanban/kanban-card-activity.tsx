@@ -10,6 +10,7 @@ import {
   GitPullRequest,
   Inbox,
   Layers3,
+  PanelRightClose,
   ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "@/i18n";
@@ -410,18 +411,22 @@ export function KanbanCardActivityPanel({
   );
 }
 
+const HIDE_SESSION_PANE_BUTTON_CLASS = "inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
+
 export function KanbanCardActivityBar({
   task,
   sessions = [],
   specialistLanguage = "en",
   currentSessionId,
   onSelectSession,
+  onCloseSession,
 }: {
   task: TaskInfo;
   sessions?: SessionInfo[];
   specialistLanguage?: KanbanSpecialistLanguage;
   currentSessionId?: string;
   onSelectSession?: (sessionId: string) => void;
+  onCloseSession?: () => void;
 }) {
   const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
@@ -441,6 +446,18 @@ export function KanbanCardActivityBar({
   const selectedLaneSession = selectedRunId ? laneSessionMap.get(selectedRunId) : undefined;
   const selectedRun = selectedRunId ? runMap.get(selectedRunId) : undefined;
   const selectedStepLabel = getLaneSessionStepLabel(selectedLaneSession);
+  const hideSessionPaneButton = onCloseSession ? (
+    <button
+      type="button"
+      onClick={onCloseSession}
+      className={HIDE_SESSION_PANE_BUTTON_CLASS}
+      aria-label={copy.closeSessionPane}
+      title={copy.closeSessionPane}
+    >
+      <PanelRightClose className="h-3.5 w-3.5" aria-hidden="true" />
+      <span>{copy.closeSessionPane}</span>
+    </button>
+  ) : null;
 
   useEffect(() => {
     if (!selectedRunId) return;
@@ -455,6 +472,7 @@ export function KanbanCardActivityBar({
     return (
       <div className="flex items-center justify-between gap-3 border-b border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <span>{copy.noRunsInline}</span>
+        {hideSessionPaneButton}
       </div>
     );
   }
@@ -506,6 +524,7 @@ export function KanbanCardActivityBar({
             );
           })}
         </div>
+        {hideSessionPaneButton}
       </div>
       {(selectedLaneSession?.columnName || selectedStepLabel || selectedLaneSession?.status) && (
         <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-1 text-[10px] dark:border-[#232736]">
@@ -744,6 +763,7 @@ export function KanbanEmptySessionPane({
   specialists,
   specialistLanguage = "en",
   autoProviderId,
+  onCloseSession,
 }: {
   task: TaskInfo;
   boardColumns: KanbanColumnInfo[];
@@ -751,6 +771,7 @@ export function KanbanEmptySessionPane({
   specialists: KanbanSpecialistOption[];
   specialistLanguage?: KanbanSpecialistLanguage;
   autoProviderId?: string;
+  onCloseSession?: () => void;
 }) {
   const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
@@ -765,10 +786,11 @@ export function KanbanEmptySessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-12 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
+      <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-2 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           specialistLanguage={specialistLanguage}
+          onCloseSession={onCloseSession}
         />
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
