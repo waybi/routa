@@ -15,6 +15,7 @@ import { I18nContext } from "@/i18n/context";
 import en from "@/i18n/locales/en";
 import zh from "@/i18n/locales/zh";
 import { buildTaskNotificationLink, useTaskLifecycleNotifications } from "../use-task-lifecycle-notifications";
+import * as tabRequest from "../kanban-detail-tab-request";
 
 function Harness({
   onReady,
@@ -121,6 +122,42 @@ describe("useTaskLifecycleNotifications", () => {
     act(() => action.click());
 
     expect(onOpenTask).toHaveBeenCalledWith("task-1");
+  });
+
+  it("AC9: the completed toast requests the completion tab before opening the card", async () => {
+    const calls: string[] = [];
+    const requestSpy = vi.spyOn(tabRequest, "requestKanbanDetailTab").mockImplementation((taskId, tab) => {
+      calls.push(`request:${taskId}:${tab}`);
+    });
+    const getHandler = renderChain((taskId) => calls.push(`open:${taskId}`));
+
+    act(() => getHandler()(lifecycle()));
+    act(() => screen.getByRole("button", { name: "Open card" }).click());
+
+    expect(calls).toEqual(["request:task-1:completion", "open:task-1"]);
+    requestSpy.mockRestore();
+  });
+
+  it("AC9: a failed toast opens the card without forcing the completion tab", async () => {
+    const requestSpy = vi.spyOn(tabRequest, "requestKanbanDetailTab");
+    const onOpenTask = vi.fn();
+    const getHandler = renderChain(onOpenTask);
+
+    act(() => getHandler()(lifecycle({ phase: "failed" })));
+    act(() => screen.getByRole("button", { name: "Open card" }).click());
+
+    expect(onOpenTask).toHaveBeenCalledWith("task-1");
+    expect(requestSpy).not.toHaveBeenCalled();
+    requestSpy.mockRestore();
+  });
+
+  it("AC9: bell links ask for the completion tab only for completed cards", () => {
+    const base = { workspaceId: "workspace-1", taskId: "task-1", boardId: "board-1" };
+    expect(buildTaskNotificationLink({ ...base, phase: "completed" }))
+      .toBe("/workspace/workspace-1/kanban?boardId=board-1&taskId=task-1&detailTab=completion");
+    for (const phase of ["blocked", "rejected", "failed"] as const) {
+      expect(buildTaskNotificationLink({ ...base, phase })).toBe("/workspace/workspace-1/kanban?boardId=board-1&taskId=task-1");
+    }
   });
 
   it.each(["started", "needs_review"] as const)(
@@ -235,7 +272,7 @@ describe("useTaskLifecycleNotifications", () => {
       expect(bellEntry).toBeTruthy();
       fireEvent.click(bellEntry!);
 
-      expect(fakeLocation.href).toBe("/workspace/workspace-1/kanban?boardId=board-1&taskId=task-1");
+      expect(fakeLocation.href).toBe("/workspace/workspace-1/kanban?boardId=board-1&taskId=task-1&detailTab=completion");
     } finally {
       Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
     }

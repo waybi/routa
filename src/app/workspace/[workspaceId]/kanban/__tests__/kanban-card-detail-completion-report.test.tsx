@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanCardDetail } from "../kanban-card-detail";
 import { isCompletionReportNote, splitCompletionReports } from "../kanban-completion-report";
+import { requestKanbanDetailTab } from "../kanban-detail-tab-request";
+import type { TaskInfo } from "../../types";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 import { createDetailTask, detailBoard } from "./kanban-detail-fixtures";
 
@@ -52,13 +54,17 @@ describe("completion report helpers", () => {
   });
 });
 
-function renderDetail(comments: Array<{ id: string; body: string; createdAt: string; source?: "update_card" }>) {
+function renderDetail(
+  comments: Array<{ id: string; body: string; createdAt: string; source?: "update_card" }>,
+  overrides: Partial<TaskInfo> = {},
+) {
   return render(
     <KanbanCardDetail
       task={{
-        ...createDetailTask("task-done", "Finished card"),
+        ...createDetailTask(overrides.id ?? "task-done", "Finished card"),
         columnId: "done",
         comments,
+        ...overrides,
       }}
       boardColumns={detailBoard.columns}
       availableProviders={[]}
@@ -87,6 +93,7 @@ describe("KanbanCardDetail completion tab", () => {
 
     const tabs = screen.getAllByRole("tab");
     expect(tabs[tabs.length - 1].textContent).toBe("Completion");
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
 
     // Overview no longer renders the reports inline, only a pointer.
     expect(screen.getByText("Progress note one")).toBeTruthy();
@@ -112,5 +119,71 @@ describe("KanbanCardDetail completion tab", () => {
     expect(toolbar.className).toContain("top-0");
     expect(toolbar.closest("section")).toBeNull();
     expect(toolbar.querySelector("button")).toBeTruthy();
+  });
+});
+
+function activeTabName(): string | null {
+  return screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent ?? null;
+}
+
+const REPORT = { id: "r1", body: "## 完成汇报\n- **交付内容**：done", createdAt: "2026-10-21T00:00:00.000Z", source: "update_card" as const };
+const SUMMARY = { excerpt: "done", commit: null, hasLeftover: false, createdAt: "2026-10-21T00:00:00.000Z" };
+
+describe("KanbanCardDetail default tab (AC8/AC9)", () => {
+  it("opens on Completion when the card has a report and no stored choice", () => {
+    renderDetail([REPORT], { id: "default-with-report" });
+    expect(activeTabName()).toBe("Completion");
+    expect(screen.getByTestId("kanban-completion-report")).toBeTruthy();
+  });
+
+  it("opens on Completion from the list summary alone (comments not hydrated yet)", () => {
+    renderDetail([], { id: "default-summary-only", completionReport: SUMMARY });
+    expect(activeTabName()).toBe("Completion");
+  });
+
+  it("stays on Overview when the card has no report", () => {
+    renderDetail([{ id: "n1", body: "Progress", createdAt: "2026-10-13T10:00:00.000Z", source: "update_card" }], {
+      id: "default-without-report",
+      completionReport: null,
+    });
+    expect(activeTabName()).toBe("Overview");
+  });
+
+  it("keeps a manual tab choice over the completion default", () => {
+    const first = renderDetail([REPORT], { id: "default-manual-choice" });
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    expect(activeTabName()).toBe("Runs");
+    first.unmount();
+
+    renderDetail([REPORT], { id: "default-manual-choice" });
+    expect(activeTabName()).toBe("Runs");
+  });
+
+  it("a notification request opens Completion even over a stored choice, once", () => {
+    const first = renderDetail([REPORT], { id: "requested-card" });
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    first.unmount();
+
+    requestKanbanDetailTab("requested-card", "completion");
+    const second = renderDetail([REPORT], { id: "requested-card" });
+    expect(activeTabName()).toBe("Completion");
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    second.unmount();
+
+    renderDetail([REPORT], { id: "requested-card" });
+    expect(activeTabName()).toBe("Runs");
+  });
+
+  it("the bell link's detailTab=completion opens Completion and is removed from the URL", async () => {
+    const first = renderDetail([REPORT], { id: "bell-card" });
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    first.unmount();
+
+    window.history.replaceState(null, "", "/workspace/w/kanban?taskId=bell-card&detailTab=completion");
+    renderDetail([REPORT], { id: "bell-card" });
+    expect(activeTabName()).toBe("Completion");
+    await Promise.resolve();
+    expect(new URL(window.location.href).searchParams.has("detailTab")).toBe(false);
+    expect(new URL(window.location.href).searchParams.get("taskId")).toBe("bell-card");
   });
 });

@@ -19,7 +19,8 @@ import { splitCompletionReports } from "./kanban-completion-report";
 import { KanbanDescriptionEditor } from "./kanban-description-editor";
 import { KanbanTaskChangesTab } from "./components/kanban-task-changes-tab";
 import { MarkdownViewer } from "@/client/components/markdown/markdown-viewer";
-import { splitLegacyTaskComment, type FallbackAgent } from "@/core/models/task";
+import { hydrateTaskComments, type FallbackAgent } from "@/core/models/task";
+import { consumeKanbanDetailTabRequest, resolveDefaultKanbanDetailTab } from "./kanban-detail-tab-request";
 import {
   createKanbanSpecialistResolver,
   getOrderedSessionIds,
@@ -97,21 +98,6 @@ function formatAgentCardTarget(agentCardUrl?: string): string | undefined {
   } catch {
     return trimmed.replace(/^https?:\/\//, "");
   }
-}
-
-function resolveTaskCommentEntries(task: TaskInfo): Array<{
-  id: string;
-  body: string;
-  createdAt?: string;
-  source?: "legacy_import" | "update_card";
-  agentId?: string;
-  sessionId?: string;
-}> {
-  if ((task.comments?.length ?? 0) > 0) {
-    return task.comments ?? [];
-  }
-
-  return splitLegacyTaskComment(task.comment);
 }
 
 function formatCommentTimestamp(value?: string): string | null {
@@ -265,7 +251,7 @@ export function KanbanCardDetail({
 }: KanbanCardDetailProps) {
   const { t } = useTranslation();
   const { progressNotes, completionReports } = useMemo(
-    () => splitCompletionReports(resolveTaskCommentEntries(task)),
+    () => splitCompletionReports(hydrateTaskComments(task.comments, task.comment)),
     [task],
   );
   const sessionCopy = getKanbanSessionCopy(specialistLanguage);
@@ -326,9 +312,16 @@ export function KanbanCardDetail({
     key: string;
     tab: KanbanDetailTabId;
   } | null>(null);
+  // A notification's one-shot request (toast or bell link) beats the stored choice.
+  const requestedTab = consumeKanbanDetailTabRequest(task.id);
+  if (requestedTab) {
+    persistedKanbanDetailTabs.set(tabStateKey, requestedTab);
+    if (tabSelection?.key === tabStateKey) setTabSelection({ key: tabStateKey, tab: requestedTab });
+  }
   const activeTab = tabSelection?.key === tabStateKey
     ? tabSelection.tab
-    : persistedKanbanDetailTabs.get(tabStateKey) ?? "overview";
+    : persistedKanbanDetailTabs.get(tabStateKey)
+      ?? resolveDefaultKanbanDetailTab(Boolean(task.completionReport) || completionReports.length > 0);
   const tabListId = `kanban-detail-tabs-${task.id}`;
   const selectTab = (tab: KanbanDetailTabId) => {
     persistedKanbanDetailTabs.set(tabStateKey, tab);

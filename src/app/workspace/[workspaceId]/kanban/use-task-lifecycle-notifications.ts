@@ -16,6 +16,7 @@ import { useTranslation } from "@/i18n";
 import { toast } from "@/client/components/toast";
 import { useNotifications, type AppNotification } from "@/client/components/notification-center";
 import type { KanbanTaskLifecyclePayload } from "@/client/hooks/use-kanban-events";
+import { KANBAN_DETAIL_TAB_QUERY_KEY, requestKanbanDetailTab } from "./kanban-detail-tab-request";
 
 type LifecyclePhase = KanbanTaskLifecyclePayload["phase"];
 
@@ -34,11 +35,17 @@ function formatTitle(template: string, taskTitle: string): string {
   return template.replace("{title}", taskTitle);
 }
 
-/** Deep link that opens the card on its board (read by kanban-tab's URL state). */
-export function buildTaskNotificationLink(event: Pick<KanbanTaskLifecyclePayload, "workspaceId" | "taskId" | "boardId">): string {
+/**
+ * Deep link that opens the card on its board (read by kanban-tab's URL state).
+ * Completed cards open on the completion report tab (consumed once by the detail).
+ */
+export function buildTaskNotificationLink(
+  event: Pick<KanbanTaskLifecyclePayload, "workspaceId" | "taskId" | "boardId"> & { phase?: LifecyclePhase },
+): string {
   const params = new URLSearchParams();
   if (event.boardId) params.set("boardId", event.boardId);
   params.set("taskId", event.taskId);
+  if (event.phase === "completed") params.set(KANBAN_DETAIL_TAB_QUERY_KEY, "completion");
   return `/workspace/${encodeURIComponent(event.workspaceId)}/kanban?${params.toString()}`;
 }
 
@@ -99,7 +106,10 @@ export function useTaskLifecycleNotifications({
     };
     const title = formatTitle(templates[event.phase] ?? t.feedback.taskCompleted, event.taskTitle);
     const description = event.lastMessagePreview;
-    const openTask = () => onOpenTaskRef.current?.(event.taskId);
+    const openTask = () => {
+      if (event.phase === "completed") requestKanbanDetailTab(event.taskId, "completion");
+      onOpenTaskRef.current?.(event.taskId);
+    };
 
     if (event.phase === "failed") {
       toast.error(title, { description, action: { label: t.feedback.openCard, onClick: openTask } });

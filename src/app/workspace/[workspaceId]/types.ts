@@ -142,6 +142,13 @@ export interface TaskInfo {
     agentId?: string;
     sessionId?: string;
   }>;
+  /** Newest completion report summary; only on GET /api/tasks list projection. */
+  completionReport?: {
+    excerpt: string | null;
+    commit: string | null;
+    hasLeftover: boolean;
+    createdAt: string;
+  } | null;
   scope?: string;
   acceptanceCriteria?: string[];
   verificationCommands?: string[];
