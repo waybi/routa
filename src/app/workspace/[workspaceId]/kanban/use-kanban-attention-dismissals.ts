@@ -76,6 +76,12 @@ function subscribe(listener: () => void): () => void {
 
 const getServerSnapshot = () => EMPTY;
 
+/** Non-hook read of a board's dismissed keys (e.g. the all-projects overview). */
+export function readAttentionDismissals(boardId: string): readonly string[] {
+  if (typeof window === "undefined") return EMPTY;
+  return readDismissed(boardId);
+}
+
 /** Test-only: drop in-memory fallbacks and cached snapshots. */
 export function resetAttentionDismissalsForTests(): void {
   memoryDismissals.clear();
