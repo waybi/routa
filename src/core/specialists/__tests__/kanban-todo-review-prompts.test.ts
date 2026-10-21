@@ -41,3 +41,15 @@ describe("kanban-todo-orchestrator prompt", () => {
     expect(prompt).toMatch(/deepseek-harness\s*→\s*dsh-config/);
   });
 });
+
+describe("kanban-review-guard prompt", () => {
+  it.each(loadPaths)("re-runs every card verificationCommand before approving (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-review-guard");
+
+    expect(prompt).toContain("verificationCommands");
+    expect(prompt).toMatch(/exit code|退出码/);
+    expect(prompt).toMatch(/must NOT (be )?(mark|judge)[^\n]{0,40}APPROVED|不得判 APPROVED/);
+    expect(prompt).toContain("卡上无 verificationCommands");
+    expect(prompt).toContain("/api/tasks/<cardId>");
+  });
+});
