@@ -1,0 +1,43 @@
+// @vitest-environment node
+import * as path from "path";
+import { describe, expect, it } from "vitest";
+
+import { loadSpecialistsFromDirectory } from "../specialist-file-loader";
+
+// Locks the retro rules L204/L232/L256 (2026-10-21) into all three load paths:
+// the default (en) root files, the locales/en overlay, and the locales/zh-CN overlay.
+const bundledRoot = path.join(process.cwd(), "resources", "specialists");
+const loadPaths: Array<[string, string, string | undefined]> = [
+  ["default", bundledRoot, undefined],
+  ["en", path.join(bundledRoot, "locales", "en"), "en"],
+  ["zh-CN", path.join(bundledRoot, "locales", "zh-CN"), "zh-CN"],
+];
+
+function loadPrompt(dir: string, locale: string | undefined, id: string): string {
+  const specialist = loadSpecialistsFromDirectory(dir, "bundled", locale).find((entry) => entry.id === id);
+  expect(specialist).toBeDefined();
+  return specialist?.behaviorPrompt ?? "";
+}
+
+describe("kanban-todo-orchestrator prompt", () => {
+  it.each(loadPaths)("never lets the knowledge-base search be skipped (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-todo-orchestrator");
+
+    expect(prompt).not.toMatch(/Skip this step for simple tasks|可以跳过这一步/);
+    expect(prompt).toContain("知识库：查了 <关键词>，无相关条目");
+    expect(prompt).toContain("Knowledge base: searched <keywords>, no relevant entries");
+  });
+
+  it.each(loadPaths)("reads experience packs before planning (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-todo-orchestrator");
+
+    expect(prompt).toContain("/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/");
+    expect(prompt).toContain("triggers.json");
+    expect(prompt).toContain("grep -n '^## '");
+    expect(prompt).toContain("（经验包 <包>:<行号>）");
+    expect(prompt).toContain("(pack <pack>:<line>)");
+    expect(prompt).toContain("经验包 <包>：已看标题，无相关条目");
+    expect(prompt).toContain("Pack <pack>: titles checked, no relevant entries");
+    expect(prompt).toMatch(/deepseek-harness\s*→\s*dsh-config/);
+  });
+});
