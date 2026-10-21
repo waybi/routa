@@ -253,6 +253,34 @@ describe("Kanban Done column window", () => {
     });
   });
 
+  it("AC2 (entered-Done): a card whose last session is dev lands first even with an old done session", async () => {
+    const board = makeBoard("board-1");
+    const returning = {
+      ...makeTasks(board.id, "backlog", 1, "returning")[0],
+      title: "Returning card",
+      updatedAt: minutes(-60),
+      laneSessions: [
+        { sessionId: "s-done", columnId: "done", status: "completed", startedAt: minutes(-120) },
+        { sessionId: "s-dev", columnId: "dev", status: "completed", startedAt: minutes(-90) },
+      ],
+    } as TaskInfo;
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    renderTab(board, [...makeTasks(board.id, "done", 25), returning]);
+
+    await act(async () => {
+      dndKitHarness.emitDragEnd({
+        active: { id: returning.id, data: { current: { columnId: "backlog" } } },
+        over: { id: "column:done" },
+      });
+    });
+
+    await waitFor(() => {
+      const cards = within(column("Done")).getAllByTestId("kanban-card");
+      expect(cards[0].textContent).toContain("Returning card");
+    });
+  });
+
   it("AC6: dragging out of Done still calls moveTask", async () => {
     const board = makeBoard("board-1");
     const fetchMock = vi.fn(() => new Promise<Response>(() => {}));

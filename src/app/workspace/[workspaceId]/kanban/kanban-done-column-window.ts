@@ -13,6 +13,7 @@
 
 import { useCallback, useState, useSyncExternalStore } from "react";
 import type { TaskInfo } from "../types";
+import { getDoneEnteredAt } from "./kanban-done-time";
 
 export const DONE_COLUMN_ID = "done";
 export const DONE_COLUMN_PAGE_SIZE = 20;
@@ -23,19 +24,15 @@ export function doneCollapsedStorageKey(boardId: string): string {
   return `${COLLAPSED_STORAGE_PREFIX}${boardId}`;
 }
 
-function taskTimestamp(task: TaskInfo): number {
-  const parsed = Date.parse(task.updatedAt ?? task.createdAt);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 /**
- * Newest first by `updatedAt` (falling back to `createdAt`). Ties break on
- * position, then id, so cards finished within the same second keep a stable
- * order across renders. Returns a new array.
+ * Newest first by the time the card entered Done (see `getDoneEnteredAt`:
+ * trailing Done lane session, then `updatedAt`, then `createdAt`). Ties break
+ * on position, then id, so cards finished within the same second keep a
+ * stable order across renders. Returns a new array.
  */
 export function sortDoneTasks(tasks: readonly TaskInfo[]): TaskInfo[] {
   return tasks.slice().sort((left, right) => {
-    const byTime = taskTimestamp(right) - taskTimestamp(left);
+    const byTime = getDoneEnteredAt(right) - getDoneEnteredAt(left);
     if (byTime !== 0) return byTime;
     const byPosition = (left.position ?? 0) - (right.position ?? 0);
     if (byPosition !== 0) return byPosition;

@@ -140,7 +140,7 @@ export function useKanbanCardMove({
           columnId: targetColumnId,
           position: nextPosition,
           status: statusForColumn(targetColumnId),
-          // Done sorts newest first by updatedAt; stamp it so the card lands on top before refresh.
+          // Done sorts by entered-Done time; with no trailing Done session yet it falls back to updatedAt, so stamp it to land on top.
           ...(targetColumnId === "done" ? { updatedAt: new Date().toISOString() } : {}),
         }
         : task,

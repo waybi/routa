@@ -52,6 +52,20 @@ describe("sortDoneTasks", () => {
     expect(sorted.map((item) => item.id)).toEqual(["ok", "broken"]);
   });
 
+  it("prefers the trailing done session start over a fresher updatedAt", () => {
+    const sorted = sortDoneTasks([
+      task("touched", {
+        updatedAt: minutes(50),
+        laneSessions: [{ sessionId: "s1", columnId: "done", status: "completed", startedAt: minutes(2) }],
+      }),
+      task("finished-later", {
+        updatedAt: minutes(5),
+        laneSessions: [{ sessionId: "s2", columnId: "done", status: "completed", startedAt: minutes(5) }],
+      }),
+    ]);
+    expect(sorted.map((item) => item.id)).toEqual(["finished-later", "touched"]);
+  });
+
   it("breaks ties on position then id so the order is stable", () => {
     const same = minutes(4);
     const input = [
