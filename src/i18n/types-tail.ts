@@ -499,6 +499,28 @@ export interface TailTranslationDictionarySections {
     unmerged: string;
     dismiss: string;
   };
+  /** "All projects" overview: one row per workspace. */
+  kanbanOverview: {
+    viewBoard: string;
+    viewAll: string;
+    inProgress: string;
+    needsYou: string;
+    recentDone7d: string;
+    /** Recent-done header while searching; "{count}" = hits. */
+    recentDoneMatches: string;
+    /** "{count}" = cards in the block. */
+    blockCount: string;
+    /** "{count}" = total cards in the workspace. */
+    cardCount: string;
+    emptyRow: string;
+    noUnmergedBadge: string;
+    noUnmergedHint: string;
+    loadFailed: string;
+    retry: string;
+    loading: string;
+    searchPlaceholder: string;
+    noWorkspaces: string;
+  };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {
     /** Hover title of the close icon button, mentions the Esc shortcut. */
