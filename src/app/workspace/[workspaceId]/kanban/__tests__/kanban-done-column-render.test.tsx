@@ -303,5 +303,40 @@ describe("Kanban Done column window", () => {
     });
     expect(within(column("Backlog")).getAllByTestId("kanban-card")).toHaveLength(1);
   });
-});
 
+  it("AC6 (rail): an empty Review column renders as a droppable rail and Done widens", async () => {
+    const board = {
+      ...makeBoard("board-1"),
+      columns: [
+        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
+        { id: "review", name: "Review", position: 1, stage: "review" },
+        { id: "done", name: "Done", position: 2, stage: "done" },
+      ],
+    } as KanbanBoardInfo;
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    renderTab(board, [...makeTasks(board.id, "backlog", 1, "mover"), ...makeTasks(board.id, "done", 2)]);
+
+    const rails = screen.getAllByTestId("kanban-empty-column-rail");
+    expect(rails).toHaveLength(1);
+    expect(rails[0].getAttribute("data-column-id")).toBe("review");
+    expect(rails[0].textContent).toContain("Review");
+    expect(rails[0].textContent).toContain("0");
+    const columns = screen.getAllByTestId("kanban-column");
+    expect(columns.map((element) => element.className.includes("w-10"))).toEqual([false, true, false]);
+    expect(columns[2].className).toContain("w-[24rem]");
+
+    await act(async () => {
+      dndKitHarness.emitDragEnd({
+        active: { id: "mover-0", data: { current: { columnId: "backlog" } } },
+        over: { id: "column:review" },
+      });
+    });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/mover-0",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+  });
+});

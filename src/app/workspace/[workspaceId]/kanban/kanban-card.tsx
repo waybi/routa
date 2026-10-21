@@ -89,8 +89,11 @@ function getPriorityTone(priority?: string) {
   }
 }
 
-function getPrioritySizeLabel(priority?: string) {
-  switch ((priority ?? "medium").toLowerCase()) {
+/** Size badge for a priority; null (no badge) when the priority is unset. */
+export function getPrioritySizeLabel(priority?: string | null): "S" | "M" | "L" | null {
+  const normalized = priority?.trim().toLowerCase();
+  if (!normalized) return null;
+  switch (normalized) {
     case "high":
     case "urgent":
       return "L";
@@ -455,9 +458,14 @@ function KanbanCardSurface({
               {canRetry ? t.kanban.rerun : t.kanban.run}
             </button>
           )}
-          <span className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${priorityTone}`}>
-            {prioritySizeLabel}
-          </span>
+          {prioritySizeLabel && (
+            <span
+              className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${priorityTone}`}
+              data-testid="kanban-card-priority-size"
+            >
+              {prioritySizeLabel}
+            </span>
+          )}
         </div>
       </div>
 

@@ -476,6 +476,11 @@ export interface TailTranslationDictionarySections {
     /** Pill when the completion report lists leftover work. */
     leftover: string;
   };
+  /** Collapsed rail rendered for a column with no cards. */
+  kanbanEmptyColumn: {
+    /** Hover title; "{name}" = column name. */
+    railHint: string;
+  };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {
     /** Hover title of the close icon button, mentions the Esc shortcut. */

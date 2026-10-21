@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { KanbanColumnInfo, TaskInfo } from "../../types";
-import { KanbanCard } from "../kanban-card";
+import { KanbanCard, getPrioritySizeLabel } from "../kanban-card";
 
 vi.mock("@dnd-kit/core", () => ({
   useDraggable: () => ({
@@ -335,5 +335,48 @@ describe("KanbanCard run activity", () => {
     renderWithSession({ acpStatus: "error", acpError: "dsh exited with code 1" });
     expect(screen.getByTestId("kanban-card-run-status").getAttribute("data-run-status")).toBe("failed");
     expect(screen.getByTestId("kanban-card-activity").textContent).toContain("dsh exited with code 1");
+  });
+});
+
+describe("KanbanCard priority size badge (AC11)", () => {
+  function renderCard(priority: string | undefined | null) {
+    return render(
+      <KanbanCard
+        task={buildTask({ priority: priority as string | undefined })}
+        boardColumns={boardColumns}
+        specialistLanguage="en"
+        availableProviders={[]}
+        specialists={[]}
+        codebases={[]}
+        allCodebaseIds={[]}
+        worktreeCache={{}}
+        onOpenDetail={vi.fn()}
+        onDelete={vi.fn()}
+        onPatchTask={vi.fn()}
+        onRetryTrigger={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    );
+  }
+
+  it.each(["", null, undefined])("renders no size badge for empty priority %p", (priority) => {
+    renderCard(priority);
+    expect(screen.queryByTestId("kanban-card-priority-size")).toBeNull();
+  });
+
+  it("renders M for medium", () => {
+    renderCard("medium");
+    expect(screen.getByTestId("kanban-card-priority-size").textContent).toBe("M");
+  });
+
+  it("maps priorities to S/M/L/L and empty to null", () => {
+    expect(getPrioritySizeLabel("low")).toBe("S");
+    expect(getPrioritySizeLabel("medium")).toBe("M");
+    expect(getPrioritySizeLabel("high")).toBe("L");
+    expect(getPrioritySizeLabel("urgent")).toBe("L");
+    expect(getPrioritySizeLabel("")).toBeNull();
+    expect(getPrioritySizeLabel("  ")).toBeNull();
+    expect(getPrioritySizeLabel(null)).toBeNull();
+    expect(getPrioritySizeLabel(undefined)).toBeNull();
   });
 });

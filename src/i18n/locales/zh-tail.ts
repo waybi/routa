@@ -449,6 +449,9 @@ export const zhTail: TailTranslationDictionarySections = {
     reportPending: "汇报生成中",
     leftover: "遗留",
   },
+  kanbanEmptyColumn: {
+    railHint: "{name} 暂无卡片，可把卡片拖到这里",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "关闭（Esc）",
   },

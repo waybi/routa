@@ -49,6 +49,7 @@ import { resolveCardLinkedSession } from "./kanban-session-activity";
 import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-done-column-window";
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 import { KanbanDoneSegments } from "./kanban-done-segments";
+import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -528,7 +529,10 @@ export function KanbanBoardSurface({
                       : null;
                     const renderedTasks = doneWindow ? [] : columnTasks;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
-                    const widthClass = column.width === "compact" ? "w-[14rem]" : column.width === "wide" ? "w-[24rem]" : "w-[18rem]";
+                    const isEmptyColumn = columnTasks.length === 0;
+                    const widthClass = isEmptyColumn
+                      ? EMPTY_COLUMN_RAIL_WIDTH_CLASS
+                      : column.width === "compact" ? "w-[14rem]" : column.width === "wide" || (isDoneColumn && !column.width) ? "w-[24rem]" : "w-[18rem]";
 
                     return (
                       <KanbanDropColumn
@@ -537,6 +541,7 @@ export function KanbanBoardSurface({
                         hasActiveDrag={activeDragTaskId !== null}
                         widthClass={widthClass}
                       >
+                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} /> : <>
                         <div className="mb-3 space-y-1.5">
                           <div className="flex items-baseline justify-between gap-3">
                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{column.name}</div>
@@ -608,6 +613,7 @@ export function KanbanBoardSurface({
                             />
                           )}
                         </div>
+                        </>}
                       </KanbanDropColumn>
                     );
                   })}

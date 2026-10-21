@@ -455,6 +455,9 @@ export const enTail: TailTranslationDictionarySections = {
     reportPending: "Report in progress",
     leftover: "Leftover",
   },
+  kanbanEmptyColumn: {
+    railHint: "{name} has no cards; drop a card here",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "Close (Esc)",
   },
