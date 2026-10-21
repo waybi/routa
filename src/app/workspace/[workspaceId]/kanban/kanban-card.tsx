@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useTranslation } from "@/i18n";
 import type { AcpProviderInfo } from "@/client/acp-client";
@@ -49,6 +49,8 @@ export interface KanbanCardProps {
   onPatchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
   onRetryTrigger: (taskId: string) => Promise<void>;
   onRefresh: () => void;
+  /** Optional title renderer, e.g. to highlight board-search hits. */
+  renderTitle?: (title: string) => ReactNode;
 }
 
 interface KanbanCardSurfaceProps extends KanbanCardProps {
@@ -253,6 +255,7 @@ function KanbanCardSurface({
   onPatchTask,
   onRetryTrigger,
   onRefresh,
+  renderTitle,
   dragHandleProps = {},
   dragOverlay = false,
   isDragging = false,
@@ -470,7 +473,7 @@ function KanbanCardSurface({
       </div>
 
       <div className="text-[14px] font-semibold leading-[1.2] text-slate-900 dark:text-slate-100">
-        {task.title}
+        {renderTitle ? renderTitle(task.title) : task.title}
       </div>
 
       {activityLine && (

@@ -458,6 +458,11 @@ export const enTail: TailTranslationDictionarySections = {
   kanbanEmptyColumn: {
     railHint: "{name} has no cards; drop a card here",
   },
+  kanbanSearch: {
+    placeholder: "Search title, card id, requirement, report, commit",
+    shortcutHint: "Press / to search, Esc to clear",
+    matchCount: "{hits} / {total}",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "Close (Esc)",
   },

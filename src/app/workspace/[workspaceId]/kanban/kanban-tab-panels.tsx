@@ -50,6 +50,7 @@ import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-d
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 import { KanbanDoneSegments } from "./kanban-done-segments";
 import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
+import { HighlightedText, matchTask, normalizeSearchQuery } from "./kanban-board-search";
 
 interface SessionRestoreTranscriptMessage {
   role?: string;
@@ -351,6 +352,7 @@ export function KanbanBoardSurface({
   setFileChangesOpen,
   gitLogOpen,
   setGitLogOpen,
+  searchQuery = "",
 }: {
   moveError: string | null;
   onDismissMoveError: () => void;
@@ -399,8 +401,12 @@ export function KanbanBoardSurface({
   setFileChangesOpen?: Dispatch<SetStateAction<boolean>>;
   gitLogOpen?: boolean;
   setGitLogOpen?: Dispatch<SetStateAction<boolean>>;
+  /** Board search query; empty = no filtering. */
+  searchQuery?: string;
 }) {
   const { t } = useTranslation();
+  const searching = normalizeSearchQuery(searchQuery) !== "";
+  const renderHighlighted = searching ? (text: string) => <HighlightedText text={text} query={searchQuery} /> : undefined;
   const [localFileChangesOpen, setLocalFileChangesOpen] = useState(false);
   const [localGitLogOpen, setLocalGitLogOpen] = useState(false);
   const [gitLogRepoPath, setGitLogRepoPath] = useState<string | null>(null);
@@ -523,11 +529,13 @@ export function KanbanBoardSurface({
                       ? columnTasks.filter((task) => resolveCardMergeState(task) === "unmerged").length
                       : 0;
                     const isDoneColumn = column.id === DONE_COLUMN_ID;
-                    // Board has no search/filter yet; pass `unlimited: true` once it does.
+                    const shownTasks = searching ? columnTasks.filter((task) => matchTask(task, searchQuery)) : columnTasks;
+                    // Search shows every Done match: no 20-card window, no lane collapse.
                     const doneWindow = isDoneColumn
-                      ? windowDoneTasks(columnTasks, { visibleCount: doneColumn.visibleCount })
+                      ? windowDoneTasks(shownTasks, { visibleCount: doneColumn.visibleCount, unlimited: searching })
                       : null;
-                    const renderedTasks = doneWindow ? [] : columnTasks;
+                    const doneCollapsed = doneColumn.collapsed && !searching;
+                    const renderedTasks = doneWindow ? [] : shownTasks;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
                     const isEmptyColumn = columnTasks.length === 0;
                     const widthClass = isEmptyColumn
@@ -554,8 +562,12 @@ export function KanbanBoardSurface({
                                   {t.kanbanDetail.unmergedCount.replace("{count}", String(unmergedCount))}
                                 </span>
                               )}
-                              <span data-testid={`kanban-column-count-${column.id}`}>{columnTasks.length} {t.kanbanBoard.cards}</span>
-                              {isDoneColumn && (
+                              <span data-testid={`kanban-column-count-${column.id}`}>
+                                {searching
+                                  ? t.kanbanSearch.matchCount.replace("{hits}", String(shownTasks.length)).replace("{total}", String(columnTasks.length))
+                                  : `${columnTasks.length} ${t.kanbanBoard.cards}`}
+                              </span>
+                              {isDoneColumn && !searching && (
                                 <KanbanDoneCollapseToggle collapsed={doneColumn.collapsed} onToggle={doneColumn.toggleCollapsed} />
                               )}
                             </div>
@@ -580,8 +592,14 @@ export function KanbanBoardSurface({
                         </div>
 
                         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
-                          {doneWindow && !doneColumn.collapsed && (
-                            <KanbanDoneSegments tasks={doneWindow.visible} now={new Date()} onOpenTask={(task) => void openTaskDetail(task)} />
+                          {doneWindow && !doneCollapsed && (
+                            <KanbanDoneSegments
+                              tasks={doneWindow.visible}
+                              now={new Date()}
+                              onOpenTask={(task) => void openTaskDetail(task)}
+                              expandAll={searching}
+                              searchQuery={searchQuery}
+                            />
                           )}
                           {renderedTasks.map((task) => (
                             <KanbanCard
@@ -603,9 +621,10 @@ export function KanbanBoardSurface({
                               onPatchTask={patchTask}
                               onRetryTrigger={retryTaskTrigger}
                               onRefresh={onRefresh}
+                              renderTitle={renderHighlighted}
                             />
                           ))}
-                          {doneWindow && !doneColumn.collapsed && (
+                          {doneWindow && !doneCollapsed && !searching && (
                             <KanbanDoneColumnFooter
                               doneWindow={doneWindow}
                               onShowMore={doneColumn.showMore}

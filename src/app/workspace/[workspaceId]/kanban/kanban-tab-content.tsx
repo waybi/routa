@@ -22,6 +22,7 @@ import {
 import type { KanbanCodebaseModalProps } from "./kanban-tab-modals";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
+import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
@@ -220,11 +221,21 @@ export function KanbanTabContent({
   fitnessWorkbenchModalProps,
 }: KanbanTabContentProps) {
   const { t } = useTranslation();
+  const search = useKanbanBoardSearch();
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
   };
 
   const headerActionSlot = (
+    <>
+    {headerProps.board && (
+      <KanbanBoardSearchInput
+        query={search.query}
+        onQueryChange={search.setQuery}
+        onClear={search.clear}
+        inputRef={search.inputRef}
+      />
+    )}
     <KanbanTabHeaderActionSlot
       board={headerProps.board}
       onAgentPrompt={headerActionProps.onAgentPrompt}
@@ -241,6 +252,7 @@ export function KanbanTabContent({
       agentSessionId={headerActionProps.agentSessionId}
       openAgentPanel={headerActionProps.openAgentPanel}
     />
+    </>
   );
 
   if (!headerProps.board || !boardSurfaceProps || !taskDetailOverlayProps) {
@@ -265,7 +277,7 @@ export function KanbanTabContent({
   return (
     <div className="flex flex-col h-full">
       <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
-      <KanbanBoardSurface {...boardSurfaceProps}/>
+      <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
       <KanbanCreateTaskModal {...createTaskModalProps}/>
       <KanbanGitHubImportModal {...githubImportModalProps}/>
       <KanbanTaskDetailOverlay {...taskDetailOverlayProps}/>

@@ -7,7 +7,7 @@
  * state lives in component memory only; a reload returns to the default.
  */
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { useTranslation } from "@/i18n";
@@ -21,16 +21,12 @@ import {
   segmentDoneTasks,
   type DoneSegmentKey,
 } from "./kanban-done-time";
+import { HighlightedText, normalizeSearchQuery } from "./kanban-board-search";
 
 const PILL_BASE = "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium";
 const PILL_SLATE = `${PILL_BASE} bg-slate-100 font-mono text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5`;
 const PILL_AMBER = `${PILL_BASE} bg-amber-100/80 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40`;
 const PILL_RUNNING = `${PILL_BASE} gap-1 bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40`;
-
-/** Renders text, optionally wrapping search hits in <mark>. */
-export type DoneTextRenderer = (text: string) => ReactNode;
-
-const plainText: DoneTextRenderer = (text) => text;
 
 export function isDoneReportPending(task: TaskInfo): boolean {
   if (task.completionReport) return false;
@@ -42,12 +38,13 @@ export function KanbanDoneCard({
   task,
   segment,
   onOpenDetail,
-  renderText = plainText,
+  searchQuery = "",
 }: {
   task: TaskInfo;
   segment: DoneSegmentKey;
   onOpenDetail: () => void;
-  renderText?: DoneTextRenderer;
+  /** Board search query; hits are wrapped in <mark>. */
+  searchQuery?: string;
 }) {
   const { t } = useTranslation();
   const { attributes, isDragging, listeners, setNodeRef } = useDraggable({
@@ -55,9 +52,16 @@ export function KanbanDoneCard({
     data: { taskId: task.id, columnId: task.columnId },
   });
   const report = task.completionReport ?? null;
-  const showSecondLine = segment !== "older";
+  const needle = normalizeSearchQuery(searchQuery);
+  // Older cards are one line, except while searching so the hit is visible.
+  const showSecondLine = segment !== "older" || needle !== "";
   const pending = showSecondLine && isDoneReportPending(task);
   const commit = report?.commit?.trim() ? report.commit.trim() : null;
+  const renderText = (text: string) => (needle ? <HighlightedText text={text} query={searchQuery} /> : text);
+  // Show the full hash when the search hit falls outside the 7-char prefix.
+  const commitLabel = commit && needle && commit.toLowerCase().includes(needle) && !commit.slice(0, 7).toLowerCase().includes(needle)
+    ? commit
+    : commit?.slice(0, 7);
 
   return (
     <div
@@ -108,7 +112,7 @@ export function KanbanDoneCard({
               </span>
               {commit && (
                 <span className={PILL_SLATE} title={commit} data-testid="kanban-done-card-commit">
-                  {renderText(commit.slice(0, 7))}
+                  {renderText(commitLabel ?? "")}
                 </span>
               )}
               {report.hasLeftover && (
@@ -134,7 +138,7 @@ export function KanbanDoneSegments({
   now,
   onOpenTask,
   expandAll = false,
-  renderText,
+  searchQuery,
 }: {
   /** Done cards to show, already sorted newest first. */
   tasks: readonly TaskInfo[];
@@ -142,7 +146,7 @@ export function KanbanDoneSegments({
   onOpenTask: (task: TaskInfo) => void;
   /** Search mode: every non-empty segment starts expanded. */
   expandAll?: boolean;
-  renderText?: DoneTextRenderer;
+  searchQuery?: string;
 }) {
   const { t } = useTranslation();
   // Overrides relative to the default; keyed by mode so leaving search resets them.
@@ -183,7 +187,7 @@ export function KanbanDoneSegments({
                 task={task}
                 segment={key}
                 onOpenDetail={() => onOpenTask(task)}
-                renderText={renderText}
+                searchQuery={searchQuery}
               />
             ))}
           </div>

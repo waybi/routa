@@ -452,6 +452,11 @@ export const zhTail: TailTranslationDictionarySections = {
   kanbanEmptyColumn: {
     railHint: "{name} 暂无卡片，可把卡片拖到这里",
   },
+  kanbanSearch: {
+    placeholder: "搜标题、卡号、需求、汇报、提交号",
+    shortcutHint: "按 / 聚焦搜索，Esc 清空",
+    matchCount: "{hits} / {total}",
+  },
   kanbanDetailOverlay: {
     closeWithEscHint: "关闭（Esc）",
   },

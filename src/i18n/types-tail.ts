@@ -481,6 +481,14 @@ export interface TailTranslationDictionarySections {
     /** Hover title; "{name}" = column name. */
     railHint: string;
   };
+  /** Board search box in the kanban toolbar. */
+  kanbanSearch: {
+    placeholder: string;
+    /** Hover title explaining the "/" and Esc shortcuts. */
+    shortcutHint: string;
+    /** Column count while searching; "{hits}" / "{total}". */
+    matchCount: string;
+  };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {
     /** Hover title of the close icon button, mentions the Esc shortcut. */
