@@ -12,6 +12,9 @@
  * full record ask for it explicitly (`?view=full`, or `GET /api/tasks/:id`).
  */
 
+import { summarizeTaskCompletionReport } from "@/core/kanban/completion-report";
+import { hydrateTaskComments, type TaskCommentEntry } from "@/core/models/task";
+
 /** Detail-only fields removed from the list projection. */
 const LIST_OMITTED_FIELDS = [
   "comment",
@@ -87,6 +90,15 @@ function projectLaneSession(entry: unknown): unknown {
  */
 export function projectTaskForList<T extends Record<string, unknown>>(task: T): Record<string, unknown> {
   const projected: Record<string, unknown> = { ...task };
+
+  // Comments are dropped below; keep a one-line summary of the newest
+  // completion report so the board can show it without hydrating the card.
+  projected.completionReport = summarizeTaskCompletionReport(
+    hydrateTaskComments(
+      Array.isArray(task.comments) ? (task.comments as TaskCommentEntry[]) : undefined,
+      typeof task.comment === "string" ? task.comment : undefined,
+    ),
+  );
 
   for (const field of LIST_OMITTED_FIELDS) {
     delete projected[field];

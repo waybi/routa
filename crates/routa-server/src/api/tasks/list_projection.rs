@@ -6,6 +6,8 @@
 
 use serde_json::Value;
 
+use super::completion_report::summarize_task_completion_report;
+
 /// Detail-only fields removed from the list projection.
 const LIST_OMITTED_FIELDS: &[&str] = &[
     "comment",
@@ -78,6 +80,13 @@ pub fn project_task_for_list(task: &Value) -> Value {
 
     let mut projected = object.clone();
 
+    // Comments are dropped below; keep a one-line summary of the newest
+    // completion report (same shape and rules as the Next backend).
+    projected.insert(
+        "completionReport".to_string(),
+        summarize_task_completion_report(object),
+    );
+
     for field in LIST_OMITTED_FIELDS {
         projected.remove(*field);
     }
@@ -140,7 +149,10 @@ mod tests {
     #[test]
     fn defaults_to_summary_view() {
         assert_eq!(parse_task_list_view(None), TaskListView::Summary);
-        assert_eq!(parse_task_list_view(Some("nonsense")), TaskListView::Summary);
+        assert_eq!(
+            parse_task_list_view(Some("nonsense")),
+            TaskListView::Summary
+        );
         assert_eq!(parse_task_list_view(Some("full")), TaskListView::Full);
     }
 
@@ -197,6 +209,35 @@ mod tests {
     fn full_view_passes_tasks_through() {
         let projected = project_tasks_for_list(vec![fat_task()], TaskListView::Full);
         assert!(projected[0].get("comment").is_some());
+        assert!(projected[0].get("completionReport").is_none());
+    }
+
+    #[test]
+    fn summarises_completion_report_from_legacy_comment() {
+        let mut task = fat_task();
+        task.as_object_mut().expect("object").remove("comments");
+        task["comment"] = Value::String(
+            "## 完成汇报\n- **交付内容**：列表带汇报摘要。\n- **主干提交号**：675fef249b4e4f613db8ce538b414d2392f1af87".to_string(),
+        );
+
+        let projected = project_task_for_list(&task);
+
+        assert!(projected.get("comment").is_none());
+        assert_eq!(
+            projected["completionReport"],
+            json!({
+                "excerpt": "列表带汇报摘要。",
+                "commit": "675fef24",
+                "hasLeftover": false,
+                "createdAt": "",
+            })
+        );
+    }
+
+    #[test]
+    fn completion_report_is_null_without_a_report() {
+        let projected = project_task_for_list(&fat_task());
+        assert_eq!(projected.get("completionReport"), Some(&Value::Null));
     }
 
     #[test]

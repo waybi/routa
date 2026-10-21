@@ -4,6 +4,7 @@
 //! CRUD operations, evidence aggregation, change tracking, and kanban automation.
 
 mod changes;
+mod completion_report;
 mod dto;
 mod evidence;
 mod handlers;

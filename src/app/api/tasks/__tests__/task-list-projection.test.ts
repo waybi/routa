@@ -126,6 +126,37 @@ describe("projectTaskForList", () => {
   });
 });
 
+describe("projectTaskForList completionReport", () => {
+  const report = {
+    id: "r1",
+    body: "## 完成汇报\n- **交付内容**：列表带汇报摘要。\n- **主干提交号**：675fef249b4e4f613db8ce538b414d2392f1af87\n- **遗留**：无",
+    createdAt: "2026-10-21T02:00:00.000Z",
+  };
+
+  it("summarises the newest completion report before dropping comments", () => {
+    const projected = projectTaskForList(fatTask({ comments: [{ body: "note one" }, report] }));
+
+    expect(projected.comments).toBeUndefined();
+    expect(projected.completionReport).toEqual({
+      excerpt: "列表带汇报摘要。",
+      commit: "675fef24",
+      hasLeftover: false,
+      createdAt: "2026-10-21T02:00:00.000Z",
+    });
+  });
+
+  it("reads a legacy comment string when there is no comments array", () => {
+    const projected = projectTaskForList(fatTask({ comments: undefined, comment: report.body }));
+
+    expect(projected.comment).toBeUndefined();
+    expect(projected.completionReport).toMatchObject({ excerpt: "列表带汇报摘要。", createdAt: "" });
+  });
+
+  it("is null when the card has no completion report", () => {
+    expect(projectTaskForList(fatTask()).completionReport).toBeNull();
+  });
+});
+
 describe("projectTasksForList", () => {
   it("passes tasks through untouched for the full view", () => {
     const tasks = [fatTask()];
@@ -133,6 +164,7 @@ describe("projectTasksForList", () => {
 
     expect(projected[0].comment).toBeDefined();
     expect(projected[0].jitContextSnapshot).toBeDefined();
+    expect("completionReport" in projected[0]).toBe(false);
   });
 
   it("projects every task for the summary view", () => {

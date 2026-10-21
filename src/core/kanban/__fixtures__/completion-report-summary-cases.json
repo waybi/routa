@@ -1,0 +1,263 @@
+{
+  "_comment": "Shared by TS (src/core/kanban/__tests__/completion-report-summary.test.ts) and Rust (crates/routa-server/src/api/tasks/completion_report.rs). After changing a case, run BOTH test suites.",
+  "cases": [
+    {
+      "name": "no completion report",
+      "comments": [
+        {
+          "body": "Dev 完成：提到了完成汇报",
+          "createdAt": "2026-10-20T01:00:00.000Z"
+        },
+        {
+          "body": "## Dev Evidence\n- done",
+          "createdAt": "2026-10-20T02:00:00.000Z"
+        }
+      ],
+      "expected": null
+    },
+    {
+      "name": "single report with 交付内容 label, link and leftover 无",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：新增 [投影摘要](https://example.com/a) 字段，看板直接显示汇报。另外补了测试。\n- **主干提交号**：未推送\n- **遗留**：无。\n- **完成日期**：2026-10-21",
+          "createdAt": "2026-10-21T02:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "新增 投影摘要 字段，看板直接显示汇报。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-21T02:00:00.000Z"
+      }
+    },
+    {
+      "name": "multiple reports pick the newest by createdAt, not by position",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：新版汇报。",
+          "createdAt": "2026-10-14T01:19:00.000Z"
+        },
+        {
+          "body": "进度备注",
+          "createdAt": "2026-10-14T01:00:00.000Z"
+        },
+        {
+          "body": "## 完成汇报\n- **交付内容**：旧版汇报。",
+          "createdAt": "2026-10-13T11:08:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "新版汇报。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-14T01:19:00.000Z"
+      }
+    },
+    {
+      "name": "empty createdAt falls back to the later entry",
+      "comments": [
+        {
+          "body": "## 完工汇报\n- **交付内容**：前一份。",
+          "createdAt": ""
+        },
+        {
+          "body": "## 完工汇报\n- **交付内容**：后一份。",
+          "createdAt": ""
+        }
+      ],
+      "expected": {
+        "excerpt": "后一份。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": ""
+      }
+    },
+    {
+      "name": "english What shipped report with Mainline commit",
+      "comments": [
+        {
+          "body": "## Completion Summary\n- **What shipped**: Freebuff gateway now allows deepseek-v4-flash. Docs updated too\n- **Key evidence**: Review APPROVED, artifact 21566794.\n- **Mainline commit**: 675fef249b4e4f613db8ce538b414d2392f1af87 (origin/main)\n- **Leftover**: none",
+          "createdAt": "2026-10-21T02:03:20.482Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "Freebuff gateway now allows deepseek-v4-flash. Docs updated too",
+        "commit": "675fef24",
+        "hasLeftover": false,
+        "createdAt": "2026-10-21T02:03:20.482Z"
+      }
+    },
+    {
+      "name": "double title without shipped label falls back to first body line",
+      "comments": [
+        {
+          "body": "## 完成汇报\n\n## Completion Summary\n本卡修复了列表投影！其余不变。\n- **Key evidence**：测试 33 pass",
+          "createdAt": "2026-10-21T03:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "本卡修复了列表投影！",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-21T03:00:00.000Z"
+      }
+    },
+    {
+      "name": "mainline line with full sha after card id mention",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：卡 a737fd75 的 routa.py watch 已进主干。\n- **主干提交号**: `7229D61C8F43e940985acfef1e7e43c087928bf5` (origin/main)。\n- **主干提交号**：deadbeef",
+          "createdAt": "2026-10-20T09:41:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "卡 a737fd75 的 routa.py watch 已进主干。",
+        "commit": "7229d61c",
+        "hasLeftover": false,
+        "createdAt": "2026-10-20T09:41:00.000Z"
+      }
+    },
+    {
+      "name": "mainline line says not pushed even though the same line names a rebase base",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：ds-bot 补丁（提交 `214d0b3f`，仅本地）。\n- **主干提交号**：推送受阻——rebase 到 origin/main（183a2aff ds-bot-wide-reply-patch）时冲突，未找到主干推送记录\n- **主干提交号**：214d0b3f",
+          "createdAt": "2026-10-16T03:01:48.343Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "ds-bot 补丁（提交 214d0b3f，仅本地）。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-16T03:01:48.343Z"
+      }
+    },
+    {
+      "name": "card id and artifact id without mainline line give null commit",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：完成 a737fd75 卡\n- **关键证据**：test_results eb78b04e，screenshot e5ce564b，提交 6167323d",
+          "createdAt": "2026-10-16T03:52:58.629Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "完成 a737fd75 卡",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-16T03:52:58.629Z"
+      }
+    },
+    {
+      "name": "13-digit timestamp is not a commit",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：修复时间戳解析。\n- **主干提交号**：1760000000000（时间戳，不是提交号）",
+          "createdAt": "2026-10-20T00:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "修复时间戳解析。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-20T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "uppercase short sha right after the label",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：短提交号。\n**Mainline commit**: ABC1234 (origin/main)",
+          "createdAt": "2026-10-20T00:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "短提交号。",
+        "commit": "abc1234",
+        "hasLeftover": false,
+        "createdAt": "2026-10-20T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "leftover heading whose content is 无",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：小改动。\n\n### 遗留\n\n- 无\n\n### 下一步\n继续推卡 2",
+          "createdAt": "2026-10-20T00:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "小改动。",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-20T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "list style leftover with content",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **What shipped**: routa.py watch 订阅看板事件流。\n- **遗留事项**：旧卡 efbab720 需由调度会话挪到 Blocked。\n- **完成时间**：2026-10-20",
+          "createdAt": "2026-10-20T09:41:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "routa.py watch 订阅看板事件流。",
+        "commit": null,
+        "hasLeftover": true,
+        "createdAt": "2026-10-20T09:41:00.000Z"
+      }
+    },
+    {
+      "name": "heading style leftover with numbered ordinal",
+      "comments": [
+        {
+          "body": "## 完成汇报\n\n### 一、完成内容\n\n在 HEAD `96bf55a3c` 上对 AI 查询前端 9 种错误路径逐一走查，产出：\n\n### 四、遗留风险\n\n1. **E2E 未覆盖**：仓库无 Playwright\n\n### 五、下一步\n无",
+          "createdAt": "2026-10-19T00:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "在 HEAD 96bf55a3c 上对 AI 查询前端 9 种错误路径逐一走查，产出：",
+        "commit": null,
+        "hasLeftover": true,
+        "createdAt": "2026-10-19T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "long excerpt with emoji is truncated to 120 unicode chars",
+      "comments": [
+        {
+          "body": "## 完成汇报\n- **交付内容**：🚀看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签",
+          "createdAt": "2026-10-21T04:00:00.000Z"
+        }
+      ],
+      "expected": {
+        "excerpt": "🚀看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情默认打开完工汇报标签看板列表投影新增完工汇报摘要字段并让卡片详情…",
+        "commit": null,
+        "hasLeftover": false,
+        "createdAt": "2026-10-21T04:00:00.000Z"
+      }
+    },
+    {
+      "name": "legacy comment string only",
+      "comments": [],
+      "legacyComment": "  ## 完工汇报\n- **完成内容**：旧格式字符串里的汇报。\n- **主干提交号**：7229d61c8f43e940985acfef1e7e43c087928bf5\n- **未完成**：卡 1 的卡面展示\n  ",
+      "expected": {
+        "excerpt": "旧格式字符串里的汇报。",
+        "commit": "7229d61c",
+        "hasLeftover": true,
+        "createdAt": ""
+      }
+    },
+    {
+      "name": "legacy comment ignored when comments array is non-empty",
+      "comments": [
+        {
+          "body": "普通备注",
+          "createdAt": "2026-10-21T00:00:00.000Z"
+        }
+      ],
+      "legacyComment": "## 完成汇报\n- **交付内容**：不该被读到。",
+      "expected": null
+    }
+  ]
+}
