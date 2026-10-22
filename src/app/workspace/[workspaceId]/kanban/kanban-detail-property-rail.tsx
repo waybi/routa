@@ -42,7 +42,7 @@ export function KanbanDetailPropertyRail({
   const { t } = useTranslation();
   const storyReadiness = task.storyReadiness
     ? (task.storyReadiness.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev)
-    : t.kanbanDetail.pendingEvaluation;
+    : t.kanbanDetailRedesign.pendingEvaluation;
   const evidence = getEvidenceStatus(task, t);
   const mergeState = resolveCardMergeState(task);
   const commits = task.deliveryReadiness?.hasCommitsSinceBase ? task.deliveryReadiness.commitsSinceBase : 0;
@@ -50,7 +50,7 @@ export function KanbanDetailPropertyRail({
 
   return (
     <aside
-      aria-label={t.kanbanDetail.properties}
+      aria-label={t.kanbanDetailRedesign.properties}
       data-testid="kanban-detail-property-rail"
       className="flex flex-col gap-4 bg-canvas px-4 py-4"
     >
@@ -70,7 +70,7 @@ export function KanbanDetailPropertyRail({
 
       <dl className="m-0">
         <PropertyRow label={t.kanbanDetail.column}>{task.columnId ?? "backlog"}</PropertyRow>
-        <PropertyRow label={t.kanbanDetail.runCount}>{runCount}</PropertyRow>
+        <PropertyRow label={t.kanbanDetailRedesign.runCount}>{runCount}</PropertyRow>
         <PropertyRow label={t.kanbanDetail.storyReadiness}>{storyReadiness}</PropertyRow>
         {evidence ? <PropertyRow label={t.kanbanDetail.evidenceBundle}>{evidence}</PropertyRow> : null}
         {task.githubNumber ? (
@@ -98,7 +98,7 @@ export function KanbanDetailPropertyRail({
 
       {labels.length > 0 ? (
         <div className="grid gap-2">
-          <span className="text-[11px] text-secondary">{t.kanbanDetail.labels}</span>
+          <span className="text-[11px] text-secondary">{t.kanbanDetailRedesign.labels}</span>
           <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
             {labels.map((label) => (
               <li key={label} className="max-w-full break-all rounded bg-subtle px-1.5 py-1 font-mono text-[10px] text-secondary">

@@ -179,8 +179,8 @@ export function KanbanCardDetail({
     if (loadState?.loading) {
       return (
         <div className="space-y-3 py-4" data-testid="kanban-detail-loading">
-          <Skeleton lines={4} label={t.kanbanDetail.detailLoading} />
-          <p className="m-0 text-xs text-secondary">{t.kanbanDetail.detailLoading}</p>
+          <Skeleton lines={4} label={t.kanbanDetailRedesign.detailLoading} />
+          <p className="m-0 text-xs text-secondary">{t.kanbanDetailRedesign.detailLoading}</p>
         </div>
       );
     }
@@ -256,8 +256,8 @@ export function KanbanCardDetail({
 
   const tabs: Array<{ id: KanbanDetailTabId; label: string }> = [
     { id: "overview", label: t.kanbanDetail.overview },
-    { id: "construction", label: t.kanbanDetail.construction },
-    { id: "changes", label: t.kanbanDetail.changesAndEvidence },
+    { id: "construction", label: t.kanbanDetailRedesign.construction },
+    { id: "changes", label: t.kanbanDetailRedesign.changesAndEvidence },
     { id: "completion", label: t.kanbanDetail.completionReport },
   ];
 
@@ -280,7 +280,7 @@ export function KanbanCardDetail({
               ref={titleInputRef}
               value={isTitleEditing ? editTitle : task.title}
               readOnly={!isTitleEditing}
-              aria-label={t.kanbanDetail.cardTitle}
+              aria-label={t.kanbanDetailRedesign.cardTitle}
               onFocus={() => {
                 if (!isTitleEditing) {
                   setEditTitle(task.title);
@@ -329,10 +329,10 @@ export function KanbanCardDetail({
                     {loadState?.error ? (
                       <div className="pt-4">
                         <ErrorState
-                          title={t.kanbanDetail.detailLoadFailed}
-                          message={`${t.kanbanDetail.detailLoadFailedHint} (${loadState.error})`}
+                          title={t.kanbanDetailRedesign.detailLoadFailed}
+                          message={`${t.kanbanDetailRedesign.detailLoadFailedHint} (${loadState.error})`}
                           onRetry={loadState.onRetry}
-                          retryLabel={t.kanbanDetail.retryLoad}
+                          retryLabel={t.kanbanDetailRedesign.retryLoad}
                         />
                       </div>
                     ) : null}

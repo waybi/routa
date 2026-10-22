@@ -56,8 +56,8 @@ export function KanbanDetailChangesTab({
       </DetailSection>
 
       <DetailSection
-        title={t.kanbanDetail.evidenceSection}
-        description={compact ? undefined : t.kanbanDetail.evidenceSectionHint}
+        title={t.kanbanDetailRedesign.evidenceSection}
+        description={compact ? undefined : t.kanbanDetailRedesign.evidenceSectionHint}
         compact={compact}
         testId="kanban-detail-evidence-section"
       >

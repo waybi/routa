@@ -553,4 +553,57 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     /** Hover title of the close icon button, mentions the Esc shortcut. */
     closeWithEscHint: string;
   };
+  /** Card detail redesign: four tabs, property rail, load states (card 3/6). */
+  kanbanDetailRedesign: {
+    construction: string;
+    changesAndEvidence: string;
+    properties: string;
+    runCount: string;
+    labels: string;
+    pendingEvaluation: string;
+    stageProgress: string;
+    stageProgressHint: string;
+    runRecords: string;
+    advancedSettings: string;
+    advancedSettingsHint: string;
+    noGithubLink: string;
+    evidenceSection: string;
+    evidenceSectionHint: string;
+    detailLoading: string;
+    detailLoadFailed: string;
+    detailLoadFailedHint: string;
+    retryLoad: string;
+    manualRunTarget: string;
+    manualRunModeRun: string;
+    manualRunModeRerun: string;
+    manualRunSourceOverrideWithProvider: string;
+    manualRunSourceOverride: string;
+    manualRunSourceLaneWithProvider: string;
+    manualRunSourceLane: string;
+    currentRunFailed: string;
+    currentA2ARun: string;
+    a2aFailureHint: string;
+    providerFailureHint: string;
+    enterLaneArtifacts: string;
+    beforeLaneArtifacts: string;
+    nextLaneGate: string;
+    nextLaneGateHint: string;
+    theNextStage: string;
+    repoHealth: string;
+    expectedPath: string;
+    activeSessionPath: string;
+    activeBranch: string;
+    worktreeStored: string;
+    openActiveSession: string;
+    useSessionRepo: string;
+    editLinkedRepos: string;
+    editRepos: string;
+    runModelNotRecorded: string;
+    runEffortNotRecorded: string;
+    runEnded: string;
+    runLedgerUnavailable: string;
+    remoteTask: string;
+    remoteTaskMetadata: string;
+    cardTitle: string;
+  };
 }

@@ -121,6 +121,6 @@ export function formatDetailTimestamp(value?: string): string | null {
 }
 
 export function formatCheckStatus(value: boolean | undefined, t: Translate): string {
-  if (value === undefined) return t.kanbanDetail.pendingEvaluation;
+  if (value === undefined) return t.kanbanDetailRedesign.pendingEvaluation;
   return value ? t.kanbanDetail.present : t.kanbanDetail.missing;
 }

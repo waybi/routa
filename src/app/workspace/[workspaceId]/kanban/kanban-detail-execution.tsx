@@ -170,8 +170,8 @@ export function KanbanDetailExecution({
     defaultLabel,
   );
   const manualRunSource = hasCardOverride
-    ? (usesSelectedProvider ? t.kanbanDetail.manualRunSourceOverrideWithProvider : t.kanbanDetail.manualRunSourceOverride)
-    : (usesSelectedProvider ? t.kanbanDetail.manualRunSourceLaneWithProvider : t.kanbanDetail.manualRunSourceLane);
+    ? (usesSelectedProvider ? t.kanbanDetailRedesign.manualRunSourceOverrideWithProvider : t.kanbanDetailRedesign.manualRunSourceOverride)
+    : (usesSelectedProvider ? t.kanbanDetailRedesign.manualRunSourceLaneWithProvider : t.kanbanDetailRedesign.manualRunSourceLane);
   const laneName = lane?.name ?? task.columnId ?? "backlog";
   const laneSteps = lane?.automation ? getKanbanAutomationSteps(lane.automation) : [];
   const cardSpecialist = getSpecialistName(task.assignedSpecialistId, task.assignedSpecialistName, specialists);
@@ -187,7 +187,7 @@ export function KanbanDetailExecution({
     ? (sessionInfo?.sessionId === task.triggerSessionId ? sessionInfo.provider : activeLaneSession?.provider ?? fallbackProviderId)
     : fallbackProviderId;
   const failedRunLabel = activeLaneSession?.transport === "a2a" || effectiveAutomation.transport === "a2a"
-    ? t.kanbanDetail.currentA2ARun
+    ? t.kanbanDetailRedesign.currentA2ARun
     : getProviderName(failedRunProviderId, availableProviders, defaultLabel);
   const effectiveRunTarget = activeLaneSession
     ? formatTarget(
@@ -220,8 +220,8 @@ export function KanbanDetailExecution({
   return (
     <>
       <DetailSection
-        title={t.kanbanDetail.stageProgress}
-        description={compact ? undefined : t.kanbanDetail.stageProgressHint}
+        title={t.kanbanDetailRedesign.stageProgress}
+        description={compact ? undefined : t.kanbanDetailRedesign.stageProgressHint}
         compact={compact}
         testId="kanban-detail-stage-progress"
       >
@@ -243,14 +243,14 @@ export function KanbanDetailExecution({
           ) : null}
           {transitionArtifacts.currentRequiredArtifacts.length > 0 ? (
             <InlineSummary
-              label={t.kanbanDetail.enterLaneArtifacts.replace("{lane}", laneName)}
+              label={t.kanbanDetailRedesign.enterLaneArtifacts.replace("{lane}", laneName)}
               value={formatArtifactSummary(transitionArtifacts.currentRequiredArtifacts)}
               compact={compact}
             />
           ) : null}
           {transitionArtifacts.nextRequiredArtifacts.length > 0 ? (
             <InlineSummary
-              label={nextLaneName ? t.kanbanDetail.beforeLaneArtifacts.replace("{lane}", nextLaneName) : t.kanbanDetail.nextMove}
+              label={nextLaneName ? t.kanbanDetailRedesign.beforeLaneArtifacts.replace("{lane}", nextLaneName) : t.kanbanDetail.nextMove}
               value={formatArtifactSummary(transitionArtifacts.nextRequiredArtifacts)}
               compact={compact}
             />
@@ -264,26 +264,26 @@ export function KanbanDetailExecution({
         ) : null}
         {canRunTask && (usesSelectedProvider || manualRunTarget !== lanePipeline || hasCardOverride) ? (
           <Callout tone="info">
-            {t.kanbanDetail.manualRunTarget
-              .replace("{mode}", hasRecordedRuns ? t.kanbanDetail.manualRunModeRerun : t.kanbanDetail.manualRunModeRun)
+            {t.kanbanDetailRedesign.manualRunTarget
+              .replace("{mode}", hasRecordedRuns ? t.kanbanDetailRedesign.manualRunModeRerun : t.kanbanDetailRedesign.manualRunModeRun)
               .replace("{source}", manualRunSource)
               .replace("{target}", manualRunTarget)}
           </Callout>
         ) : null}
         {failureMessage ? (
           <Callout tone="danger">
-            {t.kanbanDetail.currentRunFailed.replace("{target}", failedRunLabel).replace("{message}", failureMessage)}{" "}
+            {t.kanbanDetailRedesign.currentRunFailed.replace("{target}", failedRunLabel).replace("{message}", failureMessage)}{" "}
             {effectiveAutomation.transport === "a2a"
-              ? t.kanbanDetail.a2aFailureHint
-              : needsLiveRunRecovery ? t.kanbanDetail.recoverLiveRunHint : t.kanbanDetail.providerFailureHint}
+              ? t.kanbanDetailRedesign.a2aFailureHint
+              : needsLiveRunRecovery ? t.kanbanDetail.recoverLiveRunHint : t.kanbanDetailRedesign.providerFailureHint}
           </Callout>
         ) : null}
         {transitionArtifacts.nextRequiredArtifacts.length > 0 ? (
           <Callout tone="attention">
-            {t.kanbanDetail.nextLaneGate
-              .replace("{lane}", nextLaneName ?? t.kanbanDetail.theNextStage)
+            {t.kanbanDetailRedesign.nextLaneGate
+              .replace("{lane}", nextLaneName ?? t.kanbanDetailRedesign.theNextStage)
               .replace("{artifacts}", formatArtifactSummary(transitionArtifacts.nextRequiredArtifacts))}{" "}
-            {t.kanbanDetail.nextLaneGateHint}
+            {t.kanbanDetailRedesign.nextLaneGateHint}
           </Callout>
         ) : null}
         {(hasCardOverride || canRunTask) ? (
@@ -324,8 +324,8 @@ export function KanbanDetailExecution({
 
       <div className="py-4" data-testid="kanban-detail-advanced-wrapper">
         <DetailDisclosure
-          summary={t.kanbanDetail.advancedSettings}
-          hint={compact ? undefined : t.kanbanDetail.advancedSettingsHint}
+          summary={t.kanbanDetailRedesign.advancedSettings}
+          hint={compact ? undefined : t.kanbanDetailRedesign.advancedSettingsHint}
           testId="kanban-detail-advanced"
         >
           <details key={overrideKey} open={hasCardOverride || undefined} className="rounded-md border border-default">

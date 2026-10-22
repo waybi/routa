@@ -293,13 +293,13 @@ export function KanbanCardActivityPanel({
 
   return (
     <ActivitySection
-      title={t.kanbanDetail.runRecords}
+      title={t.kanbanDetailRedesign.runRecords}
       description={compact ? undefined : copy.activityDescription}
       compact={compact}
     >
       {error && (
         <div className="rounded-md border-l-2 border-attention bg-attention-subtle px-3 py-2 text-xs text-attention">
-          {t.kanbanDetail.runLedgerUnavailable} {error}
+          {t.kanbanDetailRedesign.runLedgerUnavailable} {error}
         </div>
       )}
       <SessionHistoryPanel
@@ -384,7 +384,7 @@ export function KanbanCardActivityBar({
     <div className="space-y-2 px-1 py-1">
       {error && (
         <div className="border-l-2 border-attention px-3 py-2 text-[11px] text-attention">
-          {t.kanbanDetail.runLedgerUnavailable}
+          {t.kanbanDetailRedesign.runLedgerUnavailable}
         </div>
       )}
       <div className="flex items-start gap-2 border-b border-default pb-2">
@@ -443,7 +443,7 @@ export function KanbanCardActivityBar({
           )}
           {selectedRun && (
             <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedRun.status)}`}>
-              {formatTaskRunStatus(selectedRun.status, t.kanbanDetail.runEnded)}
+              {formatTaskRunStatus(selectedRun.status, t.kanbanDetailRedesign.runEnded)}
             </span>
           )}
           {selectedStepLabel && (
@@ -453,7 +453,7 @@ export function KanbanCardActivityBar({
           )}
           {selectedLaneSession?.status && !selectedRun && (
             <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedLaneSession.status)}`}>
-              {formatTaskRunStatus(selectedLaneSession.status, t.kanbanDetail.runEnded)}
+              {formatTaskRunStatus(selectedLaneSession.status, t.kanbanDetailRedesign.runEnded)}
             </span>
           )}
         </div>
@@ -588,7 +588,7 @@ function SessionHistoryPanel({
                 )}
                 {(run?.status ?? laneSession?.status) && (
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${getTaskRunStatusClasses(run?.status ?? laneSession?.status)}`}>
-                    {formatTaskRunStatus(run?.status ?? laneSession?.status, t.kanbanDetail.runEnded)}
+                    {formatTaskRunStatus(run?.status ?? laneSession?.status, t.kanbanDetailRedesign.runEnded)}
                   </span>
                 )}
               </div>
@@ -600,7 +600,7 @@ function SessionHistoryPanel({
                   <div className="mt-0.5 text-xs text-secondary">
                     {isA2ARun
                       ? [
-                        t.kanbanDetail.remoteTask,
+                        t.kanbanDetailRedesign.remoteTask,
                         laneSession?.role ?? t.kanban.unknownRole,
                         laneSpecialist,
                       ].filter(Boolean).join(" · ")
@@ -614,19 +614,19 @@ function SessionHistoryPanel({
                     <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="kanban-run-model">
                       <span
                         className={`max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${modelChips?.model ? "bg-accent-subtle text-information" : "bg-subtle text-secondary"}`}
-                        title={`${t.kanbanModelSelection.model}: ${modelChips?.model?.id ?? t.kanbanDetail.runModelNotRecorded}`}
-                        aria-label={`${t.kanbanModelSelection.model}: ${modelChips?.model?.label ?? t.kanbanDetail.runModelNotRecorded}`}
+                        title={`${t.kanbanModelSelection.model}: ${modelChips?.model?.id ?? t.kanbanDetailRedesign.runModelNotRecorded}`}
+                        aria-label={`${t.kanbanModelSelection.model}: ${modelChips?.model?.label ?? t.kanbanDetailRedesign.runModelNotRecorded}`}
                         data-testid="kanban-run-model-chip"
                       >
-                        {modelChips?.model?.label ?? t.kanbanDetail.runModelNotRecorded}
+                        {modelChips?.model?.label ?? t.kanbanDetailRedesign.runModelNotRecorded}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modelChips?.effort ? "bg-success-subtle text-success" : "bg-subtle text-secondary"}`}
-                        title={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.id ?? t.kanbanDetail.runEffortNotRecorded}`}
-                        aria-label={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.label ?? t.kanbanDetail.runEffortNotRecorded}`}
+                        title={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.id ?? t.kanbanDetailRedesign.runEffortNotRecorded}`}
+                        aria-label={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.label ?? t.kanbanDetailRedesign.runEffortNotRecorded}`}
                         data-testid="kanban-run-effort-chip"
                       >
-                        {modelChips?.effort?.label ?? t.kanbanDetail.runEffortNotRecorded}
+                        {modelChips?.effort?.label ?? t.kanbanDetailRedesign.runEffortNotRecorded}
                       </span>
                     </div>
                   )}
@@ -642,7 +642,7 @@ function SessionHistoryPanel({
               <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-secondary">
                 <span className="truncate">
                   {isA2ARun
-                    ? (run?.contextId ?? laneSession?.contextId) ? `Context ${run?.contextId ?? laneSession?.contextId}` : t.kanbanDetail.remoteTaskMetadata
+                    ? (run?.contextId ?? laneSession?.contextId) ? `Context ${run?.contextId ?? laneSession?.contextId}` : t.kanbanDetailRedesign.remoteTaskMetadata
                     : session?.cwd ?? t.kanban.workingDirUnavailable}
                 </span>
                 <span className="font-medium text-information">{reconnectLabel}</span>
@@ -767,7 +767,7 @@ export function GitHubPanel({ task, compact = false }: { task: TaskInfo; compact
     return (
       <div className={`text-sm text-secondary ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
         <div className="text-xs font-semibold text-primary">GitHub</div>
-        <div className="mt-2">{t.kanbanDetail.noGithubLink}</div>
+        <div className="mt-2">{t.kanbanDetailRedesign.noGithubLink}</div>
       </div>
     );
   }

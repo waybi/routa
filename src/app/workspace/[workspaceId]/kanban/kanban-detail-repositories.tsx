@@ -81,14 +81,14 @@ export function KanbanDetailRepositories({
               {effectiveBranch ?? worktree.branch}
             </Badge>
           ) : null}
-          <span className="ml-auto text-xs text-secondary group-hover:text-primary">{t.kanbanDetail.editRepos}</span>
+          <span className="ml-auto text-xs text-secondary group-hover:text-primary">{t.kanbanDetailRedesign.editRepos}</span>
         </summary>
         <div className="space-y-3 border-t border-default px-3 py-3">
           {sessionInfo ? (
             <div className={`rounded-md border-l-2 px-3 py-2 ${sessionCwdMismatch ? "border-attention bg-attention-subtle" : "border-success bg-success-subtle"}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <div className="text-xs font-semibold text-primary">{t.kanbanDetail.repoHealth}</div>
+                  <div className="text-xs font-semibold text-primary">{t.kanbanDetailRedesign.repoHealth}</div>
                   <div className={`mt-1 text-xs ${sessionCwdMismatch ? "text-attention" : "text-success"}`}>
                     {sessionCwdMismatch ? t.kanbanDetail.sessionMismatch : t.kanbanDetail.sessionAligned}
                   </div>
@@ -99,14 +99,14 @@ export function KanbanDetailRepositories({
               </div>
               <div className="mt-2 space-y-1 text-[11px] text-secondary">
                 {expectedPath ? (
-                  <div>{t.kanbanDetail.expectedPath}: <span className="font-mono text-primary">{expectedPath}</span></div>
+                  <div>{t.kanbanDetailRedesign.expectedPath}: <span className="font-mono text-primary">{expectedPath}</span></div>
                 ) : null}
-                <div>{t.kanbanDetail.activeSessionPath}: <span className="font-mono text-primary">{sessionInfo.cwd}</span></div>
+                <div>{t.kanbanDetailRedesign.activeSessionPath}: <span className="font-mono text-primary">{sessionInfo.cwd}</span></div>
                 {effectiveBranch ? (
                   <div>
-                    {t.kanbanDetail.activeBranch}: <span className="font-mono text-primary">{effectiveBranch}</span>
+                    {t.kanbanDetailRedesign.activeBranch}: <span className="font-mono text-primary">{effectiveBranch}</span>
                     {worktree?.branch && sessionInfo.branch && worktree.branch !== sessionInfo.branch ? (
-                      <span className="ml-2 text-attention">{t.kanbanDetail.worktreeStored}: {worktree.branch}</span>
+                      <span className="ml-2 text-attention">{t.kanbanDetailRedesign.worktreeStored}: {worktree.branch}</span>
                     ) : null}
                   </div>
                 ) : null}
@@ -115,7 +115,7 @@ export function KanbanDetailRepositories({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {sessionIdToOpen && onSelectSession ? (
                     <Button variant="secondary" size="xs" onClick={() => onSelectSession(sessionIdToOpen)}>
-                      {t.kanbanDetail.openActiveSession}
+                      {t.kanbanDetailRedesign.openActiveSession}
                     </Button>
                   ) : null}
                   {canAdoptSessionRepo && sessionRepoCodebase ? (
@@ -127,7 +127,7 @@ export function KanbanDetailRepositories({
                         t.kanbanDetail.failedToSwitchRepo,
                       )}
                     >
-                      {t.kanbanDetail.useSessionRepo}
+                      {t.kanbanDetailRedesign.useSessionRepo}
                     </Button>
                   ) : null}
                 </div>
@@ -136,7 +136,7 @@ export function KanbanDetailRepositories({
           ) : null}
           {codebases.length > 0 ? (
             <div>
-              <div className="mb-2 text-[11px] text-secondary">{t.kanbanDetail.editLinkedRepos}</div>
+              <div className="mb-2 text-[11px] text-secondary">{t.kanbanDetailRedesign.editLinkedRepos}</div>
               <div className="flex flex-wrap gap-1.5">
                 {codebases.map((codebase) => {
                   const selected = currentCodebaseIds.includes(codebase.id);

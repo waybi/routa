@@ -42,7 +42,7 @@ function formatAnalysisStatus(value: string | undefined, t: Translate): string {
     case "fail":
       return t.kanbanDetail.fail;
     case undefined:
-      return t.kanbanDetail.pendingEvaluation;
+      return t.kanbanDetailRedesign.pendingEvaluation;
     default:
       return value;
   }
@@ -98,7 +98,7 @@ export function StoryReadinessPanel({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={readiness ? (readiness.ready ? "success" : "attention") : "neutral"}>
-            {readiness ? (readiness.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev) : t.kanbanDetail.pendingEvaluation}
+            {readiness ? (readiness.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev) : t.kanbanDetailRedesign.pendingEvaluation}
           </Badge>
           <span className="text-xs text-secondary">
             {requiredLabels.length > 0
