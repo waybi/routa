@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Select } from "./select";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 
 import { desktopAwareFetch } from "../utils/diagnostics";
 import {
@@ -80,6 +81,7 @@ export function McpServersTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<McpServerForm>(EMPTY_MCP_FORM);
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const tab = t.settings.mcpTab;
 
   const load = useCallback(async () => {
@@ -155,7 +157,7 @@ export function McpServersTab() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(t.mcp.deleteConfirm.replace('{name}', name))) return;
+    if (!(await confirm({ message: t.mcp.deleteConfirm.replace('{name}', name), destructive: true }))) return;
     setLoading(true);
     try {
       const response = await desktopAwareFetch(`/api/mcp-servers?id=${id}`, { method: "DELETE" });

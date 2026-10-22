@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { desktopAwareFetch } from "../utils/diagnostics";
 import { Select } from "./select";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 import { SquarePen, Trash2, X, Briefcase } from "lucide-react";
 
 
@@ -78,6 +79,7 @@ interface SpecialistForm {
 
 export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const requiresPostgresMessage = t.specialists.requiresPostgres;
   const failedToLoadMessage = t.specialists.failedToLoad;
   const [specialists, setSpecialists] = useState<SpecialistConfig[]>([]);
@@ -173,7 +175,7 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t.specialists.deleteConfirm)) return;
+    if (!(await confirm({ message: t.specialists.deleteConfirm, destructive: true }))) return;
     setLoading(true);
     setError(null);
     try {

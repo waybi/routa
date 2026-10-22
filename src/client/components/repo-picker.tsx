@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { BranchSelector } from "./branch-selector";
 import { dangerGhostButtonClassName, dangerSurfaceClassName } from "./color-system";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 import { Check, ChevronDown, Copy, Download, PieChart, Search, X, GitBranch, Book, Folder, RefreshCcw } from "lucide-react";
 
 
@@ -141,6 +142,7 @@ export function RepoPicker({
   clonePlaceholder,
 }: RepoPickerProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [repos, setRepos] = useState<ClonedRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -415,9 +417,12 @@ export function RepoPicker({
 
   const handleResetRepo = useCallback(
     async (repo: ClonedRepo) => {
-      const confirmed = window.confirm(
-        `Discard all local changes in ${repo.name} (${repo.branch})? This will run git reset --hard HEAD and git clean -fd.`
-      );
+      const confirmed = await confirm({
+        message: t.repoPicker.resetRepoConfirm
+          .replace("{name}", repo.name)
+          .replace("{branch}", repo.branch ?? ""),
+        destructive: true,
+      });
       if (!confirmed) return;
 
       const res = await desktopAwareFetch("/api/clone/branches", {
@@ -435,7 +440,7 @@ export function RepoPicker({
         onChange({ ...value, branch: data.branch });
       }
     },
-    [fetchRepos, onChange, value]
+    [confirm, fetchRepos, onChange, t.repoPicker.resetRepoConfirm, value]
   );
 
   const handleLocalPathKeyDown = useCallback(

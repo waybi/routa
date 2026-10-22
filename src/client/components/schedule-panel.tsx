@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Select } from "./select";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import {
   dangerGhostButtonClassName,
@@ -130,6 +131,7 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
   const [cronDescription, setCronDescription] = useState<string>("");
   const [now, setNow] = useState(0);
   const { t } = useTranslation();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const init = setTimeout(() => setNow(Date.now()), 0);
@@ -263,7 +265,7 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm(`${t.schedules.deleteConfirm}?`)) return;
+    if (!(await confirm({ message: `${t.schedules.deleteConfirm}?`, destructive: true }))) return;
     try {
       const res = await desktopAwareFetch(`/api/schedules/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

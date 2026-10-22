@@ -15,6 +15,7 @@ import {
   type ModelDefinition,
 } from "./settings-panel-shared";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 
 
@@ -26,6 +27,7 @@ export function ModelsTab() {
   const baseUrlListId = useId();
   const aliasInputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
+  const confirm = useConfirm();
 
   const persist = (next: ModelDefinition[]) => {
     setDefs(next);
@@ -36,8 +38,8 @@ export function ModelsTab() {
     persist(defs.map((definition, definitionIndex) => (definitionIndex === idx ? { ...definition, [field]: value } : definition)));
   };
 
-  const handleDelete = (idx: number) => {
-    if (!confirm(`${t.models.deleteConfirm} "${defs[idx].alias}"?`)) return;
+  const handleDelete = async (idx: number) => {
+    if (!(await confirm({ message: `${t.models.deleteConfirm} "${defs[idx].alias}"?`, destructive: true }))) return;
     persist(defs.filter((_, definitionIndex) => definitionIndex !== idx));
     if (expandedIdx === idx) setExpandedIdx(null);
   };

@@ -19,6 +19,7 @@ import {
   dangerSurfaceClassName,
 } from "./color-system";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 import type { TranslationDictionary } from "@/i18n/types";
 import { desktopAwareFetch, getDesktopApiBaseUrl } from "@/client/utils/diagnostics";
 import { Plus, RefreshCw, SquarePen, Trash2, Link2, Circle, CircleOff } from "lucide-react";
@@ -103,6 +104,7 @@ const EMPTY_FORM: FormState = {
 
 export function GitHubWebhookPanel() {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const wt = t.webhook;
   const [configs, setConfigs] = useState<WebhookConfig[]>([]);
   const [logs, setLogs] = useState<TriggerLog[]>([]);
@@ -250,7 +252,7 @@ export function GitHubWebhookPanel() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm(wt.deleteConfirm)) return;
+    if (!(await confirm({ message: wt.deleteConfirm, destructive: true }))) return;
     try {
       const res = await desktopAwareFetch(`/api/webhooks/configs?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

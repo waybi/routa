@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "@/client/components/confirm-dialog";
 import { formatRelativeTime } from "./ui-components";
 import type { SessionInfo } from "./types";
 import { ChevronDown, ChevronRight, PieChart, RefreshCw, SquareArrowOutUpRight, MessageCircleMore, SquarePen, Trash2 } from "lucide-react";
@@ -18,6 +19,7 @@ interface SessionsOverviewProps {
 
 export function SessionsOverview({ sessions, workspaceId, onNavigate, onRefresh, filterSession }: SessionsOverviewProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
   const [sessionTree, setSessionTree] = useState<Map<string, SessionInfo[]>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -69,7 +71,7 @@ export function SessionsOverview({ sessions, workspaceId, onNavigate, onRefresh,
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm(t.sessions.deleteConfirm)) return;
+    if (!(await confirm({ message: t.sessions.deleteConfirm, destructive: true }))) return;
     try {
       await desktopAwareFetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       onRefresh();

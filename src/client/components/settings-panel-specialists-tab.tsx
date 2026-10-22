@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Copy, FileCode2, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
+import { useConfirm } from "./confirm-dialog";
 
 import { Select } from "./select";
 import type { AgentRole, ModelTier, SpecialistConfig } from "./specialist-manager";
@@ -41,6 +42,7 @@ const workbenchRowCls = "border-b border-desktop-border/70 px-4 py-4";
 
 export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [specialists, setSpecialists] = useState<SpecialistConfig[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<SpecialistCategory>("all");
@@ -176,7 +178,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
 
   const handleDelete = async () => {
     if (!editingId) return;
-    if (!confirm(t.specialists.deleteConfirm)) return;
+    if (!(await confirm({ message: t.specialists.deleteConfirm, destructive: true }))) return;
     setSaving(true);
     setError(null);
     try {
