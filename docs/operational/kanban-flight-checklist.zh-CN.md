@@ -1,0 +1,161 @@
+# 起飞检查单岗位与挂岗位脚本（configure-flight-checklist）说明
+
+起飞检查单要解决一个问题：AI 只测常见情况就说做完了。它在看板上加了四道关：
+
+1. 出题人：不看代码，按需求和情况表写验收契约。
+2. 开发执行员：按契约施工，并留下证据。
+3. 评审守卫：自己重跑全部测试，撤掉实现看测试是否变红，再跑回归题和抽查。
+4. 高风险复核员：遇到高风险改动时独立再审一遍。
+
+本文说明这四个岗位的信息，以及怎样用脚本把它们安全地挂到指定看板上。
+
+## 岗位信息
+
+| ID | 中文名 | 英文名 | Role | Model Tier | 挂在哪 |
+|---|---|---|---|---|---|
+| `kanban-contract-setter` | 出题人 | Contract Setter | `CRAFTER` | `smart` | Todo 列第 2 步（最后一步） |
+| `kanban-flight-dev-executor` | 开发执行员（起飞检查单） | Flight Dev Crafter | `CRAFTER` | `smart` | Dev 列，替换 `kanban-dev-executor` |
+| `kanban-flight-review-guard` | 评审守卫（起飞检查单） | Flight Review Guard | `GATE` | `smart` | Review 列第 2 步，替换 `kanban-review-guard` |
+| `kanban-high-risk-reviewer` | 高风险复核员 | High-Risk Reviewer | `GATE` | `smart` | Review 列第 3 步（最后一步） |
+
+每个岗位有三份文件，分别放在三个目录里：
+
+- 默认：`resources/specialists/workflows/kanban/`
+- 英文：`resources/specialists/locales/en/workflows/kanban/`
+- 中文：`resources/specialists/locales/zh-CN/workflows/kanban/`
+
+文件名依次为 `contract-setter.yaml`、`flight-dev-executor.yaml`、`flight-review-guard.yaml`、`high-risk-reviewer.yaml`。
+
+旧岗位文件（`dev-executor.yaml`、`review-guard.yaml` 等）没有改动。没挂检查单的看板继续用旧岗位。
+
+开发执行员和评审守卫的新文件，是把旧文件的提示词原样复制过来，再在末尾追加「起飞检查单附加规则」一节。只有评审守卫的出口动作被替换了，原因见下文。
+
+### 岗位之间靠固定标题传话
+
+| 固定标题或固定行 | 谁写 | 写在哪 | 谁读 |
+|---|---|---|---|
+| `## 验收契约（出题人）` | 出题人 | 卡片描述末尾（Todo 阶段描述还能改） | 开发执行员、评审守卫 |
+| `回归题已出 N 道（只给评审守卫）` | 出题人 | 契约最后一行 | 评审守卫 |
+| `~/.routa/flight-checklist/<完整卡号>/regression.md` | 出题人 | 本机文件，不进卡片 | 评审守卫（文件不存在就写「无回归题」） |
+| `## 证据表` | 开发执行员 | 卡片评论（从 Dev 起描述冻结） | 评审守卫 |
+| `高风险：是/否（理由）` | 评审守卫 | 评审评论 | 高风险复核员 |
+| `【评审打回 第 N 次】` | 评审守卫、高风险复核员 | 打回评论的首行 | 两者共用计数：满 2 次后，第 3 次不通过就判 blocked |
+
+开发执行员的证据输出文件放在 `/tmp/routa-evidence/<卡号前 8 位>/`，不进仓库。
+
+### Review 列的出口动作
+
+Review 列有三步：QA、评审守卫、高风险复核员。后面还有步骤没跑时，Routa 会拒绝把卡移出本列。只有一个例外：结论为 NOT_APPROVED 时可以退回 dev。所以三条出口这样分工：
+
+- 评审守卫判通过：只写 `verificationVerdict: "APPROVED"`，不移卡，交给高风险复核员。
+- 评审守卫打回：先写 NOT_APPROVED，再 `move_card` 退回 dev。
+- 评审守卫第 3 次仍不通过：写 BLOCKED，不移卡，由高风险复核员移到 blocked。
+- 高风险复核员：负责把卡移出 Review，去向是 done、dev 或 blocked。
+
+Todo 列的情况类似。挂上出题人以后，Todo 编排员按原提示词调用 `move_card` 时会被拒绝，这是预期行为。出题人是 Todo 列最后一步，由它把卡移到 dev。
+
+## 挂岗位脚本
+
+脚本：`scripts/kanban/configure-flight-checklist.ts`。它的写法照 `configure-done-main-pusher.ts`：用 better-sqlite3 直接改 `kanban_boards.columns`。
+
+### 用法
+
+```bash
+# 只读检查：打印改前/改后步骤和探针结果，不写库
+node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> --check --boards f635c1de,2c17ef3e,d13eba6a,312b1f5a
+
+# 挂岗位：先探针，全部 200 才备份并写库
+node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> --apply --boards f635c1de,312b1f5a [--backup-dir <目录>] [--base-url http://127.0.0.1:3000]
+
+# 回滚：按备份文件还原
+node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> --rollback <备份文件> --boards f635c1de,312b1f5a [--force]
+```
+
+| 参数 | 说明 |
+|---|---|
+| `--db` | 必填，routa.db 路径 |
+| `--check` / `--apply` / `--rollback <备份文件>` | 三选一 |
+| `--boards` | 必填，逗号分隔；可写完整 id 或前 8 位。不给就报错退出。前缀匹配不到或匹配到多块，都会报错，不写库 |
+| `--allow-routa-board` | Routa Board（`361d06fd-6478-4995-9b6e-ab0b0b271471`）默认拒绝，加这个参数才放行 |
+| `--base-url` | 探针地址，默认 `http://127.0.0.1:3000` |
+| `--backup-dir` | 备份目录，默认与 db 同目录 |
+| `--force` | 只对 `--rollback` 生效：当前配置和备份对不上时也强写 |
+
+### 改成什么样
+
+| 列 | 改前 | 改后 |
+|---|---|---|
+| todo | `[kanban-todo-orchestrator]` | `[kanban-todo-orchestrator, kanban-contract-setter]` |
+| dev | `[kanban-dev-executor]` | `[kanban-flight-dev-executor]` |
+| review | `[kanban-qa-frontend, kanban-review-guard]` | `[kanban-qa-frontend, kanban-flight-review-guard, kanban-high-risk-reviewer]` |
+| done（只限 TopBI Board `312b1f5a`） | `[kanban-done-reporter]` | `[kanban-topbi-porter, kanban-done-reporter]` |
+
+其他看板的 done 列不改。脚本按列的 `stage` 找列，规则如下：
+
+- 原有步骤（todo-orchestrator、qa-frontend、done-reporter）原样保留。
+- 新步骤从被替换的步骤带过来这几个字段：`providerId`、`model`、`reasoningEffort`、`specialistLocale`、`transport`。新增的步骤（出题人、复核员、移植员）从同列相邻的原步骤带。脚本不会另选模型。
+- `specialistLocale` 为 zh-CN 时，新步骤用中文名，否则用英文名。
+- 列上其他字段原样不动，包括 `requiredArtifacts`、`deliveryRules`、`contractRules`、`requiredTaskFields`。
+- automation 顶层的 `role`、`specialistId`、`specialistName` 跟着第一步同步。
+- 要替换的原步骤找不到时，脚本报错退出（退出码 1），不会硬塞新步骤。
+
+### 退出码
+
+| 退出码 | 含义 |
+|---|---|
+| 0 | `--check` 只读检查完成（探针 404 也是 0）；或 `--apply` / `--rollback` 成功；或已是目标状态，什么都没写 |
+| 1（非 0 报错） | 参数错误（缺 `--boards`、缺 `--db`、模式不是三选一、未知参数），或数据错误（看板匹配不到或有歧义、Routa Board 未放行、原步骤缺失、备份文件同名已存在、回滚时对不上） |
+| 3 | `--apply` 的探针没通过：有岗位返回 404，或连不上 Routa。打印「Routa 进程还没加载新岗位文件（岗位文件按进程缓存，要重启 Routa 才读到）」，不写库，也不建备份 |
+
+### 新岗位文件要重启 Routa 才生效
+
+Routa 进程会缓存岗位文件，按 locale 各缓存一份（`src/core/orchestration/specialist-prompts.ts` 的 `loadSpecialistsSync`），之后不再重读磁盘。所以光把 yaml 合进主干还不够，要重启 Routa，它才认识新岗位。
+
+如果看板引用了没加载的岗位 id，`src/app/api/acp/acp-session-create.ts` 会拿到 null。这时施工者照样启动，但没有系统提示词，而且不报错。脚本在 `--apply` 前先探针，就是为了拦住这种情况。
+
+### 用探针验证
+
+```bash
+for id in kanban-contract-setter kanban-flight-dev-executor kanban-flight-review-guard kanban-high-risk-reviewer kanban-topbi-porter; do
+  printf '%s ' "$id"; curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:3000/api/specialists?id=$id"
+done
+```
+
+- 全部 200：可以 `--apply`。
+- 有 404：先重启 Routa，再探一次。
+
+`GET /api/specialists` 在生产模式下只读缓存，不写库。不带 `locale` 参数时查的是 en 缓存。重启会让 en 和 zh-CN 两份缓存都重读文件，所以用 en 探测就够了。脚本只在 `--boards` 含 TopBI Board 时，才探测 `kanban-topbi-porter`。
+
+### 备份与回滚
+
+`--apply` 真要写库时，先在 `--backup-dir` 生成备份文件，再写库：
+
+- 备份文件名为 `kanban-flight-checklist-backup-<ISO 时间>.json`。
+- 写备份用 `flag: "wx"`。同名文件已存在时报错退出，不覆盖、不写库。
+- 内容为 `{ createdAt, boards: [{ id, name, columns, updated_at, newColumns }] }`。其中 `columns` 和 `updated_at` 是原值，`newColumns` 是将写入的新配置。
+- 全部看板在一个事务里更新。
+- 所有目标看板都已是目标状态时，什么都不写，也不建备份。比较方式是把 JSON 解析后做深比较，所以 Routa 调整了 JSON 键顺序，也算已是目标状态。
+
+`--rollback <备份文件>` 的规则：
+
+- 只有当前 columns 与备份里的 `newColumns` 深比较相等时，才写回原 `columns` 和原 `updated_at`。
+- 任一块看板对不上，就整体拒绝，一块都不写，并列出对不上的看板和列（stage）。这样能防止覆盖别人在 `--apply` 之后做的改动。
+- 确认要覆盖时加 `--force`。
+- 回滚同样在一个事务里完成。
+
+## 真实库只读检查结果（2026-10-22）
+
+对 `/Users/ouweibing/Desktop/topgames_work/routa/routa.db` 跑了 `--check --boards f635c1de,2c17ef3e,d13eba6a,312b1f5a`，结果如下：
+
+- 退出码 0。
+- 4 块看板（local-tools、deepseek-harness、turnilo、TopBI）的 todo、dev、review 三列都按上表给出改后步骤；只有 TopBI 的 done 列多出 `kanban-topbi-porter`。
+- 5 个岗位的探针都是 404，因为 Routa 还没重启。
+- 运行前后，这 4 块看板的 `id, updated_at, columns` 哈希一致。
+
+真实挂岗位不在本次范围。要等以下几件事都完成：本卡与 `kanban-topbi-porter` 卡都进主干，Routa 重启，探针全部 200。之后再执行 `--apply`。
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交号 |
+|---|---|---|---|
+| 2026-10-22 | 新增出题人、开发执行员（起飞检查单）、评审守卫（起飞检查单）、高风险复核员四个岗位（每个三份 yaml），加载测试补四个岗位的加载、角色和提示词断言；新增挂岗位脚本 `configure-flight-checklist.ts`（探针、wx 备份、事务写库、深比较回滚）和 16 条脚本测试 | 真实库只读检查：4 块看板改前/改后步骤正确，探针 5 个都是 404（未重启） | `181673bb`、`40a34ce1`、`dd30db93`（推送前变基可能改变提交号，按改动内容对应） |
