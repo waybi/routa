@@ -17,6 +17,7 @@
 | `kanban-flight-dev-executor` | 开发执行员（起飞检查单） | Flight Dev Crafter | `CRAFTER` | `smart` | Dev 列，替换 `kanban-dev-executor` |
 | `kanban-flight-review-guard` | 评审守卫（起飞检查单） | Flight Review Guard | `GATE` | `smart` | Review 列第 2 步，替换 `kanban-review-guard` |
 | `kanban-high-risk-reviewer` | 高风险复核员 | High-Risk Reviewer | `GATE` | `smart` | Review 列第 3 步（最后一步） |
+| `kanban-topbi-porter` | TopBI 移植员 | TopBI Porter | `DEVELOPER` | `smart` | Done 列第 1 步（只限 TopBI Board `312b1f5a`） |
 
 每个岗位有三份文件，分别放在三个目录里：
 
@@ -40,6 +41,9 @@
 | `## 证据表` | 开发执行员 | 卡片评论（从 Dev 起描述冻结） | 评审守卫 |
 | `高风险：是/否（理由）` | 评审守卫 | 评审评论 | 高风险复核员 |
 | `【评审打回 第 N 次】` | 评审守卫、高风险复核员 | 打回评论的首行 | 两者共用计数：满 2 次后，第 3 次不通过就判 blocked |
+| `## 移植与 alpha 验收` | TopBI 移植员 | 卡片小节（移植成功时） | 完成汇报员 |
+| `## 移植失败` | TopBI 移植员 | 失败报告评论的首行 | 完成汇报员 |
+| `可合 master：是/否` | TopBI 移植员 | 上面两种评论的最后一行（失败时固定为 `可合 master：否（<原因>）`） | 完成汇报员（原样抄进 `## 完成汇报`） |
 
 开发执行员的证据输出文件放在 `/tmp/routa-evidence/<卡号前 8 位>/`，不进仓库。
 
@@ -51,6 +55,17 @@ Review 列有三步：QA、评审守卫、高风险复核员。后面还有步�
 - 评审守卫打回：先写 NOT_APPROVED，再 `move_card` 退回 dev。
 - 评审守卫第 3 次仍不通过：写 BLOCKED，不移卡，由高风险复核员移到 blocked。
 - 高风险复核员：负责把卡移出 Review，去向是 done、dev 或 blocked。
+
+### Done 列的出口动作
+
+TopBI Board 的 Done 列有两步：TopBI 移植员、完成汇报员。同一条闸门（`src/core/kanban/lane-automation-state.ts` 的 `resolveRemainingLaneStepsMoveBlock`，在 `move_card` 时由 `src/core/tools/kanban-tools.ts` 调用）也管这一列：完成汇报员没跑完，移植员就移不出卡。2026-10-22 冒烟卡 2ec8b0b2 的移植员想把失败卡移到 blocked，被 Routa 拒绝，卡留在 Done，看起来像完成了。现在的出口是：
+
+- 推送：移植 worktree 基于 `origin/dev`，执行 `git push origin HEAD:dev`，只做快进推送到 GitLab dev。alpha 从 GitLab dev 拉代码。被拒（非快进）就 fetch，在新的 `origin/dev` 上重建 worktree，重新 cherry-pick 一次再推；第二次被拒判失败。推完用 `git ls-remote origin refs/heads/dev` 确认远端 dev 等于 `git rev-parse HEAD`。自动回滚的 revert 也这样推。不推 master，不强推，不推 gerrit 远端（Gerrit dev 停在 ce5b3abfa，只查历史）。
+- 成功：追加 `## 移植与 alpha 验收`（写 dev 提交号），不移卡。
+- 失败：写一条评论，首行 `## 移植失败`，正文写失败步骤、证据路径、回滚提交号和 alpha 构建号（如有），末行 `可合 master：否（<原因>）`。不调用 `move_card`，正常结束，交给完成汇报员。不要把「失败移到 blocked」加回去，原因见上。
+- 完成汇报员：卡上有 `## 移植失败` 评论时，`## 完成汇报` 里写明移植失败和失败步骤，原样抄写 `可合 master：否（<原因>）`，不写成交付成功。没有这条评论时行为不变。
+
+还剩一个缺口：「需要你看」面板的「Done 岗位失败 / 跑完没汇报」只看卡上有没有 `## 完成汇报`（`src/app/workspace/[workspaceId]/kanban/kanban-attention-rules.ts` 第 43–51 行）。完成汇报员写完汇报后，移植失败的卡不会亮红标，只能读汇报里的 `可合 master：否` 看出来。要亮红标，需要另开卡改这段代码，例如识别 `## 移植失败` 评论或汇报里的 `可合 master：否`。
 
 Todo 列的情况类似。挂上出题人以后，Todo 编排员按原提示词调用 `move_card` 时会被拒绝，这是预期行为。出题人是 Todo 列最后一步，由它把卡移到 dev。
 
@@ -159,3 +174,4 @@ done
 | 日期 | 改了什么 | 效果 | 提交号 |
 |---|---|---|---|
 | 2026-10-22 | 新增出题人、开发执行员（起飞检查单）、评审守卫（起飞检查单）、高风险复核员四个岗位（每个三份 yaml），加载测试补四个岗位的加载、角色和提示词断言；新增挂岗位脚本 `configure-flight-checklist.ts`（探针、wx 备份、事务写库、深比较回滚）和 16 条脚本测试 | 真实库只读检查：4 块看板改前/改后步骤正确，探针 5 个都是 404（未重启） | `181673bb`、`40a34ce1`、`dd30db93`（推送前变基可能改变提交号，按改动内容对应） |
+| 2026-10-22 | TopBI 移植员改推 GitLab dev（`git push origin HEAD:dev` 只快进，被拒重建 worktree 重试一次，`git ls-remote` 确认；回滚同样推）；去掉 Gerrit 推送、review、query 和 Change-Id；所有失败改为写 `## 移植失败` 评论、不调用 `move_card`；完成汇报员（三份）加一条规则：遇到 `## 移植失败` 时照抄 `可合 master：否`；`topbi-porter-prompt.test.ts` 的危险词加 `gerrit`（不区分大小写）、`move_card` | 相关测试 5 个文件 75 条全过（改前 69 条）；撤掉 6 份 yaml 后 15 条变红 | 本行所在提交（卡 c9686253） |
