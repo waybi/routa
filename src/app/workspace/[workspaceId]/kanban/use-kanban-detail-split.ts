@@ -26,7 +26,9 @@ function clampRatio(ratio: number): number {
 function readStoredRatio(): number {
   if (typeof window === "undefined") return DEFAULT_RATIO;
   try {
-    const stored = Number(window.localStorage?.getItem(STORAGE_KEY));
+    const raw = window.localStorage?.getItem(STORAGE_KEY);
+    // Number(null) is 0, which would clamp to MIN_RATIO; no value means default.
+    const stored = raw ? Number(raw) : Number.NaN;
     return Number.isFinite(stored) ? clampRatio(stored) : DEFAULT_RATIO;
   } catch {
     return DEFAULT_RATIO;
