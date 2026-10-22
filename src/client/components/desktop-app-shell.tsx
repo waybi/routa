@@ -1,61 +1,22 @@
 "use client";
 
 /**
- * Desktop App Shell — Shared layout wrapper for all Tauri desktop pages.
+ * Desktop App Shell — shared layout for every page (web and Tauri).
  *
- * Provides consistent desktop app experience with:
- * - Compact title bar with window controls area
- * - Left sidebar navigation (VS Code style)
- * - Main content area
- *
- * This is a simpler version of DesktopLayout that doesn't require
- * workspace hooks - it accepts all data as props.
+ * Redesign (design-spec §3, §7): 7-entry sidebar on the left, a top bar
+ * with the workspace switcher, ⌘K entry and notification bell, and the page
+ * content on the right. Below 800px the sidebar becomes a drawer opened from
+ * the top-left button. The command palette is mounted once here so ⌘K / Ctrl+K
+ * works on every page that uses the shell.
  */
 
-import React, { useCallback, useSyncExternalStore } from "react";
+import React, { useCallback, useState } from "react";
+
 import { DesktopShellHeader } from "./desktop-shell-header";
 import { DesktopSidebar } from "./desktop-sidebar";
+import { CommandPalette } from "./ui/command-palette";
 
-const DESKTOP_SIDEBAR_COLLAPSED_KEY = "routa.desktop.sidebar-collapsed";
-const DESKTOP_SIDEBAR_CHANGE_EVENT = "routa:desktop-sidebar-collapsed";
-
-function hasDesktopSidebarLocalStorageAccess(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.localStorage != null &&
-    typeof window.localStorage.getItem === "function" &&
-    typeof window.localStorage.setItem === "function"
-  );
-}
-
-function getDesktopSidebarCollapsedSnapshot(): boolean {
-  if (!hasDesktopSidebarLocalStorageAccess()) {
-    return false;
-  }
-
-  return window.localStorage.getItem(DESKTOP_SIDEBAR_COLLAPSED_KEY) === "true";
-}
-
-function getDesktopSidebarCollapsedServerSnapshot(): boolean {
-  return false;
-}
-
-function subscribeToDesktopSidebarCollapsed(onStoreChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  const handleChange = () => onStoreChange();
-  window.addEventListener(DESKTOP_SIDEBAR_CHANGE_EVENT, handleChange as EventListener);
-  window.addEventListener("storage", handleChange);
-
-  return () => {
-    window.removeEventListener(DESKTOP_SIDEBAR_CHANGE_EVENT, handleChange as EventListener);
-    window.removeEventListener("storage", handleChange);
-  };
-}
-
-interface DesktopAppShellProps {
+export interface DesktopAppShellProps {
   children: React.ReactNode;
   workspaceId?: string | null;
   /** Current workspace title for display */
@@ -64,12 +25,6 @@ interface DesktopAppShellProps {
   titleBarRight?: React.ReactNode;
   /** Optional workspace switcher component */
   workspaceSwitcher?: React.ReactNode;
-  /** Optional icon-only action rendered above the Home item in the sidebar */
-  sidebarTopAction?: {
-    href: string;
-    label: string;
-    icon?: React.ReactNode;
-  };
 }
 
 export function DesktopAppShell({
@@ -78,53 +33,43 @@ export function DesktopAppShell({
   workspaceTitle,
   titleBarRight,
   workspaceSwitcher,
-  sidebarTopAction,
 }: DesktopAppShellProps) {
-  const isSidebarCollapsed = useSyncExternalStore(
-    subscribeToDesktopSidebarCollapsed,
-    getDesktopSidebarCollapsedSnapshot,
-    getDesktopSidebarCollapsedServerSnapshot,
-  );
-
-  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
-    if (!hasDesktopSidebarLocalStorageAccess()) {
-      return;
-    }
-
-    window.localStorage.setItem(DESKTOP_SIDEBAR_COLLAPSED_KEY, String(collapsed));
-    window.dispatchEvent(
-      new CustomEvent(DESKTOP_SIDEBAR_CHANGE_EVENT, {
-        detail: { collapsed },
-      }),
-    );
-  }, []);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
 
   return (
     <div
-      className="desktop-theme h-screen flex flex-col overflow-hidden bg-desktop-bg-primary"
+      className="desktop-theme flex h-screen overflow-hidden bg-canvas text-primary"
       data-testid="desktop-shell-root"
     >
-      <DesktopShellHeader
-        workspaceId={workspaceId}
-        workspaceTitle={workspaceTitle}
-        workspaceSwitcher={workspaceSwitcher}
-        titleBarRight={titleBarRight}
-      />
+      <DesktopSidebar workspaceId={workspaceId} drawerOpen={drawerOpen} onDrawerClose={closeDrawer} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex min-h-0" data-testid="desktop-shell-body">
-        <DesktopSidebar
+      <div className="flex min-w-0 flex-1 flex-col" data-testid="desktop-shell-body">
+        <DesktopShellHeader
           workspaceId={workspaceId}
-          collapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
-          topAction={sidebarTopAction}
+          workspaceTitle={workspaceTitle}
+          workspaceSwitcher={workspaceSwitcher}
+          titleBarRight={titleBarRight}
+          drawerOpen={drawerOpen}
+          onToggleDrawer={() => setDrawerOpen((open) => !open)}
+          onOpenCommandPalette={openPalette}
         />
 
-        {/* Content */}
-        <main className="flex-1 min-w-0 overflow-hidden bg-desktop-bg-primary" data-testid="desktop-shell-main">
+        <main
+          className="min-h-0 min-w-0 flex-1 overflow-hidden bg-canvas"
+          data-testid="desktop-shell-main"
+        >
           {children}
         </main>
       </div>
+
+      <CommandPalette
+        workspaceId={workspaceId}
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+      />
     </div>
   );
 }
