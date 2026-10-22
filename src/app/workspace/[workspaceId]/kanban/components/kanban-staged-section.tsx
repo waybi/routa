@@ -31,7 +31,7 @@ export function KanbanStagedSection({
   const hasFiles = files.length > 0;
 
   const badge = (
-    <span className="text-[9px] font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+    <span className="text-[9px] font-medium text-success">
       APPROVED
     </span>
   );
@@ -42,7 +42,7 @@ export function KanbanStagedSection({
         type="button"
         onClick={onUnstageSelected}
         disabled={!hasSelection || loading}
-        className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-[#12141c] dark:text-slate-300 dark:hover:bg-[#191c28]"
+        className="flex items-center gap-1 rounded-md border border-default bg-surface px-2 py-1 text-[10px] font-medium text-primary transition hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent"
       >
         Unstage {hasSelection ? `(${selectedCount})` : "Selected"}
       </button>
@@ -51,7 +51,7 @@ export function KanbanStagedSection({
         type="button"
         onClick={onCommit}
         disabled={!hasFiles || loading}
-        className="flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+        className="flex items-center gap-1 rounded-md border border-success bg-success-subtle px-2 py-1 text-[10px] font-medium text-success transition hover:bg-success-subtle disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent"
       >
         <GitCommitHorizontal className="h-3 w-3" />
         <ChevronDown className="h-3 w-3" />
@@ -62,7 +62,7 @@ export function KanbanStagedSection({
         type="button"
         onClick={onExport}
         disabled={!hasFiles || loading}
-        className="flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700 transition hover:bg-sky-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-sky-900/40 dark:bg-sky-900/20 dark:text-sky-300 dark:hover:bg-sky-900/30"
+        className="flex items-center gap-1 rounded-md border border-accent bg-accent-subtle px-2 py-1 text-[10px] font-medium text-information transition hover:bg-accent-subtle disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent"
       >
         <Download className="h-3 w-3" />
         Export

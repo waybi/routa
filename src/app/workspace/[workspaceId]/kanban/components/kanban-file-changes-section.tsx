@@ -43,7 +43,7 @@ export function KanbanFileChangesSection({
   };
 
   return (
-    <section className={embedded ? "py-1" : "rounded-xl border border-slate-200/70 bg-slate-50/50 dark:border-[#202433] dark:bg-[#0d1018]/50"}>
+    <section className={embedded ? "py-1" : "rounded-xl border border-default bg-canvas"}>
       {/* Header */}
       <div className={`flex items-center justify-between gap-2 ${embedded ? "px-0 py-1.5" : "px-3 py-2"}`}>
         <button
@@ -52,23 +52,23 @@ export function KanbanFileChangesSection({
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           {expanded ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-secondary" />
           ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
           )}
           
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+              <span className="text-xs font-semibold text-primary">
                 {title}
               </span>
               {badge}
-              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+              <span className="text-[10px] text-secondary">
                 ({files.length})
               </span>
             </div>
             {subtitle && (
-              <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="mt-0.5 text-[10px] text-secondary">
                 {subtitle}
               </div>
             )}
@@ -85,7 +85,7 @@ export function KanbanFileChangesSection({
               }
             }}
             onChange={handleSelectAll}
-            className="h-3.5 w-3.5 rounded border-slate-300 text-amber-600 focus:ring-2 focus:ring-amber-500 dark:border-slate-600 dark:bg-slate-700"
+            className="h-3.5 w-3.5 rounded border-default accent-accent focus:ring-2 focus:ring-accent"
             aria-label="Select all files"
             title="Select all files"
           />
@@ -94,9 +94,9 @@ export function KanbanFileChangesSection({
 
       {/* Content */}
       {expanded && (
-        <div className={`${embedded ? "border-t border-slate-200/70 px-0 py-2 dark:border-slate-800/80" : "border-t border-slate-200/70 px-3 py-2 dark:border-[#202433]"}`}>
+        <div className={`${embedded ? "border-t border-default px-0 py-2" : "border-t border-default px-3 py-2"}`}>
           {files.length === 0 ? (
-            <div className={`${embedded ? "px-1 py-2 text-left" : "rounded-lg border border-dashed border-slate-200 bg-white/50 px-3 py-3 dark:border-slate-700 dark:bg-[#12141c]/50"} text-[10px] text-slate-400 dark:text-slate-500`}>
+            <div className={`${embedded ? "px-1 py-2 text-left" : "rounded-lg border border-dashed border-default bg-surface px-3 py-3"} text-[10px] text-secondary`}>
               No files in this section
             </div>
           ) : (

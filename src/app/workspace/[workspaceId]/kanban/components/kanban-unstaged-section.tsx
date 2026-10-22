@@ -34,11 +34,11 @@ export function KanbanUnstagedSection({
   const hasSelection = selectedCount > 0;
 
   const badge = autoCommit ? (
-    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+    <span className="rounded-full bg-success-subtle px-1.5 py-0.5 text-[9px] font-medium text-success">
       Auto-commit
     </span>
   ) : (
-    <span className="text-[9px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+    <span className="text-[9px] font-medium text-attention">
       NEW
     </span>
   );
@@ -49,7 +49,7 @@ export function KanbanUnstagedSection({
         type="button"
         onClick={onStageSelected}
         disabled={!hasSelection || loading}
-        className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/30"
+        className="flex items-center gap-1 rounded-md border border-attention bg-attention-subtle px-2 py-1 text-[10px] font-medium text-attention transition hover:bg-attention-subtle disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent"
       >
         <GitCommitHorizontal className="h-3 w-3" />
         Stage {hasSelection ? `(${selectedCount})` : "Selected"}
@@ -59,19 +59,19 @@ export function KanbanUnstagedSection({
         type="button"
         onClick={onDiscardSelected}
         disabled={!hasSelection || loading}
-        className="flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300 dark:hover:bg-rose-900/30"
+        className="flex items-center gap-1 rounded-md border border-danger bg-danger-subtle px-2 py-1 text-[10px] font-medium text-danger transition hover:bg-danger-subtle disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent"
       >
         <Trash2 className="h-3 w-3" />
         Discard {hasSelection ? `(${selectedCount})` : "Selected"}
       </button>
 
-      <label className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+      <label className="ml-auto flex items-center gap-1.5 text-[10px] text-secondary">
         <input
           type="checkbox"
           checked={autoCommit}
           disabled={true}
           onChange={(e) => onAutoCommitToggle(e.target.checked)}
-          className="h-3 w-3 rounded border-slate-300 text-emerald-600 opacity-50 focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-700"
+          className="h-3 w-3 rounded border-default text-success opacity-50 focus:ring-1 focus:ring-success disabled:cursor-not-allowed"
         />
         <span className="opacity-50">Auto-commit</span>
       </label>

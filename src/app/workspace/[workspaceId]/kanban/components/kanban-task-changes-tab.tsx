@@ -203,39 +203,39 @@ export function KanbanTaskChangesTab({
   return (
     <div className="space-y-3">
       {!taskChangesLoading && taskChanges && !taskChanges.error ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/70 pb-2 text-[11px] dark:border-slate-800/80">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300">
+        <div className="flex flex-wrap items-center gap-2 border-b border-default pb-2 text-[11px]">
+          <span className="rounded-full border border-default bg-canvas px-2 py-0.5 font-medium text-primary">
             {taskChanges.label}
           </span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-500 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-400">
+          <span className="rounded-full border border-default bg-canvas px-2 py-0.5 text-secondary">
             {sourceLabel}
           </span>
           {scopePath ? (
-            <span className="truncate text-slate-500 dark:text-slate-400" title={scopePath}>
+            <span className="truncate text-secondary" title={scopePath}>
               {scopePath}
             </span>
           ) : null}
           <span
             data-testid="kanban-task-change-branch"
-            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-600 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300"
+            className="rounded-full border border-default bg-canvas px-2 py-0.5 font-medium text-secondary"
           >
             @{taskChanges.branch}
           </span>
           {taskChanges.status.ahead > 0 ? (
-            <span data-testid="kanban-task-change-ahead" className="text-slate-500 dark:text-slate-400">
+            <span data-testid="kanban-task-change-ahead" className="text-secondary">
               {t.kanban.aheadCount.replace("{count}", String(taskChanges.status.ahead))}
             </span>
           ) : null}
           {taskChanges.status.behind > 0 ? (
-            <span data-testid="kanban-task-change-behind" className="text-slate-500 dark:text-slate-400">
+            <span data-testid="kanban-task-change-behind" className="text-secondary">
               {t.kanban.behindCount.replace("{count}", String(taskChanges.status.behind))}
             </span>
           ) : null}
-          <span data-testid="kanban-task-change-summary" className="text-slate-500 dark:text-slate-400">
+          <span data-testid="kanban-task-change-summary" className="text-secondary">
             {formatChangeSummary(taskChanges, t.kanban)}
           </span>
           {prPlatform ? (
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+            <span className="rounded-full border border-attention bg-attention-subtle px-2 py-0.5 text-attention">
               {platformLabel}
             </span>
           ) : null}
@@ -245,11 +245,11 @@ export function KanbanTaskChangesTab({
       {hasCommittedChanges ? (
         <section className="space-y-2">
           <div className="space-y-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+            <div className="text-xs font-semibold text-primary">
               {t.kanbanDetail.committedChanges}
             </div>
             {taskChanges?.baseRef ? (
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-secondary">
                 {t.kanbanDetail.baseComparison.replace("{baseRef}", taskChanges.baseRef)}
               </div>
             ) : null}
@@ -278,7 +278,7 @@ export function KanbanTaskChangesTab({
       ) : null}
 
       <section className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+        <div className="text-xs font-semibold text-primary">
           {t.kanbanDetail.localChanges}
         </div>
         {hasLocalChanges || taskChangesLoading || !taskChanges || taskChanges.error ? (
@@ -291,20 +291,20 @@ export function KanbanTaskChangesTab({
             embedded={true}
           />
         ) : (
-          <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+          <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
             {t.kanbanDetail.noChanges}
           </div>
         )}
       </section>
 
       {canRunPullRequest && hasAnyChanges ? (
-        <section className="space-y-2 border-t border-slate-200/70 pt-3 dark:border-slate-800/80">
+        <section className="space-y-2 border-t border-default pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+              <div className="text-xs font-semibold text-primary">
                 {t.kanbanDetail.pullRequestSpecialist}
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-secondary">
                 {t.kanbanDetail.pullRequestSpecialistHint.replace("{platform}", platformLabel)}
               </div>
             </div>
@@ -326,13 +326,13 @@ export function KanbanTaskChangesTab({
                   setStartingPrSession(false);
                 }
               }}
-              className="rounded border border-amber-500 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:text-amber-200"
+              className="rounded-control border border-accent bg-accent px-3 py-2 text-sm font-semibold text-on-accent transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
               {startingPrSession ? t.kanbanDetail.startingPullRequestSession : t.kanbanDetail.runPullRequestSpecialist}
             </button>
           </div>
           {prSessionError ? (
-            <div className="border-l-2 border-rose-300/80 px-3 py-2 text-xs text-rose-800 dark:border-rose-700/70 dark:text-rose-200">
+            <div className="border-l-2 border-danger px-3 py-2 text-xs text-danger">
               {prSessionError}
             </div>
           ) : null}

@@ -28,15 +28,15 @@ export function KanbanInlineDiffViewer({
   const parsedDiff = diff ? parseUnifiedDiffPreview({ patch: diff }) : null;
 
   return (
-    <div className={embedded ? "border-t border-slate-200/70 pt-2 dark:border-slate-800/80" : "rounded-lg border border-slate-200/70 bg-white dark:border-slate-700 dark:bg-[#12141c]"}>
+    <div className={embedded ? "border-t border-default pt-2" : "rounded-lg border border-default bg-surface"}>
       {/* Header */}
-      <div className={`flex items-center justify-between gap-3 ${embedded ? "border-b border-slate-200/70 px-0 pb-2 dark:border-slate-800/80" : "border-b border-slate-200/70 px-3 py-2 dark:border-slate-700"}`}>
+      <div className={`flex items-center justify-between gap-3 ${embedded ? "border-b border-default px-0 pb-2" : "border-b border-default px-3 py-2"}`}>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-slate-900 dark:text-slate-100">
+          <div className="text-xs font-medium text-primary">
             {file.path}
           </div>
           {commitSha && (
-            <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            <div className="mt-0.5 text-[10px] text-secondary">
               Commit: {commitSha.substring(0, 7)}
             </div>
           )}
@@ -44,7 +44,7 @@ export function KanbanInlineDiffViewer({
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          className="rounded p-1 text-secondary transition hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -53,15 +53,15 @@ export function KanbanInlineDiffViewer({
       {/* Content */}
       <div className="max-h-96 overflow-auto">
         {loading ? (
-          <div className={`flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 ${embedded ? "px-1 py-6" : "py-8"}`}>
+          <div className={`flex items-center justify-center text-xs text-secondary ${embedded ? "px-1 py-6" : "py-8"}`}>
             Loading diff...
           </div>
         ) : error ? (
-          <div className={`${embedded ? "px-0 py-3" : "px-3 py-4"} text-xs text-rose-600 dark:text-rose-400`}>
+          <div className={`${embedded ? "px-0 py-3" : "px-3 py-4"} text-xs text-danger`}>
             {error}
           </div>
         ) : !diff ? (
-          <div className={`${embedded ? "px-0 py-3" : "px-3 py-4"} text-xs text-slate-400 dark:text-slate-500`}>
+          <div className={`${embedded ? "px-0 py-3" : "px-3 py-4"} text-xs text-secondary`}>
             No diff available
           </div>
         ) : (
@@ -72,28 +72,28 @@ export function KanbanInlineDiffViewer({
 
                 if (line.kind === "add") {
                   return {
-                    bgClass: "bg-emerald-50 dark:bg-emerald-900/20",
-                    textClass: "text-emerald-900 dark:text-emerald-300",
+                    bgClass: "bg-success-subtle",
+                    textClass: "text-success",
                     prefix,
                   };
                 }
                 if (line.kind === "remove") {
                   return {
-                    bgClass: "bg-rose-50 dark:bg-rose-900/20",
-                    textClass: "text-rose-900 dark:text-rose-300",
+                    bgClass: "bg-danger-subtle",
+                    textClass: "text-danger",
                     prefix,
                   };
                 }
                 if (line.kind === "meta" || line.kind === "hunk") {
                   return {
-                    bgClass: "bg-sky-50 dark:bg-sky-900/20",
-                    textClass: "text-sky-900 dark:text-sky-300",
+                    bgClass: "bg-accent-subtle",
+                    textClass: "text-information",
                     prefix: "",
                   };
                 }
                 return {
                   bgClass: "",
-                  textClass: "text-slate-600 dark:text-slate-400",
+                  textClass: "text-secondary",
                   prefix,
                 };
               };
