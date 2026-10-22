@@ -187,7 +187,7 @@ function UserBubble({content}: { content: string }) {
     return (
         <div className="w-full">
             <div
-                className="w-full px-3 py-2 rounded-xl border border-blue-100/70 dark:border-blue-900/30 bg-blue-50/60 dark:bg-blue-900/10 text-sm text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
+                className="w-full px-3 py-2 rounded-xl border border-accent bg-accent-subtle text-sm text-primary whitespace-pre-wrap">
                 {content}
             </div>
         </div>
@@ -418,7 +418,7 @@ function AssistantBubble({content}: { content: string }) {
     return (
         <div className="w-full">
             <div
-                className="w-full px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-[#151924] text-sm text-slate-900 dark:text-slate-100">
+                className="w-full px-3 py-2 rounded-xl border border-default bg-surface text-sm text-primary">
                 <MarkdownViewer content={content} className="text-sm"/>
             </div>
         </div>
@@ -433,14 +433,14 @@ function ThoughtBubble({content}: { content: string }) {
         <div className="w-full">
             <button type="button" onClick={() => setExpanded((e) => !e)} className="w-full text-left group">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                    <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                    <ChevronRight className={`w-3 h-3 text-secondary transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                    <span className="text-[11px] font-medium text-secondary">
                         {t.messageBubble.thinking}
                     </span>
                 </div>
             </button>
             {expanded ? (
-                <div className="mt-0.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-700 whitespace-pre-wrap dark:border-slate-800/50 dark:bg-slate-900/10 dark:text-slate-300">
+                <div className="mt-0.5 px-3 py-2 rounded-lg border border-default bg-subtle text-xs text-secondary whitespace-pre-wrap">
                     {displayContent}
                 </div>
             ) : null}
@@ -529,42 +529,42 @@ function getToolStyling(kind?: string): { bgClass: string; borderClass: string; 
     switch (normalizeToolKind(kind)) {
         case "shell":
             return {
-                bgClass: "bg-slate-50 dark:bg-slate-900/30",
-                borderClass: "border-slate-200 dark:border-slate-700/50",
-                iconColorClass: "text-slate-600 dark:text-slate-400",
+                bgClass: "bg-subtle",
+                borderClass: "border-default",
+                iconColorClass: "text-secondary",
             };
         case "edit-file":
         case "write-file":
             return {
-                bgClass: "bg-blue-50/50 dark:bg-blue-900/10",
-                borderClass: "border-blue-200/50 dark:border-blue-800/30",
-                iconColorClass: "text-blue-600 dark:text-blue-400",
+                bgClass: "bg-accent-subtle",
+                borderClass: "border-accent",
+                iconColorClass: "text-accent",
             };
         case "read-file":
             return {
-                bgClass: "bg-emerald-50/50 dark:bg-emerald-900/10",
-                borderClass: "border-emerald-200/50 dark:border-emerald-800/30",
-                iconColorClass: "text-emerald-600 dark:text-emerald-400",
+                bgClass: "bg-success-subtle",
+                borderClass: "border-success",
+                iconColorClass: "text-success",
             };
         case "glob":
         case "grep":
             return {
-                bgClass: "bg-slate-50/60 dark:bg-slate-900/20",
-                borderClass: "border-slate-200/60 dark:border-slate-700/40",
-                iconColorClass: "text-slate-600 dark:text-slate-400",
+                bgClass: "bg-subtle",
+                borderClass: "border-default",
+                iconColorClass: "text-secondary",
             };
         case "web-fetch":
         case "web-search":
             return {
-                bgClass: "bg-blue-50/50 dark:bg-blue-900/10",
-                borderClass: "border-blue-200/50 dark:border-blue-800/30",
-                iconColorClass: "text-blue-600 dark:text-blue-400",
+                bgClass: "bg-accent-subtle",
+                borderClass: "border-accent",
+                iconColorClass: "text-accent",
             };
         default:
             return {
-                bgClass: "bg-slate-50 dark:bg-[#161922]",
-                borderClass: "border-slate-200/50 dark:border-slate-800/50",
-                iconColorClass: "text-slate-500 dark:text-slate-400",
+                bgClass: "bg-subtle",
+                borderClass: "border-default",
+                iconColorClass: "text-secondary",
             };
     }
 }
@@ -595,10 +595,10 @@ function ToolBubble({
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
     const statusColor =
-        toolStatus === "completed" ? "bg-emerald-500"
-            : toolStatus === "failed" ? "bg-red-500"
-                : toolStatus === "in_progress" || toolStatus === "running" || toolStatus === "streaming" ? "bg-amber-500 animate-pulse"
-                    : "bg-slate-400";
+        toolStatus === "completed" ? "bg-success"
+            : toolStatus === "failed" ? "bg-danger"
+                : toolStatus === "in_progress" || toolStatus === "running" || toolStatus === "streaming" ? "bg-attention animate-pulse"
+                    : "bg-secondary";
 
     // Infer the actual tool name - handles cases where providers send file paths as title
     const displayName = inferToolDisplayName(toolName, toolKind, rawInput);
@@ -622,26 +622,26 @@ function ToolBubble({
             >
                 <span className={`shrink-0 ${styling.iconColorClass}`}>{icon}</span>
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor}`}/>
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate flex-1">
+                <span className="text-xs font-medium text-primary truncate flex-1">
                     {displayName}
                 </span>
                 {inputPreview && (
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[40%]">
+                    <span className="text-[11px] text-secondary truncate max-w-[40%]">
                         {inputPreview}
                     </span>
                 )}
                 {!inputPreview && outputSummary && (
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[40%]">
+                    <span className="text-[11px] text-secondary truncate max-w-[40%]">
                         {outputSummary}
                     </span>
                 )}
-                <ChevronRight className={`w-2.5 h-2.5 text-slate-400 transition-transform duration-150 shrink-0 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                <ChevronRight className={`w-2.5 h-2.5 text-secondary transition-transform duration-150 shrink-0 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             </button>
             {expanded && (hasInput || hasOutput) && (
                 <div className={`mt-1 ml-4 rounded-md border ${styling.bgClass} ${styling.borderClass} overflow-hidden`}>
                     {hasInput && (
                         <div className="px-2.5 py-2">
-                            <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{t.messageBubble.input}</div>
+                            <div className="text-[10px] font-semibold text-secondary mb-1">{t.messageBubble.input}</div>
                             <ToolInputTable input={rawInput} />
                         </div>
                     )}
@@ -722,7 +722,7 @@ export function AskUserQuestionBubble({
     };
 
     return (
-        <div className="w-full rounded-md border border-amber-200/80 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/10 overflow-hidden">
+        <div className="w-full rounded-md border border-attention bg-attention-subtle overflow-hidden">
             <div className="px-2.5 py-1.5 space-y-2">
                 {questions.map((item) => {
                     const selectedValues = answers[item.question]
@@ -731,9 +731,9 @@ export function AskUserQuestionBubble({
                     return (
                         <div key={item.question}>
                             <div className="flex items-center gap-1.5 mb-1">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-emerald-500" : isFailed ? "bg-red-500" : "bg-amber-500 animate-pulse"}`} />
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">{item.header}</span>
-                                <span className="text-xs text-slate-700 dark:text-slate-300">{item.question}</span>
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-success" : isFailed ? "bg-danger" : "bg-attention animate-pulse"}`} />
+                                <span className="text-[10px] font-semibold text-attention">{item.header}</span>
+                                <span className="text-xs text-primary">{item.question}</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5 pl-3">
                                 {(item.options ?? []).map((option) => {
@@ -748,8 +748,8 @@ export function AskUserQuestionBubble({
                                                 : updateSingleAnswer(item.question, option.label)}
                                             title={option.description}
                                             className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${selected
-                                                ? "border-amber-500 bg-amber-500 text-white dark:bg-amber-600"
-                                                : "border-amber-200 dark:border-amber-700/50 bg-white/80 dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:border-amber-400 dark:hover:border-amber-600"
+                                                ? "border-attention bg-attention text-on-accent"
+                                                : "border-attention bg-surface text-primary hover:border-attention"
                                             } ${!isAwaitingInput ? "cursor-default" : "cursor-pointer"}`}
                                         >
                                             {option.label}
@@ -762,7 +762,7 @@ export function AskUserQuestionBubble({
                 })}
 
                 {submitError && (
-                    <div className="rounded-md border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-950/20 px-2 py-1 text-[11px] text-red-700 dark:text-red-300">
+                    <div className="rounded-md border border-danger bg-danger-subtle px-2 py-1 text-[11px] text-danger">
                         {submitError}
                     </div>
                 )}
@@ -773,7 +773,7 @@ export function AskUserQuestionBubble({
                             type="button"
                             onClick={handleSubmit}
                             disabled={submitting || questions.length === 0}
-                            className="rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md bg-attention px-2.5 py-1 text-[11px] font-medium text-on-accent transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {submitting ? "..." : t.messageBubble.submit}
                         </button>
@@ -881,35 +881,35 @@ export function PermissionRequestBubble({
 
     if (isCompleted || isFailed) {
         return (
-            <div className="w-full rounded-md border border-sky-200/80 dark:border-sky-800/40 bg-sky-50/40 dark:bg-sky-950/10 overflow-hidden">
+            <div className="w-full rounded-md border border-information bg-accent-subtle overflow-hidden">
                 <button
                     type="button"
                     disabled={!hasDetailSections}
                     onClick={() => hasDetailSections && setDetailsExpanded((value) => !value)}
                     className={`flex w-full items-center gap-2 px-2.5 py-2 text-left ${hasDetailSections ? "cursor-pointer" : "cursor-default"}`}
                 >
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-emerald-500" : "bg-red-500"}`} />
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400 shrink-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-success" : "bg-danger"}`} />
+                    <span className="text-[10px] font-semibold text-information shrink-0">
                         {t.messageBubble.requestPermissions}
                     </span>
-                    <div className="min-w-0 flex-1 text-xs text-slate-700 dark:text-slate-200 truncate">
+                    <div className="min-w-0 flex-1 text-xs text-primary truncate">
                         {compactSummary || requestTitle}
                     </div>
                     {completionText ? (
-                        <span className="shrink-0 inline-flex items-center rounded-full bg-white/80 px-2 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-300 dark:ring-slate-700">
+                        <span className="shrink-0 inline-flex items-center rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-secondary ring-1 ring-default">
                             {completionText}
                             {outcome === "approve" && !selectedOption ? ` · ${scopeLabel}` : ""}
                         </span>
                     ) : null}
                     {hasDetailSections ? (
-                        <ChevronRight className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${detailsExpanded ? "rotate-90" : ""}`} />
+                        <ChevronRight className={`h-3 w-3 shrink-0 text-secondary transition-transform ${detailsExpanded ? "rotate-90" : ""}`} />
                     ) : null}
                 </button>
                 {detailsExpanded ? (
-                    <div className="border-t border-sky-200/80 px-2.5 py-2 dark:border-sky-800/40">
+                    <div className="border-t border-information px-2.5 py-2">
                         <div className="space-y-2">
                             {isMcpApproval && mcpDescription ? (
-                                <div className="text-xs text-slate-700 dark:text-slate-300">
+                                <div className="text-xs text-primary">
                                     {mcpDescription}
                                 </div>
                             ) : null}
@@ -918,7 +918,7 @@ export function PermissionRequestBubble({
                                     {mcpParams.map((param) => (
                                         <span
                                             key={`${param.name}:${param.value}`}
-                                            className="inline-flex items-center rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700"
+                                            className="inline-flex items-center rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-primary ring-1 ring-default"
                                         >
                                             {`${param.name}: ${param.value}`}
                                         </span>
@@ -926,12 +926,12 @@ export function PermissionRequestBubble({
                                 </div>
                             ) : null}
                             {shouldRenderPermissionCommand(requestTitle, command) ? (
-                                <code className="block rounded-md bg-white/80 px-2 py-1.5 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700 break-all">
+                                <code className="block rounded-md bg-surface px-2 py-1.5 text-[11px] text-primary ring-1 ring-default break-all">
                                     {command}
                                 </code>
                             ) : null}
                             {reason && !isMcpApproval ? (
-                                <div className="text-xs text-slate-700 dark:text-slate-300">
+                                <div className="text-xs text-primary">
                                     {reason}
                                 </div>
                             ) : null}
@@ -940,7 +940,7 @@ export function PermissionRequestBubble({
                                     {amendment.map((entry) => (
                                         <span
                                             key={entry}
-                                            className="inline-flex items-center rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700"
+                                            className="inline-flex items-center rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-primary ring-1 ring-default"
                                         >
                                             {entry}
                                         </span>
@@ -948,8 +948,8 @@ export function PermissionRequestBubble({
                                 </div>
                             ) : null}
                             {Object.keys(requestedPermissions).length > 0 && !isMcpApproval ? (
-                                <details className="rounded-md border border-slate-200/80 bg-white/70 px-2 py-1.5 dark:border-slate-700/80 dark:bg-slate-900/40">
-                                    <summary className="cursor-pointer text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                                <details className="rounded-md border border-default bg-surface px-2 py-1.5">
+                                    <summary className="cursor-pointer text-[11px] font-medium text-secondary">
                                         {t.messageBubble.permissionTechnicalDetails}
                                     </summary>
                                     <div className="mt-2">
@@ -965,19 +965,19 @@ export function PermissionRequestBubble({
     }
 
     return (
-        <div className="w-full rounded-md border border-sky-200/80 dark:border-sky-800/40 bg-sky-50/40 dark:bg-sky-950/10 overflow-hidden">
+        <div className="w-full rounded-md border border-information bg-accent-subtle overflow-hidden">
             <div className="px-2.5 py-2 space-y-2">
                 <div className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-emerald-500" : isFailed ? "bg-red-500" : "bg-sky-500 animate-pulse"}`} />
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCompleted ? "bg-success" : isFailed ? "bg-danger" : "bg-information animate-pulse"}`} />
+                    <span className="text-[10px] font-semibold text-information">
                         {t.messageBubble.requestPermissions}
                     </span>
                 </div>
-                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                <div className="text-sm font-medium text-primary">
                     {isMcpApproval && mcpTitle ? mcpTitle : requestTitle}
                 </div>
                 {isMcpApproval && mcpDescription ? (
-                    <div className="text-xs text-slate-700 dark:text-slate-300">
+                    <div className="text-xs text-primary">
                         {mcpDescription}
                     </div>
                 ) : null}
@@ -986,7 +986,7 @@ export function PermissionRequestBubble({
                         {mcpParams.map((param) => (
                             <span
                                 key={`${param.name}:${param.value}`}
-                                className="inline-flex items-center rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700"
+                                className="inline-flex items-center rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-primary ring-1 ring-default"
                             >
                                 {`${param.name}: ${param.value}`}
                             </span>
@@ -995,34 +995,34 @@ export function PermissionRequestBubble({
                 ) : null}
                 {shouldRenderPermissionCommand(requestTitle, command) ? (
                     <div className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] font-medium text-secondary">
                             {t.messageBubble.permissionCommand}
                         </div>
-                        <code className="block rounded-md bg-white/80 px-2 py-1.5 text-[11px] text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700 break-all">
+                        <code className="block rounded-md bg-surface px-2 py-1.5 text-[11px] text-primary ring-1 ring-default break-all">
                             {command}
                         </code>
                     </div>
                 ) : null}
                 {reason && !isMcpApproval ? (
                     <div className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] font-medium text-secondary">
                             {t.messageBubble.permissionReason}
                         </div>
-                        <div className="text-xs text-slate-700 dark:text-slate-300">
+                        <div className="text-xs text-primary">
                             {reason}
                         </div>
                     </div>
                 ) : null}
                 {amendment.length > 0 && !isMcpApproval ? (
                     <div className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] font-medium text-secondary">
                             {t.messageBubble.permissionSuggestedAccess}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                             {amendment.map((entry) => (
                                 <span
                                     key={entry}
-                                    className="inline-flex items-center rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-200 dark:ring-slate-700"
+                                    className="inline-flex items-center rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-primary ring-1 ring-default"
                                 >
                                     {entry}
                                 </span>
@@ -1038,7 +1038,7 @@ export function PermissionRequestBubble({
                                 type="button"
                                 disabled={submitting}
                                 onClick={() => void handleOptionSubmit(option)}
-                                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-200"
+                                className="rounded-full border border-default bg-surface px-3 py-1.5 text-xs font-medium text-primary disabled:opacity-50"
                             >
                                 {getOptionLabel(option, option.optionId ?? option.kind ?? "option")}
                             </button>
@@ -1052,7 +1052,7 @@ export function PermissionRequestBubble({
                                 value={scope}
                                 onChange={(event) => setScope(event.target.value === "session" ? "session" : "turn")}
                                 disabled={submitting}
-                                className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-200"
+                                className="h-8 rounded-md border border-default bg-surface px-2 text-xs text-primary"
                             >
                                 <option value="turn">{getOptionLabel(onceOption, t.messageBubble.permissionScopeTurn)}</option>
                                 <option value="session">{getOptionLabel(alwaysOption, t.messageBubble.permissionScopeSession)}</option>
@@ -1061,7 +1061,7 @@ export function PermissionRequestBubble({
                                 type="button"
                                 disabled={submitting}
                                 onClick={() => void handleSubmit("approve")}
-                                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent disabled:opacity-50"
                             >
                                 {t.messageBubble.permissionAllow}
                             </button>
@@ -1069,19 +1069,19 @@ export function PermissionRequestBubble({
                                 type="button"
                                 disabled={submitting}
                                 onClick={() => void handleSubmit("deny")}
-                                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+                                className="rounded-md border border-default px-3 py-1.5 text-xs font-medium text-primary disabled:opacity-50"
                             >
                                 {t.messageBubble.permissionDeny}
                             </button>
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-secondary">
                             {t.messageBubble.permissionScopeHint}
                         </div>
                     </div>
                 )}
                 {!isMcpApproval && (Object.keys(requestedPermissions).length > 0 || options.length > 0) ? (
-                    <details className="rounded-md border border-slate-200/80 bg-white/70 px-2 py-1.5 dark:border-slate-700/80 dark:bg-slate-900/40">
-                        <summary className="cursor-pointer text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    <details className="rounded-md border border-default bg-surface px-2 py-1.5">
+                        <summary className="cursor-pointer text-[11px] font-medium text-secondary">
                             {t.messageBubble.permissionTechnicalDetails}
                         </summary>
                         <div className="mt-2 space-y-2">
@@ -1091,7 +1091,7 @@ export function PermissionRequestBubble({
                                     {options.map((option) => (
                                         <span
                                             key={option.optionId ?? option.name ?? option.kind}
-                                            className="inline-flex items-center rounded-full border border-slate-200 px-2 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                                            className="inline-flex items-center rounded-full border border-default px-2 py-1 text-[10px] text-secondary"
                                         >
                                             {getOptionLabel(option, option.optionId ?? option.kind ?? "option")}
                                         </span>
@@ -1102,7 +1102,7 @@ export function PermissionRequestBubble({
                     </details>
                 ) : null}
                 {submitError ? (
-                    <div className="text-xs text-rose-600 dark:text-rose-400">{submitError}</div>
+                    <div className="text-xs text-danger">{submitError}</div>
                 ) : null}
             </div>
         </div>
@@ -1117,10 +1117,10 @@ function TaskBubble({
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
     const statusColor =
-        toolStatus === "completed" ? "bg-emerald-500"
-            : toolStatus === "failed" ? "bg-red-500"
-                : toolStatus === "running" ? "bg-amber-500 animate-pulse"
-                    : "bg-slate-400";
+        toolStatus === "completed" ? "bg-success"
+            : toolStatus === "failed" ? "bg-danger"
+                : toolStatus === "running" ? "bg-attention animate-pulse"
+                    : "bg-secondary";
     const statusLabel =
         toolStatus === "completed" ? t.messageBubble.status.done
             : toolStatus === "failed" ? t.messageBubble.status.failed
@@ -1135,29 +1135,29 @@ function TaskBubble({
     return (
         <div className="w-full">
             <div
-                className="w-full rounded-lg border border-amber-200 dark:border-amber-800/50 overflow-hidden bg-amber-50/50 dark:bg-amber-900/10">
+                className="w-full rounded-lg border border-attention overflow-hidden bg-attention-subtle">
                 <button
                     type="button"
                     onClick={() => setExpanded((e) => !e)}
                     className="w-full px-3 py-2 flex items-center gap-2 text-left"
                 >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${statusColor}`}/>
-                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 shrink-0">
+                    <span className="text-xs font-semibold text-attention shrink-0">
             {t.messageBubble.task}{subagentType ? ` [${subagentType}]` : ""}
           </span>
                     {description && (
-                        <span className="text-xs text-slate-700 dark:text-slate-300 truncate flex-1">
+                        <span className="text-xs text-primary truncate flex-1">
               {description}
             </span>
                     )}
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
+                    <span className="text-[10px] text-secondary shrink-0">
             {statusLabel}
           </span>
-                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-150 shrink-0 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                    <ChevronDown className={`w-3 h-3 text-secondary transition-transform duration-150 shrink-0 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                 </button>
                 {expanded && (prompt || content) && (
                     <div
-                        className="px-3 py-2 border-t border-amber-200/50 dark:border-amber-800/30 text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                        className="px-3 py-2 border-t border-attention text-xs text-secondary whitespace-pre-wrap max-h-32 overflow-y-auto">
                         {prompt || content}
                     </div>
                 )}
@@ -1195,13 +1195,13 @@ function PlanBubble({content, entries}: { content: string; entries?: PlanEntry[]
     // Fallback for plain text plan content
     return (
         <div className="w-full">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#161922] overflow-hidden">
-                <div className="px-3 py-2 flex items-center gap-2 bg-slate-100 dark:bg-[#1a1d2e] border-b border-slate-200 dark:border-slate-700">
-                    <span className="w-2 h-2 rounded-full bg-slate-500" />
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{t.messageBubble.plan}</span>
+            <div className="rounded-lg border border-default bg-subtle overflow-hidden">
+                <div className="px-3 py-2 flex items-center gap-2 bg-subtle border-b border-default">
+                    <span className="w-2 h-2 rounded-full bg-secondary" />
+                    <span className="text-xs font-medium text-secondary">{t.messageBubble.plan}</span>
                 </div>
                 <div className="px-3 py-2">
-                    <div className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{content}</div>
+                    <div className="text-xs text-secondary whitespace-pre-wrap">{content}</div>
                 </div>
             </div>
         </div>
@@ -1220,7 +1220,7 @@ function UsageBadge({used, size, costAmount, costCurrency}: {
     const formatTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
     // Determine color based on percentage
-    const strokeColor = pct > 80 ? "#f87171" : pct > 50 ? "#fbbf24" : "#4ade80";
+    const strokeColor = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amber)" : "var(--green)";
 
     // SVG circle parameters
     const radius = 16;
@@ -1243,7 +1243,7 @@ function UsageBadge({used, size, costAmount, costCurrency}: {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="3"
-                        className="text-slate-200 dark:text-slate-700"
+                        className="text-primary"
                     />
                     {/* Progress circle */}
                     {size && (
@@ -1263,7 +1263,7 @@ function UsageBadge({used, size, costAmount, costCurrency}: {
                 </svg>
 
                 {/* Percentage text in center */}
-                <span className="absolute text-[9px] font-semibold text-slate-600 dark:text-slate-300">
+                <span className="absolute text-[9px] font-semibold text-secondary">
           {size ? `${pct}%` : formatTokens(used)}
         </span>
 
@@ -1271,12 +1271,12 @@ function UsageBadge({used, size, costAmount, costCurrency}: {
                 <div
                     className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     <div
-                        className="px-3 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white text-xs whitespace-nowrap shadow-lg border border-slate-700">
+                        className="px-3 py-2 rounded-lg bg-surface text-primary text-xs whitespace-nowrap shadow-overlay border border-default">
                         <div
                             className="font-medium">{formatTokens(used)}{size ? ` / ${formatTokens(size)}` : ""} {t.messageBubble.tokens}
                         </div>
                         {costAmount !== undefined && costAmount > 0 && (
-                            <div className="text-slate-300 mt-0.5">${costAmount.toFixed(4)} {costCurrency ?? "USD"}</div>
+                            <div className="text-secondary mt-0.5">${costAmount.toFixed(4)} {costCurrency ?? "USD"}</div>
                         )}
                     </div>
                 </div>
@@ -1290,16 +1290,16 @@ function InfoBubble({content, rawData}: { content: string; rawData?: Record<stri
     if (rawData) {
         return (
             <div className="flex justify-center my-1">
-                <div className="max-w-xl w-full rounded-lg bg-slate-50 dark:bg-[#161922] border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 overflow-hidden">
+                <div className="max-w-xl w-full rounded-lg bg-subtle border border-default text-[11px] text-secondary overflow-hidden">
                     <button
-                        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#1e2230] transition-colors text-left"
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-hover transition-colors text-left"
                         onClick={() => setExpanded(v => !v)}
                     >
                         <span className="opacity-60">{expanded ? "▾" : "▸"}</span>
                         <span className="font-mono">{content}</span>
                     </button>
                     {expanded && (
-                        <pre className="px-3 pb-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800">
+                        <pre className="px-3 pb-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px] text-secondary border-t border-default">
                             {JSON.stringify(rawData, null, 2)}
                         </pre>
                     )}
@@ -1310,7 +1310,7 @@ function InfoBubble({content, rawData}: { content: string; rawData?: Record<stri
     return (
         <div className="flex justify-center">
             <div
-                className="px-3 py-1 rounded-full bg-slate-50 dark:bg-[#161922] border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                className="px-3 py-1 rounded-full bg-subtle border border-default text-[11px] text-secondary">
                 {content}
             </div>
         </div>
