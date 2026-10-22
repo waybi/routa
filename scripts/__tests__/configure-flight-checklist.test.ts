@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -456,16 +456,24 @@ describe("runtime probe", () => {
     expect(result.output).toContain("404");
   });
 
-  it("CLI exits 3 with the restart message when the probe fails", () => {
+  it("CLI exits 3 with the restart message when the probe gets 404", async () => {
     loadedIds.clear();
     const hash = sha256(dbPath);
-    const result = spawnSync(
+    // Async spawn: the fake server lives in this process and must keep answering while the CLI runs.
+    const child = spawn(
       process.execPath,
       ["--import", "tsx", "scripts/kanban/configure-flight-checklist.ts", "--db", dbPath, "--apply", "--boards", "f635c1de", "--base-url", baseUrl, "--backup-dir", backupDir],
-      { encoding: "utf8" },
     );
-    expect(result.status, result.stderr).toBe(3);
-    expect(result.stdout + result.stderr).toContain("要重启 Routa 才读到");
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    const status = await new Promise<number | null>((resolve) => child.on("close", resolve));
+
+    expect(status, stderr).toBe(3);
+    expect(stdout).toContain("kanban-contract-setter  404");
+    expect(stdout + stderr).toContain("要重启 Routa 才读到");
+    expect(new Set(probedIds)).toEqual(new Set(NEW_IDS));
     expect(sha256(dbPath)).toBe(hash);
   });
 });
