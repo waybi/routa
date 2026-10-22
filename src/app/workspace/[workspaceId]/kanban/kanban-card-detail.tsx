@@ -32,7 +32,6 @@ import { KanbanCardArtifacts } from "./kanban-card-artifacts";
 import { useKanbanTaskChangeSignal } from "./kanban-task-change-signal";
 import { KanbanCardModelEffortOverride, KanbanCardProviderOverrideDropdown } from "./kanban-card-provider-override-dropdown";
 import { StoryReadinessPanel, EvidenceBundlePanel, JitContextPanel, ReviewFeedbackPanel } from "./kanban-detail-panels";
-import { KanbanHumanReadablePanel } from "./kanban-human-readable-panel";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import {
   findSpecialistById,
@@ -78,7 +77,7 @@ export interface KanbanCardDetailProps {
 }
 
 const ROLE_OPTIONS = ["CRAFTER", "ROUTA", "GATE", "DEVELOPER"];
-type KanbanDetailTabId = "overview" | "humanReadable" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs" | "completion";
+type KanbanDetailTabId = "overview" | "readiness" | "execution" | "jitContext" | "changes" | "evidence" | "runs" | "completion";
 
 const persistedKanbanDetailTabs = new Map<string, KanbanDetailTabId>();
 
@@ -334,7 +333,6 @@ export function KanbanCardDetail({
   const mergeState = resolveCardMergeState(task);
   const detailTabs = [
     { id: "overview" as const, label: t.kanbanDetail.overview },
-    { id: "humanReadable" as const, label: t.kanbanDetail.humanReadable },
     { id: "readiness" as const, label: t.kanbanDetail.storyReadiness },
     { id: "execution" as const, label: t.kanbanDetail.execution },
     { id: "jitContext" as const, label: t.kanbanDetail.jitContext },
@@ -679,22 +677,6 @@ export function KanbanCardDetail({
                 </div>
               </DetailSection>
             </>
-          )}
-
-          {activeTab === "humanReadable" && (
-            <DetailSection
-              title={t.kanbanDetail.humanReadable}
-              description={compactMode ? undefined : t.kanbanDetail.humanReadableHint}
-              compact={compactMode}
-            >
-              <KanbanHumanReadablePanel
-                task={task}
-                boardColumns={boardColumns}
-                specialistLanguage={specialistLanguage}
-                compact={compactMode}
-                onOpenDescription={() => selectTab("overview")}
-              />
-            </DetailSection>
           )}
 
           {activeTab === "readiness" && (
