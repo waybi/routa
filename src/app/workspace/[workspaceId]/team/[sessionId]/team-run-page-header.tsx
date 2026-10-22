@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { Badge } from "@/client/components/ui/badge";
+import { buttonClassName } from "@/client/components/ui/button";
 import type { SessionInfo } from "../../types";
 
 interface TeamRunPageHeaderProps {
@@ -59,50 +61,48 @@ export function TeamRunPageHeader({
   }, []);
 
   return (
-    <header className="shrink-0 border-b border-desktop-border bg-desktop-bg-tertiary" data-testid="team-run-page-header">
-      <div className="flex h-11 w-full items-center justify-between gap-2 px-3">
-        <div className="flex min-w-0 items-center gap-2">
+    <header className="shrink-0 border-b border-default bg-canvas px-4 py-3 md:px-[22px] xl:px-7" data-testid="team-run-page-header">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <Link
             href={`/workspace/${workspaceId}/team`}
-            className="inline-flex shrink-0 h-8 w-8 items-center justify-center rounded-md border border-desktop-border bg-desktop-bg-secondary transition-colors hover:bg-desktop-bg-active/70 hover:text-desktop-text-primary"
+            className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-control border border-default bg-surface text-secondary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             title={backLabel}
             aria-label={backLabel}
           >
-            <ChevronLeft
-              className="h-3.5 w-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            />
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="sr-only">{backLabel}</span>
           </Link>
-          <div ref={teamRunSwitcherRef} className="relative min-w-0">
+          <div ref={teamRunSwitcherRef} className="relative min-w-0 flex-1">
+            <p className="m-0 text-xs text-secondary">{t.sessionsRedesign.teamSessionEyebrow}</p>
             <button
               type="button"
               onClick={() => setShowTeamRunMenu((current) => canSwitchTeamRun ? !current : false)}
-              className="inline-flex min-w-0 max-w-[52vw] items-center gap-2 rounded-md border border-desktop-border bg-desktop-bg-secondary/80 px-2.5 py-1.5 text-left transition-colors hover:bg-desktop-bg-active/70"
+              aria-expanded={canSwitchTeamRun ? showTeamRunMenu : undefined}
+              className="mt-0.5 inline-flex max-w-full items-start gap-2 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               title={t.team.teamRuns}
             >
-              <span className="min-w-0 flex-1">
-                <span className="block text-[9px] uppercase tracking-[0.16em] text-desktop-text-muted">{t.team.teamRuns}</span>
-                <span className="block truncate text-[12px] font-semibold text-desktop-text-primary">{normalizedTeamRunTitle}</span>
-              </span>
+              <span className="min-w-0 break-words text-[21px] font-semibold leading-tight text-primary">{normalizedTeamRunTitle}</span>
               {canSwitchTeamRun ? (
                 <ChevronDown
-                  className={`h-3.5 w-3.5 text-desktop-text-secondary transition-transform ${showTeamRunMenu ? "rotate-180" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+                  className={`mt-1.5 h-4 w-4 shrink-0 text-secondary transition-transform ${showTeamRunMenu ? "rotate-180" : ""}`}
+                  aria-hidden="true"
                 />
               ) : null}
               {isSwitchingTeamRun ? (
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500" />
+                <span className="mt-2.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-information motion-reduce:animate-none" />
               ) : null}
             </button>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Badge className="font-mono">
+                <span className="sr-only">{t.sessionsRedesign.sessionIdLabel} </span>
+                <span title={selectedSessionId}>{selectedSessionId.slice(0, 8)}</span>
+              </Badge>
+              {selectedTeamRun?.role ? <Badge tone="info">{selectedTeamRun.role}</Badge> : null}
+              {selectedTeamRun?.branch ? <Badge>{selectedTeamRun.branch}</Badge> : null}
+            </div>
             {showTeamRunMenu && canSwitchTeamRun ? (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-desktop-border bg-desktop-bg-secondary p-1 shadow-xl">
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-80 max-w-[calc(100vw-32px)] overflow-y-auto rounded-lg border border-default bg-surface p-1 shadow-overlay">
                 {teamRuns.map((run) => {
                   const isActive = run.sessionId === selectedSessionId;
                   return (
@@ -115,14 +115,14 @@ export function TeamRunPageHeader({
                         }
                         setShowTeamRunMenu(false);
                       }}
-                      className={`mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left transition ${
+                      className={`mb-0.5 flex w-full items-center justify-between gap-2 rounded-control px-2.5 py-2 text-left transition ${
                         isActive
-                          ? "bg-desktop-bg-active text-desktop-text-primary"
-                          : "text-desktop-text-secondary hover:bg-desktop-bg-primary"
+                          ? "bg-accent-subtle text-accent"
+                          : "text-secondary hover:bg-hover hover:text-primary"
                       }`}
                     >
-                      <span className="truncate text-[11px] font-medium">{run.name ?? `Team run ${run.sessionId.slice(0, 8)}`}</span>
-                      <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-desktop-text-muted">
+                      <span className="break-words text-xs font-medium">{run.name ?? `Team run ${run.sessionId.slice(0, 8)}`}</span>
+                      <span className="shrink-0 text-[10px]">
                         {isActive ? activeLabel : waitingLabel}
                       </span>
                     </button>
@@ -133,20 +133,13 @@ export function TeamRunPageHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-desktop-border bg-desktop-bg-secondary px-2.5 py-1.5 text-[11px] font-medium text-desktop-text-secondary transition-colors hover:bg-desktop-bg-active/70 hover:text-desktop-text-primary"
-          >
-            <RefreshCw className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={onRefresh} className={buttonClassName("secondary", "sm")}>
+            <RefreshCw className="h-3 w-3" aria-hidden="true" />
             {refreshLabel}
           </button>
-          <Link
-            href={`/workspace/${workspaceId}/sessions/${selectedSessionId}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-transparent bg-desktop-accent px-2.5 py-1.5 text-[11px] font-medium text-desktop-accent-text transition-colors hover:brightness-110"
-          >
-            <ExternalLink className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
+          <Link href={`/workspace/${workspaceId}/sessions/${selectedSessionId}`} className={buttonClassName("primary", "sm")}>
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
             {openLabel}
           </Link>
         </div>

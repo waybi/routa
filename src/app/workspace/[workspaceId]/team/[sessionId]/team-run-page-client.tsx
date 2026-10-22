@@ -1367,7 +1367,7 @@ export function TeamRunPageClient() {
         />
       )}
     >
-      <div className="flex h-full flex-col overflow-hidden bg-desktop-bg-primary">
+      <div className="flex h-full flex-col overflow-hidden bg-surface">
         <TeamRunPageHeader
           workspaceId={workspaceId}
           selectedSessionId={sessionId}
@@ -1405,7 +1405,7 @@ export function TeamRunPageClient() {
               }}
             />
 
-            <div className="shrink-0 border-t border-desktop-border bg-desktop-bg-primary px-3 py-2">
+            <div className="shrink-0 border-t border-default bg-surface px-3 py-2">
               <TiptapInput
                 key={timelineInputKey}
                 onSend={(text) => handleTimelinePrompt(text)}
