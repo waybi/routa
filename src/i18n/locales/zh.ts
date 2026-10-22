@@ -1,5 +1,6 @@
 import type { TranslationDictionary } from "../types";
 import { zhExtended } from "./zh-extended";
+import { zhHome } from "./zh-home";
 
 const zh: TranslationDictionary = {
   common: {
@@ -1425,6 +1426,7 @@ const zh: TranslationDictionary = {
   },
 
   ...zhExtended,
+  ...zhHome,
 };
 
 export default zh;

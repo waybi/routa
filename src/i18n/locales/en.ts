@@ -1,5 +1,6 @@
 import type { TranslationDictionary } from "../types";
 import { enExtended } from "./en-extended";
+import { enHome } from "./en-home";
 
 const en: TranslationDictionary = {
   common: {
@@ -1430,6 +1431,7 @@ const en: TranslationDictionary = {
   },
 
   ...enExtended,
+  ...enHome,
 };
 
 export default en;

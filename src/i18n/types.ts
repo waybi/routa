@@ -1,4 +1,5 @@
 import type { ExtendedTranslationDictionarySections } from "./types-extended";
+import type { HomeTranslationDictionarySections } from "./types-home";
 
 export type Locale = "en" | "zh";
 
@@ -6,7 +7,7 @@ export const SUPPORTED_LOCALES: Locale[] = ["en", "zh"];
 export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_STORAGE_KEY = "routa.locale";
 
-export interface TranslationDictionary extends ExtendedTranslationDictionarySections {
+export interface TranslationDictionary extends ExtendedTranslationDictionarySections, HomeTranslationDictionarySections {
   // Common
   common: {
     save: string;
