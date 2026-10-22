@@ -98,8 +98,6 @@
   --danger-solid-hover: var(--brand-red-700);
   --danger-on-solid: #ffffff;
   --danger-ring: var(--brand-red-500);
-  --accent: var(--brand-amber-500);
-  --accent-hover: var(--brand-amber-600);
 }
 
 .harness-instructions-tree {
@@ -130,8 +128,80 @@ html.dark {
   --danger-solid: var(--brand-red-500);
   --danger-solid-hover: var(--brand-red-600);
   --danger-ring: var(--brand-red-400);
-  --accent: var(--brand-amber-500);
-  --accent-hover: var(--brand-amber-400);
+}
+
+/*
+ * Routa redesign semantic tokens (direction A, "precision console").
+ * Source of truth: design-spec.md §2 token table. Values hang on the
+ * html.dark / html.light classes set by the inline theme script in
+ * layout.tsx, never on :root, so the system preference cannot leak a
+ * half-applied palette before the script runs.
+ */
+html.dark {
+  --bg: #111214;
+  --side: #151619;
+  --panel: #191b1f;
+  --soft: #202228;
+  --hover: #252830;
+  --ink: #eeeef1;
+  --muted: #a0a5b0;
+  --line: #30333b;
+  --accent: #a5a7ff;
+  --accentbg: #30314b;
+  --on: #171723;
+  --red: #ffa5ad;
+  --redbg: #38232b;
+  --amber: #f1c17a;
+  --amberbg: #332c20;
+  --green: #81d9ae;
+  --greenbg: #1c332b;
+  --blue: #9ac5ff;
+  --shadow: 0 24px 80px #0008;
+}
+
+html.light {
+  --bg: #fafafb;
+  --side: #f1f2f5;
+  --panel: #ffffff;
+  --soft: #f4f5f8;
+  --hover: #eaecf2;
+  --ink: #1c1e25;
+  --muted: #5e6470;
+  --line: #dce0e7;
+  --accent: #5153b5;
+  --accentbg: #ececfc;
+  --on: #ffffff;
+  --red: #ae2f45;
+  --redbg: #fff0f2;
+  --amber: #82530b;
+  --amberbg: #fff5e3;
+  --green: #176a45;
+  --greenbg: #eaf8f0;
+  --blue: #245f9e;
+  --shadow: 0 24px 80px #1a24452b;
+}
+
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-sidebar: var(--side);
+  --color-surface: var(--panel);
+  --color-subtle: var(--soft);
+  --color-hover: var(--hover);
+  --color-primary: var(--ink);
+  --color-secondary: var(--muted);
+  --color-default: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-subtle: var(--accentbg);
+  --color-on-accent: var(--on);
+  --color-danger: var(--red);
+  --color-danger-subtle: var(--redbg);
+  --color-attention: var(--amber);
+  --color-attention-subtle: var(--amberbg);
+  --color-success: var(--green);
+  --color-success-subtle: var(--greenbg);
+  --color-information: var(--blue);
+  --radius-control: 7px;
+  --shadow-overlay: var(--shadow);
 }
 
 html,
