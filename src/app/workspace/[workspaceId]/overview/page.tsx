@@ -1,8 +1,9 @@
 /**
  * Workspace / Overview - /workspace/:workspaceId/overview
- * Workspace entry route that currently redirects to the sessions surface while preserving workspace scope.
+ * "Needs you" page: cards that need the owner across this workspace
+ * (`?view=all` for every workspace), sorted by design-spec §4 severity.
  */
-import { redirect } from "next/navigation";
+import { InboxPageClient } from "./inbox-page-client";
 
 export async function generateStaticParams() {
   if (process.env.ROUTA_BUILD_STATIC === "1") {
@@ -11,11 +12,6 @@ export async function generateStaticParams() {
   return [];
 }
 
-export default async function WorkspaceOverviewPage({
-  params,
-}: {
-  params: Promise<{ workspaceId: string }>;
-}) {
-  const { workspaceId } = await params;
-  redirect(`/workspace/${workspaceId}/sessions`);
+export default function WorkspaceOverviewPage() {
+  return <InboxPageClient />;
 }

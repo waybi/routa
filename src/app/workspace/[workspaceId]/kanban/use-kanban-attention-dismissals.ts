@@ -82,6 +82,20 @@ export function readAttentionDismissals(boardId: string): readonly string[] {
   return readDismissed(boardId);
 }
 
+/** Non-hook write (e.g. the "Needs you" page hides items across boards). */
+export function dismissAttentionItem(boardId: string, dismissKey: string): void {
+  const current = readDismissed(boardId);
+  if (current.includes(dismissKey)) return;
+  writeDismissed(boardId, [...current, dismissKey]);
+}
+
+/** Non-hook undo of dismissAttentionItem. */
+export function restoreAttentionItem(boardId: string, dismissKey: string): void {
+  const current = readDismissed(boardId);
+  if (!current.includes(dismissKey)) return;
+  writeDismissed(boardId, current.filter((key) => key !== dismissKey));
+}
+
 /** Test-only: drop in-memory fallbacks and cached snapshots. */
 export function resetAttentionDismissalsForTests(): void {
   memoryDismissals.clear();
