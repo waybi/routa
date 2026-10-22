@@ -19,6 +19,7 @@ import {
 } from "./kanban-tab-helpers";
 import type { KanbanBoardInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { buildKanbanTaskAdaptiveHarnessOptions } from "./kanban-task-adaptive";
+import type { KanbanTaskDetailHydration } from "./use-kanban-task-detail-hydration";
 
 export { KanbanBoardSurface, KanbanCreateTaskModal } from "./kanban-board-surface";
 
@@ -284,7 +285,7 @@ function A2ASessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-slate-200/80 bg-slate-50/80 py-2 pl-2 pr-2 dark:border-[#202433] dark:bg-[#10131a]" data-testid="kanban-session-pane-top-row">
+      <div className="shrink-0 border-b border-default bg-canvas py-2 pl-2 pr-2" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           sessions={sessions}
@@ -294,26 +295,26 @@ function A2ASessionPane({
           onCloseSession={onCloseSession}
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-white via-sky-50/40 to-amber-50/30 p-5 dark:from-[#12141c] dark:via-[#101824] dark:to-[#17131c]">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
-      <section className="border border-slate-200/80 p-5 dark:border-[#232736]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-300">A2A Run</div>
-            <div className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-canvas p-4">
+        <div className="grid gap-4">
+          <section className="rounded-lg border border-default bg-surface p-4">
+            <div className="text-xs font-semibold text-information">A2A Run</div>
+            <div className="mt-2 break-all text-base font-semibold text-primary">
               {laneSession?.externalTaskId ?? laneSession?.contextId ?? currentSessionId ?? "A2A task"}
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p className="mt-3 text-sm leading-6 text-secondary">
               This lane run completed through A2A transport. ACP chat and trace are not available for synthetic A2A sessions, so this pane shows the recorded task metadata instead.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {metadata.map((entry) => (
                 <div
                   key={entry.label}
-                  className="border-b border-slate-200 px-3 py-2.5 dark:border-slate-700"
+                  className="border-b border-default px-3 py-2.5"
                 >
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] text-secondary">
                     {entry.label}
                   </div>
-                  <div className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">
+                  <div className="mt-1 break-all text-sm font-medium text-primary">
                     {entry.value}
                   </div>
                 </div>
@@ -340,6 +341,7 @@ export function KanbanTaskDetailOverlay({
   activeSessionId,
   activeTaskId,
   activeTask,
+  detailHydration,
   board,
   resolveSpecialist,
   acp,
@@ -372,6 +374,7 @@ export function KanbanTaskDetailOverlay({
   activeSessionId: string | null;
   activeTaskId: string | null;
   activeTask: TaskInfo | null;
+  detailHydration?: KanbanTaskDetailHydration;
   board: KanbanBoardInfo | null;
   resolveSpecialist: ReturnType<typeof import("./kanban-card-session-utils").createKanbanSpecialistResolver>;
   acp?: UseAcpState & UseAcpActions;
@@ -492,27 +495,29 @@ export function KanbanTaskDetailOverlay({
 
   if (!isOverlayOpen) return null;
 
+  // Session column: the dragged share of the width, but never under 260px
+  // (design-spec §7, 768px) nor over 60% of the overlay.
+  const sessionPaneStyle = { width: `${((1 - detailSplitRatio) * 100).toFixed(2)}%` };
+  const sessionPaneClamp = "min-w-[260px] max-w-[60%]";
+
   return (
     <div
-      className={`fixed inset-0 z-50 flex bg-black/50 animate-in fade-in duration-150 ${
+      className={`fixed inset-0 z-50 flex bg-canvas/70 animate-in fade-in duration-150 ${
         isTaskDetailFullscreen ? "items-stretch justify-stretch px-0 py-0" : "items-center justify-center px-4 py-6"
       }`}
     >
       <div
-        className={`relative w-full overflow-hidden border border-slate-200 bg-white shadow-sm dark:border-[#1c1f2e] dark:bg-[#12141c] animate-in zoom-in-95 duration-150 ${
+        className={`relative w-full overflow-hidden border border-default bg-canvas shadow-overlay animate-in zoom-in-95 duration-150 ${
           isTaskDetailFullscreen ? "h-screen max-w-none border-0" : "h-[88vh] max-w-7xl"
         }`}
       >
-        <div ref={detailSplitContainerRef} className="flex h-full">
+        <div ref={detailSplitContainerRef} className="flex h-full min-w-0">
           {activeTaskId && (() => {
             const task = activeTask;
             if (!task) return null;
             const sessionInfo = activeSessionId ? sessionMap.get(activeSessionId) ?? null : null;
             return (
-              <div
-                className={`${hasSessionPane ? "shrink-0" : "flex-1"} h-full min-w-0 border-r border-slate-200/80 dark:border-[#202433]`}
-                style={hasSessionPane ? { width: `${detailSplitRatio * 100}%` } : undefined}
-              >
+              <div className="h-full min-w-0 flex-1">
                 <KanbanCardDetail
                   key={task.id}
                   task={task}
@@ -600,17 +605,24 @@ export function KanbanTaskDetailOverlay({
                   canShowSessionPane={canShowSessionPane}
                   isSessionPaneVisible={hasSessionPane}
                   onShowSessionPane={() => setHiddenSessionPaneTaskId(null)}
+                  loadState={detailHydration ? {
+                    loading: detailHydration.loading,
+                    error: detailHydration.error,
+                    onRetry: detailHydration.retry,
+                  } : undefined}
                 />
               </div>
             );
           })()}
           {activeTaskId && hasSessionPane && (
             <div
-              className="hidden h-full w-3 shrink-0 cursor-col-resize items-center justify-center bg-transparent hover:bg-amber-50/80 dark:hover:bg-amber-900/10 md:flex"
+              role="separator"
+              aria-orientation="vertical"
+              className="group flex h-full w-1.5 shrink-0 cursor-col-resize items-center justify-center border-l border-default bg-canvas hover:bg-accent-subtle"
               onMouseDown={() => setIsDraggingDetailSplit(true)}
               data-testid="kanban-detail-split-handle"
             >
-              <div className="h-12 w-1 rounded-full bg-slate-300 transition-colors hover:bg-amber-400 dark:bg-slate-700 dark:hover:bg-amber-500" />
+              <div className="h-12 w-0.5 rounded-full bg-default transition-colors group-hover:bg-accent" />
             </div>
           )}
           {hasSessionPane ? (() => {
@@ -640,8 +652,8 @@ export function KanbanTaskDetailOverlay({
             if (showEmptySessionPane && activeTask) {
               return (
                 <div
-                  className="flex h-full min-w-0 flex-1 flex-col overflow-hidden"
-                  style={activeTaskId ? { width: `${(1 - detailSplitRatio) * 100}%` } : undefined}
+                    className={`flex h-full shrink-0 flex-col overflow-hidden bg-canvas ${sessionPaneClamp}`}
+                  style={activeTaskId ? sessionPaneStyle : undefined}
                 >
                   <KanbanEmptySessionPane
                     task={activeTask}
@@ -658,11 +670,11 @@ export function KanbanTaskDetailOverlay({
 
             return (
               <div
-                className="flex h-full min-w-0 flex-1 flex-col overflow-hidden"
-                style={activeTaskId ? { width: `${(1 - detailSplitRatio) * 100}%` } : undefined}
+                className={`flex h-full flex-col overflow-hidden bg-canvas ${activeTaskId ? `shrink-0 ${sessionPaneClamp}` : "min-w-0 flex-1"}`}
+                style={activeTaskId ? sessionPaneStyle : undefined}
               >
                 {activeTask && !isA2ASessionPane && (
-                  <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-2 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
+                  <div className="shrink-0 border-b border-default bg-canvas py-2 pl-2 pr-2" data-testid="kanban-session-pane-top-row">
                     <KanbanCardActivityBar
                       task={activeTask}
                       sessions={combinedSessions}

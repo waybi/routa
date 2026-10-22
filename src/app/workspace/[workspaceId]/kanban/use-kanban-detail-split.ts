@@ -11,10 +11,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "routa:kanban-detail-split-ratio";
-const MIN_RATIO = 0.32;
-const MAX_RATIO = 0.72;
-const DEFAULT_RATIO = 0.48;
+// v2: the redesigned detail (card 3/6) defaults to a ~390px session column
+// at 1440px wide (design-spec §7); the old 0.48 ratio is not carried over.
+const STORAGE_KEY = "routa:kanban-detail-split-ratio:v2";
+const MIN_RATIO = 0.4;
+const MAX_RATIO = 0.82;
+const DEFAULT_RATIO = 0.73;
 
 function clampRatio(ratio: number): number {
   return Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio));

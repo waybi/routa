@@ -45,6 +45,7 @@ import { useKanbanLiveTails } from "./use-kanban-live-tails";
 import { useKanbanWorktreeCache } from "./use-kanban-worktree-cache";
 import { useKanbanAgentInput } from "./use-kanban-agent-input";
 import { useKanbanDetailSplit } from "./use-kanban-detail-split";
+import { useKanbanTaskDetailHydration } from "./use-kanban-task-detail-hydration";
 
 interface SpecialistOption {
   id: string;
@@ -210,8 +211,6 @@ export function KanbanTab({
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null); // For card detail view;
-  // taskId -> full record fetched from GET /api/tasks/:id (detail-only fields).
-  const [hydratedTaskDetails, setHydratedTaskDetails] = useState<Record<string, TaskInfo>>({});
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -274,6 +273,19 @@ export function KanbanTab({
     () => activeTaskId ? localTasks.find((task) => task.id === activeTaskId) ?? null : null,
     [activeTaskId, localTasks],
   );
+  const fetchTaskById = useCallback(async (taskId: string) => {
+    const response = await desktopAwareFetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
+      cache: "no-store",
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof data?.error === "string" ? data.error : "Failed to load task");
+    }
+    return data.task as TaskInfo;
+  }, []);
+
+  const detailHydration = useKanbanTaskDetailHydration(activeTaskId, summaryActiveTask?.updatedAt, fetchTaskById);
+  const { hydratedTaskDetails } = detailHydration;
   const activeTask = useMemo(() => {
     if (!activeTaskId) return null;
     const hydrated = hydratedTaskDetails[activeTaskId];
@@ -444,17 +456,6 @@ export function KanbanTab({
     return updated;
   }, []);
 
-  const fetchTaskById = useCallback(async (taskId: string) => {
-    const response = await desktopAwareFetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
-      cache: "no-store",
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(typeof data?.error === "string" ? data.error : "Failed to load task");
-    }
-    return data.task as TaskInfo;
-  }, []);
-
   const { worktreeCache, setWorktreeCache } = useKanbanWorktreeCache({
     localTasks,
     setLocalTasks,
@@ -478,29 +479,6 @@ export function KanbanTab({
   useEffect(() => {
     setLocalTasks(tasks);
   }, [tasks]);
-
-  // Hydrate the open card's detail-only fields, and re-hydrate when the board
-  // reports the card changed (updatedAt moves on every agent write).
-  const activeTaskUpdatedAt = summaryActiveTask?.updatedAt;
-  useEffect(() => {
-    if (!activeTaskId) return;
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const full = await fetchTaskById(activeTaskId);
-        if (cancelled) return;
-        setHydratedTaskDetails((current) => ({ ...current, [activeTaskId]: full }));
-      } catch (error) {
-        // The summary record still renders; only detail-only fields are missing.
-        console.error("[kanban] Failed to hydrate task detail:", error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTaskId, activeTaskUpdatedAt, fetchTaskById]);
 
   useEffect(() => {
     setBackfilledSessions((current) => {
@@ -1410,6 +1388,7 @@ export function KanbanTab({
     activeSessionId,
     activeTaskId,
     activeTask,
+    detailHydration,
     board,
     resolveSpecialist,
     acp,

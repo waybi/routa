@@ -1,16 +1,20 @@
 "use client";
 
-import { Maximize2, Minimize2, PanelRightOpen, X } from "lucide-react";
+import { Maximize2, Minimize2, PanelRightOpen, RefreshCw, X } from "lucide-react";
+import { buttonClassName } from "@/client/components/ui/button";
 import { useTranslation } from "@/i18n";
 
-const PILL_BUTTON_CLASS = "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
+/** Shared style for the card-detail pane buttons: close card detail, hide session pane, show session pane. */
+export const DETAIL_PANE_BUTTON_CLASS = `${buttonClassName("secondary", "sm")} shrink-0 whitespace-nowrap`;
 
-/** Shared pill style for the card-detail pane buttons: close card detail, hide session pane, show session pane. */
-export const DETAIL_PANE_BUTTON_CLASS = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-300 bg-slate-50 px-3.5 text-[13px] font-semibold text-slate-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 dark:border-slate-600 dark:bg-[#0d1018] dark:text-slate-200 dark:hover:border-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-200";
+/** The single close button is the primary (accent) action of the toolbar. */
+const CLOSE_BUTTON_CLASS = `${buttonClassName("primary", "sm")} shrink-0 whitespace-nowrap`;
 
 export interface KanbanCardDetailToolbarProps {
   compactMode: boolean;
   isFullscreen: boolean;
+  /** Card id; its first 8 characters are shown next to the "Card Detail" label. */
+  cardId?: string;
   onToggleFullscreen?: (next: boolean) => void;
   onClose?: () => void;
   onRefresh: () => void;
@@ -19,9 +23,15 @@ export interface KanbanCardDetailToolbarProps {
   onShowSessionPane?: () => void;
 }
 
+/**
+ * Sticky top bar of the card detail: fullscreen, show session pane, refresh
+ * and the one "Close card detail" button (last, accent) stay visible while
+ * the detail body scrolls underneath.
+ */
 export function KanbanCardDetailToolbar({
   compactMode,
   isFullscreen,
+  cardId,
   onToggleFullscreen,
   onClose,
   onRefresh,
@@ -29,23 +39,28 @@ export function KanbanCardDetailToolbar({
   onShowSessionPane,
 }: KanbanCardDetailToolbarProps) {
   const { t } = useTranslation();
+  const fullscreenLabel = isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen;
 
   return (
-    <div className={`sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-transparent bg-white/95 backdrop-blur dark:bg-[#12141c]/95 ${compactMode ? "-mx-3 -mt-3 -mb-2 pl-3 pb-1 pt-3" : "-mx-4 -mt-4 -mb-3 pl-4 pb-1.5 pt-4"} ${compactMode ? "pr-3" : "pr-4"}`} data-testid="kanban-detail-sticky-toolbar">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-        {t.kanbanDetail.cardDetail}
+    <div
+      className={`sticky top-0 z-20 flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-default bg-canvas py-2 ${compactMode ? "pl-3" : "pl-4"} pr-4`}
+      data-testid="kanban-detail-sticky-toolbar"
+    >
+      <div className="flex min-w-0 items-baseline gap-2 text-[13px] text-secondary">
+        <span>{t.kanbanDetail.cardDetail}</span>
+        {cardId ? <span className="truncate font-mono text-xs">{cardId.slice(0, 8)}</span> : null}
       </div>
-      <div className="flex items-center gap-1.5">
-        {onClose ? (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {onToggleFullscreen ? (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onToggleFullscreen(!isFullscreen)}
             className={DETAIL_PANE_BUTTON_CLASS}
-            aria-label={t.kanbanDetail.closeCardDetail}
-            title={t.kanbanDetailOverlay.closeWithEscHint}
+            aria-label={fullscreenLabel}
+            title={fullscreenLabel}
           >
-            <X className="h-4 w-4" aria-hidden="true" />
-            <span>{t.kanbanDetail.closeCardDetail}</span>
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" /> : <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />}
+            <span className="hidden lg:inline">{fullscreenLabel}</span>
           </button>
         ) : null}
         {showSessionPaneLabel && onShowSessionPane ? (
@@ -54,20 +69,23 @@ export function KanbanCardDetailToolbar({
             <span>{showSessionPaneLabel}</span>
           </button>
         ) : null}
-        {onToggleFullscreen ? (
+        <button type="button" onClick={onRefresh} className={DETAIL_PANE_BUTTON_CLASS} aria-label={t.common.refresh}>
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          <span className="hidden lg:inline">{t.common.refresh}</span>
+        </button>
+        {onClose ? (
           <button
             type="button"
-            onClick={() => onToggleFullscreen(!isFullscreen)}
-            className="inline-flex h-6 w-6 items-center justify-center border border-slate-300/80 text-slate-500 transition-colors hover:border-amber-400 hover:text-amber-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-amber-700 dark:hover:text-amber-200"
-            aria-label={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
-            title={isFullscreen ? t.kanbanDetail.exitFullscreen : t.kanbanDetail.enterFullscreen}
+            onClick={onClose}
+            className={CLOSE_BUTTON_CLASS}
+            aria-label={t.kanbanDetail.closeCardDetail}
+            title={t.kanbanDetailOverlay.closeWithEscHint}
+            data-testid="kanban-detail-close"
           >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span>{t.kanbanDetail.closeCardDetail}</span>
           </button>
         ) : null}
-        <button type="button" onClick={onRefresh} className={PILL_BUTTON_CLASS}>
-          {t.common.refresh}
-        </button>
       </div>
     </div>
   );

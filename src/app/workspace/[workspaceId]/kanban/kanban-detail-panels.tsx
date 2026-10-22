@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AcpTaskAdaptiveHarnessOptions } from "@/client/acp-client";
-import { MarkdownViewer } from "@/client/components/markdown/markdown-viewer";
 import { desktopAwareFetch, toErrorMessage } from "@/client/utils/diagnostics";
 import { useTranslation } from "@/i18n";
 import type {
@@ -35,58 +34,6 @@ function formatTimestamp(value: string | undefined): string | null {
   }
 
   return parsed.toLocaleString();
-}
-
-function formatReadinessFieldLabel(field: string, t: ReturnType<typeof useTranslation>["t"]): string {
-  switch (field) {
-    case "scope":
-      return t.kanbanDetail.scope;
-    case "acceptance_criteria":
-      return t.kanbanDetail.acceptanceCriteria;
-    case "verification_commands":
-      return t.kanbanDetail.verificationCommands;
-    case "test_cases":
-      return t.kanbanDetail.testCases;
-    case "verification_plan":
-      return t.kanbanDetail.verificationPlan;
-    case "dependencies_declared":
-      return t.kanbanDetail.dependenciesDeclared;
-    default:
-      return field;
-  }
-}
-
-function formatCheckStatus(value: boolean, t: ReturnType<typeof useTranslation>["t"]): string {
-  return value ? t.kanbanDetail.present : t.kanbanDetail.missing;
-}
-
-function formatAnalysisStatus(value: string, t: ReturnType<typeof useTranslation>["t"]): string {
-  switch (value) {
-    case "pass":
-      return t.kanbanDetail.pass;
-    case "warning":
-      return t.kanbanDetail.warning;
-    case "fail":
-      return t.kanbanDetail.fail;
-    default:
-      return value.toUpperCase();
-  }
-}
-
-function formatVerificationVerdictLabel(
-  verdict: string | undefined,
-  t: ReturnType<typeof useTranslation>["t"],
-): string {
-  switch (verdict) {
-    case "NOT_APPROVED":
-      return t.kanbanDetail.reviewRequestedChanges;
-    case "BLOCKED":
-      return t.kanbanDetail.reviewBlockedVerdict;
-    case "APPROVED":
-      return t.kanbanDetail.reviewApprovedVerdict;
-    default:
-      return t.kanbanDetail.reviewFeedback;
-  }
 }
 
 function hasTaskAdaptiveSearchHints(options: AcpTaskAdaptiveHarnessOptions | undefined): boolean {
@@ -745,306 +692,6 @@ function buildJitHistoryAnalysisPrompt(
   ].filter(Boolean).join("\n");
 }
 
-function SummaryGridItem({
-  label,
-  value,
-  detail,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  compact?: boolean;
-}) {
-  return (
-    <div className="space-y-0.5 border-b border-slate-200/70 px-1.5 py-1.5 text-sm dark:border-slate-700/60">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        {label}
-      </div>
-      <div className="font-medium text-slate-900 dark:text-slate-100">{value}</div>
-      {detail && !compact && (
-        <div className="text-xs leading-5 text-slate-500 dark:text-slate-400">{detail}</div>
-      )}
-    </div>
-  );
-}
-
-export function StoryReadinessPanel({
-  task,
-  compact = false,
-}: {
-  task: TaskInfo;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const readiness = task.storyReadiness;
-  const investValidation = task.investValidation;
-  const readinessChecks = readiness?.checks;
-  const investChecks = investValidation?.checks;
-  const requiredLabels = readiness?.requiredTaskFields.map((field) => formatReadinessFieldLabel(field, t)) ?? [];
-  const missingLabels = readiness?.missing.map((field) => formatReadinessFieldLabel(field, t)) ?? [];
-
-  return (
-    <div className="space-y-3">
-      <div className={`border-l-2 px-3 py-2.5 ${
-        readiness?.ready
-          ? "border-l-emerald-400/80 dark:border-l-emerald-500/70"
-          : "border-l-amber-400/80 dark:border-l-amber-500/70"
-      }`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-            readiness?.ready
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-          }`}>
-            {readiness?.ready ? t.kanbanDetail.readyForDev : t.kanbanDetail.blockedForDev}
-          </span>
-          <span className="text-xs text-slate-600 dark:text-slate-300">
-            {requiredLabels.length > 0
-              ? `${t.kanbanDetail.requiredForNextMove}: ${requiredLabels.join(", ")}`
-              : t.kanbanDetail.gateNotConfigured}
-          </span>
-        </div>
-        <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
-          {missingLabels.length > 0
-            ? `${t.kanbanDetail.missingFields}: ${missingLabels.join(", ")}`
-            : t.kanbanDetail.allRequiredFields}
-        </div>
-      </div>
-
-      {readinessChecks && (
-        <div className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-3"}`}>
-          <SummaryGridItem
-            label={t.kanbanDetail.scope}
-            value={formatCheckStatus(readinessChecks.scope, t)}
-            compact={compact}
-          />
-          <SummaryGridItem
-            label={t.kanbanDetail.acceptanceCriteria}
-            value={formatCheckStatus(readinessChecks.acceptanceCriteria, t)}
-            compact={compact}
-          />
-          <SummaryGridItem
-            label={t.kanbanDetail.verificationCommands}
-            value={formatCheckStatus(readinessChecks.verificationCommands, t)}
-            compact={compact}
-          />
-          <SummaryGridItem
-            label={t.kanbanDetail.testCases}
-            value={formatCheckStatus(readinessChecks.testCases, t)}
-            compact={compact}
-          />
-          <SummaryGridItem
-            label={t.kanbanDetail.verificationPlan}
-            value={formatCheckStatus(readinessChecks.verificationPlan, t)}
-            compact={compact}
-          />
-          <SummaryGridItem
-            label={t.kanbanDetail.dependenciesDeclared}
-            value={formatCheckStatus(readinessChecks.dependenciesDeclared, t)}
-            compact={compact}
-          />
-        </div>
-      )}
-
-      {investValidation && investChecks && (
-        <div className="space-y-2 border-t border-slate-200/70 pt-2 dark:border-slate-700/70">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-              {t.kanbanDetail.investSummary}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {t.kanbanDetail.source}: {investValidation.source === "canonical_story"
-                ? t.kanbanDetail.sourceCanonicalStory
-                : t.kanbanDetail.sourceHeuristic}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {t.kanbanDetail.overall}: {formatAnalysisStatus(investValidation.overallStatus, t)}
-            </span>
-          </div>
-          <div className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-3"}`}>
-            <SummaryGridItem
-              label={t.kanbanDetail.investIndependent}
-              value={formatAnalysisStatus(investChecks.independent.status, t)}
-              detail={investChecks.independent.reason}
-              compact={compact}
-            />
-            <SummaryGridItem
-              label={t.kanbanDetail.investNegotiable}
-              value={formatAnalysisStatus(investChecks.negotiable.status, t)}
-              detail={investChecks.negotiable.reason}
-              compact={compact}
-            />
-            <SummaryGridItem
-              label={t.kanbanDetail.investValuable}
-              value={formatAnalysisStatus(investChecks.valuable.status, t)}
-              detail={investChecks.valuable.reason}
-              compact={compact}
-            />
-            <SummaryGridItem
-              label={t.kanbanDetail.investEstimable}
-              value={formatAnalysisStatus(investChecks.estimable.status, t)}
-              detail={investChecks.estimable.reason}
-              compact={compact}
-            />
-            <SummaryGridItem
-              label={t.kanbanDetail.investSmall}
-              value={formatAnalysisStatus(investChecks.small.status, t)}
-              detail={investChecks.small.reason}
-              compact={compact}
-            />
-            <SummaryGridItem
-              label={t.kanbanDetail.investTestable}
-              value={formatAnalysisStatus(investChecks.testable.status, t)}
-              detail={investChecks.testable.reason}
-              compact={compact}
-            />
-          </div>
-          {investValidation.issues.length > 0 && (
-            <div className="mt-2 border-t border-amber-200/70 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/50 dark:text-amber-300">
-              {investValidation.issues.join(" ")}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function EvidenceBundlePanel({
-  task,
-  compact = false,
-}: {
-  task: TaskInfo;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const evidence = task.evidenceSummary;
-  if (!evidence) {
-    return (
-      <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
-        {t.kanbanDetail.noEvidenceSummary}
-      </div>
-    );
-  }
-
-  const reviewable = evidence.artifact.requiredSatisfied
-    && (evidence.verification.hasReport || evidence.verification.hasVerdict || evidence.completion.hasSummary);
-  const missingRequiredArtifacts = evidence.artifact.missingRequired ?? [];
-  const missingRequired = missingRequiredArtifacts.length > 0
-    ? missingRequiredArtifacts.join(", ")
-    : t.kanbanDetail.none;
-  const artifactBreakdown = Object.entries(evidence.artifact.byType)
-    .map(([type, count]) => `${type}: ${count}`)
-    .join(", ") || t.kanbanDetail.none;
-
-  return (
-    <div className="space-y-3">
-      <div className={`border-l-2 px-3 py-2.5 ${
-        reviewable
-          ? "border-l-emerald-400/80 dark:border-l-emerald-500/70"
-          : "border-l-amber-400/80 dark:border-l-amber-500/70"
-      }`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-            reviewable
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-          }`}>
-            {reviewable ? t.kanbanDetail.reviewable : t.kanbanDetail.reviewBlocked}
-          </span>
-          <span className="text-xs text-slate-600 dark:text-slate-300">
-            {t.kanbanDetail.requiredArtifacts}: {missingRequired}
-          </span>
-        </div>
-      </div>
-      <div className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-3"}`}>
-        <SummaryGridItem
-          label={t.kanbanDetail.requiredArtifacts}
-          value={`${evidence.artifact.total}`}
-          detail={artifactBreakdown}
-          compact={compact}
-        />
-        <SummaryGridItem
-          label={t.kanbanDetail.verification}
-          value={evidence.verification.verdict ?? formatCheckStatus(evidence.verification.hasVerdict, t)}
-          detail={evidence.verification.hasReport ? t.kanbanDetail.reportPresent : t.kanbanDetail.reportMissing}
-          compact={compact}
-        />
-        <SummaryGridItem
-          label={t.kanbanDetail.completion}
-          value={evidence.completion.hasSummary ? t.kanbanDetail.summaryPresent : t.kanbanDetail.summaryMissing}
-          compact={compact}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function ReviewFeedbackPanel({
-  task,
-  compact = false,
-}: {
-  task: TaskInfo;
-  compact?: boolean;
-}) {
-  const { t } = useTranslation();
-  const report = task.verificationReport?.trim();
-  const verdict = task.verificationVerdict;
-
-  if (!report && !verdict) {
-    return (
-      <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
-        {t.kanbanDetail.reportMissing}
-      </div>
-    );
-  }
-
-  const verdictLabel = formatVerificationVerdictLabel(verdict, t);
-  const verdictTone = verdict === "BLOCKED"
-    ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200"
-    : verdict === "APPROVED"
-      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
-      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200";
-
-  return (
-    <div className="space-y-3">
-      <div className={`border-l-2 px-3 py-2.5 ${
-        verdict === "APPROVED"
-          ? "border-l-emerald-400/80 dark:border-l-emerald-500/70"
-          : verdict === "BLOCKED"
-            ? "border-l-rose-400/80 dark:border-l-rose-500/70"
-            : "border-l-amber-400/80 dark:border-l-amber-500/70"
-      }`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${verdictTone}`}>
-            {task.columnId === "dev" && verdict !== "APPROVED"
-              ? t.kanbanDetail.reviewReturnedToDev
-              : verdictLabel}
-          </span>
-          {verdict && (
-            <span className="text-xs text-slate-600 dark:text-slate-300">
-              {t.kanbanDetail.verification}: {verdictLabel}
-            </span>
-          )}
-        </div>
-      </div>
-      {report ? (
-        <div className={`border-b border-slate-200/70 text-sm text-slate-700 dark:border-slate-700/70 dark:text-slate-200 ${compact ? "px-3 py-2.5" : "px-4 py-3"}`}>
-          <MarkdownViewer
-            content={report}
-            className="prose prose-sm max-w-none text-slate-800 dark:prose-invert dark:text-slate-200"
-          />
-        </div>
-      ) : (
-        <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
-          {t.kanbanDetail.reportMissing}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function JitContextPanel({
   task,
   workspaceId,
@@ -1333,17 +980,17 @@ export function JitContextPanel({
 
   return (
     <div className="space-y-3">
-      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 ${compact ? "px-3 py-2" : "px-3.5 py-2.5"} dark:border-slate-700/70 dark:bg-slate-900/20`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border border-default bg-canvas ${compact ? "px-3 py-2" : "px-3.5 py-2.5"}`}>
         <div className="space-y-1">
           {showTitle ? (
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            <div className="text-[11px] font-semibold text-secondary">
               {t.kanbanDetail.jitContext}
             </div>
           ) : null}
-          <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+          <div className="text-sm font-medium text-primary">
             {t.kanbanDetail.jitContextHint}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-secondary">
             {loaded && pack ? (
               <>
                 <span>{t.kanbanDetail.historicalIssues}: {historicalIssueCount}</span>
@@ -1370,7 +1017,7 @@ export function JitContextPanel({
                 void handleOpenHistoryAnalysis();
               }}
               disabled={openingAnalysis}
-              className="rounded-md border border-sky-200 px-2 py-1 text-[11px] font-medium text-sky-700 transition-colors hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-900/50 dark:text-sky-300 dark:hover:bg-sky-900/20"
+              className="rounded-md border border-accent px-2 py-1 text-[11px] font-medium text-information transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
             >
               {openingAnalysis ? t.kanbanDetail.openingJitContextHistoryAnalysis : t.kanbanDetail.openJitContextHistoryAnalysis}
             </button>
@@ -1382,7 +1029,7 @@ export function JitContextPanel({
                 void handleLoadIntoSession();
               }}
               disabled={injecting}
-              className="rounded-md border border-emerald-200 px-2 py-1 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+              className="rounded-md border border-success px-2 py-1 text-[11px] font-medium text-success transition-colors hover:bg-success-subtle disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
             >
               {injecting ? t.kanbanDetail.loadingJitContextIntoCurrentSession : t.kanbanDetail.loadJitContextIntoCurrentSession}
             </button>
@@ -1393,7 +1040,7 @@ export function JitContextPanel({
               onClick={() => {
                 void loadContext();
               }}
-              className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-default px-2 py-1 text-[11px] font-medium text-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
             >
               {t.kanbanDetail.refreshJitContext}
             </button>
@@ -1401,7 +1048,7 @@ export function JitContextPanel({
           <button
             type="button"
             onClick={toggleExpanded}
-            className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-md border border-default px-2 py-1 text-[11px] font-medium text-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
             aria-expanded={expanded}
           >
             {expanded ? t.kanbanDetail.hideJitContext : t.kanbanDetail.showJitContext}
@@ -1412,55 +1059,55 @@ export function JitContextPanel({
       {expanded && (
         <div className="space-y-3">
           {analysisError ? (
-            <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 px-3 py-2.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/10 dark:text-rose-200">
+            <div className="rounded-xl border border-danger bg-danger-subtle px-3 py-2.5 text-sm text-danger">
               {analysisError}
             </div>
           ) : null}
 
           {analysisSuccess ? (
-            <div className="rounded-xl border border-sky-200/80 bg-sky-50/80 px-3 py-2.5 text-sm text-sky-700 dark:border-sky-900/50 dark:bg-sky-900/10 dark:text-sky-200">
+            <div className="rounded-xl border border-accent bg-accent-subtle px-3 py-2.5 text-sm text-information">
               {t.kanbanDetail.jitContextHistoryAnalysisOpened}
             </div>
           ) : null}
 
           {injectError ? (
-            <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 px-3 py-2.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/10 dark:text-rose-200">
+            <div className="rounded-xl border border-danger bg-danger-subtle px-3 py-2.5 text-sm text-danger">
               {injectError}
             </div>
           ) : null}
 
           {injectSuccess ? (
-            <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-3 py-2.5 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/10 dark:text-emerald-200">
+            <div className="rounded-xl border border-success bg-success-subtle px-3 py-2.5 text-sm text-success">
               {t.kanbanDetail.jitContextLoadedIntoCurrentSession}
             </div>
           ) : null}
 
           {savedAnalysis ? (
-            <div className="rounded-xl border border-sky-200/80 bg-sky-50/70 px-3 py-2.5 dark:border-sky-900/50 dark:bg-sky-900/10">
+            <div className="rounded-xl border border-accent bg-accent-subtle px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">
+                <div className="text-[11px] font-semibold text-information">
                   {t.kanbanDetail.savedHistoryAnalysis}
                 </div>
                 {formatTimestamp(savedAnalysis.updatedAt) ? (
-                  <span className="text-[11px] text-sky-700/80 dark:text-sky-200/80">
+                  <span className="text-[11px] text-information">
                     {t.kanbanDetail.updatedAt}: {formatTimestamp(savedAnalysis.updatedAt)}
                   </span>
                 ) : null}
               </div>
-              <div className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">
+              <div className="mt-2 text-sm leading-6 text-primary">
                 {savedAnalysis.summary}
               </div>
 
               {savedAnalysis.topFiles.length > 0 ? (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.analysisTopFiles}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {savedAnalysis.topFiles.map((filePath, index) => (
                       <span
                         key={`analysis-file:${index}:${filePath}`}
-                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300"
+                        className="rounded-full border border-default bg-surface px-2 py-0.5 font-mono text-[11px] text-secondary"
                       >
                         {filePath}
                       </span>
@@ -1471,24 +1118,24 @@ export function JitContextPanel({
 
               {savedAnalysis.topSessions.length > 0 ? (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.analysisTopSessions}
                   </div>
                   <div className="space-y-2">
                     {savedAnalysis.topSessions.map((session, index) => (
                       <div
                         key={`analysis-session:${index}:${session.sessionId}`}
-                        className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-950/40"
+                        className="rounded-xl border border-default bg-surface px-3 py-2"
                       >
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                           <span>{session.sessionId}</span>
                           {session.provider ? (
-                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                            <span className="text-xs font-normal text-secondary">
                               {session.provider}
                             </span>
                           ) : null}
                         </div>
-                        <div className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                        <div className="mt-1 text-sm text-primary">
                           {session.reason}
                         </div>
                       </div>
@@ -1499,14 +1146,14 @@ export function JitContextPanel({
 
               {savedAnalysis.reusablePrompts.length > 0 ? (
                 <div className="mt-3 space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.analysisReusablePrompts}
                   </div>
                   <div className="space-y-2">
                     {savedAnalysis.reusablePrompts.map((prompt, index) => (
                       <div
                         key={`analysis-prompt:${index}:${prompt}`}
-                        className="rounded-md bg-white/80 px-2 py-1.5 text-sm text-slate-700 dark:bg-slate-950/60 dark:text-slate-200"
+                        className="rounded-md bg-surface px-2 py-1.5 text-sm text-primary"
                       >
                         {prompt}
                       </div>
@@ -1518,36 +1165,36 @@ export function JitContextPanel({
           ) : null}
 
           {!hasSavedAnalysis && loading ? (
-            <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+            <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
               {t.kanbanDetail.loadingJitContext}
             </div>
           ) : !hasSavedAnalysis && error ? (
-            <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 px-3 py-2.5 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/10 dark:text-rose-200">
+            <div className="rounded-xl border border-danger bg-danger-subtle px-3 py-2.5 text-sm text-danger">
               {error}
             </div>
           ) : !hasSavedAnalysis && backlogNeedsRefinementFirst ? (
-            <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+            <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
               {t.kanbanDetail.jitContextNeedsRefinement}
             </div>
           ) : !hasSavedAnalysis && !canLoadContext ? (
-            <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+            <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
               {t.kanbanDetail.jitContextNoHistorySessions}
             </div>
           ) : !hasSavedAnalysis && (!pack || (uniqueFailures.length === 0 && uniqueRepeatedReadFiles.length === 0 && pack.sessions.length === 0 && matchedFileDetails.length === 0 && uniqueWarnings.length === 0 && !pack.historySummary)) ? (
-            <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+            <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
               {t.kanbanDetail.noJitContext}
             </div>
           ) : pack ? (
             <>
               {historySummary ? (
-                <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                <div className="rounded-xl border border-default bg-canvas px-3 py-2.5">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.historySummary}
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">
+                  <div className="mt-2 text-sm leading-6 text-primary">
                     {readableHistoryOverview ?? historySummary.overview}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-secondary">
                     <span>{t.kanbanDetail.historySeedSessions}: {historySummary.seedSessionCount}</span>
                     <span>{t.kanbanDetail.relatedSessions}: {historySummary.recoveredSessionCount}</span>
                     <span>{t.kanbanDetail.matchedFiles}: {historySummary.matchedFileCount}</span>
@@ -1555,19 +1202,19 @@ export function JitContextPanel({
                 </div>
               ) : null}
 
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+              <div className="rounded-xl border border-default bg-canvas px-3 py-2.5">
+                <div className="text-[11px] font-semibold text-secondary">
                   {t.kanbanDetail.matchConfidence}
                 </div>
-                <div className="mt-2 inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200">
+                <div className="mt-2 inline-flex items-center rounded-full border border-default bg-surface px-2.5 py-1 text-xs font-medium text-primary">
                   {formatMatchConfidenceLabel(matchConfidence, t)}
                 </div>
                 {uniqueMatchReasons.length > 0 ? (
                   <div className="mt-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                    <div className="text-[11px] font-semibold text-secondary">
                       {t.kanbanDetail.matchReasons}
                     </div>
-                    <div className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                    <div className="mt-2 space-y-1 text-sm text-primary">
                       {uniqueMatchReasons.map((reason, index) => (
                         <div key={`${reason}:${index}`}>{reason}</div>
                       ))}
@@ -1578,30 +1225,30 @@ export function JitContextPanel({
 
               {pack.sessions.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.relatedSessions}
                   </div>
                   <div className="space-y-2">
                     {pack.sessions.map((session) => (
                       <div
                         key={`matched:${session.provider}:${session.sessionId}`}
-                        className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20"
+                        className="rounded-xl border border-default bg-surface px-3 py-2.5"
                       >
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                           <span>{session.sessionId}</span>
-                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                          <span className="text-xs font-normal text-secondary">
                             {session.provider}
                           </span>
                           {formatTimestamp(session.updatedAt) ? (
-                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                            <span className="text-xs font-normal text-secondary">
                               {formatTimestamp(session.updatedAt)}
                             </span>
                           ) : null}
                         </div>
-                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
+                        <div className="mt-2 text-sm text-primary">
                           {session.promptSnippet}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-secondary">
                           {session.failedReadSignals.length > 0 ? (
                             <span>{t.kanbanDetail.historicalIssues}: {session.failedReadSignals.length}</span>
                           ) : null}
@@ -1610,7 +1257,7 @@ export function JitContextPanel({
                           ) : null}
                         </div>
                         {session.matchedFiles.length > 0 ? (
-                          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="mt-2 text-xs text-secondary">
                             {t.kanbanDetail.matchedFiles}: {formatCompactPathList(session.matchedFiles)}
                           </div>
                         ) : null}
@@ -1620,30 +1267,30 @@ export function JitContextPanel({
                 </div>
               ) : historySummary && historySummary.seedSessions.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.historySeedSessions}
                   </div>
                   <div className="space-y-2">
                     {historySummary.seedSessions.slice(0, 3).map((session) => (
                       <div
                         key={`seed:${session.sessionId}`}
-                        className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20"
+                        className="rounded-xl border border-default bg-surface px-3 py-2.5"
                       >
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                           <span>{session.sessionId}</span>
-                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                          <span className="text-xs font-normal text-secondary">
                             {session.provider}
                           </span>
                           {formatTimestamp(session.updatedAt) ? (
-                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                            <span className="text-xs font-normal text-secondary">
                               {formatTimestamp(session.updatedAt)}
                             </span>
                           ) : null}
                         </div>
-                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
+                        <div className="mt-2 text-sm text-primary">
                           {session.promptSnippet}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-secondary">
                           {session.failedReadSignals.length > 0 ? (
                             <span>{t.kanbanDetail.historicalIssues}: {session.failedReadSignals.length}</span>
                           ) : null}
@@ -1652,7 +1299,7 @@ export function JitContextPanel({
                           ) : null}
                         </div>
                         {session.touchedFiles.length > 0 ? (
-                          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="mt-2 text-xs text-secondary">
                             {t.kanbanDetail.matchedFiles}: {formatCompactPathList(session.touchedFiles)}
                           </div>
                         ) : null}
@@ -1663,11 +1310,11 @@ export function JitContextPanel({
               ) : null}
 
               {uniqueWarnings.length > 0 ? (
-                <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 dark:border-amber-900/40 dark:bg-amber-900/10">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                <div className="rounded-xl border border-attention bg-attention-subtle px-3 py-2.5">
+                  <div className="text-[11px] font-semibold text-attention">
                     {t.kanbanDetail.warnings}
                   </div>
-                  <div className="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-100">
+                  <div className="mt-2 space-y-1 text-sm text-attention">
                     {uniqueWarnings.map((warning, index) => (
                       <div key={`${warning}:${index}`}>{warning}</div>
                     ))}
@@ -1676,7 +1323,7 @@ export function JitContextPanel({
               ) : null}
 
               <div className="space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                <div className="text-[11px] font-semibold text-secondary">
                   {t.kanbanDetail.historicalIssues}
                 </div>
                 {uniqueFailures.length > 0 ? (
@@ -1684,16 +1331,16 @@ export function JitContextPanel({
                     {uniqueFailures.map((failure, index) => (
                       <div
                         key={`${failure.sessionId}:${failure.toolName}:${failure.command ?? ""}:${failure.message}:${index}`}
-                        className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 dark:border-amber-900/40 dark:bg-amber-900/10"
+                        className="rounded-xl border border-attention bg-attention-subtle px-3 py-2.5"
                       >
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="text-sm font-medium text-primary">
                           {failure.message}
                         </div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        <div className="mt-1 text-xs text-secondary">
                           {failure.sessionId} · {failure.toolName}
                         </div>
                         {failure.command ? (
-                          <div className="mt-2 rounded-md bg-white/80 px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-950/60 dark:text-slate-300">
+                          <div className="mt-2 rounded-md bg-surface px-2 py-1 font-mono text-[11px] text-secondary">
                             {failure.command}
                           </div>
                         ) : null}
@@ -1701,21 +1348,21 @@ export function JitContextPanel({
                     ))}
                   </div>
                 ) : (
-                  <div className="border-b border-slate-200/70 px-1 pb-2 text-sm text-slate-500 dark:border-slate-700/70 dark:text-slate-400">
+                  <div className="border-b border-default px-1 pb-2 text-sm text-secondary">
                     {t.kanbanDetail.noHistoricalIssues}
                   </div>
                 )}
 
                 {uniqueRepeatedReadFiles.length > 0 ? (
-                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="rounded-xl border border-default bg-canvas px-3 py-2.5">
+                    <div className="text-[11px] font-semibold text-secondary">
                       {t.kanbanDetail.repeatedReadHotspots}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {uniqueRepeatedReadFiles.map((filePath, index) => (
                         <span
                           key={`${filePath}:${index}`}
-                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300"
+                          className="rounded-full border border-default bg-surface px-2 py-0.5 font-mono text-[11px] text-secondary"
                         >
                           {filePath}
                         </span>
@@ -1726,36 +1373,36 @@ export function JitContextPanel({
               </div>
 
               {matchedFileDetails.length > 0 ? (
-                <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 dark:border-slate-700/70 dark:bg-slate-900/20">
+                <div className="rounded-xl border border-default bg-canvas px-3 py-2.5">
                   {(pack.featureName || pack.featureId) ? (
                     <div className="mb-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                      <div className="text-[11px] font-semibold text-secondary">
                         {t.kanbanDetail.matchedFeature}
                       </div>
-                      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-200">
+                      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-default bg-surface px-2.5 py-1 text-xs font-medium text-primary">
                         <span>{pack.featureName ?? pack.featureId}</span>
                         {pack.featureName && pack.featureId ? (
-                          <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                          <span className="font-mono text-[11px] text-secondary">
                             {pack.featureId}
                           </span>
                         ) : null}
                       </div>
                     </div>
                   ) : null}
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  <div className="text-[11px] font-semibold text-secondary">
                     {t.kanbanDetail.matchedFiles}
                   </div>
                   <div className="mt-2 space-y-2">
                     {matchedFileDetails.map((fileDetail) => (
                       <div
                         key={fileDetail.filePath}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950/60"
+                        className="rounded-lg border border-default bg-surface px-3 py-2"
                       >
-                        <div className="font-mono text-[11px] text-slate-700 dark:text-slate-200">
+                        <div className="font-mono text-[11px] text-primary">
                           {fileDetail.filePath}
                         </div>
                         {(fileDetail.changes > 0 || fileDetail.sessions > 0 || fileDetail.updatedAt) ? (
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-secondary">
                             {fileDetail.changes > 0 ? (
                               <span>{t.kanbanDetail.changes}: {fileDetail.changes}</span>
                             ) : null}
