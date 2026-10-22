@@ -2,16 +2,29 @@
 
 /**
  * Home - /
- * Workspace-first landing page for selecting a workspace, connecting providers, and entering recent sessions or team runs.
+ * Global home (design-spec §3): one card per workspace with in-progress and
+ * needs-you counts and the newest activity, a needs-you banner, the latest
+ * completion report and create shortcuts. Read-only: opening it issues GETs
+ * only (workspaces, codebases, providers, tasks, boards, sessions) plus the
+ * kanban SSE stream; ACP connects only when the user opens Settings.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { RepoSelection } from "@/client/components/repo-picker";
 import { RepoPicker } from "@/client/components/repo-picker";
-import { OnboardingCard } from "@/client/components/home-page-sections";
+import { OnboardingCard } from "@/client/components/home/onboarding-card";
+import { HomeWorkspaceCard } from "@/client/components/home/home-workspace-card";
+import {
+  HomeAttentionBanner,
+  HomeCreateSection,
+  HomeLatestResult,
+  HomeReadinessNotice,
+} from "@/client/components/home/home-sections";
+import { useHomeProviderReadiness } from "@/client/components/home/use-home-provider-readiness";
+import { useMinuteClock } from "@/client/components/home/relative-time";
 import {
   SettingsPanel,
   loadDefaultProviders,
@@ -20,11 +33,12 @@ import {
 } from "@/client/components/settings-panel";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
+import { buttonClassName } from "@/client/components/ui/button";
+import { Skeleton } from "@/client/components/ui/states";
 import { useAcp } from "@/client/hooks/use-acp";
 import { useCodebases, useWorkspaces } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { loadCustomAcpProviders } from "@/client/utils/custom-acp-providers";
-import { collectAccessibleRepoPaths } from "@/client/utils/repo-validation";
 import {
   clearOnboardingState,
   ONBOARDING_COMPLETED_KEY,
@@ -35,32 +49,29 @@ import {
 } from "@/client/utils/onboarding";
 import { useTranslation } from "@/i18n";
 import type { SessionInfo } from "@/app/workspace/[workspaceId]/types";
+import { useKanbanOverviewData } from "@/app/workspace/[workspaceId]/kanban/use-kanban-overview-data";
+import { readAttentionDismissals } from "@/app/workspace/[workspaceId]/kanban/use-kanban-attention-dismissals";
+import {
+  buildInboxRows,
+  latestCompletionResult,
+  summarizeWorkspace,
+} from "@/app/workspace/[workspaceId]/overview/inbox-rules";
 
-interface WorkspaceHomeData {
-  sessions: SessionInfo[];
+const LAST_WORKSPACE_KEY = "routa.desktop.last-workspace-id";
+
+const noopSubscribe = () => () => {};
+
+/** False on the server and during hydration, true afterwards. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
-const EMPTY_HOME_DATA: WorkspaceHomeData = {
-  sessions: [],
-};
-
-function formatRelativeTime(value: string | undefined, hydrated: boolean) {
-  if (!value) return "刚刚";
-  if (!hydrated) return "刚刚";
-  const diffMs = Date.now() - new Date(value).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "刚刚";
-  if (mins < 60) return `${mins} 分钟前`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  return `${Math.floor(hours / 24)} 天前`;
-}
-
-function getSessionLabel(session: SessionInfo) {
-  if (session.name) return session.name;
-  if (session.provider && session.role) return `${session.provider} · ${session.role.toLowerCase()}`;
-  if (session.provider) return session.provider;
-  return `会话 ${session.sessionId.slice(0, 8)}`;
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function isTopLevelTeamRun(session: SessionInfo) {
@@ -82,123 +93,68 @@ function HomePageContent() {
   const router = useRouter();
   const workspacesHook = useWorkspaces();
   const acp = useAcp();
+  const readiness = useHomeProviderReadiness();
   const { t } = useTranslation();
+  const copy = t.homeRedesign;
   const searchParams = useSearchParams();
+  const now = useMinuteClock();
 
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() => {
+  // Last selection (restored from localStorage); the effective workspace is derived below.
+  const [selectedWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    try {
-      return window.localStorage.getItem("routa.desktop.last-workspace-id") || null;
-    } catch {
-      return null;
-    }
+    return readStorage(LAST_WORKSPACE_KEY) || null;
   });
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"providers" | "roles" | "specialists" | undefined>(undefined);
-  const [preferredMode, setPreferredMode] = useState<OnboardingMode | null>(null);
-  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [workspaceHomeData, setWorkspaceHomeData] = useState<Record<string, WorkspaceHomeData>>({});
-  const [_recentSessionsLoading, setRecentSessionsLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  // Local overrides after the user acts; until then the stored values win.
+  const [modeOverride, setPreferredMode] = useState<OnboardingMode | null | undefined>(undefined);
+  const [completedOverride, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionInfo[]>>({});
+  const hydrated = useHydrated();
+  const [showRepoPicker, setShowRepoPicker] = useState(false);
+
+  const requestedWorkspaceId = searchParams.get("workspace");
+  const workspaceList = workspacesHook.workspaces;
+  // ?workspace=<id> wins; else the restored one; else (missing) the first.
+  const activeWorkspaceId = requestedWorkspaceId && workspaceList.some((workspace) => workspace.id === requestedWorkspaceId)
+    ? requestedWorkspaceId
+    : selectedWorkspaceId && workspaceList.some((workspace) => workspace.id === selectedWorkspaceId)
+      ? selectedWorkspaceId
+      : (workspaceList[0]?.id ?? selectedWorkspaceId);
+  const preferredMode = modeOverride !== undefined
+    ? modeOverride
+    : (hydrated ? parseOnboardingMode(readStorage(ONBOARDING_MODE_KEY)) : null);
+  const onboardingCompleted = completedOverride ?? (hydrated && readStorage(ONBOARDING_COMPLETED_KEY) === "true");
 
   const { codebases, fetchCodebases } = useCodebases(activeWorkspaceId ?? "");
-  const [showRepoPickerForHome, setShowRepoPickerForHome] = useState(false);
-  const [accessibleCodebasePaths, setAccessibleCodebasePaths] = useState<Set<string>>(new Set());
+  const { data: overviewData, retry } = useKanbanOverviewData(workspacesHook.workspaces);
 
   useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!acp.connected && !acp.loading) {
-      acp.connect();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acp.connected, acp.loading]);
-
-  useEffect(() => {
-    const requestedWorkspaceId = searchParams.get("workspace");
-    if (requestedWorkspaceId && workspacesHook.workspaces.some((workspace) => workspace.id === requestedWorkspaceId)) {
-      if (activeWorkspaceId !== requestedWorkspaceId) {
-        setActiveWorkspaceId(requestedWorkspaceId);
-      }
-      return;
-    }
-
-    if (workspacesHook.workspaces.length > 0) {
-      // If no workspace selected, or the restored workspace no longer exists, fall back to the first one
-      if (!activeWorkspaceId || !workspacesHook.workspaces.some((ws) => ws.id === activeWorkspaceId)) {
-        setActiveWorkspaceId(workspacesHook.workspaces[0].id);
-      }
-    }
-  }, [activeWorkspaceId, searchParams, workspacesHook.workspaces]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    setOnboardingCompleted(window.localStorage.getItem(ONBOARDING_COMPLETED_KEY) === "true");
-    setPreferredMode(parseOnboardingMode(window.localStorage.getItem(ONBOARDING_MODE_KEY)));
-  }, []);
-
-  useEffect(() => {
-    if (!activeWorkspaceId || workspaceHomeData[activeWorkspaceId]) {
+    if (!activeWorkspaceId || sessionsByWorkspace[activeWorkspaceId]) {
       return;
     }
 
     let cancelled = false;
-    setRecentSessionsLoading(true);
-
     (async () => {
+      let sessions: SessionInfo[] = [];
       try {
         const sessionsRes = await desktopAwareFetch(
           `/api/sessions?workspaceId=${encodeURIComponent(activeWorkspaceId)}&limit=6`,
           { cache: "no-store" },
         );
-
         const sessionsData = await sessionsRes.json().catch(() => ({}));
-
-        if (cancelled) return;
-
-        setWorkspaceHomeData((current) => ({
-          ...current,
-          [activeWorkspaceId]: {
-            sessions: Array.isArray(sessionsData?.sessions) ? sessionsData.sessions : [],
-          },
-        }));
+        sessions = Array.isArray(sessionsData?.sessions) ? sessionsData.sessions : [];
       } catch {
-        if (cancelled) return;
-        setWorkspaceHomeData((current) => ({
-          ...current,
-          [activeWorkspaceId]: EMPTY_HOME_DATA,
-        }));
-      } finally {
-        if (!cancelled) {
-          setRecentSessionsLoading(false);
-        }
+        sessions = [];
       }
+      if (cancelled) return;
+      setSessionsByWorkspace((current) => ({ ...current, [activeWorkspaceId]: sessions }));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, workspaceHomeData]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const nextPaths = await collectAccessibleRepoPaths(codebases.map((codebase) => codebase.repoPath));
-      if (!cancelled) {
-        setAccessibleCodebasePaths(nextPaths);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [codebases]);
+  }, [activeWorkspaceId, sessionsByWorkspace]);
 
   const handleWorkspaceCreate = useCallback(async (title: string) => {
     const workspace = await workspacesHook.createWorkspace(title);
@@ -210,9 +166,13 @@ function HomePageContent() {
   }, [workspacesHook]);
 
   const handleOpenProviders = useCallback(() => {
+    // Connecting ACP POSTs /api/acp; do it only on this explicit action.
+    if (!acp.connected && !acp.loading) {
+      void acp.connect();
+    }
     setSettingsInitialTab("providers");
     setShowSettingsPanel(true);
-  }, []);
+  }, [acp]);
 
   const handleModeSelect = useCallback((mode: OnboardingMode) => {
     setPreferredMode(mode);
@@ -262,38 +222,48 @@ function HomePageContent() {
     return false;
   }, [activeWorkspaceId, fetchCodebases, workspacesHook.workspaces]);
 
-  const activeWorkspace = workspacesHook.workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
+  const workspaces = workspacesHook.workspaces;
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
   const requestedSurfaceId = searchParams.get("mode");
-  const activeData = activeWorkspaceId ? (workspaceHomeData[activeWorkspaceId] ?? EMPTY_HOME_DATA) : EMPTY_HOME_DATA;
-  const recentSessions = useMemo(() => (
-    [...activeData.sessions]
-      .filter((session) => !isTopLevelTeamRun(session))
-      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-      .slice(0, 3)
-  ), [activeData.sessions]);
-  const latestSession = recentSessions[0] ?? null;
-  const hasCodebase = codebases.some((codebase) => accessibleCodebasePaths.has(codebase.repoPath));
+  const hasWorkspace = workspaces.length > 0;
 
-  const hasWorkspace = workspacesHook.workspaces.length > 0;
+  const availableProviders = readiness.providers.filter((provider) => provider.status === "available");
+  const availableProviderNames = useMemo(
+    () => availableProviders.map((provider) => provider.name).slice(0, 3),
+    [availableProviders],
+  );
   const hasProviderConfig =
     hydrated
       ? hasSavedProviderConfiguration(loadDefaultProviders(), loadProviderConnections(), {
         dockerOpencodeAuthJson: loadDockerOpencodeAuthJson(),
         customProviderCount: loadCustomAcpProviders().length,
-        runtimeProviderCount: acp.providers.filter((provider) => provider.status === "available").length,
+        runtimeProviderCount: availableProviders.length,
       })
       : false;
-  const availableProviderNames = useMemo(
-    () => acp.providers
-      .filter((provider) => provider.status === "available")
-      .map((provider) => provider.name)
-      .slice(0, 3),
-    [acp.providers],
-  );
+  const hasCodebase = codebases.length > 0;
   // Show onboarding until the user explicitly dismisses it.
-  // Individual step completion (provider, codebase, mode) is rendered
-  // inside OnboardingCard — no need to auto-hide based on step status.
   const needsInlineOnboarding = hasWorkspace && !onboardingCompleted;
+  const readinessReady = hydrated && readiness.loaded;
+
+  // Read dismissals on every render: the board strip may have changed them.
+  const inbox = buildInboxRows(workspaces, overviewData, now, readAttentionDismissals);
+  const latestResult = latestCompletionResult(workspaces, overviewData);
+  const anyLoading = workspaces.some((workspace) => !overviewData[workspace.id]?.tasks.length && overviewData[workspace.id]?.status !== "ready");
+
+  const latestSession = useMemo(() => {
+    const sessions = activeWorkspaceId ? (sessionsByWorkspace[activeWorkspaceId] ?? []) : [];
+    return [...sessions]
+      .filter((session) => !isTopLevelTeamRun(session))
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
+  }, [activeWorkspaceId, sessionsByWorkspace]);
+  const continueSession = latestSession
+    ? {
+      href: `/workspace/${encodeURIComponent(latestSession.workspaceId)}/sessions/${encodeURIComponent(latestSession.sessionId)}`,
+      label: latestSession.name
+        || (latestSession.provider && latestSession.role ? `${latestSession.provider} · ${latestSession.role.toLowerCase()}` : latestSession.provider)
+        || copy.sessionFallback.replace("{id}", latestSession.sessionId.slice(0, 8)),
+    }
+    : null;
 
   useEffect(() => {
     if (!activeWorkspaceId || !requestedSurfaceId) return;
@@ -313,6 +283,10 @@ function HomePageContent() {
     }
   }, [activeWorkspaceId, requestedSurfaceId, router]);
 
+  // Links use the restored workspace only after hydration (SSR cannot read localStorage).
+  const shownWorkspaceId = hydrated ? activeWorkspaceId : null;
+  const activeId = shownWorkspaceId ? encodeURIComponent(shownWorkspaceId) : null;
+
   return (
     <DesktopAppShell
       // The restored workspace comes from localStorage, which the server
@@ -321,7 +295,7 @@ function HomePageContent() {
       workspaceTitle={activeWorkspace?.title ?? undefined}
       workspaceSwitcher={(
         <WorkspaceSwitcher
-          workspaces={workspacesHook.workspaces}
+          workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
           activeWorkspaceTitle={activeWorkspace?.title ?? undefined}
           onSelect={setActiveWorkspaceId}
@@ -334,274 +308,141 @@ function HomePageContent() {
         />
       )}
     >
-        <div className="flex h-full min-h-0 bg-canvas">
-          <main className="flex min-w-0 flex-1 flex-col">
-            {!hasWorkspace ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-                <OnboardingCard
-                  hasWorkspace={false}
-                  workspaceTitle={null}
-                  hasProviderConfig={hasProviderConfig}
-                  hasCodebase={false}
-                  availableProviderNames={availableProviderNames}
-                  preferredMode={preferredMode}
-                  onCreateWorkspace={handleWorkspaceCreate}
-                  onOpenProviders={handleOpenProviders}
-                  onAddCodebase={handleAddCodebase}
-                  onSelectMode={handleModeSelect}
-                />
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto flex h-full w-full max-w-6xl flex-col px-4 py-5 min-[801px]:px-[22px] min-[801px]:py-[22px] min-[1101px]:p-7">
-                  {workspacesHook.loading ? (
-                    <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                      {t.home.loadingWorkspaces}
-                    </div>
-                  ) : (
-                    <section className="flex flex-1 flex-col justify-center gap-6">
-                      {/* Hero */}
-                      <div className="text-center">
-                        <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                          {activeWorkspace?.title ?? t.common.workspace}
-                        </div>
-                        <h1 className="mt-3 font-['Avenir_Next_Condensed','Avenir_Next','Segoe_UI','Helvetica_Neue',sans-serif] text-4xl font-semibold tracking-[-0.04em] text-slate-900 dark:text-slate-100 sm:text-5xl">
-                          {t.home.whatToAdvance}
-                        </h1>
-                        <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-500 dark:text-slate-400">
-                          {t.home.homePrimaryHint}
-                        </p>
-                      </div>
-
-                      {/* Onboarding hint (if needed) */}
-                      {needsInlineOnboarding && (
-                        <OnboardingCard
-                          hasWorkspace
-                          workspaceTitle={activeWorkspace?.title ?? null}
-                          hasProviderConfig={hasProviderConfig}
-                          hasCodebase={hasCodebase}
-                          availableProviderNames={availableProviderNames}
-                          preferredMode={preferredMode}
-                          onCreateWorkspace={handleWorkspaceCreate}
-                          onOpenProviders={handleOpenProviders}
-                          onAddCodebase={handleAddCodebase}
-                          onSelectMode={handleModeSelect}
-                          onDismiss={handleDismissOnboarding}
-                        />
-                      )}
-
-                      {activeWorkspaceId ? (
-                        <div className="grid gap-4 sm:grid-cols-3">
-                          <Link
-                            href={`/workspace/${activeWorkspaceId}/sessions`}
-                            className="flex h-full flex-col rounded-3xl border border-black/6 bg-white/80 p-5 text-left transition-colors hover:bg-white dark:border-white/8 dark:bg-white/5 dark:hover:bg-white/10"
-                          >
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                              {t.home.surfaceLabel}
-                            </div>
-                            <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                              {t.home.sessionsSurfaceTitle}
-                            </div>
-                            <div className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                              {t.home.modeSessionDescription}
-                            </div>
-                            <div className="mt-4 border-t border-black/6 pt-3 dark:border-white/8">
-                              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                {t.home.modeTechnicalLabel}
-                              </div>
-                              <div className="mt-1 text-xs leading-5 text-slate-400 dark:text-slate-500">
-                                {t.home.modeSessionTechnical}
-                              </div>
-                            </div>
-                          </Link>
-                          <Link
-                            href={`/workspace/${activeWorkspaceId}/kanban`}
-                            className="flex h-full flex-col rounded-3xl border border-black/6 bg-white/80 p-5 text-left transition-colors hover:bg-white dark:border-white/8 dark:bg-white/5 dark:hover:bg-white/10"
-                          >
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                              {t.home.surfaceLabel}
-                            </div>
-                            <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                              {t.home.kanbanSurfaceTitle}
-                            </div>
-                            <div className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                              {t.home.modeKanbanDescription}
-                            </div>
-                            <div className="mt-4 border-t border-black/6 pt-3 dark:border-white/8">
-                              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                {t.home.modeTechnicalLabel}
-                              </div>
-                              <div className="mt-1 text-xs leading-5 text-slate-400 dark:text-slate-500">
-                                {t.home.modeKanbanTechnical}
-                              </div>
-                            </div>
-                          </Link>
-                          <Link
-                            href={`/workspace/${activeWorkspaceId}/team`}
-                            className="flex h-full flex-col rounded-3xl border border-black/6 bg-white/80 p-5 text-left transition-colors hover:bg-white dark:border-white/8 dark:bg-white/5 dark:hover:bg-white/10"
-                          >
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                              {t.home.surfaceLabel}
-                            </div>
-                            <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                              {t.home.teamSurfaceTitle}
-                            </div>
-                            <div className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                              {t.home.modeTeamDescription}
-                            </div>
-                            <div className="mt-4 border-t border-black/6 pt-3 dark:border-white/8">
-                              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                                {t.home.modeTechnicalLabel}
-                              </div>
-                              <div className="mt-1 text-xs leading-5 text-slate-400 dark:text-slate-500">
-                                {t.home.modeTeamTechnical}
-                              </div>
-                            </div>
-                          </Link>
-                        </div>
-                      ) : null}
-
-                      {/* Readiness checklist */}
-                      <div className="rounded-[20px] border border-black/6 bg-white/80 px-5 py-4 dark:border-white/8 dark:bg-white/5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                          {t.home.readinessTitle}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={handleOpenProviders}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                              hasProviderConfig
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-400"
-                                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-400"
-                            }`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${hasProviderConfig ? "bg-emerald-500" : "bg-amber-400"}`} />
-                            {t.home.readinessModel}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowRepoPickerForHome(true)}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                              hasCodebase
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-400"
-                                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-400"
-                            }`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${hasCodebase ? "bg-emerald-500" : "bg-amber-400"}`} />
-                            {t.home.readinessCodebase}
-                          </button>
-                          <span
-                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-400"
-                          >
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            {t.home.readinessWorkspace}
-                          </span>
-                        </div>
-                        {showRepoPickerForHome && (
-                          <div className="mt-4 border-t border-black/6 pt-4 dark:border-white/8">
-                            <div className="mb-2 flex items-center justify-between">
-                              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                {t.home.readinessCodebase}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setShowRepoPickerForHome(false)}
-                                className="text-[11px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                              >
-                                {t.common.cancel}
-                              </button>
-                            </div>
-                            <RepoPicker
-                              value={null}
-                              onChange={async (selection) => {
-                                if (selection) {
-                                  await handleAddCodebase(selection);
-                                  setShowRepoPickerForHome(false);
-                                }
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Continue recent work */}
-                      {(recentSessions.length > 0 || activeWorkspaceId) && (
-                        <div className="rounded-[20px] border border-black/6 bg-white/80 px-5 py-4 dark:border-white/8 dark:bg-white/5">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                            {t.home.continueWork}
-                          </div>
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {activeWorkspaceId && (
-                              <Link
-                                href={`/workspace/${activeWorkspaceId}/sessions`}
-                                className="flex flex-col rounded-2xl border border-black/6 bg-[#faf9f4] p-4 transition-colors hover:bg-white dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/8"
-                              >
-                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {t.nav.sessions}
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                  {t.workspace.recoverSession}
-                                </div>
-                              </Link>
-                            )}
-                            {activeWorkspaceId && (
-                              <Link
-                                href={`/workspace/${activeWorkspaceId}/kanban`}
-                                className="flex flex-col rounded-2xl border border-black/6 bg-[#faf9f4] p-4 transition-colors hover:bg-white dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/8"
-                              >
-                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {t.home.continueBoard}
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                  {activeWorkspace?.title ?? t.common.workspace}
-                                </div>
-                              </Link>
-                            )}
-                            {latestSession && (
-                              <Link
-                                href={`/workspace/${latestSession.workspaceId}/sessions/${latestSession.sessionId}`}
-                                className="flex flex-col rounded-2xl border border-black/6 bg-[#faf9f4] p-4 transition-colors hover:bg-white dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/8"
-                              >
-                                <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {getSessionLabel(latestSession)}
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                  {formatRelativeTime(latestSession.createdAt, hydrated)}
-                                </div>
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </section>
+      <div className="flex h-full min-h-0 bg-canvas">
+        <main className="flex min-w-0 flex-1 flex-col">
+          {!hasWorkspace && !workspacesHook.loading ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <OnboardingCard
+                hasWorkspace={false}
+                workspaceTitle={null}
+                hasProviderConfig={hasProviderConfig}
+                hasCodebase={false}
+                availableProviderNames={availableProviderNames}
+                preferredMode={preferredMode}
+                onCreateWorkspace={handleWorkspaceCreate}
+                onOpenProviders={handleOpenProviders}
+                onAddCodebase={handleAddCodebase}
+                onSelectMode={handleModeSelect}
+              />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto" data-testid="home-page">
+              <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-4 min-[801px]:p-[22px] min-[1101px]:p-7">
+                <header className="flex min-h-12 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="m-0 text-[21px] font-[650] leading-tight text-primary">{copy.title}</h1>
+                    <p className="m-0 mt-1 text-xs text-secondary">{copy.subtitle}</p>
+                  </div>
+                  {activeId && (
+                    <Link href={`/workspace/${activeId}/kanban`} className={buttonClassName("primary", "md")} data-testid="home-enter-board">
+                      {copy.enterBoard}
+                    </Link>
                   )}
+                </header>
+
+                {needsInlineOnboarding && (
+                  <OnboardingCard
+                    hasWorkspace
+                    workspaceTitle={activeWorkspace?.title ?? null}
+                    hasProviderConfig={hasProviderConfig}
+                    hasCodebase={hasCodebase}
+                    availableProviderNames={availableProviderNames}
+                    preferredMode={preferredMode}
+                    onCreateWorkspace={handleWorkspaceCreate}
+                    onOpenProviders={handleOpenProviders}
+                    onAddCodebase={handleAddCodebase}
+                    onSelectMode={handleModeSelect}
+                    onDismiss={handleDismissOnboarding}
+                  />
+                )}
+
+                {readinessReady && !needsInlineOnboarding && (
+                  <HomeReadinessNotice
+                    missingModel={!hasProviderConfig}
+                    missingCodebase={!hasCodebase}
+                    onConfigureModel={handleOpenProviders}
+                    onAddCodebase={() => setShowRepoPicker(true)}
+                  />
+                )}
+                {showRepoPicker && (
+                  <section className="rounded-lg border border-default bg-surface p-4" data-testid="home-repo-picker">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-secondary">{copy.addCodebase}</span>
+                      <button type="button" onClick={() => setShowRepoPicker(false)} className={buttonClassName("ghost", "xs")}>
+                        {t.common.cancel}
+                      </button>
+                    </div>
+                    <RepoPicker
+                      value={null}
+                      onChange={async (selection) => {
+                        if (selection) {
+                          await handleAddCodebase(selection);
+                          setShowRepoPicker(false);
+                        }
+                      }}
+                    />
+                  </section>
+                )}
+
+                {activeId && (
+                  <HomeAttentionBanner
+                    count={now > 0 ? inbox.active.length : 0}
+                    topTitle={inbox.active[0]?.task.title ?? null}
+                    href={`/workspace/${activeId}/overview?view=all`}
+                  />
+                )}
+
+                <section aria-labelledby="home-workspaces-heading">
+                  <h2 id="home-workspaces-heading" className="m-0 mb-2.5 text-xs font-medium text-secondary">{copy.workspacesSection}</h2>
+                  {workspacesHook.loading && !hasWorkspace ? (
+                    <Skeleton lines={3} label={copy.loading} />
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 min-[801px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="home-workspace-grid">
+                      {workspaces.map((workspace) => {
+                        const entry = overviewData[workspace.id];
+                        const tasks = entry?.tasks ?? [];
+                        const boards = entry?.boards ?? [];
+                        return (
+                          <HomeWorkspaceCard
+                            key={workspace.id}
+                            workspace={workspace}
+                            status={entry?.status ?? "loading"}
+                            hasData={entry?.status === "ready" || tasks.length > 0 || boards.length > 0}
+                            summary={summarizeWorkspace(workspace, tasks, boards, now, readAttentionDismissals)}
+                            now={now}
+                            onRetry={() => retry(workspace.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <div className="grid grid-cols-1 gap-4 min-[801px]:grid-cols-2">
+                  <HomeLatestResult result={latestResult} loading={anyLoading} now={now} />
+                  <HomeCreateSection workspaceId={shownWorkspaceId} continueSession={continueSession} />
                 </div>
               </div>
-            )}
-          </main>
-        </div>
+            </div>
+          )}
+        </main>
+      </div>
 
-        <SettingsPanel
-          open={showSettingsPanel}
-          onClose={() => setShowSettingsPanel(false)}
-          providers={acp.providers}
-          initialTab={settingsInitialTab}
-          onResetOnboarding={handleResetOnboarding}
-        />
-      </DesktopAppShell>
+      <SettingsPanel
+        open={showSettingsPanel}
+        onClose={() => setShowSettingsPanel(false)}
+        providers={acp.connected ? acp.providers : readiness.providers}
+        initialTab={settingsInitialTab}
+        onResetOnboarding={handleResetOnboarding}
+      />
+    </DesktopAppShell>
   );
 }
 
 export default function HomePage() {
   return (
     <Suspense fallback={(
-      <div className="desktop-theme flex h-screen items-center justify-center bg-desktop-bg-primary">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-desktop-accent border-t-transparent" />
-          <p className="text-sm text-desktop-text-secondary">Loading...</p>
-        </div>
-      </div>
+      <div className="desktop-theme flex h-screen items-center justify-center bg-canvas" aria-busy="true" />
     )}>
       <HomePageContent />
     </Suspense>
