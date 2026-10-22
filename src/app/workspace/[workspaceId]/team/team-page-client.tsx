@@ -1,18 +1,25 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { Settings2 } from "lucide-react";
+
 import { useTranslation } from "@/i18n";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { HomeInput } from "@/client/components/home-input";
+import { Badge, type Tone } from "@/client/components/ui/badge";
+import { Button, buttonClassName } from "@/client/components/ui/button";
+import { EmptyState, ErrorState, Skeleton } from "@/client/components/ui/states";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { filterSpecialistsByCategory } from "@/client/utils/specialist-categories";
+
+import { matchesSessionQuery } from "../sessions-overview";
+import { PageHeader, SearchField, pickSessions, useListLoader } from "../sessions/sessions-redesign-parts";
 import { formatRelativeTime } from "../ui-components";
 import type { SessionInfo } from "../types";
-import { PieChart } from "lucide-react";
-
 
 const TEAM_LEAD_SPECIALIST_ID = "team-agent-lead";
 
@@ -57,6 +64,7 @@ function buildTeamRunName(requirement: string): string {
 
 export function TeamPageClient() {
   const { t } = useTranslation();
+  const copy = t.sessionsRedesign;
   const params = useParams();
   const router = useRouter();
   const rawWorkspaceId = params.workspaceId as string;
@@ -66,30 +74,14 @@ export function TeamPageClient() {
       : rawWorkspaceId;
 
   const workspacesHook = useWorkspaces();
-
-  const [teamRuns, setTeamRuns] = useState<TeamRunSessionInfo[]>([]);
+  const runs = useListLoader<TeamRunSessionInfo>(
+    `/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}&surface=team`,
+    pickSessions,
+  );
+  const setTeamRuns = runs.setItems;
+  const teamRuns = runs.items;
   const [specialists, setSpecialists] = useState<SpecialistSummary[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [isBenchPaused, setIsBenchPaused] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      try {
-        const res = await desktopAwareFetch(`/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}&surface=team`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (controller.signal.aborted) return;
-        setTeamRuns(Array.isArray(data?.sessions) ? data.sessions : []);
-      } catch {
-        if (controller.signal.aborted) return;
-        setTeamRuns([]);
-      }
-    })();
-    return () => controller.abort();
-  }, [workspaceId, refreshKey]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -103,8 +95,7 @@ export function TeamPageClient() {
         if (controller.signal.aborted) return;
         setSpecialists(Array.isArray(data?.specialists) ? data.specialists : []);
       } catch {
-        if (controller.signal.aborted) return;
-        setSpecialists([]);
+        // Keep the last known specialists; the grid simply stays as it was.
       }
     })();
     return () => controller.abort();
@@ -114,12 +105,16 @@ export function TeamPageClient() {
     () => filterSpecialistsByCategory(specialists, "team").sort(compareTeamSpecialists),
     [specialists],
   );
-  const shouldAutoScrollBench = teamSpecialists.length > 4;
-  const benchItems = shouldAutoScrollBench ? [...teamSpecialists, ...teamSpecialists] : teamSpecialists;
+  const lead = teamSpecialists.find((specialist) => specialist.id === TEAM_LEAD_SPECIALIST_ID);
+  const members = teamSpecialists.filter((specialist) => specialist.id !== TEAM_LEAD_SPECIALIST_ID);
+
+  const filteredRuns = useMemo(
+    () => teamRuns.filter((run) => matchesSessionQuery(run, query, t.team.unnamedRun)),
+    [query, t.team.unnamedRun, teamRuns],
+  );
 
   const workspace = workspacesHook.workspaces.find((item) => item.id === workspaceId);
-  const activeRuns = teamRuns.filter((run) => run.acpStatus === "connecting" || run.acpStatus === "ready").length;
-  const availableMembers = Math.max(teamSpecialists.length - 1, 0);
+  const workspaceTitle = workspace?.title ?? (workspaceId === "default" ? "Default Workspace" : workspaceId);
 
   const handleWorkspaceSelect = useCallback((nextWorkspaceId: string) => {
     router.push(`/workspace/${nextWorkspaceId}/team`);
@@ -131,10 +126,6 @@ export function TeamPageClient() {
       router.push(`/workspace/${workspaceResult.id}/team`);
     }
   }, [router, workspacesHook]);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshKey((current) => current + 1);
-  }, []);
 
   const handleTeamSessionCreated = useCallback((
     sessionId: string,
@@ -177,29 +168,20 @@ export function TeamPageClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: optimisticName }),
     }).catch(() => {});
-    setRefreshKey((current) => current + 1);
-  }, [workspaceId]);
+    runs.reload();
+  }, [runs, setTeamRuns, workspaceId]);
 
-  if (workspacesHook.loading && workspaceId !== "default") {
-    return (
-      <div className="desktop-theme flex h-screen items-center justify-center bg-desktop-bg-primary">
-        <div className="flex items-center gap-3 text-desktop-text-secondary">
-          <PieChart className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"/>
-          {t.team.loadingWorkspace}
-        </div>
-      </div>
-    );
-  }
+  const firstLoad = runs.status === "loading" && !runs.loadedOnce;
 
   return (
     <DesktopAppShell
       workspaceId={workspaceId}
-      workspaceTitle={workspace?.title ?? (workspaceId === "default" ? "Default Workspace" : workspaceId)}
+      workspaceTitle={workspaceTitle}
       workspaceSwitcher={(
         <WorkspaceSwitcher
           workspaces={workspacesHook.workspaces}
           activeWorkspaceId={workspaceId}
-          activeWorkspaceTitle={workspace?.title ?? (workspaceId === "default" ? "Default Workspace" : workspaceId)}
+          activeWorkspaceTitle={workspaceTitle}
           onSelect={handleWorkspaceSelect}
           onCreate={handleWorkspaceCreate}
           loading={workspacesHook.loading}
@@ -208,199 +190,138 @@ export function TeamPageClient() {
         />
       )}
     >
-      <div className="flex h-full min-h-0 bg-[#f6f4ef] dark:bg-[#0c1118]">
-        <main className="flex min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-6 py-8 lg:px-10 lg:py-10">
-              <section className="flex flex-1 flex-col justify-center">
-                <div className="mx-auto w-full max-w-3xl text-center">
-                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {workspace?.title ?? t.common.workspace}
-                  </div>
-                  <h1 className="mt-4 font-['Avenir_Next_Condensed','Avenir_Next','Segoe_UI','Helvetica_Neue',sans-serif] text-5xl font-semibold tracking-[-0.05em] text-slate-900 dark:text-slate-100 sm:text-6xl">
-                    {t.team.launchTeamLead}
-                  </h1>
-                  <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300">
-                    {t.team.reusesInput}
-                  </p>
-                </div>
-
-                <div className="mx-auto mt-8 flex w-full max-w-3xl flex-wrap items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-4 py-2 dark:border-white/10 dark:bg-white/5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">{t.team.runs}</span>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{teamRuns.length}</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-4 py-2 dark:border-white/10 dark:bg-white/5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">{t.team.active}</span>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{activeRuns}</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-4 py-2 dark:border-white/10 dark:bg-white/5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">{t.team.members}</span>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{availableMembers}</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <div className="border-t border-black/6 bg-[#f3f1eb]/92 px-4 py-4 dark:border-white/8 dark:bg-[#0f141c]/92">
-            <div className="mx-auto w-full max-w-4xl">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-500">
-                  {t.team.teamBench}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                  {teamSpecialists.length} {t.team.specialists}
-                </div>
-              </div>
-              <div
-                className="mb-3 overflow-hidden pb-1"
-                onMouseEnter={() => setIsBenchPaused(true)}
-                onMouseLeave={() => setIsBenchPaused(false)}
-              >
-                <div
-                  className="flex w-max gap-2"
-                  style={shouldAutoScrollBench ? {
-                    animation: "teamBenchMarquee 24s linear infinite",
-                    animationPlayState: isBenchPaused ? "paused" : "running",
-                  } : undefined}
-                >
-                  {benchItems.map((specialist, index) => {
-                    const roleLabel = specialist.id === TEAM_LEAD_SPECIALIST_ID ? "Lead" : (specialist.role ?? "Specialist");
-                    const isLead = specialist.id === TEAM_LEAD_SPECIALIST_ID;
-
-                    return (
-                      <div
-                        key={`${specialist.id}-${index}`}
-                        className={`flex w-42.5 shrink-0 items-center rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
-                          isLead
-                            ? "bg-white/80 text-slate-900 dark:bg-white/8 dark:text-slate-100"
-                            : "bg-black/3 text-slate-700 dark:bg-white/3 dark:text-slate-200"
-                        }`}
-                        title={specialist.description ?? specialist.id}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[12px] font-medium leading-5">
-                            {specialist.name}
-                          </div>
-                          <div className="truncate text-[9px] uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                            {roleLabel}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <HomeInput
-                workspaceId={workspaceId}
-                variant="default"
-                footerMetaMode="repo-only"
-                initialLaunchModeId="team"
-                launchModes={[{
-                  id: "team",
-                  label: t.home.modeTeamTitle,
-                  description: t.home.modeTeamDescription,
-                  placeholder: t.home.modeTeamPlaceholder,
-                  defaultAgentRole: "ROUTA",
-                  allowRoleSwitch: false,
-                  allowCustomSpecialist: false,
-                  lockedSpecialistId: TEAM_LEAD_SPECIALIST_ID,
-                  requireRepoSelection: true,
-                  dispatchMode: "pending-prompt",
-                  buildSessionUrl: (nextWorkspaceId, sessionId) =>
-                    `/workspace/${nextWorkspaceId ?? workspaceId}/team/${sessionId}`,
-                }]}
-                onSessionCreated={handleTeamSessionCreated}
-              />
-            </div>
-          </div>
-          <style>{`
-            @keyframes teamBenchMarquee {
-              from {
-                transform: translateX(0);
-              }
-              to {
-                transform: translateX(calc(-50% - 0.5rem));
-              }
-            }
-          `}</style>
-        </main>
-
-        <aside className="hidden w-[320px] shrink-0 border-l border-black/6 bg-[#efede6] dark:border-white/8 dark:bg-[#11161f] xl:flex xl:flex-col">
-          <div className="border-b border-black/6 px-5 py-4 dark:border-white/8">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-500">
-                  {t.team.teamRuns}
-                </div>
-                <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                  {t.team.topLevelOnly}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="rounded-full border border-black/8 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-              >
-                {t.common.refresh}
-              </button>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            {teamRuns.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-black/10 bg-[#f8f6f1] px-5 py-8 text-center dark:border-white/10 dark:bg-white/4">
-                <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  {t.team.noTeamRunsYet}
-                </div>
-                <div className="mt-1.5 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  {t.team.launchAbove}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {teamRuns.slice(0, 8).map((run) => (
-                  <button
-                    key={run.sessionId}
-                    type="button"
-                    onClick={() => router.push(`/workspace/${workspaceId}/team/${run.sessionId}`)}
-                    className="w-full rounded-[18px] border border-black/6 bg-[#fbfaf7] px-4 py-3 text-left transition-colors hover:bg-white dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/[0.07]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {run.name ?? t.team.unnamedRun}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                          <span>{formatRelativeTime(run.createdAt)}</span>
-                          {run.branch ? (
-                            <>
-                              <span>·</span>
-                              <span className="truncate">{run.branch}</span>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                      <StatusPill status={run.acpStatus} />
-                    </div>
-                  </button>
-                ))}
-              </div>
+      <div className="h-full min-h-0 overflow-y-auto bg-canvas">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 md:px-[22px] xl:px-7">
+          <PageHeader
+            title={copy.teamTitle}
+            description={copy.teamDescription}
+            action={(
+              <Link href="/settings/specialists" className={buttonClassName("primary", "md")} data-testid="team-configure-specialists">
+                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {copy.configureSpecialists}
+              </Link>
             )}
-          </div>
-        </aside>
+          />
+
+          <section aria-label={t.team.teamBench} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <SpecialistCard
+              label={copy.coordinatorLabel}
+              name={lead?.name ?? t.home.modeTeamTitle}
+              detail={lead?.description ?? t.team.launchTeamLead}
+              tone="info"
+            />
+            {members.map((specialist) => (
+              <SpecialistCard
+                key={specialist.id}
+                label={copy.teamMembersLabel}
+                name={specialist.name}
+                detail={specialist.description ?? specialist.role ?? specialist.id}
+              />
+            ))}
+          </section>
+
+          <section className="rounded-lg border border-default bg-surface p-4" aria-label={t.home.modeTeamTitle}>
+            <div className="mb-3">
+              <h2 className="m-0 text-[15px] font-semibold text-primary">{t.home.modeTeamTitle}</h2>
+              <p className="m-0 mt-1 text-xs text-secondary">{t.team.reusesInput}</p>
+            </div>
+            <HomeInput
+              workspaceId={workspaceId}
+              variant="default"
+              footerMetaMode="repo-only"
+              initialLaunchModeId="team"
+              launchModes={[{
+                id: "team",
+                label: t.home.modeTeamTitle,
+                description: t.home.modeTeamDescription,
+                placeholder: t.home.modeTeamPlaceholder,
+                defaultAgentRole: "ROUTA",
+                allowRoleSwitch: false,
+                allowCustomSpecialist: false,
+                lockedSpecialistId: TEAM_LEAD_SPECIALIST_ID,
+                requireRepoSelection: true,
+                dispatchMode: "pending-prompt",
+                buildSessionUrl: (nextWorkspaceId, sessionId) =>
+                  `/workspace/${nextWorkspaceId ?? workspaceId}/team/${sessionId}`,
+              }]}
+              onSessionCreated={handleTeamSessionCreated}
+            />
+          </section>
+
+          <section className="flex flex-col gap-3" aria-label={copy.teamRunsTitle}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="m-0 text-[15px] font-semibold text-primary">{copy.teamRunsTitle}</h2>
+              <Button variant="ghost" size="sm" onClick={runs.reload}>{t.common.refresh}</Button>
+            </div>
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              label={copy.searchTeamRuns}
+              placeholder={copy.searchSessionsPlaceholder}
+              testId="team-runs-search"
+            />
+
+            {runs.status === "error" ? (
+              <ErrorState
+                title={copy.loadErrorTitle}
+                message={runs.loadedOnce ? `${copy.loadErrorMessage} ${copy.staleListNote}` : copy.loadErrorMessage}
+                onRetry={runs.reload}
+                retryLabel={copy.reload}
+              />
+            ) : null}
+
+            {firstLoad ? (
+              <div className="rounded-lg border border-default bg-surface p-4">
+                <Skeleton lines={3} label={copy.loadingSessions} />
+              </div>
+            ) : runs.status === "error" && !runs.loadedOnce ? null : teamRuns.length === 0 ? (
+              <EmptyState title={copy.teamRunsEmptyTitle} description={copy.teamRunsEmptyDescription} />
+            ) : filteredRuns.length === 0 ? (
+              <EmptyState title={copy.filterEmptyTitle} description={copy.filterEmptyDescription} />
+            ) : (
+              <ul className="m-0 list-none overflow-hidden rounded-lg border border-default bg-surface p-0">
+                {filteredRuns.map((run) => (
+                  <li key={run.sessionId} data-testid="team-run-row" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-default px-4 py-3 hover:bg-hover">
+                    <div className="min-w-0 flex-1 basis-60">
+                      <h3 className="m-0 break-words text-[13px] font-semibold text-primary">{run.name ?? t.team.unnamedRun}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-secondary">
+                        <code className="font-mono" title={run.sessionId}>{run.sessionId.slice(0, 8)}</code>
+                        {run.branch ? <Badge>{run.branch}</Badge> : null}
+                        <StatusPill status={run.acpStatus} />
+                      </div>
+                    </div>
+                    <span className="shrink-0 font-mono text-[11px] text-secondary">{formatRelativeTime(run.createdAt)}</span>
+                    <Button variant="secondary" size="sm" onClick={() => router.push(`/workspace/${workspaceId}/team/${run.sessionId}`)}>
+                      {copy.openSessionAction}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </DesktopAppShell>
   );
 }
 
+function SpecialistCard({ label, name, detail, tone = "neutral" }: { label: string; name: string; detail: string; tone?: Tone }) {
+  return (
+    <article className="flex min-w-0 items-start gap-3 rounded-lg border border-default bg-surface p-4">
+      <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-control bg-accent-subtle text-[13px] font-semibold text-accent">
+        {name.slice(0, 1).toUpperCase()}
+      </span>
+      <div className="min-w-0">
+        <Badge tone={tone}>{label}</Badge>
+        <h3 className="m-0 mt-1 break-words text-[13px] font-semibold text-primary">{name}</h3>
+        <p className="m-0 mt-0.5 line-clamp-2 text-xs text-secondary">{detail}</p>
+      </div>
+    </article>
+  );
+}
+
 function StatusPill({ status }: { status?: SessionInfo["acpStatus"] }) {
-  if (status === "error") {
-    return <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">error</span>;
-  }
-  if (status === "connecting") {
-    return <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">connecting</span>;
-  }
-  return <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">ready</span>;
+  if (status === "error") return <Badge tone="danger">error</Badge>;
+  if (status === "connecting") return <Badge tone="attention">connecting</Badge>;
+  return <Badge tone="success">ready</Badge>;
 }
