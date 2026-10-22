@@ -39,6 +39,20 @@ const desktopAwareFetchMock = vi.hoisted(() => vi.fn(async (input: RequestInfo |
     } as Response;
   }
 
+  if (url.startsWith("/api/tasks?") || url.startsWith("/api/kanban/boards?")) {
+    return {
+      ok: true,
+      json: async () => ({ tasks: [], boards: [] }),
+    } as Response;
+  }
+
+  if (url.startsWith("/api/providers")) {
+    return {
+      ok: true,
+      json: async () => ({ providers: [] }),
+    } as Response;
+  }
+
   if (url.startsWith("/api/workspaces/")) {
     return {
       ok: true,
@@ -76,49 +90,6 @@ vi.mock("next/navigation", () => ({
   }),
   useRouter: () => ({
     replace: navState.replace,
-  }),
-}));
-
-vi.mock("@/i18n", () => ({
-  useTranslation: () => ({
-    t: {
-      common: {
-        workspace: "Workspace",
-        cancel: "Cancel",
-        enter: "Enter",
-      },
-      home: {
-        loadingWorkspaces: "Loading workspaces...",
-        whatToAdvance: "Which execution mode do you want to enter?",
-        homePrimaryHint: "All three modes are multi-agent.",
-        surfaceLabel: "Mode",
-        modeTechnicalLabel: "Technical detail",
-        sessionsSurfaceTitle: "Sessions Mode",
-        kanbanSurfaceTitle: "Kanban Mode",
-        teamSurfaceTitle: "Team Mode",
-        modeSessionDescription: "Session primary description",
-        modeSessionTechnical: "Session technical detail",
-        modeKanbanDescription: "Kanban primary description",
-        modeKanbanTechnical: "Kanban technical detail",
-        modeTeamDescription: "Team primary description",
-        modeTeamTechnical: "Team technical detail",
-        readinessTitle: "Readiness",
-        readinessModel: "Connect model",
-        readinessCodebase: "Select codebase",
-        readinessWorkspace: "Workspace ready",
-        continueWork: "Continue recent work",
-        continueBoard: "Continue board",
-      },
-      nav: {
-        sessions: "Sessions",
-        kanban: "Kanban",
-        team: "Team",
-      },
-      workspace: {
-        kanbanDescription: "Kanban mode description",
-        recoverSession: "Recover session",
-      },
-    },
   }),
 }));
 
@@ -167,16 +138,25 @@ vi.mock("@/client/components/repo-picker", () => ({
   RepoPicker: () => <div data-testid="repo-picker" />,
 }));
 
-vi.mock("@/client/components/home-page-sections", () => ({
+vi.mock("@/client/components/home/onboarding-card", () => ({
   OnboardingCard: () => <div data-testid="onboarding-card" />,
 }));
 
 vi.mock("@/client/utils/diagnostics", () => ({
   desktopAwareFetch: desktopAwareFetchMock,
+  getDesktopApiBaseUrl: () => "",
 }));
+
+class MockEventSource {
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  close() {}
+}
+vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
 
 vi.mock("@/client/utils/custom-acp-providers", () => ({
   loadCustomAcpProviders: () => [],
+  loadHiddenProviders: () => [],
 }));
 
 describe("HomePage", () => {
@@ -192,25 +172,25 @@ describe("HomePage", () => {
     window.localStorage.setItem("routa.onboarding.completed", "true");
   });
 
-  it("uses Kanban as the default primary entry action", async () => {
+  it("uses the board as the default primary entry action", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Kanban Mode/i }).getAttribute("href")).toBe("/workspace/default/kanban");
+      expect(screen.getByRole("link", { name: "Open board" }).getAttribute("href")).toBe("/workspace/default/kanban");
     });
   });
 
-  it("renders the mode cards with separate technical details", async () => {
+  it("replaces the mode cards with one card per workspace", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kanban primary description")).toBeTruthy();
+      expect(screen.getAllByTestId("home-workspace-card")).toHaveLength(1);
     });
 
-    expect(screen.getByText("Session technical detail")).toBeTruthy();
-    expect(screen.getByText("Kanban technical detail")).toBeTruthy();
-    expect(screen.getByText("Team technical detail")).toBeTruthy();
-    expect(screen.getAllByText("Technical detail")).toHaveLength(3);
+    const card = screen.getByTestId("home-workspace-card");
+    expect(card.textContent).toContain("Default Workspace");
+    expect(card.querySelector("a")?.getAttribute("href")).toBe("/workspace/default/kanban");
+    expect(screen.queryByText("Technical detail")).toBeNull();
     expect(screen.queryByText("Kanban mode description")).toBeNull();
   });
 });

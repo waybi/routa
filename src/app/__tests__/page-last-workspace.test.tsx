@@ -21,7 +21,7 @@ const workspaceState = vi.hoisted(() => ({
 }));
 
 const desktopAwareFetchMock = vi.hoisted(() =>
-  vi.fn(async () => ({ ok: true, json: async () => ({ sessions: [] }) }) as Response),
+  vi.fn(async () => ({ ok: true, json: async () => ({ sessions: [], tasks: [], boards: [], providers: [] }) }) as Response),
 );
 
 const localStorageMock = (() => {
@@ -72,9 +72,14 @@ vi.mock("@/client/components/desktop-app-shell", () => ({
 }));
 
 vi.mock("@/client/components/repo-picker", () => ({ RepoPicker: () => null }));
-vi.mock("@/client/components/home-page-sections", () => ({ OnboardingCard: () => null }));
-vi.mock("@/client/utils/diagnostics", () => ({ desktopAwareFetch: desktopAwareFetchMock }));
-vi.mock("@/client/utils/custom-acp-providers", () => ({ loadCustomAcpProviders: () => [] }));
+vi.mock("@/client/components/home/onboarding-card", () => ({ OnboardingCard: () => null }));
+vi.mock("@/client/utils/diagnostics", () => ({ desktopAwareFetch: desktopAwareFetchMock, getDesktopApiBaseUrl: () => "" }));
+vi.stubGlobal("EventSource", class {
+  onmessage = null;
+  onerror = null;
+  close() {}
+} as unknown as typeof EventSource);
+vi.mock("@/client/utils/custom-acp-providers", () => ({ loadCustomAcpProviders: () => [], loadHiddenProviders: () => [] }));
 
 function switcherLabel() {
   return screen.getByTestId("desktop-workspace-switcher").querySelector("button")?.textContent ?? "";
