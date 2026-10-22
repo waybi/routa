@@ -644,6 +644,7 @@ const zh: TranslationDictionary = {
   },
 
   repoPicker: {
+    resetRepoConfirm: "要丢弃 {name}（{branch}）里的全部本地改动吗？未提交的修改和未跟踪的文件都会被删除，无法撤销。",
     clearSelection: "清除仓库选择",
     changeRepository: "切换仓库",
     selectCloneOrLoad: "选择、克隆或加载仓库...",

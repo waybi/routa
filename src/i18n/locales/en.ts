@@ -648,6 +648,7 @@ const en: TranslationDictionary = {
   },
 
   repoPicker: {
+    resetRepoConfirm: "Discard all local changes in {name} ({branch})? Uncommitted edits and untracked files will be removed. This cannot be undone.",
     clearSelection: "Clear repo selection",
     changeRepository: "Change repository",
     selectCloneOrLoad: "Select, clone, or load a repository...",

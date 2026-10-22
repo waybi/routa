@@ -649,6 +649,8 @@ export interface TranslationDictionary extends ExtendedTranslationDictionarySect
   };
 
   repoPicker: {
+    /** "{name}" / "{branch}" = repo name and current branch. */
+    resetRepoConfirm: string;
     clearSelection: string;
     changeRepository: string;
     selectCloneOrLoad: string;
