@@ -16,13 +16,17 @@ export interface TabsProps {
   /** Accessible name for the tab list. */
   label: string;
   className?: string;
+  /** Extra classes for the tab row (e.g. horizontal padding). */
+  listClassName?: string;
+  /** Replaces the default panel classes (e.g. to let the panel fill height). */
+  panelClassName?: string;
 }
 
 /**
  * WAI-ARIA tabs with roving tabindex: ←/→ move between enabled tabs and
  * wrap around, Home/End jump to the ends. Selection follows focus.
  */
-export function Tabs({ items, value, onChange, label, className = "" }: TabsProps) {
+export function Tabs({ items, value, onChange, label, className = "", listClassName = "", panelClassName }: TabsProps) {
   const baseId = useId();
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const enabled = items.filter((item) => !item.disabled);
@@ -52,7 +56,7 @@ export function Tabs({ items, value, onChange, label, className = "" }: TabsProp
         role="tablist"
         aria-label={label}
         onKeyDown={handleKeyDown}
-        className="flex gap-5 border-b border-default"
+        className={`flex gap-5 border-b border-default ${listClassName}`.trim()}
       >
         {items.map((item) => {
           const isSelected = item.id === selected?.id;
@@ -86,7 +90,7 @@ export function Tabs({ items, value, onChange, label, className = "" }: TabsProp
           id={`${baseId}-panel-${selected.id}`}
           aria-labelledby={`${baseId}-tab-${selected.id}`}
           tabIndex={0}
-          className="pt-4 focus-visible:outline-2 focus-visible:outline-accent"
+          className={`${panelClassName ?? "pt-4"} focus-visible:outline-2 focus-visible:outline-accent`}
         >
           {selected.content}
         </div>

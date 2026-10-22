@@ -5,6 +5,21 @@ import type { ReactNode } from "react";
 import { DesktopAppShell } from "./desktop-app-shell";
 import { SettingsCenterNav, type SettingsNavItem } from "./settings-center-nav";
 
+/**
+ * Settings frame: the left sub-navigation plus the page body. Every
+ * settings page (and /mcp-tools via its redirect) renders inside it, so the
+ * sub-navigation is always present; pages that use DesktopAppShell directly
+ * (overview, harness, fluency) wrap their body in it as well.
+ */
+export function SettingsFrame({ activeItem, children }: { activeItem?: SettingsNavItem; children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-0 bg-canvas text-primary max-[800px]:flex-col" data-testid="settings-frame">
+      <SettingsCenterNav activeItem={activeItem} />
+      <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
 
 interface SettingsRouteShellProps {
   title: string;
@@ -45,14 +60,11 @@ export function SettingsRouteShell({
       workspaceTitle={workspaceTitle}
       workspaceSwitcher={workspaceSwitcher}
     >
-      <div className="flex h-full min-h-0 bg-desktop-bg-primary text-desktop-text-primary">
-        {activeSettingsItem ? <SettingsCenterNav activeItem={activeSettingsItem} /> : null}
-        <main className="h-full min-w-0 flex-1 overflow-hidden bg-desktop-bg-primary text-desktop-text-primary">
-          <div className={contentClassName ?? "flex min-h-full w-full flex-col px-8 py-8"}>
-            {children}
-          </div>
-        </main>
-      </div>
+      <SettingsFrame activeItem={activeSettingsItem}>
+        <div className={contentClassName ?? "flex min-h-full w-full flex-col px-8 py-8"}>
+          {children}
+        </div>
+      </SettingsFrame>
     </DesktopAppShell>
   );
 }

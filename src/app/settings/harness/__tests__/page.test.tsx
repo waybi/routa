@@ -193,6 +193,8 @@ vi.mock("next/navigation", () => ({
     get: (key: string) => currentSearchParams.get(key),
     toString: () => currentSearchParams.toString(),
   }),
+  // The page now renders the settings sub-navigation, which reads the path.
+  usePathname: () => "/settings/harness",
 }));
 
 vi.mock("@/client/components/codemirror/code-viewer", () => ({

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "@/i18n";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { SettingsFrame } from "@/client/components/settings-route-shell";
 import { CodeViewer } from "@/client/components/codemirror/code-viewer";
 import { RepoPicker, type RepoSelection } from "@/client/components/repo-picker";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
@@ -1010,6 +1011,7 @@ export default function HarnessConsolePage() {
       )}
       titleBarRight={titleBarRight}
     >
+      <SettingsFrame activeItem="harness">
       <div className="flex h-full min-h-0 overflow-hidden bg-desktop-bg-primary text-desktop-text-primary" data-testid="harness-console-root">
         <aside
           className="flex shrink-0 flex-col border-r border-desktop-border bg-desktop-bg-secondary"
@@ -1097,6 +1099,7 @@ export default function HarnessConsolePage() {
           </div>
         </div>
       </div>
+      </SettingsFrame>
     </DesktopAppShell>
   );
 }

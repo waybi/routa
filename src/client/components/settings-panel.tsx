@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useId } from "react";
 import { desktopAwareFetch } from "../utils/diagnostics";
 import { GitHubWebhookPanel } from "./github-webhook-panel";
 import { AgentInstallPanel } from "./agent-install-panel";
-import { SettingsCenterNav } from "./settings-center-nav";
+import { SettingsFrame } from "./settings-route-shell";
+import { Tabs } from "./ui/tabs";
 import {
   loadCustomAcpProviders,
   saveCustomAcpProviders,
@@ -916,14 +917,12 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
 
   if (isPageVariant) {
     return (
-      <div className="flex h-full min-h-0 bg-desktop-bg-primary text-desktop-text-primary">
-        <SettingsCenterNav activeItem={activeTab} />
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-desktop-border px-8 py-8">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-desktop-text-tertiary">{t.settings.preferences}</p>
-            <h1 className="mt-2 text-3xl font-semibold text-desktop-text-primary">{activeTabMeta.label}</h1>
-            <p className="mt-2 max-w-2xl text-sm text-desktop-text-secondary">
+      <SettingsFrame activeItem={activeTab}>
+        <div className="flex h-full min-w-0 flex-1 flex-col">
+          <header className="px-8 pb-3 pt-6">
+            <p className="text-[11px] text-secondary">{t.settings.preferences}</p>
+            <h1 className="mt-1 text-[21px] font-semibold leading-snug text-primary">{activeTabMeta.label}</h1>
+            <p className="mt-2 max-w-2xl text-[13px] text-secondary">
               {activeTab === "providers" && t.settings.providersDesc}
               {activeTab === "registry" && t.settings.registryDesc}
               {activeTab === "roles" && t.settings.rolesDesc}
@@ -932,9 +931,21 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
             </p>
           </header>
 
-          {renderTabContent()}
+          <Tabs
+            label={t.settings.title}
+            value={activeTab}
+            onChange={(key) => handleTabChange(key as SettingsTab)}
+            className="flex min-h-0 flex-1 flex-col"
+            listClassName="px-8"
+            panelClassName="flex min-h-0 flex-1 flex-col"
+            items={TAB_DEFS.map((tab) => ({
+              id: tab.key,
+              label: tab.label,
+              content: tab.key === activeTab ? renderTabContent() : null,
+            }))}
+          />
         </div>
-      </div>
+      </SettingsFrame>
     );
   }
 
