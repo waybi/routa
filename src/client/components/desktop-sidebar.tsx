@@ -5,7 +5,8 @@
  *
  * Exactly seven entries: Home, Needs you, Board, Sessions, Team, Spec,
  * Settings. Workspace switching lives in the top bar; settings sub-pages
- * live in the settings sub-navigation.
+ * live in the settings sub-navigation. Below them sit the collapsible
+ * Resources and Developer groups (see shell/sidebar-nav-groups.tsx).
  *
  * Widths follow §7 and the prototype breakpoints: 216px above 1100px,
  * 184px from 801 to 1100px, and an off-canvas drawer at ≤800px opened
@@ -19,6 +20,7 @@ import { usePathname } from "next/navigation";
 
 import { useTranslation } from "@/i18n";
 import { buildShellNavItems, isShellNavActive } from "./shell/shell-nav-items";
+import { SidebarNavGroups } from "./shell/sidebar-nav-groups";
 
 interface DesktopSidebarProps {
   workspaceId?: string | null;
@@ -90,6 +92,7 @@ export function DesktopSidebar({ workspaceId, drawerOpen = false, onDrawerClose 
               </Link>
             );
           })}
+          <SidebarNavGroups t={t} workspaceId={workspaceId} pathname={pathname} onNavigate={onDrawerClose} />
         </nav>
       </aside>
     </>

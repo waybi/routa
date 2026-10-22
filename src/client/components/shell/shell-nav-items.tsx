@@ -114,3 +114,114 @@ export function isShellNavActive(item: ShellNavItem, pathname: string): boolean 
   }
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
+
+/** Collapsible sidebar groups below the seven global entries. */
+export type ShellNavGroupId = "resources" | "developer";
+
+/** localStorage keys that remember whether each group is expanded. */
+export const SHELL_NAV_GROUP_STORAGE_KEYS: Record<ShellNavGroupId, string> = {
+  resources: "routa.shell.nav.resources",
+  developer: "routa.shell.nav.developer",
+};
+
+export interface ShellNavGroupItem {
+  id: string;
+  label: string;
+  href: string;
+  /** Whether this item owns the given pathname. */
+  matches: (pathname: string) => boolean;
+}
+
+export interface ShellNavGroup {
+  id: ShellNavGroupId;
+  label: string;
+  /** localStorage key that remembers whether the group is expanded. */
+  storageKey: string;
+  items: ShellNavGroupItem[];
+  /** True when the pathname belongs to any page of the group, even one whose link is hidden. */
+  ownsPath: (pathname: string) => boolean;
+}
+
+export interface ShellNavGroupIds {
+  /** First codebase of the workspace; the repo slides item is hidden without it. */
+  codebaseId?: string | null;
+  /** A canvas artifact id; the canvas item is hidden without it. */
+  canvasId?: string | null;
+}
+
+const REPOSLIDE_PATH = /^\/workspace\/[^/]+\/codebases\/([^/]+)\/reposlide(?:\/|$)/;
+const CANVAS_PATH = /^\/canvas\/([^/]+)/;
+
+function prefixMatcher(href: string) {
+  return (pathname: string) => pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Ids already present in the current URL, so the active item can link to itself without a fetch. */
+export function readShellNavGroupIdsFromPath(pathname: string): ShellNavGroupIds {
+  return {
+    codebaseId: REPOSLIDE_PATH.exec(pathname)?.[1] ?? null,
+    canvasId: CANVAS_PATH.exec(pathname)?.[1] ?? null,
+  };
+}
+
+/** Builds the Resources and Developer groups; items without a usable id are left out. */
+export function buildShellNavGroups(
+  t: TranslationDictionary,
+  workspaceId?: string | null,
+  ids: ShellNavGroupIds = {},
+): ShellNavGroup[] {
+  const ws = encodeURIComponent(workspaceId?.trim() || "default");
+  const labels = t.pagesRedesign.sidebar;
+  const featureExplorerHref = `/workspace/${ws}/feature-explorer`;
+  const matchesReposlide = (pathname: string) => REPOSLIDE_PATH.test(pathname);
+  const matchesCanvas = (pathname: string) => CANVAS_PATH.test(pathname);
+
+  const resourceItems: ShellNavGroupItem[] = [
+    { id: "featureExplorer", label: labels.featureExplorer, href: featureExplorerHref, matches: prefixMatcher(featureExplorerHref) },
+  ];
+  if (ids.codebaseId) {
+    resourceItems.push({
+      id: "reposlide",
+      label: labels.reposlide,
+      href: `/workspace/${ws}/codebases/${encodeURIComponent(ids.codebaseId)}/reposlide`,
+      matches: matchesReposlide,
+    });
+  }
+  if (ids.canvasId) {
+    resourceItems.push({
+      id: "canvas",
+      label: labels.canvas,
+      href: `/canvas/${encodeURIComponent(ids.canvasId)}`,
+      matches: matchesCanvas,
+    });
+  }
+
+  const developerItems: ShellNavGroupItem[] = (
+    [
+      ["traces", labels.traces, "/traces"],
+      ["messages", labels.messages, "/messages"],
+      ["a2a", labels.a2a, "/a2a"],
+      ["agUi", labels.agUi, "/ag-ui"],
+      ["acpReplay", labels.acpReplay, "/debug/acp-replay"],
+      ["officeLab", labels.officeLab, "/debug/office-wasm-poc"],
+    ] as const
+  ).map(([id, label, href]) => ({ id, label, href, matches: prefixMatcher(href) }));
+
+  return [
+    {
+      id: "resources",
+      label: labels.resources,
+      storageKey: SHELL_NAV_GROUP_STORAGE_KEYS.resources,
+      items: resourceItems,
+      ownsPath: (pathname) =>
+        prefixMatcher(featureExplorerHref)(pathname) || matchesReposlide(pathname) || matchesCanvas(pathname),
+    },
+    {
+      id: "developer",
+      label: labels.developer,
+      storageKey: SHELL_NAV_GROUP_STORAGE_KEYS.developer,
+      items: developerItems,
+      ownsPath: (pathname) => developerItems.some((item) => item.matches(pathname)),
+    },
+  ];
+}
