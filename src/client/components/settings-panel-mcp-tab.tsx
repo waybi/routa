@@ -13,7 +13,9 @@ import {
   sectionHeadCls,
 } from "./settings-panel-shared";
 import { dangerGhostIconButtonClassName, dangerSurfaceClassName } from "./color-system";
-import { Plus, SquarePen, Trash2, ChevronLeft } from "lucide-react";
+import { Plus, SquarePen, Trash2, ChevronLeft, Server } from "lucide-react";
+import { EmptyState, ErrorState } from "./ui/states";
+import { SettingsListSkeleton } from "./settings-redesign/list-skeleton";
 
 
 type McpServerType = "stdio" | "http" | "sse";
@@ -75,8 +77,10 @@ async function getResponseErrorMessage(response: Response, fallback: string) {
 
 export function McpServersTab() {
   const [servers, setServers] = useState<McpServerEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<McpServerForm>(EMPTY_MCP_FORM);
@@ -86,17 +90,17 @@ export function McpServersTab() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const response = await desktopAwareFetch("/api/mcp-servers");
       if (!response.ok) {
-        setError(await getResponseErrorMessage(response, t.errors.loadFailed));
+        setLoadError(await getResponseErrorMessage(response, t.errors.loadFailed));
         return;
       }
       const data = await response.json();
       setServers(data.servers ?? []);
+      setLoadError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.errors.loadFailed);
+      setLoadError(err instanceof Error ? err.message : t.errors.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -117,7 +121,7 @@ export function McpServersTab() {
 
   const handleSave = async () => {
     setLoading(true);
-    setError(null);
+    setSaveError(null);
     try {
       const payload: Record<string, unknown> = {
         id: form.id.trim(),
@@ -150,7 +154,7 @@ export function McpServersTab() {
       setEditingId(null);
       setForm(EMPTY_MCP_FORM);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.errors.saveFailed);
+      setSaveError(`${t.settingsRedesign.states.saveFailed} (${err instanceof Error ? err.message : t.errors.saveFailed})`);
     } finally {
       setLoading(false);
     }
@@ -204,6 +208,14 @@ export function McpServersTab() {
       headers: server.headers ? JSON.stringify(server.headers, null, 2) : "",
       env: server.env ? JSON.stringify(server.env, null, 2) : "",
     });
+    setSaveError(null);
+    setShowForm(true);
+  };
+
+  const openCreate = () => {
+    setForm(EMPTY_MCP_FORM);
+    setEditingId(null);
+    setSaveError(null);
     setShowForm(true);
   };
 
@@ -221,7 +233,7 @@ export function McpServersTab() {
           </button>
           <p className={sectionHeadCls}>{editingId ? t.mcp.editServer : t.mcp.newServer}</p>
         </div>
-        {error && <div className={`rounded p-2 text-xs ${dangerSurfaceClassName}`}>{error}</div>}
+        {saveError && <div role="alert" data-testid="mcp-save-error" className={`rounded p-2 text-xs ${dangerSurfaceClassName}`}>{saveError}</div>}
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
@@ -322,7 +334,7 @@ export function McpServersTab() {
           <p className={sectionHeadCls}>{tab.serverCount.replace('{count}', String(servers.length))}</p>
           <p className="text-[10px] text-secondary mt-0.5">{t.mcp.description}</p>
         </div>
-        <button onClick={() => { setForm(EMPTY_MCP_FORM); setEditingId(null); setShowForm(true); }}
+        <button onClick={openCreate}
           className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors flex items-center gap-1">
           <Plus className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}/>
           {tab.newButton}
@@ -340,7 +352,16 @@ export function McpServersTab() {
         <p className="text-[10px] text-secondary mt-1 ml-4">{tab.builtInDesc}</p>
       </div>
 
-      {loading && servers.length === 0 && <p className="text-center text-xs text-secondary py-6">{tab.loadingLabel}</p>}
+      {loadError && (
+        <ErrorState
+          message={`${t.settingsRedesign.states.loadFailed} (${loadError})`}
+          retryLabel={t.settingsRedesign.states.reload}
+          onRetry={() => void load()}
+        />
+      )}
+      {loading && servers.length === 0 && !loadError && (
+        <SettingsListSkeleton rows={2} className="space-y-2" cardClassName="rounded-lg border border-default p-3" />
+      )}
 
       <div className="space-y-2">
         {servers.map((server) => (
@@ -380,14 +401,17 @@ export function McpServersTab() {
         ))}
       </div>
 
-      {servers.length === 0 && !loading && !error && (
-        <div className="text-center py-8">
-          <p className="text-xs text-secondary mb-2">{t.mcp.noServers}</p>
-          <button onClick={() => { setForm(EMPTY_MCP_FORM); setEditingId(null); setShowForm(true); }}
-            className="text-xs text-accent hover:underline">
-            {t.mcp.addFirst}
-          </button>
-        </div>
+      {servers.length === 0 && !loading && !loadError && (
+        <EmptyState
+          icon={<Server className="h-8 w-8" strokeWidth={1.5} />}
+          title={t.settingsRedesign.mcp.emptyTitle}
+          description={t.settingsRedesign.mcp.emptyDescription}
+          action={
+            <button onClick={openCreate} className="text-xs text-accent hover:underline">
+              {t.mcp.addFirst}
+            </button>
+          }
+        />
       )}
     </div>
   );

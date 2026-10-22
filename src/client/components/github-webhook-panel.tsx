@@ -23,6 +23,9 @@ import { useConfirm } from "./confirm-dialog";
 import type { TranslationDictionary } from "@/i18n/types";
 import { desktopAwareFetch, getDesktopApiBaseUrl } from "@/client/utils/diagnostics";
 import { Plus, RefreshCw, SquarePen, Trash2, Link2, Circle, CircleOff } from "lucide-react";
+import { EmptyState as UiEmptyState, ErrorState } from "./ui/states";
+import { SettingsListSkeleton } from "./settings-redesign/list-skeleton";
+import { TokenPromptDialog } from "./settings-redesign/token-prompt-dialog";
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -117,6 +120,9 @@ export function GitHubWebhookPanel() {
   const [specialists, setSpecialists] = useState<SpecialistOption[]>([]);
   const [serverUrl, setServerUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [tokenRequest, setTokenRequest] = useState<{ config: WebhookConfig; trigger: HTMLElement | null } | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"configs" | "logs">("configs");
   // Polling state
@@ -141,10 +147,10 @@ export function GitHubWebhookPanel() {
         desktopAwareFetch("/api/polling/config"),
         desktopAwareFetch("/api/specialists"),
       ]);
-      if (cfgRes.ok) {
-        const data = await cfgRes.json();
-        setConfigs(data.configs ?? []);
-      }
+      if (!cfgRes.ok) throw new Error(`HTTP ${cfgRes.status}`);
+      const cfgData = await cfgRes.json();
+      setConfigs(cfgData.configs ?? []);
+      setLoadError(false);
       if (logRes.ok) {
         const data = await logRes.json();
         setLogs(data.logs ?? []);
@@ -162,6 +168,7 @@ export function GitHubWebhookPanel() {
       }
     } catch (err) {
       console.error("Failed to load webhook data:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -176,6 +183,7 @@ export function GitHubWebhookPanel() {
     setEditId(null);
     setShowForm(true);
     setError(null);
+    setSaveError(null);
   }
 
   function openEdit(config: WebhookConfig) {
@@ -193,6 +201,7 @@ export function GitHubWebhookPanel() {
     setEditId(config.id);
     setShowForm(true);
     setError(null);
+    setSaveError(null);
   }
 
   function toggleEvent(ev: string) {
@@ -207,12 +216,12 @@ export function GitHubWebhookPanel() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name || !form.repo || !form.triggerAgentId || form.eventTypes.length === 0) {
-      setError(wt.requiredFieldsError);
+      setSaveError(wt.requiredFieldsError);
       return;
     }
 
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       const payload = {
         ...(editId ? { id: editId } : {}),
@@ -245,7 +254,7 @@ export function GitHubWebhookPanel() {
       setEditId(null);
       await loadData();
     } catch (err) {
-      setError(String(err));
+      setSaveError(`${t.settingsRedesign.states.saveFailed} (${err instanceof Error ? err.message : String(err)})`);
     } finally {
       setSaving(false);
     }
@@ -263,11 +272,7 @@ export function GitHubWebhookPanel() {
     }
   }
 
-  async function handleRegister(config: WebhookConfig) {
-    const tokenToUse = window.prompt(
-      `Enter GitHub personal access token for ${config.repo} to register the webhook:\n(needs repo webhook admin scope)`,
-      ""
-    );
+  async function handleRegister(config: WebhookConfig, tokenToUse: string) {
     if (!tokenToUse) return;
 
     setRegistering(config.id);
@@ -491,21 +496,27 @@ export function GitHubWebhookPanel() {
                 setForm={setForm}
                 editId={editId}
                 saving={saving}
+                saveError={saveError}
                 specialists={specialists}
                 onSubmit={handleSubmit}
-                onCancel={() => { setShowForm(false); setEditId(null); setError(null); }}
+                onCancel={() => { setShowForm(false); setEditId(null); setSaveError(null); }}
                 toggleEvent={toggleEvent}
               />
             )}
 
             {!showForm && (
               <>
-                {loading ? (
-                  <div className="flex items-center justify-center py-12 text-secondary">
-                    <div className="w-5 h-5 border-2 border-default border-t-accent rounded-full animate-spin mr-2" />
-                    {wt.loading}
-                  </div>
-                ) : configs.length === 0 ? (
+                {loadError && (
+                  <ErrorState
+                    className="mt-2"
+                    message={t.settingsRedesign.states.loadFailed}
+                    retryLabel={t.settingsRedesign.states.reload}
+                    onRetry={() => void loadData()}
+                  />
+                )}
+                {loading && configs.length === 0 ? (
+                  <SettingsListSkeleton />
+                ) : loadError && configs.length === 0 ? null : configs.length === 0 ? (
                   <EmptyState onAdd={openCreate} t={wt} />
                 ) : (
                   <div className="space-y-3 mt-2">
@@ -515,7 +526,7 @@ export function GitHubWebhookPanel() {
                         config={config}
                         onEdit={() => openEdit(config)}
                         onDelete={() => handleDelete(config.id)}
-                        onRegister={() => handleRegister(config)}
+                        onRegister={(trigger) => setTokenRequest({ config, trigger })}
                         onToggle={() => handleToggleEnabled(config)}
                         registering={registering === config.id}
                       />
@@ -531,6 +542,23 @@ export function GitHubWebhookPanel() {
           <TriggerLogsTable logs={logs} configs={configs} onRefresh={loadData} />
         )}
       </div>
+      <TokenPromptDialog
+        open={tokenRequest !== null}
+        title={t.settingsRedesign.webhooks.tokenDialogTitle}
+        description={t.settingsRedesign.webhooks.tokenDialogDescription}
+        subject={tokenRequest?.config.repo}
+        label={t.settingsRedesign.webhooks.tokenLabel}
+        placeholder={t.settingsRedesign.webhooks.tokenPlaceholder}
+        confirmLabel={t.settingsRedesign.webhooks.confirm}
+        cancelLabel={t.settingsRedesign.webhooks.cancel}
+        returnFocusTo={tokenRequest?.trigger}
+        onCancel={() => setTokenRequest(null)}
+        onSubmit={(token) => {
+          const request = tokenRequest;
+          setTokenRequest(null);
+          if (request) void handleRegister(request.config, token).then(() => setTimeout(() => request.trigger?.focus(), 0));
+        }}
+      />
     </div>
   );
 }
@@ -538,22 +566,22 @@ export function GitHubWebhookPanel() {
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function EmptyState({ onAdd, t }: { onAdd: () => void; t: TranslationDictionary["webhook"] }) {
+  const { t: root } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-subtle rounded-2xl flex items-center justify-center mb-4">
-        <Link2 className="w-8 h-8 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
-      </div>
-      <h3 className="text-base font-medium text-primary mb-1">{t.emptyTitle}</h3>
-      <p className="text-sm text-secondary max-w-sm mb-4">
-        {t.emptyDescription}
-      </p>
-      <button
-        onClick={onAdd}
-        className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
-      >
-        {t.addFirstTrigger}
-      </button>
-    </div>
+    <UiEmptyState
+      className="mt-2"
+      icon={<Link2 className="h-8 w-8" strokeWidth={1.5} />}
+      title={root.settingsRedesign.webhooks.emptyTitle}
+      description={root.settingsRedesign.webhooks.emptyDescription}
+      action={
+        <button
+          onClick={onAdd}
+          className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
+        >
+          {t.addFirstTrigger}
+        </button>
+      }
+    />
   );
 }
 
@@ -562,19 +590,25 @@ interface WebhookConfigFormProps {
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   editId: string | null;
   saving: boolean;
+  saveError: string | null;
   specialists: SpecialistOption[];
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
   toggleEvent: (ev: string) => void;
 }
 
-function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmit, onCancel, toggleEvent }: WebhookConfigFormProps) {
+function WebhookConfigForm({ form, setForm, editId, saving, saveError, specialists, onSubmit, onCancel, toggleEvent }: WebhookConfigFormProps) {
   const { t } = useTranslation();
   return (
     <form onSubmit={onSubmit} className="bg-surface border border-default rounded-xl p-5 mt-2 space-y-4">
       <h3 className="text-sm font-semibold text-primary">
         {editId ? t.webhook.editWebhookTrigger : t.webhook.newWebhookTrigger}
       </h3>
+      {saveError && (
+        <p role="alert" data-testid="webhook-save-error" className={`rounded-lg px-3 py-2 text-sm ${dangerSurfaceClassName}`}>
+          {saveError}
+        </p>
+      )}
 
       {/* Name */}
       <div>
@@ -770,7 +804,7 @@ interface WebhookConfigCardProps {
   config: WebhookConfig;
   onEdit: () => void;
   onDelete: () => void;
-  onRegister: () => void;
+  onRegister: (trigger: HTMLElement) => void;
   onToggle: () => void;
   registering: boolean;
 }
@@ -828,7 +862,7 @@ function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, reg
       {/* Action buttons */}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-default">
         <button
-          onClick={onRegister}
+          onClick={(event) => onRegister(event.currentTarget)}
           disabled={registering}
           className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary text-canvas hover:opacity-90 rounded-md transition-colors disabled:opacity-50"
         >

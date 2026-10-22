@@ -22,6 +22,8 @@ import {
   dangerSurfaceClassName,
 } from "./color-system";
 import { Check, Clock, Plus, SquarePen, Trash2, Play } from "lucide-react";
+import { EmptyState, ErrorState } from "./ui/states";
+import { SettingsListSkeleton } from "./settings-redesign/list-skeleton";
 
 
 // ─── Client-side cron description (no node-cron dependency) ─────────────────
@@ -127,6 +129,8 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
   const [running, setRunning] = useState<string | null>(null);
   const [specialists, setSpecialists] = useState<SpecialistOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [cronDescription, setCronDescription] = useState<string>("");
   const [now, setNow] = useState(0);
@@ -161,12 +165,13 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
     try {
       setLoading(true);
       const res = await desktopAwareFetch(`/api/schedules?workspaceId=${workspaceId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSchedules(data.schedules ?? []);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSchedules(data.schedules ?? []);
+      setLoadError(false);
     } catch (err) {
       console.error("Failed to load schedules:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -194,6 +199,7 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
     setEditId(null);
     setShowForm(true);
     setError(null);
+    setSaveError(null);
   }
 
   function openEdit(s: Schedule) {
@@ -210,21 +216,22 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
     setEditId(s.id);
     setShowForm(true);
     setError(null);
+    setSaveError(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!workspaceId) {
-      setError(t.schedules.selectWorkspace);
+      setSaveError(t.schedules.selectWorkspace);
       return;
     }
     if (!form.name || !form.cronExpr || !form.taskPrompt || !form.agentId) {
-      setError(t.schedules.requiredFields);
+      setSaveError(t.schedules.requiredFields);
       return;
     }
 
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     try {
       const payload = {
         name: form.name,
@@ -258,7 +265,7 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
       setEditId(null);
       await loadSchedules();
     } catch (err) {
-      setError(String(err));
+      setSaveError(`${t.settingsRedesign.states.saveFailed} (${err instanceof Error ? err.message : String(err)})`);
     } finally {
       setSaving(false);
     }
@@ -366,22 +373,28 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
             setForm={setForm}
             editId={editId}
             saving={saving}
+            saveError={saveError}
             specialists={specialists}
             cronDescription={cronDescription}
             onSubmit={handleSubmit}
-            onCancel={() => { setShowForm(false); setEditId(null); setError(null); }}
+            onCancel={() => { setShowForm(false); setEditId(null); setSaveError(null); }}
             onPresetChange={handlePresetChange}
           />
         )}
 
         {!showForm && (
           <>
-            {loading ? (
-              <div className="flex items-center justify-center py-12 text-secondary">
-                <div className="w-5 h-5 border-2 border-default border-t-accent rounded-full animate-spin mr-2" />
-                {t.common.loading}
-              </div>
-            ) : schedules.length === 0 ? (
+            {loadError && (
+              <ErrorState
+                className="mt-2"
+                message={t.settingsRedesign.states.loadFailed}
+                retryLabel={t.settingsRedesign.states.reload}
+                onRetry={() => void loadSchedules()}
+              />
+            )}
+            {loading && schedules.length === 0 ? (
+              <SettingsListSkeleton />
+            ) : loadError && schedules.length === 0 ? null : schedules.length === 0 ? (
               <ScheduleEmptyState onAdd={openCreate} />
             ) : (
               <div className="space-y-3 mt-2">
@@ -411,22 +424,20 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
 function ScheduleEmptyState({ onAdd }: { onAdd: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-subtle rounded-2xl flex items-center justify-center mb-4">
-        <Clock className="w-8 h-8 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
-      </div>
-      <h3 className="text-base font-medium text-primary mb-1">{t.schedules.noSchedulesTitle}</h3>
-      <p className="text-sm text-secondary max-w-sm mb-4">
-        {t.schedules.noSchedulesDesc}
-
-      </p>
-      <button
-        onClick={onAdd}
-        className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
-      >
-        {t.schedules.createFirst}
-      </button>
-    </div>
+    <EmptyState
+      className="mt-2"
+      icon={<Clock className="h-8 w-8" strokeWidth={1.5} />}
+      title={t.settingsRedesign.schedules.emptyTitle}
+      description={t.settingsRedesign.schedules.emptyDescription}
+      action={
+        <button
+          onClick={onAdd}
+          className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
+        >
+          {t.schedules.createFirst}
+        </button>
+      }
+    />
   );
 }
 
@@ -435,6 +446,7 @@ interface ScheduleFormProps {
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   editId: string | null;
   saving: boolean;
+  saveError: string | null;
   cronDescription: string;
   specialists: SpecialistOption[];
   onSubmit: (e: React.FormEvent) => void;
@@ -443,7 +455,7 @@ interface ScheduleFormProps {
 }
 
 function ScheduleForm({
-  form, setForm, editId, saving, cronDescription, specialists,
+  form, setForm, editId, saving, saveError, cronDescription, specialists,
   onSubmit, onCancel, onPresetChange,
 }: ScheduleFormProps) {
   const { t } = useTranslation();
@@ -452,6 +464,11 @@ function ScheduleForm({
       <h3 className="text-sm font-semibold text-primary">
         {editId ? t.schedules.editSchedule : t.schedules.newSchedule}
       </h3>
+      {saveError && (
+        <p role="alert" data-testid="schedule-save-error" className={`rounded-lg px-3 py-2 text-sm ${dangerSurfaceClassName}`}>
+          {saveError}
+        </p>
+      )}
 
       {/* Name */}
       <div>
