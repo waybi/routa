@@ -23,7 +23,6 @@ import {
   createKanbanSpecialistResolver,
   formatSessionTimestamp,
   getLaneSessionStepLabel,
-  getOrderedSessionIds,
   getStableOrderedSessionIds,
   getSpecialistName,
   type KanbanSpecialistOption,
@@ -34,8 +33,6 @@ import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useTaskRuns } from "./use-task-runs";
 import { resolveSessionModelChips } from "./kanban-session-activity";
 import { useModelEffortChoices } from "./kanban-model-effort-fields";
-
-type ActivityTabId = "runs" | "handoffs" | "github";
 
 function formatTaskRunKind(kind: TaskRunInfo["kind"] | undefined): string {
   switch (kind) {
@@ -50,18 +47,17 @@ function formatTaskRunKind(kind: TaskRunInfo["kind"] | undefined): string {
   }
 }
 
-function formatTaskRunStatus(status: TaskRunInfo["status"] | undefined): string {
+function formatTaskRunStatus(status: TaskRunInfo["status"] | undefined, endedLabel: string): string {
   switch (status) {
     case "running":
       return "Running";
     case "completed":
-      return "Completed";
+    case "transitioned":
+      return endedLabel;
     case "failed":
       return "Failed";
     case "timed_out":
       return "Timed out";
-    case "transitioned":
-      return "Transitioned";
     default:
       return "Unknown";
   }
@@ -69,78 +65,31 @@ function formatTaskRunStatus(status: TaskRunInfo["status"] | undefined): string 
 
 function getTaskRunStatusClasses(status: TaskRunInfo["status"] | undefined): string {
   switch (status) {
-    case "completed":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
     case "failed":
     case "timed_out":
-      return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-200";
+      return "bg-danger-subtle text-danger";
     case "running":
-      return "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200";
+      return "bg-accent-subtle text-information";
+    // A lane session that ended normally is not an error: grey "Ended".
+    case "completed":
     case "transitioned":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200";
     default:
-      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+      return "bg-subtle text-secondary";
   }
 }
 
-function getLaneBadgeClasses(laneLabel: string | undefined): string {
-  const normalized = laneLabel?.trim().toLowerCase() ?? "";
-
-  if (normalized.includes("backlog") || normalized.includes("梳理")) {
-    return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
-  }
-  if (normalized.includes("todo") || normalized.includes("编排")) {
-    return "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200";
-  }
-  if (
-    normalized.includes("dev")
-    || normalized.includes("develop")
-    || normalized.includes("开发")
-    || normalized.includes("execute")
-  ) {
-    return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200";
-  }
-  if (normalized.includes("review") || normalized.includes("评审") || normalized.includes("gate")) {
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
-  }
-  if (normalized.includes("pr") || normalized.includes("publish")) {
-    return "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-200";
-  }
-  if (normalized.includes("done") || normalized.includes("complete") || normalized.includes("completed")) {
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200";
-  }
-
-  return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+function getLaneBadgeClasses(_laneLabel: string | undefined): string {
+  return "bg-subtle text-secondary";
 }
 
 function getRunTabClasses(status: TaskRunInfo["status"] | undefined, active: boolean): string {
-  const stateClasses = (() => {
-    switch (status) {
-      case "completed":
-        return active
-          ? "border-emerald-300 bg-emerald-50 text-slate-900 dark:border-emerald-700/70 dark:bg-emerald-900/20 dark:text-slate-100"
-          : "border-emerald-200/80 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-800/70 dark:bg-transparent dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:bg-emerald-900/10";
-      case "failed":
-      case "timed_out":
-        return active
-          ? "border-rose-300 bg-rose-50 text-slate-900 dark:border-rose-700/70 dark:bg-rose-900/20 dark:text-slate-100"
-          : "border-rose-200/80 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50 dark:border-rose-800/70 dark:bg-transparent dark:text-slate-300 dark:hover:border-rose-700 dark:hover:bg-rose-900/10";
-      case "running":
-        return active
-          ? "border-sky-300 bg-sky-50 text-slate-900 dark:border-sky-700/70 dark:bg-sky-900/20 dark:text-slate-100"
-          : "border-sky-200/80 bg-white text-slate-600 hover:border-sky-300 hover:bg-sky-50 dark:border-sky-800/70 dark:bg-transparent dark:text-slate-300 dark:hover:border-sky-700 dark:hover:bg-sky-900/10";
-      case "transitioned":
-        return active
-          ? "border-amber-300 bg-amber-50 text-slate-900 dark:border-amber-700/70 dark:bg-amber-900/20 dark:text-slate-100"
-          : "border-amber-200/80 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 dark:border-amber-800/70 dark:bg-transparent dark:text-slate-300 dark:hover:border-amber-700 dark:hover:bg-amber-900/10";
-      default:
-        return active
-          ? "border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-          : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-transparent dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-900/40";
-    }
-  })();
+  const stateClasses = status === "failed" || status === "timed_out"
+    ? (active ? "border-danger bg-danger-subtle text-primary" : "border-danger bg-surface text-secondary hover:bg-danger-subtle")
+    : status === "running"
+      ? (active ? "border-accent bg-accent-subtle text-primary" : "border-accent bg-surface text-secondary hover:bg-accent-subtle")
+      : (active ? "border-accent bg-accent-subtle text-primary" : "border-default bg-surface text-secondary hover:bg-hover");
 
-  return `inline-flex min-w-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-colors ${stateClasses}`;
+  return `inline-flex min-w-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${stateClasses}`;
 }
 
 function formatAgentCardTarget(agentCardUrl?: string): string | undefined {
@@ -247,11 +196,11 @@ function ActivitySection({
   compact?: boolean;
 }) {
   return (
-    <section className="space-y-2 border-b border-slate-200/80 py-2 dark:border-[#232736]">
-      <div className={compact ? "mb-2" : "mb-3"}>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{title}</div>
+    <section className={`border-b border-default last:border-b-0 ${compact ? "space-y-2 py-3" : "space-y-3 py-4"}`} data-testid="kanban-detail-run-records">
+      <div>
+        <h3 className="m-0 text-[13px] font-semibold text-primary">{title}</h3>
         {description && (
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{description}</div>
+          <p className="m-0 mt-1 text-xs text-secondary">{description}</p>
         )}
       </div>
       {children}
@@ -296,7 +245,7 @@ function SessionIdChip({
   return (
     <div className={`flex min-w-0 items-center gap-1.5 ${compact ? "max-w-[13rem]" : "max-w-[18rem]"}`}>
       <span
-        className={`min-w-0 break-all rounded-lg bg-slate-100 font-mono text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300 ${compact ? "px-1.5 py-0.5" : "px-2 py-1"}`}
+        className={`min-w-0 break-all rounded-lg bg-subtle font-mono text-[10px] text-secondary ${compact ? "px-1.5 py-0.5" : "px-2 py-1"}`}
         title={sessionId}
       >
         {sessionId}
@@ -304,7 +253,7 @@ function SessionIdChip({
       <button
         type="button"
         onClick={handleCopy}
-        className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+        className="shrink-0 rounded p-0.5 text-secondary transition-colors hover:bg-hover hover:text-secondary"
         title={t.common.copyToClipboard}
         aria-label={t.common.copyToClipboard}
       >
@@ -335,79 +284,34 @@ export function KanbanCardActivityPanel({
   refreshSignal?: number;
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
   const { runs, error } = useTaskRuns(
     task.id,
     `${refreshSignal ?? ""}:${task.updatedAt ?? ""}:${task.triggerSessionId ?? ""}:${task.laneSessions?.length ?? 0}`,
   );
-  const tabs: Array<{ id: ActivityTabId; label: string; count?: number }> = [
-    { id: "runs", label: copy.runs, count: runs?.length ?? getOrderedSessionIds(task).length },
-    ...((task.laneHandoffs?.length ?? 0) > 0 ? [{ id: "handoffs" as const, label: copy.handoffs, count: task.laneHandoffs?.length }] : []),
-    ...(task.githubNumber ? [{ id: "github" as const, label: "GitHub" }] : []),
-  ];
-  const [activeTab, setActiveTab] = useState<ActivityTabId>(tabs[0]?.id ?? "runs");
-  const visibleTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : (tabs[0]?.id ?? "runs");
 
   return (
     <ActivitySection
-      title={copy.activityTitle}
+      title={t.kanbanDetail.runRecords}
       description={compact ? undefined : copy.activityDescription}
       compact={compact}
     >
-      <div>
-        {error && (
-          <div className="mb-2 border-l-2 border-amber-300 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/80 dark:text-amber-200">
-            Run ledger unavailable, showing local run history. {error}
-          </div>
-        )}
-        <div className="flex flex-wrap border-b border-slate-200/70 dark:border-[#232736]">
-          {tabs.map((tab) => {
-            const active = tab.id === activeTab;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center justify-between gap-1 border-b-2 border-transparent px-3 py-2 text-[11px] font-medium transition-colors ${
-                  active
-                    ? "border-b-[#b45309] text-amber-800 dark:border-b-[#f59e0b] dark:text-amber-200"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
-              >
-                <span>{tab.label}</span>
-                {typeof tab.count === "number" && (
-                  <span className={`rounded-none border px-1 py-0.5 text-[10px] ${active ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/10 dark:text-amber-100" : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+      {error && (
+        <div className="rounded-md border-l-2 border-attention bg-attention-subtle px-3 py-2 text-xs text-attention">
+          {t.kanbanDetail.runLedgerUnavailable} {error}
         </div>
-        <div className={compact ? "mt-3" : "mt-4"}>
-          {visibleTab === "runs" && (
-            <SessionHistoryPanel
-              task={task}
-              runs={runs ?? undefined}
-              specialists={specialists}
-              sessions={sessions}
-              specialistLanguage={specialistLanguage}
-              currentSessionId={currentSessionId}
-              onSelectSession={onSelectSession}
-              compact={compact}
-            />
-          )}
-          {visibleTab === "handoffs" && (
-            <HandoffPanel
-              task={task}
-              compact={compact}
-            />
-          )}
-          {visibleTab === "github" && (
-            <GitHubPanel task={task} compact={compact} />
-          )}
-        </div>
-      </div>
+      )}
+      <SessionHistoryPanel
+        task={task}
+        runs={runs ?? undefined}
+        specialists={specialists}
+        sessions={sessions}
+        specialistLanguage={specialistLanguage}
+        currentSessionId={currentSessionId}
+        onSelectSession={onSelectSession}
+        compact={compact}
+      />
     </ActivitySection>
   );
 }
@@ -469,7 +373,7 @@ export function KanbanCardActivityBar({
 
   if (orderedSessionIds.length === 0) {
     return (
-      <div className="flex items-center justify-between gap-3 border-b border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      <div className="flex items-center justify-between gap-3 border-b border-dashed border-default px-3 py-2 text-[11px] text-secondary">
         <span>{copy.noRunsInline}</span>
         {hideSessionPaneButton}
       </div>
@@ -479,12 +383,12 @@ export function KanbanCardActivityBar({
   return (
     <div className="space-y-2 px-1 py-1">
       {error && (
-        <div className="border-l-2 border-amber-300 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-700/80 dark:text-amber-200">
-          Run ledger unavailable, using cached task history.
+        <div className="border-l-2 border-attention px-3 py-2 text-[11px] text-attention">
+          {t.kanbanDetail.runLedgerUnavailable}
         </div>
       )}
-      <div className="flex items-start gap-2 border-b border-slate-200/70 pb-2 dark:border-[#232736]">
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1.5 border-slate-200/70 pr-1 pb-1">
+      <div className="flex items-start gap-2 border-b border-default pb-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1.5 border-default pr-1 pb-1">
           {orderedSessionIds.map((sessionId, index) => {
             const active = sessionId === selectedRunId;
             const laneSession = laneSessionMap.get(sessionId);
@@ -514,8 +418,8 @@ export function KanbanCardActivityBar({
                 </span>
                 <span className={`px-0.5 text-[10px] font-semibold tabular-nums ${
                   active
-                    ? "text-slate-700 dark:text-slate-200"
-                    : "text-slate-500 dark:text-slate-400"
+                    ? "text-primary"
+                    : "text-secondary"
                 }`}>
                   {index + 1}
                 </span>
@@ -526,30 +430,30 @@ export function KanbanCardActivityBar({
         {hideSessionPaneButton}
       </div>
       {(selectedLaneSession?.columnName || selectedStepLabel || selectedLaneSession?.status) && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200/80 pb-1 text-[10px] dark:border-[#232736]">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-default pb-1 text-[10px]">
           {selectedLaneSession?.columnName && (
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
               {selectedLaneSession.columnName}
             </span>
           )}
           {selectedLaneSession?.transport && (
-            <span className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
               {selectedLaneSession.transport}
             </span>
           )}
           {selectedRun && (
-            <span className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${getTaskRunStatusClasses(selectedRun.status)}`}>
-              {formatTaskRunStatus(selectedRun.status)}
+            <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedRun.status)}`}>
+              {formatTaskRunStatus(selectedRun.status, t.kanbanDetail.runEnded)}
             </span>
           )}
           {selectedStepLabel && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
               {selectedStepLabel}
             </span>
           )}
-          {selectedLaneSession?.status && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
-              {selectedLaneSession.status}
+          {selectedLaneSession?.status && !selectedRun && (
+            <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedLaneSession.status)}`}>
+              {formatTaskRunStatus(selectedLaneSession.status, t.kanbanDetail.runEnded)}
             </span>
           )}
         </div>
@@ -592,8 +496,8 @@ function SessionHistoryPanel({
 
   if (orderedSessionIds.length === 0) {
     return (
-      <div className={`border-b border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{copy.runHistoryTitle}</div>
+      <div className={`border-b border-dashed border-default text-sm text-secondary ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
+        <div className="text-[11px] font-semibold text-secondary">{copy.runHistoryTitle}</div>
         <div className="mt-2">{copy.noRunsHistory} {copy.noRunsHistoryHint}</div>
       </div>
     );
@@ -607,12 +511,12 @@ function SessionHistoryPanel({
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{copy.runHistoryTitle}</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="text-[11px] font-semibold text-secondary">{copy.runHistoryTitle}</div>
+          <div className="mt-1 text-xs text-secondary">
             {copy.runHistoryCount(orderedSessionIds.length)}
           </div>
         </div>
-        <div className="border border-slate-200 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:text-slate-300">
+        <div className="border border-default px-2.5 py-1 text-[10px] font-semibold text-secondary">
           {t.kanban.currentLane}: {task.columnId ?? t.kanban.backlog}
         </div>
       </div>
@@ -646,57 +550,57 @@ function SessionHistoryPanel({
               tabIndex={0}
               onClick={() => onSelectSession?.(selectedSessionId)}
               onKeyDown={(event) => handleSessionRowKeyDown(event, onSelectSession, selectedSessionId)}
-              className={`w-full border-b border-slate-200/70 text-left transition-colors last:border-b-0 ${compact ? "px-2.5 py-2" : "px-3 py-2.5"} ${
+              className={`w-full cursor-pointer rounded-md border text-left text-primary transition-colors ${compact ? "px-2.5 py-2" : "px-3 py-2.5"} ${
                 isCurrent
-                  ? "text-amber-900 dark:text-amber-200"
-                  : "text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300"
-              } focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950`}
+                  ? "border-accent bg-accent-subtle"
+                  : "border-default bg-surface hover:bg-hover"
+              } focus-visible:outline-2 focus-visible:outline-accent`}
               aria-pressed={isCurrent}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="rounded-full bg-subtle px-2 py-0.5 text-[10px] font-semibold text-primary">
                   {t.kanban.runLabel} {index + 1}
                 </span>
                 {run && (
-                  <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                  <span className="rounded-full border border-default px-2 py-0.5 text-[10px] font-semibold text-primary">
                     {formatTaskRunKind(run.kind)}
                   </span>
                 )}
                 {laneSession?.columnName && (
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                  <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-information">
                     {laneSession.columnName}
                   </span>
                 )}
                 {laneSession?.transport && (
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                  <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-information">
                     {laneSession.transport}
                   </span>
                 )}
                 {stepLabel && (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-information">
                     {stepLabel}
                   </span>
                 )}
                 {isCurrent && (
-                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:bg-amber-800/40 dark:text-amber-200">
+                  <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-on-accent">
                     {t.common.active}
                   </span>
                 )}
                 {(run?.status ?? laneSession?.status) && (
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getTaskRunStatusClasses(run?.status ?? laneSession?.status)}`}>
-                    {formatTaskRunStatus(run?.status ?? laneSession?.status)}
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${getTaskRunStatusClasses(run?.status ?? laneSession?.status)}`}>
+                    {formatTaskRunStatus(run?.status ?? laneSession?.status, t.kanbanDetail.runEnded)}
                   </span>
                 )}
               </div>
               <div className="mt-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className={`truncate font-medium text-slate-900 dark:text-slate-100 ${compact ? "text-[13px]" : "text-sm"}`}>
+                  <div className={`truncate font-medium text-primary ${compact ? "text-[13px]" : "text-sm"}`}>
                     {laneSession ? formatLaneSessionHeading(laneSession, session) : (session?.name ?? session?.provider ?? t.kanban.acpSession)}
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="mt-0.5 text-xs text-secondary">
                     {isA2ARun
                       ? [
-                        "Remote task",
+                        t.kanbanDetail.remoteTask,
                         laneSession?.role ?? t.kanban.unknownRole,
                         laneSpecialist,
                       ].filter(Boolean).join(" · ")
@@ -706,31 +610,27 @@ function SessionHistoryPanel({
                         laneSpecialist,
                       ].filter(Boolean).join(" · ")}
                   </div>
-                  {modelChips && (
+                  {!isA2ARun && (
                     <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="kanban-run-model">
-                      {modelChips.model && (
-                        <span
-                          className="max-w-full truncate rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
-                          title={`${t.kanbanModelSelection.model}: ${modelChips.model.id}`}
-                          aria-label={`${t.kanbanModelSelection.model}: ${modelChips.model.label}`}
-                          data-testid="kanban-run-model-chip"
-                        >
-                          {modelChips.model.label}
-                        </span>
-                      )}
-                      {modelChips.effort && (
-                        <span
-                          className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                          title={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips.effort.id}`}
-                          aria-label={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips.effort.label}`}
-                          data-testid="kanban-run-effort-chip"
-                        >
-                          {modelChips.effort.label}
-                        </span>
-                      )}
+                      <span
+                        className={`max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${modelChips?.model ? "bg-accent-subtle text-information" : "bg-subtle text-secondary"}`}
+                        title={`${t.kanbanModelSelection.model}: ${modelChips?.model?.id ?? t.kanbanDetail.runModelNotRecorded}`}
+                        aria-label={`${t.kanbanModelSelection.model}: ${modelChips?.model?.label ?? t.kanbanDetail.runModelNotRecorded}`}
+                        data-testid="kanban-run-model-chip"
+                      >
+                        {modelChips?.model?.label ?? t.kanbanDetail.runModelNotRecorded}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modelChips?.effort ? "bg-success-subtle text-success" : "bg-subtle text-secondary"}`}
+                        title={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.id ?? t.kanbanDetail.runEffortNotRecorded}`}
+                        aria-label={`${t.kanbanModelSelection.reasoningEffort}: ${modelChips?.effort?.label ?? t.kanbanDetail.runEffortNotRecorded}`}
+                        data-testid="kanban-run-effort-chip"
+                      >
+                        {modelChips?.effort?.label ?? t.kanbanDetail.runEffortNotRecorded}
+                      </span>
                     </div>
                   )}
-                  <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  <div className="mt-1 text-[11px] text-secondary">
                     {formatSessionTimestamp(run?.startedAt ?? session?.createdAt ?? laneSession?.startedAt)}
                   </div>
                 </div>
@@ -739,13 +639,13 @@ function SessionHistoryPanel({
                   compact={compact}
                 />
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-secondary">
                 <span className="truncate">
                   {isA2ARun
-                    ? (run?.contextId ?? laneSession?.contextId) ? `Context ${run?.contextId ?? laneSession?.contextId}` : "Remote task metadata available"
+                    ? (run?.contextId ?? laneSession?.contextId) ? `Context ${run?.contextId ?? laneSession?.contextId}` : t.kanbanDetail.remoteTaskMetadata
                     : session?.cwd ?? t.kanban.workingDirUnavailable}
                 </span>
-                <span className="font-medium text-amber-600 dark:text-amber-300">{reconnectLabel}</span>
+                <span className="font-medium text-information">{reconnectLabel}</span>
               </div>
             </div>
           );
@@ -785,7 +685,7 @@ export function KanbanEmptySessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-slate-200/80 py-2 pl-2 pr-2 dark:border-[#202433]" data-testid="kanban-session-pane-top-row">
+      <div className="shrink-0 border-b border-default py-2 pl-2 pr-2" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           specialistLanguage={specialistLanguage}
@@ -793,12 +693,12 @@ export function KanbanEmptySessionPane({
         />
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <div className="w-full max-w-lg border border-slate-200/80 p-4 dark:border-[#232736]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-600 dark:text-sky-300">{copy.emptyPaneEyebrow}</div>
-          <div className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.emptyPaneTitle}</div>
-          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{copy.emptyPaneDescription}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{copy.emptyPaneHint}</p>
-          <div className="mt-3 border-l-2 border-sky-300 bg-sky-50/50 px-3 py-2.5 text-sm font-medium text-sky-900 dark:border-sky-800/60 dark:bg-sky-900/20 dark:text-sky-100">
+        <div className="w-full max-w-lg border border-default p-4">
+          <div className="text-[11px] font-semibold text-information">{copy.emptyPaneEyebrow}</div>
+          <div className="mt-1 text-lg font-semibold text-primary">{copy.emptyPaneTitle}</div>
+          <p className="mt-2 text-sm leading-6 text-secondary">{copy.emptyPaneDescription}</p>
+          <p className="mt-2 text-sm leading-6 text-secondary">{copy.emptyPaneHint}</p>
+          <div className="mt-3 border-l-2 border-accent bg-accent-subtle px-3 py-2.5 text-sm font-medium text-information">
             {copy.expectedTarget(target)}
           </div>
         </div>
@@ -807,13 +707,13 @@ export function KanbanEmptySessionPane({
   );
 }
 
-function HandoffPanel({ task, compact = false }: { task: TaskInfo; compact?: boolean }) {
+export function HandoffPanel({ task, compact = false }: { task: TaskInfo; compact?: boolean }) {
   const { t } = useTranslation();
   const handoffs = task.laneHandoffs ?? [];
   if (handoffs.length === 0) {
     return (
-      <div className={`border-b border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t.kanban.laneHandoffs}</div>
+      <div className={`border-b border-dashed border-default text-sm text-secondary ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
+        <div className="text-[11px] font-semibold text-secondary">{t.kanban.laneHandoffs}</div>
         <div className="mt-2">{t.kanban.noLaneHandoffsYet}</div>
       </div>
     );
@@ -826,8 +726,8 @@ function HandoffPanel({ task, compact = false }: { task: TaskInfo; compact?: boo
   return (
     <>
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">{t.kanban.laneHandoffs}</div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <div className="text-[11px] font-semibold text-secondary">{t.kanban.laneHandoffs}</div>
+        <div className="mt-1 text-xs text-secondary">
           {t.kanban.laneHandoffsDescription}
         </div>
       </div>
@@ -835,23 +735,23 @@ function HandoffPanel({ task, compact = false }: { task: TaskInfo; compact?: boo
         {orderedHandoffs.map((handoff) => (
           <div
             key={handoff.id}
-            className="border-b border-slate-200/70 px-3 py-2 dark:border-slate-700/70"
+            className="border-b border-default px-3 py-2"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+              <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-information">
                 {handoff.requestType.replace(/_/g, " ")}
               </span>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+              <span className="rounded-full bg-attention-subtle px-2 py-0.5 text-[10px] font-semibold text-attention">
                 {handoff.status}
               </span>
             </div>
-            <div className="mt-2 text-sm text-slate-800 dark:text-slate-200">{handoff.request}</div>
+            <div className="mt-2 text-sm text-primary">{handoff.request}</div>
             {handoff.responseSummary && (
-              <div className="mt-2 border-l-2 border-emerald-200 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/30 dark:text-emerald-200">
+              <div className="mt-2 border-l-2 border-success px-3 py-2 text-xs text-success">
                 {handoff.responseSummary}
               </div>
             )}
-            <div className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+            <div className="mt-2 text-[11px] text-secondary">
               {t.kanban.requested} {formatSessionTimestamp(handoff.requestedAt)}{handoff.respondedAt ? ` · ${t.kanban.responded} ${formatSessionTimestamp(handoff.respondedAt)}` : ""}
             </div>
           </div>
@@ -861,33 +761,38 @@ function HandoffPanel({ task, compact = false }: { task: TaskInfo; compact?: boo
   );
 }
 
-function GitHubPanel({ task, compact = false }: { task: TaskInfo; compact?: boolean }) {
+export function GitHubPanel({ task, compact = false }: { task: TaskInfo; compact?: boolean }) {
   const { t } = useTranslation();
   if (!task.githubNumber) {
-    return null;
+    return (
+      <div className={`text-sm text-secondary ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
+        <div className="text-xs font-semibold text-primary">GitHub</div>
+        <div className="mt-2">{t.kanbanDetail.noGithubLink}</div>
+      </div>
+    );
   }
 
   return (
-    <div className={`border-b border-slate-200/70 dark:border-slate-700/70 ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">GitHub</div>
+    <div className={`border-b border-default ${compact ? "px-3 py-3" : "px-4 py-4"}`}>
+      <div className="text-[11px] font-semibold text-secondary">GitHub</div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-information">
           {task.githubState ?? t.kanban.linkedLabel}
         </span>
         {task.githubRepo && (
-          <span className="text-xs text-slate-500 dark:text-slate-400">{task.githubRepo}</span>
+          <span className="text-xs text-secondary">{task.githubRepo}</span>
         )}
       </div>
       <a
         href={task.githubUrl}
         target="_blank"
         rel="noreferrer"
-        className={`mt-3 inline-flex text-amber-600 hover:underline dark:text-amber-400 ${compact ? "text-[13px]" : "text-sm"}`}
+        className={`mt-3 inline-flex text-attention hover:underline ${compact ? "text-[13px]" : "text-sm"}`}
       >
         #{task.githubNumber}
       </a>
       {task.githubSyncedAt && (
-        <div className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+        <div className="mt-2 text-[11px] text-secondary">
           {t.kanban.syncedAt} {formatSessionTimestamp(task.githubSyncedAt)}
         </div>
       )}
