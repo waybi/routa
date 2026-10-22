@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { DesktopAppShell } from "./desktop-app-shell";
 import { SettingsCenterNav, type SettingsNavItem } from "./settings-center-nav";
+import { SettingsPageHeader } from "./settings-page-header";
 
 /**
  * Settings frame: the left sub-navigation plus the page body. Every
@@ -20,17 +21,19 @@ export function SettingsFrame({ activeItem, children }: { activeItem?: SettingsN
   );
 }
 
-
 interface SettingsRouteShellProps {
-  title: string;
-  description: string;
+  /** Rendered as the 21px page title. */
+  title: ReactNode;
+  description?: ReactNode;
+  /** Primary actions on the right of the page header. */
+  actions?: ReactNode;
+  /** Optional row under the title (for example tabs). */
+  headerExtra?: ReactNode;
   children: ReactNode;
   workspaceId?: string | null;
   workspaceTitle?: string;
-  badgeLabel?: string;
-  icon?: ReactNode;
-  summary?: Array<{ label: string; value: string }>;
   workspaceSwitcher?: ReactNode;
+  /** Class of the scrolling body under the header. */
   contentClassName?: string;
   activeSettingsItem?: SettingsNavItem;
 }
@@ -38,22 +41,15 @@ interface SettingsRouteShellProps {
 export function SettingsRouteShell({
   title,
   description,
+  actions,
+  headerExtra,
   children,
   workspaceId,
   workspaceTitle,
-  badgeLabel,
-  icon,
-  summary = [],
   workspaceSwitcher,
   contentClassName,
   activeSettingsItem,
 }: SettingsRouteShellProps) {
-  void badgeLabel;
-  void summary;
-  void description;
-  void title;
-  void icon;
-
   return (
     <DesktopAppShell
       workspaceId={workspaceId}
@@ -61,8 +57,13 @@ export function SettingsRouteShell({
       workspaceSwitcher={workspaceSwitcher}
     >
       <SettingsFrame activeItem={activeSettingsItem}>
-        <div className={contentClassName ?? "flex min-h-full w-full flex-col px-8 py-8"}>
-          {children}
+        <div className="flex h-full min-h-0 flex-col">
+          <SettingsPageHeader title={title} description={description} actions={actions}>
+            {headerExtra}
+          </SettingsPageHeader>
+          <div className={contentClassName ?? "min-h-0 flex-1 overflow-auto px-6 py-5 max-[800px]:px-4"}>
+            {children}
+          </div>
         </div>
       </SettingsFrame>
     </DesktopAppShell>

@@ -2,45 +2,41 @@
 
 import type { ReactNode } from "react";
 
+/**
+ * Page header for settings pages and the re-shelled resource / developer
+ * pages (design-spec §2): about 48px tall, 21px title, one line of
+ * description, primary actions pinned to the right.
+ */
 type SettingsPageHeaderProps = {
-  title: string;
-  description?: string;
-  metadata?: Array<{ label: string; value: string }>;
-  extra?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  /** Primary actions, rendered on the right. */
+  actions?: ReactNode;
+  /** Optional row under the title (tabs, filters). */
+  children?: ReactNode;
+  className?: string;
 };
 
-export function SettingsPageHeader({
-  title,
-  description,
-  metadata = [],
-  extra,
-}: SettingsPageHeaderProps) {
+export function SettingsPageHeader({ title, description, actions, children, className = "" }: SettingsPageHeaderProps) {
   return (
-    <header className="border-b border-desktop-border px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <header
+      data-testid="settings-page-header"
+      className={`shrink-0 border-b border-default bg-canvas px-6 py-3 max-[800px]:px-4 ${className}`.trim()}
+    >
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[14px] font-semibold text-desktop-text-primary">{title}</h1>
+          <h1 className="m-0 truncate text-[21px] font-semibold leading-7 text-primary">{title}</h1>
+          {description ? (
+            <p className="m-0 mt-0.5 max-w-3xl text-xs leading-5 text-secondary">{description}</p>
+          ) : null}
         </div>
-
-        {extra || metadata.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {extra}
-            {metadata.map((item) => (
-              <div
-                key={item.label}
-                className="inline-flex items-center gap-1 rounded-full border border-desktop-border bg-desktop-bg-primary/50 px-2.5 py-1 text-[10px] font-medium text-desktop-text-secondary"
-              >
-                <span className="opacity-70">{item.label}:</span>
-                <span className="font-semibold">{item.value}</span>
-              </div>
-            ))}
+        {actions ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2" data-testid="settings-page-header-actions">
+            {actions}
           </div>
         ) : null}
       </div>
-
-      {description ? (
-        <p className="mt-2 max-w-3xl text-[11px] leading-5 text-desktop-text-secondary">{description}</p>
-      ) : null}
+      {children ? <div className="mt-3">{children}</div> : null}
     </header>
   );
 }

@@ -4,45 +4,34 @@
  */
 "use client";
 
-import { Bot } from "lucide-react";
-
 import { AgentInstallPanel } from "@/client/components/agent-install-panel";
-import { SettingsPageHeader } from "@/client/components/settings-page-header";
 import { SettingsRouteShell } from "@/client/components/settings-route-shell";
+import { buttonClassName } from "@/client/components/ui/button";
 import { useTranslation } from "@/i18n";
 
 export default function AgentSettingsPage() {
   const { t } = useTranslation();
+  const copy = t.settingsRedesign.pages.agents;
 
   return (
     <SettingsRouteShell
-      title={t.agents.agentInstallation}
-      description={t.agents.installAndManage}
-      badgeLabel="ACP"
-      icon={(
-        <Bot className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}/>
+      activeSettingsItem="agents"
+      title={copy.title}
+      description={copy.description}
+      actions={(
+        <a
+          href="https://agentclientprotocol.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClassName("secondary", "sm")}
+        >
+          {t.agents.learnAboutACP}
+        </a>
       )}
-      contentClassName="flex h-full min-h-0 w-full flex-col"
+      contentClassName="min-h-0 flex-1 overflow-hidden px-6 py-5 max-[800px]:px-4"
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <SettingsPageHeader
-          title={t.agents.agentInstallation}
-          extra={(
-            <a
-              href="https://agentclientprotocol.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center rounded-full border border-desktop-border bg-desktop-bg-primary/50 px-2.5 py-1 text-[10px] font-medium text-desktop-text-secondary transition hover:bg-desktop-bg-active hover:text-desktop-text-primary"
-            >
-              {t.agents.learnAboutACP}
-            </a>
-          )}
-        />
-        <div className="min-h-0 flex-1 overflow-hidden px-4 py-4">
-          <div className="h-full border border-desktop-border bg-desktop-bg-primary">
-            <AgentInstallPanel embedded />
-          </div>
-        </div>
+      <div className="h-full overflow-hidden rounded-lg border border-default bg-surface">
+        <AgentInstallPanel embedded />
       </div>
     </SettingsRouteShell>
   );
