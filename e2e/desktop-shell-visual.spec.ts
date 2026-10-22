@@ -74,10 +74,15 @@ async function openDesktopRoute(page: Page, path: string, colorScheme: "light" |
   }
 
   await Promise.allSettled(routeResponses);
-  await page.waitForLoadState("networkidle").catch(() => null);
+  // Workspace and kanban pages keep an SSE stream (/api/kanban/events) open, so the
+  // network never goes idle there; without a cap this wait hangs until the test times out.
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => null);
 
   if (path.includes("/kanban")) {
     await page.getByTestId("kanban-page-header").waitFor({ state: "visible", timeout: 20_000 });
+    // The header first renders without a board (no limit badge, no search box); wait for the
+    // board so the snapshot does not depend on whether /api/kanban/boards answered in time.
+    await page.getByTestId("kanban-board-search").waitFor({ state: "visible", timeout: 20_000 }).catch(() => null);
   }
 
   // The workspace switcher renders "Loading…" until /api/workspaces answers; wait it out
@@ -98,6 +103,7 @@ async function openDesktopRoute(page: Page, path: string, colorScheme: "light" |
     content: `
       [data-testid="workspace-tab-count"],
       [data-testid="kanban-task-count"],
+      [data-testid="kanban-toolbar-hit-count"],
       [data-testid="traces-selected-session"],
       [data-testid="traces-page-header"] > div:last-child {
         visibility: hidden !important;
