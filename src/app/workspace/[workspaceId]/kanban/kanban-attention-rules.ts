@@ -41,7 +41,7 @@ export function collectTaskAttentionItems(
   if (options.now - getDoneEnteredAt(task) > ATTENTION_DONE_WINDOW_MS) return items;
 
   const trailing = getTrailingDoneSessions(task);
-  const hasReport = Boolean(task.completionReport);
+  const hasReport = Boolean(task.completionReport) || Boolean(task.completionSummary?.trim());
   const last = trailing[trailing.length - 1];
   const doneFailed = !hasReport && Boolean(last) && (last.status === "failed" || last.status === "timed_out");
   if (doneFailed) {
