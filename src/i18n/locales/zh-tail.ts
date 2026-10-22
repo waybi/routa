@@ -1,5 +1,6 @@
 import type { TailTranslationDictionarySections } from "../types-tail";
 import { zhShell } from "./zh-shell";
+import { zhSessionsRedesign } from "./zh-sessions-redesign";
 
 export const zhTail: TailTranslationDictionarySections = {
   messageBubble: {
@@ -561,4 +562,5 @@ export const zhTail: TailTranslationDictionarySections = {
     cardTitle: "卡片标题",
   },
   ...zhShell,
+  ...zhSessionsRedesign,
 };

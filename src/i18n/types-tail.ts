@@ -1,6 +1,7 @@
 import type { ShellTranslationDictionarySections } from "./types-shell";
+import type { SessionsRedesignTranslationDictionarySections } from "./types-sessions-redesign";
 
-export interface TailTranslationDictionarySections extends ShellTranslationDictionarySections {
+export interface TailTranslationDictionarySections extends ShellTranslationDictionarySections, SessionsRedesignTranslationDictionarySections {
   messageBubble: {
     thinking: string;
     input: string;
