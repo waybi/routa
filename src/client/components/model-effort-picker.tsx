@@ -92,9 +92,9 @@ function groupModels(models: ModelEffortChoice[]): ModelGroup[] {
 }
 
 const TOOLBAR_BUTTON_CLASS =
-  "flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-md border border-default hover:bg-hover text-xs font-medium text-primary bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:cursor-default aria-disabled:hover:bg-surface";
+  "flex min-h-7 items-center gap-1.5 pl-2.5 pr-2 py-0.5 rounded-full border border-default hover:bg-hover text-[11px] font-medium text-primary bg-surface transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:cursor-default aria-disabled:hover:bg-surface";
 const FORM_BUTTON_CLASS =
-  "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-default bg-surface px-3 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-control border border-default bg-surface px-3 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export function ModelEffortPicker({
   choices,
@@ -226,7 +226,7 @@ export function ModelEffortPicker({
 
   const optionClass = (selected: boolean) => `flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
     selected
-      ? "bg-accent-subtle text-primary"
+      ? "bg-accent-subtle text-accent"
       : "text-primary hover:bg-hover"
   }`;
 
@@ -354,7 +354,7 @@ export function ModelEffortPicker({
                         onClick={() => selectEffort(choice.value)}
                         className={`flex-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
                           selected
-                            ? "bg-surface text-primary shadow-sm"
+                            ? "bg-accent-subtle text-accent shadow-sm"
                             : "text-secondary hover:bg-hover"
                         }`}
                       >
