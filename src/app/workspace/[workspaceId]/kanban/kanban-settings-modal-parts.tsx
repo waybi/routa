@@ -332,10 +332,10 @@ function ProviderField({
         showStatusDot={false}
         ariaLabel={ariaLabel}
         dataTestId={dataTestId}
-        buttonClassName="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-200 dark:hover:bg-[#111722]"
+        buttonClassName="flex w-full items-center justify-between gap-2 rounded-xl border border-default bg-surface px-3 py-2 text-sm text-primary transition hover:bg-hover"
         labelClassName="truncate text-left"
       />
-      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+      <p className="text-[11px] text-secondary">
         {t.kanban.autoFollowsGlobal}
       </p>
     </div>
@@ -355,7 +355,7 @@ function SelectControl({
       >
         {children}
       </Select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"/>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"/>
     </div>
   );
 }
@@ -376,8 +376,8 @@ function SpecialistCategoryTabs({
           onClick={() => onChange(option.id)}
           className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
             category === option.id
-              ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-200"
+              ? "border-attention bg-attention-subtle text-attention"
+              : "border-default bg-surface text-secondary hover:border-default hover:text-primary"
           }`}
         >
           {option.label}
@@ -477,7 +477,7 @@ export function setDonePrPublisherEnabled(
 function ConfigField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block min-w-0 space-y-1">
-      <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">{label}</span>
+      <span className="block text-[11px] font-semibold text-secondary">{label}</span>
       {children}
     </label>
   );
@@ -594,14 +594,14 @@ export function getColumnWorkflowSummary(
 
 export function StatPill({ label, value, tone }: { label: string; value: string; tone: "amber" | "slate" | "emerald" }) {
   const toneClass = {
-    amber: "border-amber-300/80 bg-amber-50/80 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
-    slate: "border-slate-200 bg-slate-50/90 text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200",
-    emerald: "border-emerald-300/80 bg-emerald-50/80 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
+    amber: "border-attention bg-attention-subtle text-attention",
+    slate: "border-default bg-subtle text-primary",
+    emerald: "border-success bg-success-subtle text-success",
   }[tone];
 
   return (
     <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${toneClass}`}>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">{label}</span>
+      <span className="text-[11px] font-semibold opacity-80">{label}</span>
       <span className="text-[13px] font-semibold tracking-tight">{value}</span>
     </div>
   );
@@ -609,11 +609,11 @@ export function StatPill({ label, value, tone }: { label: string; value: string;
 
 export function SectionCard({ eyebrow, title, description, children }: { eyebrow: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="border-b border-slate-200/80 pb-2.5 last:border-b-0 dark:border-slate-800">
+    <section className="border-b border-default pb-2.5 last:border-b-0">
       <div className="mb-1.5 space-y-0.5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">{eyebrow}</div>
-        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h4>
-        {description ? <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{description}</p> : null}
+        <div className="text-[10px] font-semibold text-secondary">{eyebrow}</div>
+        <h4 className="text-sm font-semibold text-primary">{title}</h4>
+        {description ? <p className="text-xs leading-5 text-secondary">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -699,14 +699,14 @@ export function ColumnAutomationWorkspace({
 
   if (manualOnly) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-[linear-gradient(135deg,_rgba(148,163,184,0.08),_rgba(255,255,255,0.98)_38%,_rgba(255,255,255,1)_100%)] p-3 dark:border-slate-800 dark:bg-[linear-gradient(135deg,_rgba(148,163,184,0.08),_rgba(15,23,42,0.92)_38%,_rgba(13,17,24,0.98)_100%)]">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <div className="rounded-lg border border-default bg-subtle p-3">
+        <p className="text-sm font-semibold text-primary">
           {t.kanban.blockedManualOnly}
         </p>
-        <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+        <p className="mt-1 text-sm leading-6 text-secondary">
           {t.kanban.blockedManualOnlyDesc}
         </p>
-        <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-xs leading-5 text-secondary">
           {t.kanban.automationUnavailable}
         </p>
       </div>
@@ -722,7 +722,7 @@ export function ColumnAutomationWorkspace({
               <button
                 type="button"
                 onClick={applyDefaultAutomation}
-                className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#111722]"
+                className="rounded-md border border-default px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-hover"
               >
                 {t.kanban.defaults}
               </button>
@@ -818,25 +818,25 @@ export function ColumnAutomationWorkspace({
               {firstStepTransport === "acp" ? renderStepModelEffort(firstStep, 0, "") : null}
             </div>
           </div>
-          <section className="mt-4 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50/90 via-white to-slate-50/80 p-1 shadow-[0_1px_0_rgba(15,23,42,0.06)] dark:border-amber-500/25 dark:from-amber-950/35 dark:via-[#0d1118] dark:to-[#0a0f16] dark:shadow-[0_1px_0_rgba(0,0,0,0.35)]">
+          <section className="mt-4 rounded-2xl border border-attention bg-attention-subtle p-1">
             <button
               type="button"
               onClick={() => setAdvancedExpanded((open) => !open)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300/50 bg-white/90 px-3 py-3 text-left shadow-sm ring-1 ring-amber-400/10 transition hover:border-amber-400/70 hover:bg-amber-50/80 dark:border-amber-500/30 dark:bg-[#111722]/95 dark:ring-amber-400/15 dark:hover:border-amber-400/45 dark:hover:bg-amber-500/[0.08]"
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-attention bg-surface px-3 py-3 text-left shadow-sm ring-1 ring-attention/10 transition hover:border-attention hover:bg-attention-subtle"
               aria-expanded={advancedExpanded}
             >
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-900/90 dark:text-amber-200/95">
+              <span className="text-[11px] font-bold text-attention">
                 {t.kanban.advanced}
               </span>
-              <ChevronDown className={`h-5 w-5 shrink-0 text-amber-600 transition dark:text-amber-400/90 ${advancedExpanded ? "rotate-180" : ""}`} aria-hidden />
+              <ChevronDown className={`h-5 w-5 shrink-0 text-attention transition ${advancedExpanded ? "rotate-180" : ""}`} aria-hidden />
             </button>
             {advancedExpanded ? (
             <div className="mt-2 space-y-2">
               {column.stage === "done" ? (
-                <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-white/85 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-[#111722] dark:text-slate-200">
+                <label className="flex items-start gap-3 rounded-md border border-default bg-surface px-3 py-2 text-sm text-primary">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 dark:border-slate-600"
+                    className="mt-1 h-4 w-4 rounded border-default text-attention focus:ring-accent"
                     checked={donePrPublisherEnabled}
                     aria-label={t.kanban.doneAutoOpenPrSession}
                     onChange={(event) => onUpdate(setDonePrPublisherEnabled(
@@ -846,10 +846,10 @@ export function ColumnAutomationWorkspace({
                     ))}
                   />
                   <span className="space-y-0.5">
-                    <span className="block font-medium text-slate-900 dark:text-slate-100">
+                    <span className="block font-medium text-primary">
                       {t.kanban.doneAutoOpenPrSession}
                     </span>
-                    <span className="block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                    <span className="block text-xs leading-5 text-secondary">
                       {t.kanban.doneAutoOpenPrSessionHint}
                     </span>
                   </span>
@@ -859,13 +859,13 @@ export function ColumnAutomationWorkspace({
                 const stepSpecialist = findSpecialistById(specialists, step.specialistId) ?? null;
                 const stepTransport = getStepTransport(step);
                 return (
-                  <div key={step.id} className="rounded-md border border-slate-200 bg-slate-50/60 px-2 py-2 dark:border-slate-800 dark:bg-[#111722]">
+                  <div key={step.id} className="rounded-md border border-default bg-subtle px-2 py-2">
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,132px)_minmax(0,1fr)_auto] md:items-start">
                       <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+                        <div className="text-[10px] font-semibold text-secondary">
                           {t.kanban.stepLabel.replace("{index}", String(index + 1))}
                         </div>
-                        <div className="mt-0.5 truncate text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                        <div className="mt-0.5 truncate text-[13px] font-semibold text-primary">
                           {stepTransport === "a2a"
                             ? formatAgentCardTarget(step.agentCardUrl) ?? getSpecialistDisplayName(stepSpecialist) ?? step.specialistName ?? step.role ?? "A2A"
                             : getSpecialistDisplayName(stepSpecialist) ?? step.specialistName ?? step.role ?? "DEVELOPER"}
@@ -969,7 +969,7 @@ export function ColumnAutomationWorkspace({
                             [nextSteps[index - 1], nextSteps[index]] = [nextSteps[index], nextSteps[index - 1]];
                             return nextSteps;
                           }))}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-[#0b1119]"
+                          className="rounded-md border border-default px-2 py-1 text-xs font-medium text-secondary transition hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {t.kanban.up}
                         </button>
@@ -982,7 +982,7 @@ export function ColumnAutomationWorkspace({
                             [nextSteps[index], nextSteps[index + 1]] = [nextSteps[index + 1], nextSteps[index]];
                             return nextSteps;
                           }))}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-[#0b1119]"
+                          className="rounded-md border border-default px-2 py-1 text-xs font-medium text-secondary transition hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {t.kanban.down}
                         </button>
@@ -994,7 +994,7 @@ export function ColumnAutomationWorkspace({
                             const nextSteps = steps.filter((_, stepIndex) => stepIndex !== index);
                             return nextSteps.length > 0 ? nextSteps : [createEmptyAutomationStep(0)];
                           }))}
-                          className="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                          className="rounded-md border border-danger px-2 py-1 text-xs font-medium text-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {t.kanban.remove}
                         </button>
@@ -1003,16 +1003,16 @@ export function ColumnAutomationWorkspace({
                   </div>
                 );
               }) : (
-                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-500 dark:border-slate-700 dark:bg-[#111722] dark:text-slate-400">
+                <div className="rounded-md border border-dashed border-default bg-subtle px-3 py-3 text-xs leading-5 text-secondary">
                   {t.kanban.singleStepAdvancedHint}
                 </div>
               )}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-800 dark:bg-[#111722]">
-                <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.kanban.automationSteps}</div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-default bg-subtle px-2.5 py-2">
+                <div className="text-[13px] font-semibold text-primary">{t.kanban.automationSteps}</div>
                 <button
                   type="button"
                   onClick={() => onUpdate(updateAutomationSteps(automation, (steps) => [...steps, createEmptyAutomationStep(steps.length)]))}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#0b1119]"
+                  className="rounded-md border border-default px-3 py-1.5 text-xs font-semibold text-primary transition hover:border-default hover:bg-hover"
                 >
                   {t.kanban.addStep}
                 </button>
@@ -1025,12 +1025,12 @@ export function ColumnAutomationWorkspace({
                       key={artifact.id}
                       className={`flex cursor-pointer flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition ${
                         checked
-                          ? "border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
-                          : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-[#111722] dark:hover:border-slate-700"
+                          ? "border-attention bg-attention-subtle"
+                          : "border-default bg-surface hover:border-default"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{artifact.label}</span>
+                        <span className="text-[13px] font-semibold text-primary">{artifact.label}</span>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -1046,18 +1046,18 @@ export function ColumnAutomationWorkspace({
                               requiredArtifacts: current.size > 0 ? Array.from(current) : undefined,
                             });
                           }}
-                          className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                          className="h-4 w-4 rounded border-default text-attention focus:ring-accent"
                         />
                       </div>
-                      <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{artifact.hint}</p>
+                      <p className="text-xs leading-5 text-secondary">{artifact.hint}</p>
                     </label>
                   );
                 })}
               </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-[#111722]">
+              <div className="rounded-lg border border-default bg-subtle px-3 py-3">
                 <div className="mb-2">
-                  <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.kanban.storyReadinessGate}</div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  <div className="text-[13px] font-semibold text-primary">{t.kanban.storyReadinessGate}</div>
+                  <p className="mt-1 text-xs leading-5 text-secondary">
                     {t.kanban.storyReadinessGateHint}
                   </p>
                 </div>
@@ -1069,12 +1069,12 @@ export function ColumnAutomationWorkspace({
                         key={field}
                         className={`flex cursor-pointer flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition ${
                           checked
-                            ? "border-sky-300 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/10"
-                            : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-[#0b1119] dark:hover:border-slate-700"
+                            ? "border-information bg-accent-subtle"
+                            : "border-default bg-surface hover:border-default"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{getTaskFieldLabel(field, t)}</span>
+                          <span className="text-[13px] font-semibold text-primary">{getTaskFieldLabel(field, t)}</span>
                           <input
                             type="checkbox"
                             checked={checked}
@@ -1090,19 +1090,19 @@ export function ColumnAutomationWorkspace({
                                 requiredTaskFields: current.size > 0 ? Array.from(current) : undefined,
                               });
                             }}
-                            className="h-4 w-4 rounded border-slate-300 text-sky-500 focus:ring-sky-500"
+                            className="h-4 w-4 rounded border-default text-information focus:ring-information"
                           />
                         </div>
-                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{getTaskFieldHint(field, t)}</p>
+                        <p className="text-xs leading-5 text-secondary">{getTaskFieldHint(field, t)}</p>
                       </label>
                     );
                   })}
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-[#111722]">
+              <div className="rounded-lg border border-default bg-subtle px-3 py-3">
                 <div className="mb-2">
-                  <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.kanban.transitionGates}</div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  <div className="text-[13px] font-semibold text-primary">{t.kanban.transitionGates}</div>
+                  <p className="mt-1 text-xs leading-5 text-secondary">
                     {t.kanban.transitionGatesHint}
                   </p>
                 </div>
@@ -1122,7 +1122,7 @@ export function ColumnAutomationWorkspace({
                           requiredChecklist: items.length > 0 ? items : undefined,
                         });
                       }}
-                      className="min-h-24 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition hover:bg-slate-50 focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100 dark:hover:bg-[#111722]"
+                      className="min-h-24 w-full min-w-0 rounded-xl border border-default bg-surface px-3 py-2 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent"
                     />
                   </ConfigField>
                   <div className="space-y-3">
@@ -1138,7 +1138,7 @@ export function ColumnAutomationWorkspace({
                         <option value="warning">{t.kanban.gateModeWarning}</option>
                       </SelectControl>
                     </ConfigField>
-                    <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-[#0b1119]">
+                    <label className="flex items-start gap-3 rounded-lg border border-default bg-surface px-3 py-3">
                       <input
                         type="checkbox"
                         checked={automation.requiredHumanApproval ?? false}
@@ -1146,11 +1146,11 @@ export function ColumnAutomationWorkspace({
                           ...automation,
                           requiredHumanApproval: event.target.checked || undefined,
                         })}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                        className="mt-1 h-4 w-4 rounded border-default text-attention focus:ring-accent"
                       />
                       <span>
-                        <span className="block text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.kanban.requiredHumanApproval}</span>
-                        <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        <span className="block text-[13px] font-semibold text-primary">{t.kanban.requiredHumanApproval}</span>
+                        <span className="mt-1 block text-xs leading-5 text-secondary">
                           {t.kanban.requiredHumanApprovalHint}
                         </span>
                       </span>
@@ -1171,16 +1171,16 @@ export function ColumnAutomationWorkspace({
                   </ConfigField>
                 </div>
               </div>
-              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-[#111722]">
+              <label className="flex items-start gap-3 rounded-lg border border-default bg-surface px-3 py-3">
                 <input
                   type="checkbox"
                   checked={automation.autoAdvanceOnSuccess ?? false}
                   onChange={(event) => onUpdate({ ...automation, autoAdvanceOnSuccess: event.target.checked })}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                  className="mt-1 h-4 w-4 rounded border-default text-attention focus:ring-accent"
                 />
                 <span>
-                  <span className="block text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.kanban.autoAdvanceOnSuccess}</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  <span className="block text-[13px] font-semibold text-primary">{t.kanban.autoAdvanceOnSuccess}</span>
+                  <span className="mt-1 block text-xs leading-5 text-secondary">
                     {t.kanban.autoAdvanceOnSuccessDesc}
                   </span>
                 </span>
@@ -1195,12 +1195,12 @@ export function ColumnAutomationWorkspace({
             <button
               type="button"
               onClick={applyDefaultAutomation}
-              className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#111722]"
+              className="rounded-md border border-default px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-hover"
             >
               {t.kanban.defaults}
             </button>
           </div>
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-xs leading-5 text-slate-500 dark:border-slate-700 dark:bg-[#111722] dark:text-slate-400">
+          <div className="rounded-lg border border-dashed border-default bg-subtle px-4 py-4 text-xs leading-5 text-secondary">
             {t.kanban.turnOnAutomationHint}
           </div>
         </div>
@@ -1209,5 +1209,5 @@ export function ColumnAutomationWorkspace({
   );
 }
 
-const SELECT_CLASS = "h-10 w-full min-w-0 appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 outline-none transition hover:bg-slate-50 focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100 dark:hover:bg-[#111722]";
-const INPUT_CLASS = "h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition hover:bg-slate-50 focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100 dark:hover:bg-[#111722]";
+const SELECT_CLASS = "h-10 w-full min-w-0 appearance-none rounded-xl border border-default bg-surface px-3 pr-10 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent";
+const INPUT_CLASS = "h-10 w-full min-w-0 rounded-xl border border-default bg-surface px-3 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent";

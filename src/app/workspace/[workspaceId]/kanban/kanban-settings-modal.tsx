@@ -490,27 +490,27 @@ export function KanbanSettingsModal({
   }, [requestClose, showUnsavedChangesPrompt]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 bg-accent backdrop-blur-sm">
       <div className="absolute inset-0" onClick={requestClose} aria-hidden="true" />
       <div className="relative flex h-full w-full items-center justify-center p-2 sm:p-4">
         <div
           role="dialog"
           aria-modal="true"
           aria-label={t.kanban.saveBoardSettings}
-          className="relative flex h-[96vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[22px] border border-white/10 bg-white shadow-[0_30px_120px_rgba(15,23,42,0.32)] dark:bg-[#0d1118]"
+          className="relative flex h-[96vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[22px] border border-default bg-surface shadow-overlay"
         >
-          <div className="relative overflow-hidden border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.12),_transparent_28%),linear-gradient(135deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.96))] px-3.5 py-2.5 dark:border-slate-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.1),_transparent_24%),linear-gradient(135deg,_rgba(15,23,42,0.96),_rgba(13,17,24,0.98))] sm:px-4">
+          <div className="relative overflow-hidden border-b border-default bg-subtle px-3.5 py-2.5 sm:px-4">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center rounded-full border border-amber-300/70 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                  <div className="inline-flex items-center rounded-full border border-attention bg-attention-subtle px-2.5 py-1 text-[10px] font-semibold text-attention">
                     {t.kanban.boardSettingsLabel}
                   </div>
-                  <h2 className="truncate text-base font-semibold tracking-tight text-slate-900 dark:text-white sm:text-lg">
+                  <h2 className="truncate text-base font-semibold tracking-tight text-primary sm:text-lg">
                     {board.name}
                   </h2>
                 </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs leading-5 text-secondary">
                   {t.kanban.boardSettingsHint}
                 </p>
               </div>
@@ -524,9 +524,9 @@ export function KanbanSettingsModal({
           </div>
 
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="min-h-0 overflow-y-auto overflow-x-hidden border-b border-slate-200/80 bg-slate-50/40 p-2 dark:border-slate-800 dark:bg-[#0a0f16] lg:border-b-0 lg:border-r lg:p-2.5">
+            <aside className="min-h-0 overflow-y-auto overflow-x-hidden border-b border-default bg-subtle p-2 lg:border-b-0 lg:border-r lg:p-2.5">
               <div className="space-y-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                <div className="text-[10px] font-semibold text-secondary">
                   {t.kanban.stageMap}
                 </div>
                 <button
@@ -535,8 +535,8 @@ export function KanbanSettingsModal({
                   onClick={() => setSelectedViewId(BOARD_VIEW_ID)}
                   className={`w-full min-w-0 rounded-[10px] border px-2.5 py-2 text-left text-[13px] font-semibold transition ${
                     selectedViewId === BOARD_VIEW_ID
-                      ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10 dark:border-amber-400/40 dark:bg-slate-900"
-                      : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 dark:border-slate-800 dark:bg-[#111722] dark:text-slate-100 dark:hover:border-slate-700"
+                      ? "border-default bg-accent text-on-accent shadow-lg"
+                      : "border-default bg-surface text-primary hover:border-default"
                   }`}
                 >
                   {t.kanban.boardOverview}
@@ -554,21 +554,21 @@ export function KanbanSettingsModal({
                           onClick={() => setSelectedViewId(column.id)}
                           className={`w-full min-w-0 rounded-[10px] border px-2.5 py-2 text-left transition ${
                             active
-                              ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10 dark:border-amber-400/40 dark:bg-slate-900"
-                              : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-[#111722] dark:hover:border-slate-700"
+                              ? "border-default bg-accent text-on-accent shadow-lg"
+                              : "border-default bg-surface hover:border-default"
                           }`}
                         >
                           <div className="flex min-w-0 items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className={`text-[13px] font-semibold ${active ? "text-white" : "text-slate-900 dark:text-slate-100"}`}>{column.name}</div>
-                              <div className={`mt-1 flex items-center justify-between gap-2 ${active ? "text-slate-200" : "text-slate-500 dark:text-slate-400"}`}>
-                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] ${
-                                  active ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                              <div className={`text-[13px] font-semibold ${active ? "text-primary" : "text-primary"}`}>{column.name}</div>
+                              <div className={`mt-1 flex items-center justify-between gap-2 ${active ? "text-primary" : "text-secondary"}`}>
+                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                                  active ? "bg-surface text-primary" : "bg-subtle text-secondary"
                                 }`}>
                                   {getStageTypeLabel(column.stage, t)}
                                 </span>
                                 <span
-                                  className={`h-2 w-2 shrink-0 rounded-full ${automated ? "bg-emerald-400" : active ? "bg-slate-400" : "bg-slate-300 dark:bg-slate-600"}`}
+                                  className={`h-2 w-2 shrink-0 rounded-full ${automated ? "bg-success" : active ? "bg-secondary" : "bg-secondary"}`}
                                   title={automated ? t.kanban.automationOn : t.kanban.manualLabel}
                                   aria-hidden
                                 />
@@ -582,39 +582,39 @@ export function KanbanSettingsModal({
                 <button
                   type="button"
                   onClick={handleAddStage}
-                  className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#111722]"
+                  className="w-full rounded-md border border-default px-2.5 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-hover"
                 >
                   {t.kanban.addStage}
                 </button>
               </div>
             </aside>
 
-            <main className="min-h-0 overflow-y-auto bg-white p-2 dark:bg-[#0d1118] sm:p-2.5 xl:p-3">
+            <main className="min-h-0 overflow-y-auto bg-surface p-2 sm:p-2.5 xl:p-3">
               {selectedViewId === BOARD_VIEW_ID ? (
                 <div className="mx-auto max-w-4xl space-y-3">
                   <SectionCard eyebrow={t.kanban.runtime} title={t.kanban.runtimeSettings} description={t.kanban.runtimeSettingsHint}>
                     <div className="space-y-3">
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                        <div className="text-[10px] font-semibold text-secondary">
                           {t.kanban.sessionQueue}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <label className="flex items-center gap-2">
-                            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">{t.kanban.maxLabel}</span>
+                            <span className="text-xs font-semibold text-secondary">{t.kanban.maxLabel}</span>
                             <input
                               type="number"
                               min={1}
                               max={20}
                               value={sessionConcurrencyLimit}
                               onChange={(event) => setSessionConcurrencyLimit(Math.max(1, Number.parseInt(event.target.value || "1", 10) || 1))}
-                              className="h-9 w-18 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100"
+                              className="h-9 w-18 rounded-lg border border-default bg-subtle px-3 text-sm font-semibold text-primary outline-none transition focus:border-accent"
                             />
                           </label>
                         </div>
-                        <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">{t.kanban.extraCardsWait}</p>
+                        <p className="mt-1.5 text-xs leading-5 text-secondary">{t.kanban.extraCardsWait}</p>
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                        <div className="text-[10px] font-semibold text-secondary">
                           {t.kanban.devSupervision}
                         </div>
                         <div className="mt-1.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -672,7 +672,7 @@ export function KanbanSettingsModal({
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                        <div className="text-[10px] font-semibold text-secondary">
                           {t.kanban.historyMemoryPolicy}
                         </div>
                         <div className="mt-1.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -742,7 +742,7 @@ export function KanbanSettingsModal({
                             }))}
                           />
                         </div>
-                        <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        <p className="mt-1.5 text-xs leading-5 text-secondary">
                           {t.kanban.historyMemoryPolicyHint}
                         </p>
                       </div>
@@ -781,7 +781,7 @@ export function KanbanSettingsModal({
                     </div>
                     <div className="mt-3 space-y-2">
                       <label className="block space-y-1">
-                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">
+                        <span className="block text-[11px] font-semibold text-secondary">
                           {t.kanban.githubPersonalAccessToken}
                         </span>
                         <input
@@ -797,17 +797,17 @@ export function KanbanSettingsModal({
                           placeholder={t.webhook.tokenPlaceholder}
                           autoComplete="off"
                           spellCheck={false}
-                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100"
+                          className="h-9 w-full rounded-lg border border-default bg-surface px-3 text-sm text-primary outline-none transition focus:border-accent"
                           aria-label="GitHub personal access token"
                         />
                       </label>
-                      <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                      <p className="text-xs leading-5 text-secondary">
                         {board.githubTokenConfigured
                           ? t.kanban.githubTokenReplaceHint
                           : t.kanban.githubTokenConfigHint}
                       </p>
                       {board.githubTokenConfigured ? (
-                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                        <label className="flex items-center gap-2 text-xs text-secondary">
                           <input
                             type="checkbox"
                             checked={removeConfiguredGitHubToken}
@@ -823,7 +823,7 @@ export function KanbanSettingsModal({
                         </label>
                       ) : null}
                     </div>
-                    <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                    <p className="mt-3 text-sm text-secondary">
                       {githubImportAvailable ? t.kanban.githubImportEnabledHint : t.kanban.githubImportDisabledHint}
                     </p>
                   </SectionCard>
@@ -831,7 +831,7 @@ export function KanbanSettingsModal({
                   <SectionCard eyebrow={t.common.import} title={t.kanban.boardTransfer} description={t.kanban.boardTransferHint}>
                     <div className="space-y-2">
                       <label className="block space-y-1">
-                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">
+                        <span className="block text-[11px] font-semibold text-secondary">
                           {t.kanban.workspaceIdLabel}
                         </span>
                         <input
@@ -839,7 +839,7 @@ export function KanbanSettingsModal({
                           value={kanbanExportWorkspaceId}
                           onChange={(event) => handleKanbanExportWorkspaceChange(event.target.value)}
                           placeholder={board.workspaceId || "default"}
-                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100"
+                          className="h-9 w-full rounded-lg border border-default bg-surface px-3 text-sm text-primary outline-none transition focus:border-accent"
                           aria-label="Kanban YAML workspace ID"
                         />
                       </label>
@@ -870,7 +870,7 @@ export function KanbanSettingsModal({
                     <button
                       onClick={() => void handleClearAll()}
                       disabled={saving || clearingAll}
-                      className="rounded-xl border border-rose-200 px-4 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                      className="rounded-xl border border-danger px-4 py-1.5 text-sm font-medium text-danger transition hover:bg-danger-subtle disabled:opacity-50"
                     >
                       {clearingAll ? t.kanban.clearingAll : t.kanban.clearAllCards}
                     </button>
@@ -931,13 +931,13 @@ export function KanbanSettingsModal({
                         {t.kanban.automation}
                       </ToggleChip>
                       {selectedColumn.stage === "blocked" ? (
-                        <div className="flex h-10 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400 xl:ml-auto">
+                        <div className="flex h-10 items-center rounded-md border border-attention bg-attention-subtle px-3 text-sm text-attention xl:ml-auto">
                           {t.kanban.manualLaneOnly}
                         </div>
                       ) : null}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">{t.kanban.stageOrder}</span>
+                      <span className="text-[11px] font-semibold text-secondary">{t.kanban.stageOrder}</span>
                       <ActionButton ariaLabel={`Move ${selectedColumn.name} up`} onClick={() => moveColumn(selectedColumn.id, "up")} disabled={sortedColumns[0]?.id === selectedColumn.id}>
                         {t.kanban.up}
                       </ActionButton>
@@ -949,7 +949,7 @@ export function KanbanSettingsModal({
                         aria-label={`Delete ${selectedColumn.name}`}
                         disabled={sortedColumns.length <= 1}
                         onClick={() => handleDeleteStage(selectedColumn.id)}
-                        className="rounded-md border border-rose-200 px-2 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                        className="rounded-md border border-danger px-2 py-1 text-xs font-medium text-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {t.kanban.remove}
                       </button>
@@ -957,7 +957,7 @@ export function KanbanSettingsModal({
                   </SectionCard>
 
                   <div className="space-y-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                    <div className="text-[10px] font-semibold text-secondary">
                       {t.kanban.automation}
                     </div>
                     <ColumnAutomationWorkspace
@@ -975,30 +975,30 @@ export function KanbanSettingsModal({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-3xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                <div className="rounded-3xl border border-dashed border-default p-10 text-center text-sm text-secondary">
                   {t.kanban.noColumnsAvailable}
                 </div>
               )}
             </main>
           </div>
 
-          <div className="border-t border-slate-200/80 bg-slate-50/80 px-4 py-2.5 dark:border-slate-800 dark:bg-[#0a0f16] sm:px-5">
+          <div className="border-t border-default bg-subtle px-4 py-2.5 sm:px-5">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-              <p className="min-w-0 flex-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              <p className="min-w-0 flex-1 text-xs leading-5 text-secondary">
                 {t.kanban.changesApplyHint}
               </p>
               <div className="flex items-center justify-end gap-2">
                 <button
                   onClick={requestClose}
                   disabled={saving || clearingAll}
-                  className="rounded-xl border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-white disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-[#111722]"
+                  className="rounded-xl border border-default px-4 py-1.5 text-sm font-medium text-secondary transition hover:bg-hover disabled:opacity-50"
                 >
                   {t.kanban.cancel}
                 </button>
                 <button
                   onClick={() => void handleSave()}
                   disabled={saving || clearingAll}
-                  className="rounded-xl bg-slate-900 px-5 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-amber-500 dark:text-slate-950 dark:hover:bg-amber-400"
+                  className="rounded-xl bg-accent px-5 py-1.5 text-sm font-semibold text-on-accent transition hover:bg-accent disabled:opacity-50"
                 >
                   {saving ? t.workspace.saving : t.kanban.saveBoardSettings}
                 </button>
@@ -1007,26 +1007,26 @@ export function KanbanSettingsModal({
           </div>
 
           {showUnsavedChangesPrompt ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/45 px-4">
-              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-[#0d1118]">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-accent px-4">
+              <div className="w-full max-w-md rounded-2xl border border-default bg-surface p-5 shadow-2xl">
+                <h3 className="text-base font-semibold text-primary">
                   {t.kanban.closeWithUnsavedTitle}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <p className="mt-2 text-sm leading-6 text-secondary">
                   {t.kanban.closeWithUnsavedDescription}
                 </p>
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowUnsavedChangesPrompt(false)}
-                    className="rounded-xl border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-[#111722]"
+                    className="rounded-xl border border-default px-4 py-1.5 text-sm font-medium text-secondary transition hover:bg-hover"
                   >
                     {t.kanban.keepEditing}
                   </button>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-xl border border-rose-200 px-4 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                    className="rounded-xl border border-danger px-4 py-1.5 text-sm font-medium text-danger transition hover:bg-danger-subtle"
                   >
                     {t.kanban.discardChanges}
                   </button>
@@ -1034,7 +1034,7 @@ export function KanbanSettingsModal({
                     type="button"
                     onClick={() => void handleSave({ closeAfterSave: true })}
                     disabled={saving}
-                    className="rounded-xl bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-amber-500 dark:text-slate-950 dark:hover:bg-amber-400"
+                    className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition hover:bg-accent disabled:opacity-50"
                   >
                     {saving ? t.workspace.saving : t.common.saveAndClose}
                   </button>
@@ -1065,7 +1065,7 @@ function ActionButton({
       aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled}
-      className="rounded-md border border-slate-300 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#111722]"
+      className="rounded-md border border-default px-3 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -1092,14 +1092,14 @@ function LabeledSelect({
   containerClassName?: string;
 }) {
   return (
-    <label className={`space-y-1 text-xs font-medium text-slate-600 dark:text-slate-300 ${containerClassName}`.trim()}>
+    <label className={`space-y-1 text-xs font-medium text-secondary ${containerClassName}`.trim()}>
       <span>{label}</span>
       <select
         aria-label={ariaLabel}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100 ${className}`.trim()}
+        className={`h-9 w-full rounded-lg border border-default bg-subtle px-3 text-sm text-primary outline-none transition focus:border-accent disabled:cursor-not-allowed ${className}`.trim()}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1129,7 +1129,7 @@ function LabeledNumberInput({
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="space-y-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+    <label className="space-y-1 text-xs font-medium text-secondary">
       <span>{label}</span>
       <input
         aria-label={ariaLabel}
@@ -1139,7 +1139,7 @@ function LabeledNumberInput({
         disabled={disabled}
         value={value}
         onChange={(event) => onChange(Number.parseInt(event.target.value || String(min), 10) || min)}
-        className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100"
+        className="h-9 w-full rounded-lg border border-default bg-subtle px-3 text-sm text-primary outline-none transition focus:border-accent disabled:cursor-not-allowed"
       />
     </label>
   );
@@ -1158,13 +1158,13 @@ function LabeledTextInput({
 }) {
   return (
     <label className="w-[14rem] shrink-0 space-y-1 text-sm font-medium">
-      <span className="text-slate-700 dark:text-slate-300">{label}</span>
+      <span className="text-primary">{label}</span>
       <input
         aria-label={ariaLabel}
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100"
+        className="h-10 w-full rounded-md border border-default bg-surface px-3 text-sm text-primary outline-none transition focus:border-accent"
       />
     </label>
   );
@@ -1184,14 +1184,14 @@ function ToggleChip({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex h-10 items-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-300">
+    <label className="flex h-10 items-center gap-2 whitespace-nowrap rounded-md border border-default bg-surface px-3 text-sm font-medium text-primary">
       <input
         type="checkbox"
         aria-label={ariaLabel}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+        className="h-4 w-4 rounded border-default text-attention focus:ring-accent"
       />
       <span>{children}</span>
     </label>
@@ -1200,7 +1200,7 @@ function ToggleChip({
 
 function StatusMessage({ children, tone }: { children: ReactNode; tone: "error" | "success" }) {
   const className = tone === "error"
-    ? "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300"
-    : "rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300";
+    ? "rounded-md border border-danger bg-danger-subtle px-3 py-2 text-xs text-danger"
+    : "rounded-md border border-success bg-success-subtle px-3 py-2 text-xs text-success";
   return <div className={className}>{children}</div>;
 }
