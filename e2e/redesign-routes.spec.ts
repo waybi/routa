@@ -112,6 +112,18 @@ test.describe("redesign routes", () => {
     }
   });
 
+  test("traces and feature explorer show the shared 21px page header", async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS[0]);
+    for (const route of ["/traces", `/workspace/${workspaceId}/feature-explorer`]) {
+      await page.goto(route, { waitUntil: "domcontentloaded" });
+      const header = page.locator('[data-testid="settings-page-header"]');
+      await expect(header).toHaveCount(1, { timeout: 30_000 });
+      const fontSize = await header.locator("h1").evaluate((el) => getComputedStyle(el).fontSize);
+      expect(fontSize).toBe("21px");
+      await expect(header.locator('[data-testid="settings-page-header-actions"] button').first()).toBeVisible();
+    }
+  });
+
   test("settings sub-navigation highlights the current page", async ({ page }) => {
     await page.setViewportSize(VIEWPORTS[0]);
     const pages = ["agents", "specialists", "workflows", "mcp", "schedules", "webhooks", "harness", "fluency"];

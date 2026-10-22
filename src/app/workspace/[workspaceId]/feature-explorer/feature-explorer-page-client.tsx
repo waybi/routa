@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
-  RefreshCw,
   Search,
 } from "lucide-react";
 
@@ -35,6 +34,7 @@ import {
 import { FileIcon, flattenFiles, formatShortDate, TreeNodeRow } from "./feature-explorer-file-tree";
 import { FeatureApiRow, FeatureRouteRow, FeatureStructureSection, InlineStatPill, SimpleSourceFileRow } from "./feature-explorer-structure-sections";
 import { FeatureExplorerDrawers, FeatureExplorerInspectorPane } from "./feature-explorer-secondary-ui";
+import { FeatureExplorerPageHeader } from "./feature-explorer-page-header";
 import { buildSessionAnalysisPrompt } from "./session-analysis";
 import {
   type ExplorerSurfaceItem,
@@ -850,8 +850,14 @@ export function FeatureExplorerPageClient({
         />
       )}
     >
-      <div className="flex h-full min-h-0 bg-desktop-bg-primary">
-        <main className="flex min-w-0 flex-1">
+      <div className="flex h-full min-h-0 flex-col bg-canvas">
+        <FeatureExplorerPageHeader
+          onGenerate={() => setIsGenerateDrawerOpen(true)}
+          onRefreshFrictionProfiles={() => void handleRefreshFrictionProfiles()}
+          refreshDisabled={!effectiveRepoSelection?.path || isRefreshingFrictionProfiles}
+          isRefreshingFrictionProfiles={isRefreshingFrictionProfiles}
+        />
+        <main className="flex min-h-0 min-w-0 flex-1">
           <section
             ref={resizeContainerRef}
             className="grid min-h-0 flex-1 grid-cols-1"
@@ -872,33 +878,6 @@ export function FeatureExplorerPageClient({
                       pathDisplay="hidden"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsGenerateDrawerOpen(true)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-desktop-accent/50 bg-desktop-accent/10 px-2 py-1.5 text-[10px] font-medium text-desktop-accent hover:bg-desktop-accent/20"
-                    data-testid="generate-feature-tree-button"
-                    title={t.featureExplorer.generateFeatureTree}
-                    aria-label={t.featureExplorer.generateFeatureTree}
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    <span className="hidden xl:inline">{t.featureExplorer.generateFeatureTree}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshFrictionProfiles()}
-                    disabled={!effectiveRepoSelection?.path || isRefreshingFrictionProfiles}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-desktop-border bg-desktop-bg-primary px-2 py-1.5 text-[10px] font-medium text-desktop-text-secondary hover:text-desktop-text-primary disabled:cursor-not-allowed disabled:opacity-60"
-                    data-testid="refresh-friction-profiles-button"
-                    title={t.featureExplorer.refreshFrictionProfiles}
-                    aria-label={t.featureExplorer.refreshFrictionProfiles}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isRefreshingFrictionProfiles ? "animate-spin" : ""}`} />
-                    <span className="hidden xl:inline">
-                      {isRefreshingFrictionProfiles
-                        ? t.featureExplorer.refreshingFrictionProfiles
-                        : t.featureExplorer.refreshFrictionProfiles}
-                    </span>
-                  </button>
                 </div>
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <label className="flex min-w-0 flex-1 items-center gap-2 rounded-sm border border-desktop-border bg-desktop-bg-primary px-2.5 py-1.5 text-xs text-desktop-text-secondary">
