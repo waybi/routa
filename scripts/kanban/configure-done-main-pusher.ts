@@ -1,6 +1,13 @@
 /**
- * Configure the Done lane of four boards to run
+ * Configure the Done lane of every eligible board to run
  * [kanban-main-pusher, kanban-done-reporter].
+ *
+ * Every board in kanban_boards is checked. A board is eligible ("configure")
+ * only when its workspace has exactly one codebase, that codebase is a git
+ * repository with an origin remote, it is not TopBI/Gerrit (same rule as the
+ * main pusher's runtime skip in main-pusher.yaml Workflow step 2), and its Done
+ * column has a kanban-done-reporter step. Otherwise the board is skipped with
+ * a reason. No hard-coded board list.
  *
  * Usage:
  *   node --import tsx scripts/kanban/configure-done-main-pusher.ts --db <path> --check
@@ -11,17 +18,11 @@
  * transaction. Re-running --apply when the boards are already configured
  * writes nothing and creates no backup.
  */
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import BetterSqlite3 from "better-sqlite3";
-
-export const TARGET_BOARD_IDS = [
-  "f635c1de-44a8-4d5c-af42-34244e69eb55", // local-tools Board
-  "2c17ef3e-411b-4f22-b002-e2b4c9309c91", // deepseek-harness Board
-  "361d06fd-6478-4995-9b6e-ab0b0b271471", // Routa Board
-  "d13eba6a-42db-43ed-835b-18c544f6c985", // turnilo Board
-] as const;
 
 export const MAIN_PUSHER_STEP = {
   id: "main-pusher",
@@ -63,14 +64,19 @@ interface Column {
 
 interface BoardRow {
   id: string;
+  workspace_id: string;
   name: string;
   columns: string;
   updated_at: number;
 }
 
+export type Decision = "configure" | "skip";
+
 export interface BoardReport {
   id: string;
   name: string;
+  decision: Decision;
+  reason: string;
   doneSteps: string[];
   changed: boolean;
 }
@@ -146,15 +152,92 @@ export function withMainPusher(columns: Column[]): Column[] {
   });
 }
 
-function loadTargetRows(db: BetterSqlite3.Database): BoardRow[] {
-  const statement = db.prepare(
-    "SELECT id, name, columns, updated_at FROM kanban_boards WHERE id = ?",
-  );
-  return TARGET_BOARD_IDS.map((id) => {
-    const row = statement.get(id) as BoardRow | undefined;
-    if (!row) throw new Error(`Board ${id} not found`);
-    return row;
-  });
+function loadBoards(db: BetterSqlite3.Database): BoardRow[] {
+  return db
+    .prepare("SELECT id, workspace_id, name, columns, updated_at FROM kanban_boards ORDER BY created_at, id")
+    .all() as BoardRow[];
+}
+
+function git(repoPath: string, args: string[]): string {
+  return execFileSync("git", ["-C", repoPath, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    // Do not let git walk up and pick a parent repository.
+    env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(fs.realpathSync(repoPath)) },
+  }).trim();
+}
+
+interface Verdict {
+  decision: Decision;
+  reason: string;
+  columns?: Column[];
+}
+
+/**
+ * Decide whether a board's Done lane should get the main pusher. Checks run in
+ * order and stop at the first skip. Never throws: unexpected errors become a skip.
+ */
+function decide(db: BetterSqlite3.Database, row: BoardRow): Verdict {
+  try {
+    const codebases = db
+      .prepare("SELECT repo_path FROM codebases WHERE workspace_id = ? ORDER BY created_at, id")
+      .all(row.workspace_id) as Array<{ repo_path: string }>;
+    if (codebases.length === 0) return { decision: "skip", reason: "未绑定代码仓" };
+    if (codebases.length > 1) {
+      return { decision: "skip", reason: `多代码仓，不自动推送（${codebases.length} 个）` };
+    }
+    const repoPath = codebases[0]!.repo_path;
+
+    let isRepo = false;
+    if (repoPath && fs.existsSync(repoPath) && fs.statSync(repoPath).isDirectory()) {
+      try {
+        git(repoPath, ["rev-parse", "--git-dir"]);
+        isRepo = true;
+      } catch {
+        isRepo = false;
+      }
+    }
+    if (!isRepo) return { decision: "skip", reason: `代码仓目录不存在或不是 git 仓库：${repoPath}` };
+
+    let origin: string;
+    try {
+      origin = git(repoPath, ["remote", "get-url", "origin"]);
+    } catch {
+      return { decision: "skip", reason: `没有 origin 远端：${repoPath}` };
+    }
+
+    // Same rule as main-pusher.yaml Workflow step 2 (runtime skip).
+    if (/topbi/i.test(repoPath) || /gerrit/i.test(origin) || origin.includes(":29418")) {
+      return { decision: "skip", reason: `Gerrit 走评审，不直推：${repoPath}` };
+    }
+
+    let columns: Column[];
+    try {
+      columns = JSON.parse(row.columns) as Column[];
+    } catch {
+      return { decision: "skip", reason: "看板列配置不是合法 JSON" };
+    }
+    if (!Array.isArray(columns)) return { decision: "skip", reason: "看板列配置不是数组" };
+    const done = findDoneColumn(columns);
+    if (!done) return { decision: "skip", reason: "没有 Done 列" };
+    if (!(done.automation?.steps ?? []).some((step) => step.specialistId === DONE_REPORTER_ID)) {
+      return { decision: "skip", reason: `Done 列没有 ${DONE_REPORTER_ID} 步骤` };
+    }
+
+    return { decision: "configure", reason: `要配：代码仓 ${repoPath}`, columns };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { decision: "skip", reason: `判定出错：${message}` };
+  }
+}
+
+function currentDoneSteps(columnsJson: string): string[] {
+  try {
+    const columns = JSON.parse(columnsJson) as Column[];
+    return Array.isArray(columns) ? stepIds(findDoneColumn(columns)) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function runConfigure(options: Options, now: Date = new Date()): RunResult {
@@ -164,9 +247,16 @@ export function runConfigure(options: Options, now: Date = new Date()): RunResul
   if (options.mode === "check") {
     const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
     try {
-      const boards = loadTargetRows(db).map((row) => {
-        const done = findDoneColumn(JSON.parse(row.columns) as Column[]);
-        return { id: row.id, name: row.name, doneSteps: stepIds(done), changed: false };
+      const boards = loadBoards(db).map((row): BoardReport => {
+        const verdict = decide(db, row);
+        return {
+          id: row.id,
+          name: row.name,
+          decision: verdict.decision,
+          reason: verdict.reason,
+          doneSteps: currentDoneSteps(row.columns),
+          changed: false,
+        };
       });
       return { mode: "check", boards };
     } finally {
@@ -176,15 +266,15 @@ export function runConfigure(options: Options, now: Date = new Date()): RunResul
 
   const db = new BetterSqlite3(dbPath, { fileMustExist: true });
   try {
-    const rows = loadTargetRows(db);
-    const pending = rows
-      .map((row) => {
-        const columns = JSON.parse(row.columns) as Column[];
-        const done = findDoneColumn(columns);
-        if (!done) throw new Error(`Board ${row.id} has no Done column`);
-        return { row, columns, configured: isConfigured(done) };
-      });
-    const toUpdate = pending.filter((entry) => !entry.configured);
+    const verdicts = new Map<string, Verdict>();
+    const toUpdate: Array<{ row: BoardRow; columns: Column[] }> = [];
+    for (const row of loadBoards(db)) {
+      const verdict = decide(db, row);
+      verdicts.set(row.id, verdict);
+      if (verdict.decision === "configure" && verdict.columns && !isConfigured(findDoneColumn(verdict.columns))) {
+        toUpdate.push({ row, columns: verdict.columns });
+      }
+    }
 
     let backupPath: string | undefined;
     if (toUpdate.length > 0) {
@@ -210,12 +300,18 @@ export function runConfigure(options: Options, now: Date = new Date()): RunResul
     }
 
     const updatedIds = new Set(toUpdate.map(({ row }) => row.id));
-    const boards = loadTargetRows(db).map((row) => ({
-      id: row.id,
-      name: row.name,
-      doneSteps: stepIds(findDoneColumn(JSON.parse(row.columns) as Column[])),
-      changed: updatedIds.has(row.id),
-    }));
+    // Re-read rows for the new Done steps, but keep the verdicts computed before writing.
+    const boards = loadBoards(db).map((row): BoardReport => {
+      const verdict = verdicts.get(row.id) ?? { decision: "skip" as const, reason: "写入期间新增的看板，未判定" };
+      return {
+        id: row.id,
+        name: row.name,
+        decision: verdict.decision,
+        reason: verdict.reason,
+        doneSteps: currentDoneSteps(row.columns),
+        changed: updatedIds.has(row.id),
+      };
+    });
     return { mode: "apply", boards, backupPath };
   } finally {
     db.close();
@@ -225,7 +321,7 @@ export function runConfigure(options: Options, now: Date = new Date()): RunResul
 export function formatResult(result: RunResult): string {
   const lines = result.boards.map((board) => {
     const suffix = result.mode === "apply" ? (board.changed ? " (updated)" : " (unchanged)") : "";
-    return `${board.id}  ${board.name}  done: [${board.doneSteps.join(", ")}]${suffix}`;
+    return `${board.id}  ${board.name}  ${board.decision}  ${board.reason}  done: [${board.doneSteps.join(", ")}]${suffix}`;
   });
   if (result.mode === "apply") {
     lines.push(result.backupPath ? `backup: ${result.backupPath}` : "no changes; no backup written");
