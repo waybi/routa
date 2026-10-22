@@ -315,7 +315,9 @@ function HomePageContent() {
 
   return (
     <DesktopAppShell
-      workspaceId={activeWorkspaceId}
+      // The restored workspace comes from localStorage, which the server
+      // cannot see; wait for hydration so sidebar links match the SSR HTML.
+      workspaceId={hydrated ? activeWorkspaceId : null}
       workspaceTitle={activeWorkspace?.title ?? undefined}
       workspaceSwitcher={(
         <WorkspaceSwitcher
