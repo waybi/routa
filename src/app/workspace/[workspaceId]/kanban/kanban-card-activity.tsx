@@ -253,7 +253,7 @@ function SessionIdChip({
       <button
         type="button"
         onClick={handleCopy}
-        className="shrink-0 rounded p-0.5 text-secondary transition-colors hover:bg-hover hover:text-secondary"
+        className="shrink-0 rounded p-0.5 text-secondary transition-colors hover:bg-hover hover:text-secondary focus-visible:outline-2 focus-visible:outline-accent"
         title={t.common.copyToClipboard}
         aria-label={t.common.copyToClipboard}
       >

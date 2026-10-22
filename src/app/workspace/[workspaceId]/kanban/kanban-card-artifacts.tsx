@@ -181,20 +181,20 @@ export function KanbanCardArtifacts({
   return (
     <section className={compact ? "space-y-2 py-2" : "space-y-2 py-2.5"}>
       <div className={compact ? "mb-2" : "mb-3"}>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+        <div className="text-[11px] font-semibold text-secondary">
           {t.kanban.artifactsTitle}
         </div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <div className="mt-1 text-xs text-secondary">
           {t.kanban.artifactsDescription}
         </div>
       </div>
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/10 dark:text-emerald-300 ${compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full border border-success bg-success-subtle text-success ${compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"}`}>
             {artifacts.length} {t.kanban.totalLabel}
           </span>
-          <span className={`inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-900/10 dark:text-sky-300 ${compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full border border-accent bg-accent-subtle text-information ${compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"}`}>
             {screenshotCount} {t.kanban.screenshotsLabel}
           </span>
           {requiredArtifacts.map((type) => {
@@ -203,8 +203,8 @@ export function KanbanCardArtifacts({
               <span
                 key={type}
                 className={`inline-flex items-center gap-1 rounded-full border ${present
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/10 dark:text-emerald-300"
-                  : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300"
+                  ? "border-success bg-success-subtle text-success"
+                  : "border-attention bg-attention-subtle text-attention"
                   } ${compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"}`}
               >
                 {present ? t.kanban.readyLabel : t.kanban.missingLabel} {formatArtifactTypeLabel(type, artifactLabels)}
@@ -212,7 +212,7 @@ export function KanbanCardArtifacts({
             );
           })}
         </div>
-        <div className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+        <div className="text-xs leading-5 text-secondary">
           {requiredArtifacts.length > 0
             ? (
               missingRequiredArtifacts.length === 0
@@ -223,15 +223,15 @@ export function KanbanCardArtifacts({
         </div>
 
         {loading ? (
-          <div className={`border-l-2 px-3 py-2.5 text-sm text-slate-500 dark:border-l-slate-700 dark:text-slate-400 ${compact ? "leading-5" : "leading-6"}`}>
+          <div className={`border-l-2 px-3 py-2.5 text-sm text-secondary ${compact ? "leading-5" : "leading-6"}`}>
             {t.kanban.loadingArtifacts}
           </div>
         ) : loadError ? (
-          <div className={`border-l-2 border-rose-300 px-3 py-2 text-sm text-rose-700 dark:border-rose-700/80 dark:text-rose-300 ${compact ? "leading-5" : "leading-6"}`}>
+          <div className={`border-l-2 border-danger px-3 py-2 text-sm text-danger ${compact ? "leading-5" : "leading-6"}`}>
             {loadError}
           </div>
         ) : artifacts.length === 0 ? (
-          <div className={`border-l-2 border-slate-300 px-3 py-2.5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 ${compact ? "leading-5" : "leading-6"}`}>
+          <div className={`border-l-2 border-default px-3 py-2.5 text-sm text-secondary ${compact ? "leading-5" : "leading-6"}`}>
             {t.kanban.noArtifactsYet}
           </div>
         ) : (
@@ -245,36 +245,36 @@ export function KanbanCardArtifacts({
               return (
                 <article
                   key={artifact.id}
-                  className="space-y-2 border-b border-slate-200/80 py-2.5 last:border-b-0 dark:border-slate-700/60"
+                  className="space-y-2 border-b border-default py-2.5 last:border-b-0"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
+                        <span className="rounded-full border border-default bg-subtle px-2.5 py-1 text-[11px] font-medium text-primary">
                           {formatArtifactTypeLabel(artifact.type, artifactLabels)}
                         </span>
                         {artifact.providedByAgentId && (
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                          <span className="text-xs text-secondary">
                             {t.kanban.byAgent} {artifact.providedByAgentId}
                           </span>
                         )}
                         {artifact.metadata?.filename && (
-                          <span className="truncate text-xs text-slate-500 dark:text-slate-400">
+                          <span className="truncate text-xs text-secondary">
                             {artifact.metadata.filename}
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="mt-1 text-xs text-secondary">
                         {formatArtifactTimestamp(artifact.createdAt, t)}
                       </div>
                     </div>
-                    <div className="truncate text-[11px] uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                    <div className="truncate text-[11px] text-secondary">
                       {artifact.status}
                     </div>
                   </div>
 
                   {artifact.context && (
-                    <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{artifact.context}</p>
+                    <p className="mt-2 text-sm leading-6 text-primary">{artifact.context}</p>
                   )}
 
                   {screenshotSrc ? (
@@ -284,7 +284,7 @@ export function KanbanCardArtifacts({
                       width={1200}
                       height={800}
                       unoptimized
-                      className="mt-3 max-h-56 w-full border border-slate-200 object-cover dark:border-slate-700"
+                      className="mt-3 max-h-56 w-full border border-default object-cover"
                     />
                   ) : artifact.type === "code_diff" && artifact.content ? (
                     <div className="mt-3 space-y-2">
@@ -292,14 +292,14 @@ export function KanbanCardArtifacts({
                         <details
                           key={`${artifact.id}-${chunk.filename}-${index}`}
                           open
-                          className="group border border-slate-200 dark:border-slate-700"
+                          className="group border border-default"
                         >
-                          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 [&::-webkit-details-marker]:hidden">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs text-secondary [&::-webkit-details-marker]:hidden focus-visible:outline-2 focus-visible:outline-accent">
                             <span className="truncate font-medium">{chunk.filename}</span>
                             <span className="shrink-0 font-mono">
-                              <span className="text-emerald-600 dark:text-emerald-300">+{chunk.additions}</span>
+                              <span className="text-success">+{chunk.additions}</span>
                               {" "}
-                              <span className="text-rose-600 dark:text-rose-300">-{chunk.deletions}</span>
+                              <span className="text-danger">-{chunk.deletions}</span>
                             </span>
                           </summary>
                           <CodeViewer
@@ -310,13 +310,13 @@ export function KanbanCardArtifacts({
                             showLineNumbers
                             wordWrap={false}
                             maxHeight="260px"
-                            className="border-t border-slate-200 dark:border-slate-700"
+                            className="border-t border-default"
                           />
                         </details>
                       ))}
                     </div>
                   ) : artifact.content ? (
-                    <pre className="mt-3 overflow-x-auto border border-slate-200 px-3 py-2 text-xs leading-5 text-slate-700 dark:border-slate-700 dark:text-slate-300">
+                    <pre className="mt-3 overflow-x-auto border border-default px-3 py-2 text-xs leading-5 text-primary">
                       {artifact.content}
                     </pre>
                   ) : null}

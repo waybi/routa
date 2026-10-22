@@ -162,7 +162,7 @@ export function KanbanDescriptionEditor({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: `outline-none prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 ${compact
+        class: `outline-none prose prose-sm dark:prose-invert max-w-none text-primary ${compact
             ? "min-h-[12rem] max-h-[20rem] overflow-y-auto px-3 py-2.5"
             : "min-h-[16rem] max-h-[28rem] overflow-y-auto px-4 py-3"
           }`,
@@ -205,11 +205,11 @@ export function KanbanDescriptionEditor({
   };
 
   return (
-    <div className="border-b border-slate-200/70 dark:border-slate-700">
-      <div className={`flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700 ${compact ? "px-3 py-1.5" : "px-4 py-2"}`}>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+    <div className="border-b border-default">
+      <div className={`flex items-center justify-between border-b border-default ${compact ? "px-3 py-1.5" : "px-4 py-2"}`}>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold text-secondary">
           <span>{t.kanbanDetail.description}</span>
-          <span className="text-slate-300 dark:text-slate-600">/</span>
+          <span className="text-secondary">/</span>
           <span>{isEditing ? t.kanban.editingMarkdown : t.kanban.renderedMarkdown}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export function KanbanDescriptionEditor({
                 type="button"
                 onClick={cancelEdit}
                 disabled={isSaving}
-                className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-md border border-default px-2 py-1 text-[11px] font-medium text-secondary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {t.common.cancel}
               </button>
@@ -227,7 +227,7 @@ export function KanbanDescriptionEditor({
                 type="button"
                 onClick={() => void saveEdit()}
                 disabled={isSaving}
-                className="rounded-md bg-amber-500 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-on-accent transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? t.workspace.saving : t.common.save}
               </button>
@@ -236,7 +236,7 @@ export function KanbanDescriptionEditor({
             <button
               type="button"
               onClick={beginEdit}
-              className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-default px-2 py-1 text-[11px] font-medium text-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
             >
               {t.common.edit}
             </button>
@@ -246,7 +246,7 @@ export function KanbanDescriptionEditor({
 
       {isEditing ? (
         <>
-          <div className={`flex items-center gap-1 border-b border-slate-200/70 dark:border-slate-700 ${compact ? "px-2 py-1" : "px-3 py-1.5"}`}>
+          <div className={`flex items-center gap-1 border-b border-default ${compact ? "px-2 py-1" : "px-3 py-1.5"}`}>
             {[
               { label: "B", active: editor?.isActive("bold"), action: () => editor?.chain().focus().toggleBold().run() },
               { label: "I", active: editor?.isActive("italic"), action: () => editor?.chain().focus().toggleItalic().run() },
@@ -260,9 +260,9 @@ export function KanbanDescriptionEditor({
                 key={item.label}
                 type="button"
                 onClick={item.action}
-                className={`rounded px-1.5 py-0.5 text-[11px] font-mono font-semibold transition-colors ${item.active
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className={`rounded px-1.5 py-0.5 text-[11px] font-mono font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-accent ${item.active
+                    ? "bg-accent-subtle text-information"
+                    : "text-secondary hover:bg-hover"
                   }`}
               >
                 {item.label}
@@ -276,13 +276,13 @@ export function KanbanDescriptionEditor({
           {value.trim() ? (
             <MarkdownViewer
               content={value}
-              className="text-slate-700 dark:text-slate-300"
+              className="text-primary"
               compactCanonicalStory
               hideCanonicalStoryTitle
               hideCanonicalStoryInvestSummary
             />
           ) : (
-            <div className="text-sm text-slate-400 dark:text-slate-500">{t.kanban.noDescriptionYet}</div>
+            <div className="text-sm text-secondary">{t.kanban.noDescriptionYet}</div>
           )}
         </div>
       )}
