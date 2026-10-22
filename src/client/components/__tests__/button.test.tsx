@@ -10,10 +10,10 @@ describe("Button", () => {
     const button = screen.getByRole("button", { name: "Delete" });
     const className = button.className;
 
-    expect(className).toContain("bg-[var(--danger-solid)]");
-    expect(className).toContain("text-[var(--danger-on-solid)]");
-    expect(className).toContain("hover:bg-[var(--danger-solid-hover)]");
-    expect(className).toContain("focus:ring-[var(--danger-ring)]");
+    // Redesign tokens (design-spec §2): text-danger / bg-danger-subtle.
+    expect(className).toContain("text-danger");
+    expect(className).toContain("border-danger");
+    expect(className).toContain("hover:bg-danger-subtle");
     expect(className).not.toMatch(/\bbg-red-\d+\b/);
     expect(className).not.toMatch(/\btext-red-\d+\b/);
     expect(className).not.toMatch(/\bfocus:ring-red-\d+\b/);
