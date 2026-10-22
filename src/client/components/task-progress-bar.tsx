@@ -82,46 +82,46 @@ export function TaskProgressBar({ tasks, fileChanges, className = "" }: TaskProg
 
   return (
     <div className={`w-full ${className}`}>
-      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#161922] overflow-hidden">
+      <div className="rounded-lg border border-default bg-subtle overflow-hidden">
         {/* Header - always visible */}
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-slate-100 dark:hover:bg-[#1a1d2e] transition-colors"
+          className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-hover transition-colors"
         >
           {/* Progress indicator with Todos label */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className={`w-2 h-2 rounded-full ${allCompleted ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+            <span className={`w-2 h-2 rounded-full ${allCompleted ? "bg-success" : "bg-attention animate-pulse"}`} />
             {tasks.length > 0 && (
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              <span className="text-xs font-medium text-secondary">
                 Todos ({completedCount}/{tasks.length})
               </span>
             )}
           </div>
 
           {/* Current task title */}
-          <span className="text-xs text-slate-700 dark:text-slate-300 truncate flex-1">
+          <span className="text-xs text-primary truncate flex-1">
             {runningTask?.title || (allCompleted ? "All tasks completed" : fileChanges ? "" : "Tasks")}
           </span>
 
           {/* File changes summary in header (compact) */}
           {fileChanges && (
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 flex items-center gap-1">
+            <span className="text-[10px] text-secondary shrink-0 flex items-center gap-1">
               <span>📁 {fileChanges.fileCount}</span>
-              <span className="text-emerald-600 dark:text-emerald-400">+{fileChanges.totalAdded}</span>
-              <span className="text-red-500 dark:text-red-400">-{fileChanges.totalRemoved}</span>
+              <span className="text-success">+{fileChanges.totalAdded}</span>
+              <span className="text-danger">-{fileChanges.totalRemoved}</span>
             </span>
           )}
 
           {/* Expand/collapse icon */}
-          <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 shrink-0 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <ChevronDown className={`w-3 h-3 text-secondary transition-transform duration-200 shrink-0 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
         </button>
 
         {/* Progress bar - only show if we have tasks */}
         {tasks.length > 0 && (
-          <div className="h-0.5 bg-slate-200 dark:bg-slate-700">
+          <div className="h-0.5 bg-default">
             <div
-              className="h-full bg-emerald-500 transition-all duration-300"
+              className="h-full bg-success transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -129,7 +129,7 @@ export function TaskProgressBar({ tasks, fileChanges, className = "" }: TaskProg
 
         {/* Expanded task list */}
         {expanded && tasks.length > 0 && (
-          <div className="border-t border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+          <div className="border-t border-default max-h-48 overflow-y-auto">
             {tasks.map((task, index) => (
               <TaskRow key={task.id} task={task} index={index} />
             ))}
@@ -138,15 +138,15 @@ export function TaskProgressBar({ tasks, fileChanges, className = "" }: TaskProg
 
         {/* File changes footer - show when expanded or when no tasks */}
         {expanded && fileChanges && fileChanges.fileCount > 0 && (
-          <div className="border-t border-slate-200 dark:border-slate-700 px-3 py-2 flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400">📁</span>
-            <span className="text-xs text-slate-700 dark:text-slate-300">
+          <div className="border-t border-default px-3 py-2 flex items-center gap-2">
+            <span className="text-xs text-secondary">📁</span>
+            <span className="text-xs text-primary">
               {fileChanges.fileCount} file{fileChanges.fileCount !== 1 ? "s" : ""} changed
             </span>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="text-xs text-success font-medium">
               +{fileChanges.totalAdded}
             </span>
-            <span className="text-xs text-red-500 dark:text-red-400 font-medium">
+            <span className="text-xs text-danger font-medium">
               -{fileChanges.totalRemoved}
             </span>
           </div>
@@ -158,35 +158,35 @@ export function TaskProgressBar({ tasks, fileChanges, className = "" }: TaskProg
 
 function TaskRow({ task, index }: { task: TaskInfo; index: number }) {
   const statusConfig: Record<TaskInfo["status"], { color: string; label: string }> = {
-    pending: { color: "bg-slate-400", label: "pending" },
-    running: { color: "bg-amber-500 animate-pulse", label: "running" },
-    delegated: { color: "bg-blue-500 animate-pulse", label: "delegated" },
-    completed: { color: "bg-emerald-500", label: "done" },
-    failed: { color: "bg-red-500", label: "failed" },
+    pending: { color: "bg-secondary", label: "pending" },
+    running: { color: "bg-attention animate-pulse", label: "running" },
+    delegated: { color: "bg-accent animate-pulse", label: "delegated" },
+    completed: { color: "bg-success", label: "done" },
+    failed: { color: "bg-danger", label: "failed" },
   };
 
   const { color, label } = statusConfig[task.status];
 
   return (
-    <div className="px-3 py-2 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-[#1a1d2e] transition-colors">
+    <div className="px-3 py-2 flex items-center gap-2 hover:bg-hover transition-colors">
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${color}`} />
-      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 shrink-0">
+      <span className="text-[10px] font-medium text-secondary shrink-0">
         #{index + 1}
       </span>
       {task.subagentType && (
-        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 shrink-0">
+        <span className="text-[10px] font-medium text-attention shrink-0">
           [{task.subagentType}]
         </span>
       )}
-      <span className="text-xs text-slate-700 dark:text-slate-300 truncate flex-1">
+      <span className="text-xs text-primary truncate flex-1">
         {task.title || task.description || "Task"}
       </span>
-      <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
+      <span className="text-[10px] text-secondary shrink-0">
         {label}
       </span>
       {/* Show completion summary for completed tasks */}
       {task.status === "completed" && task.completionSummary && (
-        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate max-w-[120px]" title={task.completionSummary}>
+        <span className="text-[10px] text-success truncate max-w-[120px]" title={task.completionSummary}>
           ✓ {task.completionSummary.slice(0, 30)}...
         </span>
       )}

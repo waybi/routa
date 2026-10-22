@@ -609,14 +609,14 @@ export function ChatPanel({
   // ── Render ───────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#0f1117]">
+    <div className="flex flex-col h-full bg-surface">
       {/* Session info bar with view toggle */}
       {activeSessionId && (
-        <div className="px-5 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-2 border-b border-default flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />
             <span
-              className="max-w-[36rem] overflow-x-auto whitespace-nowrap text-[11px] text-slate-500 dark:text-slate-400 font-mono"
+              className="max-w-[36rem] overflow-x-auto whitespace-nowrap text-[11px] text-secondary font-mono"
               title={activeSessionId}
             >
               {t.sessions.sessionInfo} {activeSessionId}
@@ -628,17 +628,17 @@ export function ChatPanel({
               href={`/traces?sessionId=${encodeURIComponent(traceSessionId ?? activeSessionId)}${activeWorkspaceId ? `&workspaceId=${encodeURIComponent(activeWorkspaceId)}` : ""}`}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-md border border-default px-3 py-1 text-[11px] font-medium text-secondary transition-colors hover:bg-hover"
             >
               Debug
             </a>
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
+            <div className="flex items-center bg-subtle rounded-md p-0.5">
             <button
               onClick={() => setViewMode("chat")}
               className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
                 viewMode === "chat"
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-surface text-primary shadow-sm"
+                  : "text-secondary hover:text-primary"
               }`}
             >
               {t.chat.viewToggle.chat}
@@ -647,8 +647,8 @@ export function ChatPanel({
               onClick={() => setViewMode("trace")}
               className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
                 viewMode === "trace"
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-surface text-primary shadow-sm"
+                  : "text-secondary hover:text-primary"
               }`}
             >
               {t.chat.viewToggle.trace}
@@ -660,19 +660,19 @@ export function ChatPanel({
 
       {errorBanner?.tone === "ended" && (
         <div
-          className="border-b border-slate-200 bg-slate-50 px-5 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400"
+          className="border-b border-default bg-subtle px-5 py-2 text-xs text-secondary"
           role="status"
           data-testid="chat-ended-banner"
           title={errorBanner.raw}
         >
-          <div className="font-medium text-slate-600 dark:text-slate-300">{errorBanner.title}</div>
+          <div className="font-medium text-secondary">{errorBanner.title}</div>
           <div className="mt-0.5">{errorBanner.hint}</div>
         </div>
       )}
 
       {errorBanner && errorBanner.tone === "error" && (
         <div
-          className="flex items-start justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-2 text-xs text-red-600 dark:border-red-900/20 dark:bg-red-900/10 dark:text-red-400"
+          className="flex items-start justify-between gap-3 border-b border-danger bg-danger-subtle px-5 py-2 text-xs text-danger"
           role="alert"
           data-testid="chat-error-banner"
           title={errorBanner.raw !== errorBanner.title ? errorBanner.raw : undefined}
@@ -680,7 +680,7 @@ export function ChatPanel({
           <div className="min-w-0 flex-1">
             <div className="font-medium">{errorBanner.title}</div>
             {errorBanner.hint && (
-              <div className="mt-0.5 text-red-500 dark:text-red-400/80">{errorBanner.hint}</div>
+              <div className="mt-0.5 text-danger">{errorBanner.hint}</div>
             )}
           </div>
           {activeSessionId && onResumeActiveSession && (
@@ -688,7 +688,7 @@ export function ChatPanel({
               type="button"
               onClick={() => void handleResumeActiveSession()}
               disabled={isResumingActiveSession || loading}
-              className="shrink-0 rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/40"
+              className="shrink-0 rounded-md border border-danger bg-surface px-2.5 py-1 text-[11px] font-semibold text-danger transition-colors hover:border-danger hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-60"
               title={t.sessions.resumeHint}
             >
               {isResumingActiveSession ? t.sessions.resuming : t.sessions.resume}
@@ -699,49 +699,49 @@ export function ChatPanel({
 
       {/* Authentication Required Banner */}
       {authError && (
-        <div className="px-5 py-3 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/20">
+        <div className="px-5 py-3 bg-attention-subtle border-b border-attention">
           <div className="flex items-start gap-3">
             <div className="shrink-0 mt-0.5">
-              <TriangleAlert className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+              <TriangleAlert className="w-5 h-5 text-attention" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                <h4 className="text-sm font-medium text-attention">
                   {t.chat.authRequiredTitle}
                   {authError.agentInfo && (
-                    <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
+                    <span className="ml-2 text-xs font-normal text-attention">
                       ({authError.agentInfo.name} v{authError.agentInfo.version})
                     </span>
                   )}
                 </h4>
                 <button
                   onClick={clearAuthError}
-                  className="shrink-0 p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-colors"
+                  className="shrink-0 p-1 rounded hover:bg-attention-subtle transition-colors"
                   title={t.common.dismiss}
                 >
-                  <X className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                  <X className="w-4 h-4 text-attention" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                 </button>
               </div>
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              <p className="mt-1 text-xs text-attention">
                 {authError.message}
               </p>
               {authError.authMethods.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <p className="text-xs font-medium text-attention">
                     {t.chat.availableAuthMethods}
                   </p>
                   <div className="space-y-1.5">
                     {authError.authMethods.map((method) => (
                       <div
                         key={method.id}
-                        className="flex items-start gap-2 p-2 rounded-md bg-amber-100/50 dark:bg-amber-800/20"
+                        className="flex items-start gap-2 p-2 rounded-md bg-attention-subtle"
                       >
-                        <KeyRound className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                        <KeyRound className="w-4 h-4 mt-0.5 text-attention shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                         <div className="min-w-0">
-                          <div className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                          <div className="text-xs font-medium text-attention">
                             {method.name}
                           </div>
-                          <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                          <div className="text-xs text-attention mt-0.5">
                             {method.description}
                           </div>
                         </div>
@@ -788,7 +788,7 @@ export function ChatPanel({
           <div className="flex-1 overflow-y-auto min-h-0" data-testid="chat-panel-message-shell">
             <div className="max-w-3xl mx-auto px-5 py-5 space-y-2">
               {visibleMessages.length === 0 && activeSessionId && (
-                <div className="text-center py-20 text-sm text-slate-400 dark:text-slate-500">
+                <div className="text-center py-20 text-sm text-secondary">
                   {t.sessions.placeholder}
                 </div>
               )}
@@ -844,11 +844,11 @@ export function ChatPanel({
                   aria-live="polite"
                 >
                   <span className="flex items-center gap-1" aria-hidden="true">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce [animation-delay:-0.3s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce [animation-delay:-0.15s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce motion-reduce:animate-none [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce motion-reduce:animate-none [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-bounce motion-reduce:animate-none" />
                   </span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-secondary">
                     {t.chat.working}
                   </span>
                 </div>
@@ -858,7 +858,7 @@ export function ChatPanel({
           </div>
 
           {/* Input */}
-          <div className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f1117]">
+          <div className="border-t border-default bg-surface">
             <div className="max-w-3xl mx-auto px-5 py-3 space-y-2">
               {/* Interactive request sticky cards — displayed above input until user submits */}
               {(pendingAskUserQuestions.length > 0 || pendingPermissionRequests.length > 0) && (
@@ -895,8 +895,8 @@ export function ChatPanel({
                     disabled={canvasPromptDisabled}
                     className={`mb-[1px] flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition-colors ${
                       canvasPromptActive
-                        ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
-                        : "border-slate-200 bg-slate-50 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-[#161922] dark:text-slate-400 dark:hover:border-blue-800 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
+                        ? "border-accent bg-accent-subtle text-accent"
+                        : "border-default bg-subtle text-secondary hover:border-accent hover:bg-accent-subtle hover:text-accent"
                     } disabled:cursor-not-allowed disabled:opacity-45`}
                     title={canvasPromptDisabled ? t.chat.connectFirst : canvasPromptLabel}
                     aria-label={canvasPromptLabel}
@@ -952,8 +952,8 @@ export function ChatPanel({
                 />
               </div>
               {repoSelection?.path && (
-                <div className="flex items-center gap-1.5 px-1 text-[10px] text-slate-400 dark:text-slate-500">
-                  <span className="font-medium text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-1.5 px-1 text-[10px] text-secondary">
+                  <span className="font-medium text-secondary">
                     {t.sessions.repoPath}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-mono" title={repoSelection.path}>
@@ -969,7 +969,7 @@ export function ChatPanel({
                         setCopiedRepoPath(false);
                       });
                     }}
-                    className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                    className="shrink-0 rounded p-0.5 text-secondary transition-colors hover:bg-hover hover:text-primary"
                     title={t.common.copyToClipboard}
                     aria-label={t.common.copyToClipboard}
                   >

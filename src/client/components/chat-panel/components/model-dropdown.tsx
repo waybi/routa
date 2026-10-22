@@ -73,31 +73,31 @@ export function ModelDropdown({
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-transparent transition-colors"
+        className="flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-md border border-default hover:bg-hover text-xs font-medium text-primary bg-surface dark:bg-transparent transition-colors"
       >
-        <Monitor className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+        <Monitor className="w-3 h-3 text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
         <span className="truncate max-w-30">{displayName}</span>
         {loading ? (
-          <span className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin" />
+          <span className="w-3 h-3 border border-default border-t-transparent rounded-full animate-spin" />
         ) : (
-          <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <ChevronDown className={`w-3 h-3 text-secondary transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
         )}
       </button>
 
       {isOpen && dropdownPos && typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130] shadow-xl z-9999 flex flex-col"
+            className="fixed w-72 rounded-lg border border-default bg-surface shadow-xl z-9999 flex flex-col"
             style={{ left: dropdownPos.left, bottom: dropdownPos.bottom, maxHeight: "300px" }}
           >
-            <div className="p-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2 border-b border-default">
               <input
                 autoFocus
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Filter models..."
-                className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-transparent outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200"
+                className="w-full px-2 py-1 text-xs rounded border border-default bg-transparent outline-none focus:ring-1 focus:ring-accent text-primary"
               />
             </div>
             <div className="overflow-y-auto flex-1">
@@ -106,8 +106,8 @@ export function ModelDropdown({
                 onClick={() => handleSelect("")}
                 className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
                   !selectedModel
-                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                    : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
+                    ? "bg-accent-subtle text-accent"
+                    : "hover:bg-hover text-primary"
                 }`}
               >
                 <span className="font-medium">Default model</span>
@@ -119,18 +119,18 @@ export function ModelDropdown({
                   onClick={() => handleSelect(m)}
                   className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
                     m === selectedModel
-                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
+                      ? "bg-accent-subtle text-accent"
+                      : "hover:bg-hover text-primary"
                   }`}
                 >
-                  <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px] shrink-0">
+                  <span className="text-secondary font-mono text-[10px] shrink-0">
                     {m.split("/")[0]}
                   </span>
                   <span className="font-medium truncate">{m.split("/").slice(1).join("/") || m}</span>
                 </button>
               ))}
               {models.length === 0 && !loading && (
-                <div className="px-3 py-3 text-xs text-slate-400 text-center">No models found</div>
+                <div className="px-3 py-3 text-xs text-secondary text-center">No models found</div>
               )}
             </div>
           </div>,
