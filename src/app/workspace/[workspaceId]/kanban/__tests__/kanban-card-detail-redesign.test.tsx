@@ -187,11 +187,14 @@ describe("card detail redesign: construction (AC6)", () => {
   it("does not offer Recover for a session that ended normally", () => {
     renderDetail({
       id: "ended-session",
-      columnId: "done",
+      columnId: "dev",
       triggerSessionId: "session-ended",
-      laneSessions: [{ sessionId: "session-ended", columnId: "done", columnName: "Done", status: "completed", startedAt: "2026-10-22T00:00:00.000Z" }],
+      laneSessions: [{ sessionId: "session-ended", columnId: "dev", columnName: "Dev", status: "completed", startedAt: "2026-10-22T00:00:00.000Z" }],
+    }, {
+      boardColumns: [{ id: "dev", name: "Dev", position: 0, stage: "dev", automation: { enabled: true, steps: [{ id: "s1", providerId: "dsh", role: "CRAFTER" }] } }],
     });
     fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    expect(screen.getByTestId("kanban-detail-run").textContent).toBe("Rerun");
     expect(screen.queryByRole("button", { name: /Recover Live Run/i })).toBeNull();
     expect(screen.queryByText(/Current run failed/i)).toBeNull();
     expect(screen.getAllByText("Ended").length).toBeGreaterThan(0);
