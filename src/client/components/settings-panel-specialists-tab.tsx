@@ -30,8 +30,8 @@ type SpecialistsTabProps = {
 
 const desktopInputCls =
   "w-full rounded-sm border border-desktop-border bg-desktop-bg-primary px-2.5 py-1.5 text-[12px] leading-5 text-desktop-text-primary outline-none transition focus:border-desktop-accent focus:ring-1 focus:ring-desktop-accent/20 placeholder:text-desktop-text-muted";
-const desktopLabelCls = "text-[10px] font-semibold uppercase tracking-[0.16em] text-desktop-text-muted";
-const sectionTitleCls = "text-[10px] font-semibold uppercase tracking-[0.16em] text-desktop-text-muted";
+const desktopLabelCls = "text-[10px] font-semibold text-desktop-text-muted";
+const sectionTitleCls = "text-[10px] font-semibold text-desktop-text-muted";
 const secondaryButtonCls =
   "inline-flex items-center justify-center gap-1.5 rounded-sm border border-desktop-border bg-desktop-bg-secondary px-2.5 py-1.5 text-[11px] font-medium text-desktop-text-secondary transition hover:bg-desktop-bg-active hover:text-desktop-text-primary disabled:opacity-40";
 const primaryButtonCls =
@@ -250,7 +250,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
 
       {error ? (
         <div className="shrink-0 border-b border-desktop-border px-4 py-2.5">
-          <div className="rounded-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
+          <div className="rounded-sm border border-danger bg-danger-subtle px-3 py-2 text-[11px] text-danger">
             {error}
           </div>
         </div>
@@ -364,7 +364,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
               <FileCode2 className="h-3.5 w-3.5 shrink-0 text-desktop-accent" />
               <span className="truncate">{editorTabLabel}</span>
               {readOnlySelection && selectedSpecialist ? (
-                <span className="rounded-sm bg-desktop-bg-secondary px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-desktop-text-secondary">
+                <span className="rounded-sm bg-desktop-bg-secondary px-1.5 py-0.5 text-[9px] text-desktop-text-secondary">
                   {sourceLabels[selectedSpecialist.source]}
                 </span>
               ) : null}

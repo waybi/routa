@@ -87,14 +87,14 @@ function OnboardingSettingsSection({ onResetOnboarding, onClose }: { onResetOnbo
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className={sectionHeadCls}>{t.settings.onboardingSection.title}</p>
-          <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+          <p className="mt-1 text-[10px] text-secondary">
             {t.settings.onboardingSection.description}
           </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
           hasCompletedOnboarding
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/12 dark:text-emerald-300"
-            : "bg-amber-100 text-amber-700 dark:bg-amber-500/12 dark:text-amber-300"
+            ? "bg-success-subtle text-success"
+            : "bg-attention-subtle text-attention"
         }`}>
           {hasCompletedOnboarding ? t.settings.onboardingSection.completed : t.settings.onboardingSection.available}
         </span>
@@ -103,7 +103,7 @@ function OnboardingSettingsSection({ onResetOnboarding, onClose }: { onResetOnbo
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="rounded-md border border-default px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-hover"
         >
           {t.settings.onboardingSection.showAgain}
         </button>
@@ -135,10 +135,10 @@ function SystemInfoFooter() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
-    <div className="border-t border-slate-200 dark:border-slate-700 shrink-0">
-      <div className="flex items-center justify-between gap-3 px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+    <div className="border-t border-default shrink-0">
+      <div className="flex items-center justify-between gap-3 px-4 py-2 text-[11px] text-secondary">
         <div className="flex min-w-0 items-center gap-3 overflow-hidden">
-          <span className="shrink-0 font-medium uppercase tracking-wider">{t.settings.systemInfo}</span>
+          <span className="shrink-0 font-medium">{t.settings.systemInfo}</span>
           {memoryStats?.current ? (
             <>
               <span className="truncate">
@@ -149,10 +149,10 @@ function SystemInfoFooter() {
               </span>
               <span className={`shrink-0 ${
                 memoryStats.current.level === "critical"
-                  ? "text-red-500"
+                  ? "text-danger"
                   : memoryStats.current.level === "warning"
-                    ? "text-amber-500"
-                    : "text-emerald-500"
+                    ? "text-attention"
+                    : "text-success"
               }`}>
                 {memoryStats.current.level}
               </span>
@@ -164,7 +164,7 @@ function SystemInfoFooter() {
         <button
           onClick={fetchData}
           disabled={loading}
-          className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          className="shrink-0 rounded-md p-1 text-secondary transition-colors hover:bg-hover hover:text-primary disabled:opacity-50"
           title={t.settings.refreshSystemInfo}
           type="button"
         >
@@ -199,25 +199,25 @@ function RolesTab({
     <div className="px-4 py-4 space-y-4 overflow-y-auto h-full">
       <div className={settingsCardCls}>
         <p className={sectionHeadCls}>Role Defaults</p>
-        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+        <p className="mt-1 text-[10px] text-secondary">
           Configure default provider and model override per Routa role. ROUTA-specific settings live here instead of the Providers tab.
         </p>
         <div className="mt-4 flex items-center gap-3 mb-2">
           <div className="w-[90px]" />
-          <div className="w-[180px] text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Provider</div>
-          <div className="flex-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Model Override</div>
+          <div className="w-[180px] text-[10px] font-semibold text-secondary">Provider</div>
+          <div className="flex-1 text-[10px] font-semibold text-secondary">Model Override</div>
         </div>
         <div className="space-y-2.5">
           {AGENT_ROLES.map((role) => (
             <div key={role} className="flex items-center gap-3">
               <div className="w-[90px] shrink-0">
-                <div className="text-xs font-medium text-slate-700 dark:text-slate-300">{role}</div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">{ROLE_DESCRIPTIONS[role]}</div>
+                <div className="text-xs font-medium text-primary">{role}</div>
+                <div className="text-[10px] text-secondary leading-tight">{ROLE_DESCRIPTIONS[role]}</div>
               </div>
               <Select
                 value={settings[role]?.provider ?? ""}
                 onChange={(event) => onChange(role, "provider", event.target.value)}
-                className="w-[180px] shrink-0 text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1e2130] text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="w-[180px] shrink-0 text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent focus:outline-none"
               >
                 <option value="">Auto</option>
                 {builtinProviders.length > 0 && (
@@ -266,7 +266,7 @@ function RolesTab({
                 value={settings[role]?.model ?? ""}
                 onChange={(event) => onChange(role, "model", event.target.value)}
                 placeholder={modelDefs.length > 0 ? "select alias or type model" : "e.g. claude-3-5-haiku"}
-                className="flex-1 text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1e2130] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono"
+                className="flex-1 text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary placeholder:text-secondary focus:ring-1 focus:ring-accent focus:outline-none font-mono"
               />
             </div>
           ))}
@@ -276,9 +276,9 @@ function RolesTab({
             <option key={definition.alias} value={definition.alias} label={`${definition.alias} → ${definition.modelName}`} />
           ))}
         </datalist>
-        <p className="mt-4 text-[10px] text-slate-400 dark:text-slate-500">
+        <p className="mt-4 text-[10px] text-secondary">
           Leave model blank to use the provider default. Type a model alias from the{" "}
-          <button onClick={onOpenModelsTab} className="text-blue-500 hover:underline">Models tab</button>
+          <button onClick={onOpenModelsTab} className="text-accent hover:underline">Models tab</button>
           {" "}to use custom connection details.
         </p>
       </div>
@@ -365,22 +365,22 @@ function CustomAcpProvidersSection() {
         {!showForm && (
           <button
             onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_CUSTOM_PROVIDER_FORM); }}
-            className="text-xs text-blue-500 hover:text-blue-600 dark:hover:text-blue-400"
+            className="text-xs text-accent hover:underline"
           >
             + {t.common.add}
           </button>
         )}
       </div>
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-3">
+      <p className="text-[10px] text-secondary mb-3">
         Define your own ACP-compliant agent with a custom command and args.
       </p>
 
       {error && (
-        <p className="text-xs text-red-500 mb-2">{error}</p>
+        <p className="text-xs text-danger mb-2">{error}</p>
       )}
 
       {showForm && (
-        <div className="mb-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
+        <div className="mb-3 p-3 rounded-lg bg-subtle border border-default space-y-2">
           <p className={sectionHeadCls}>{editingId ? "Edit Provider" : "New Provider"}</p>
           <div>
             <label className={labelCls}>Name *</label>
@@ -421,13 +421,13 @@ function CustomAcpProvidersSection() {
           <div className="flex gap-2 pt-1">
             <button
               onClick={handleSave}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+              className="px-3 py-1.5 text-xs font-medium text-on-accent bg-accent hover:opacity-90 rounded-md"
             >
               {editingId ? t.common.save : t.common.add}
             </button>
             <button
               onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_CUSTOM_PROVIDER_FORM); setError(null); }}
-              className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
+              className="px-3 py-1.5 text-xs font-medium text-secondary border border-default rounded-md hover:bg-hover"
             >
               Cancel
             </button>
@@ -436,30 +436,30 @@ function CustomAcpProvidersSection() {
       )}
 
       {providers.length === 0 && !showForm ? (
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No custom providers yet.</p>
+        <p className="text-xs text-secondary italic">No custom providers yet.</p>
       ) : (
         <div className="space-y-2">
           {providers.map((p) => (
             <div
               key={p.id}
-              className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130]"
+              className="flex items-center justify-between px-3 py-2 rounded-lg border border-default bg-surface"
             >
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{p.name}</p>
-                <p className="text-[10px] text-slate-400 font-mono truncate">
+                <p className="text-xs font-medium text-primary truncate">{p.name}</p>
+                <p className="text-[10px] text-secondary font-mono truncate">
                   {p.command} {p.args.join(" ")}
                 </p>
               </div>
               <div className="flex gap-1 ml-2 shrink-0">
                 <button
                   onClick={() => handleEdit(p)}
-                  className="px-2 py-1 text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 border border-slate-200 dark:border-slate-600 rounded"
+                  className="px-2 py-1 text-[10px] text-secondary hover:text-primary border border-default rounded"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(p.id)}
-                  className="px-2 py-1 text-[10px] text-red-500 hover:text-red-700 border border-red-200 dark:border-red-800 rounded"
+                  className="px-2 py-1 text-[10px] text-danger hover:opacity-80 border border-danger rounded"
                 >
                   Delete
                 </button>
@@ -499,13 +499,13 @@ function ProviderCatalogSection({ allProviders }: ProviderCatalogSectionProps) {
     <div className={settingsCardCls}>
       <div>
         <p className={sectionHeadCls}>Provider Catalog</p>
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-[10px] text-secondary mb-3">
           Built-in, Agent 注册中心（ACP）, and custom providers are listed together here. Hide a provider to remove it from app pickers without deleting its configuration.
         </p>
       </div>
 
       {allProviders.length === 0 ? (
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No providers available.</p>
+        <p className="text-xs text-secondary italic">No providers available.</p>
       ) : (
         <div className="space-y-2">
           {allProviders.map((provider) => {
@@ -513,41 +513,41 @@ function ProviderCatalogSection({ allProviders }: ProviderCatalogSectionProps) {
             return (
               <div
                 key={provider.id}
-                className="flex items-center justify-between px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130]"
+                className="flex items-center justify-between px-3 py-2 rounded-lg border border-default bg-surface"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <input
                     type="checkbox"
                     checked={!isHidden}
                     onChange={() => handleToggle(provider.id)}
-                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+                    className="w-4 h-4 rounded border-default text-accent focus:ring-accent focus:ring-offset-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
+                      <p className="text-xs font-medium text-primary truncate">
                         {provider.name}
                       </p>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      <span className="rounded-full bg-subtle px-1.5 py-0.5 text-[9px] font-medium text-secondary">
                         {provider.source === "registry" ? t.settings.registry : isCustomProvider(provider) ? t.settings.customProvider : t.settings.builtIn}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-mono truncate">
+                    <p className="text-[10px] text-secondary font-mono truncate">
                       {provider.id}{provider.command ? ` · ${provider.command}` : ""}
                     </p>
                   </div>
                 </div>
                 <div className="ml-2 flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <span className="text-[10px] text-secondary">
                     {isHidden ? t.settings.hidden : t.settings.shown}
                   </span>
                   {provider.status && (
                     <span
                       className={`px-2 py-0.5 text-[10px] rounded ${
                         provider.status === "available"
-                          ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                          ? "bg-success-subtle text-success"
                           : provider.status === "checking"
-                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                            : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                            ? "bg-attention-subtle text-attention"
+                            : "bg-subtle text-secondary"
                       }`}
                     >
                       {provider.status}
@@ -561,10 +561,10 @@ function ProviderCatalogSection({ allProviders }: ProviderCatalogSectionProps) {
       )}
 
       {hiddenProviderIds.length > 0 && (
-        <div className="mt-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+        <div className="mt-3 p-2.5 rounded-lg bg-attention-subtle border border-attention">
           <div className="flex items-start gap-2">
-            <TriangleAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <span className="text-[11px] text-amber-700 dark:text-amber-300">
+            <TriangleAlert className="w-3.5 h-3.5 text-attention mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <span className="text-[11px] text-attention">
               {hiddenProviderIds.length} provider{hiddenProviderIds.length > 1 ? "s are" : " is"} hidden from provider pickers.
             </span>
           </div>
@@ -583,13 +583,13 @@ function WebhooksTab() {
   if (isTauriEnv && showFullPanel) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default">
+          <h3 className="text-sm font-semibold text-primary">
             GitHub Webhook Triggers
           </h3>
           <button
             onClick={() => setShowFullPanel(false)}
-            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="p-1.5 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
             title={t.settings.backToOverview}
           >
             <ArrowLeft className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -605,28 +605,28 @@ function WebhooksTab() {
   return (
     <div className="p-4 space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
+        <h3 className="text-sm font-semibold text-primary mb-1">
           GitHub Webhook Triggers
         </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-secondary mb-3">
           Automatically trigger agents (Claude Code, GLM-4, etc.) when GitHub events occur
           — issue created, PR opened, CI completed, and more.
         </p>
-        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 px-3 py-2.5 mb-3">
-          <p className="text-xs text-blue-700 dark:text-blue-300">
+        <div className="rounded-lg bg-accent-subtle border border-accent px-3 py-2.5 mb-3">
+          <p className="text-xs text-accent">
             <span className="font-semibold">Webhook URL:</span>{" "}
-            <code className="font-mono bg-blue-100 dark:bg-blue-900/30 px-1 rounded">
+            <code className="font-mono bg-accent-subtle px-1 rounded">
               {typeof window !== "undefined" ? window.location.origin : ""}/api/webhooks/github
             </code>
           </p>
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+          <p className="text-xs text-accent mt-1">
             Point your GitHub repository webhook at this URL to start receiving events.
           </p>
         </div>
         {isTauriEnv ? (
           <button
             onClick={() => setShowFullPanel(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -638,7 +638,7 @@ function WebhooksTab() {
             href="/settings/webhooks"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -695,16 +695,16 @@ function DockerOpenCodeSection({ embedded = false }: { embedded?: boolean }) {
   }, []);
 
   return (
-    <div className={`space-y-2 ${embedded ? "" : "rounded-lg border border-slate-200 p-3 dark:border-slate-700"}`}>
+    <div className={`space-y-2 ${embedded ? "" : "rounded-lg border border-default p-3"}`}>
       {!embedded && (
         <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Docker OpenCode</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">auth.json</span>
+          <Package className="w-4 h-4 text-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <span className="text-xs font-semibold text-primary">Docker OpenCode</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-subtle text-accent">auth.json</span>
         </div>
       )}
-      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-        Paste your <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">~/.local/share/opencode/auth.json</code> here.
+      <p className="text-[11px] text-secondary">
+        Paste your <code className="bg-subtle px-1 rounded">~/.local/share/opencode/auth.json</code> here.
         This config will be mounted into the Docker container.
       </p>
       <textarea
@@ -712,12 +712,12 @@ function DockerOpenCodeSection({ embedded = false }: { embedded?: boolean }) {
         onChange={(e) => setAuthJson(e.target.value)}
         placeholder={EXAMPLE_AUTH_JSON}
         rows={5}
-        className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1e2130] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono resize-y"
+        className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary placeholder:text-secondary focus:ring-1 focus:ring-accent focus:outline-none font-mono resize-y"
       />
-      {error && <p className="text-[10px] text-red-500">{error}</p>}
+      {error && <p className="text-[10px] text-danger">{error}</p>}
       <button
         onClick={() => handleSave(authJson)}
-        className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+        className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors"
       >
         {t.common.save}
       </button>
@@ -766,28 +766,28 @@ function DockerConfigModalContent({ open: _open, errorMessage, onClose, onSaved 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-[#1a1d2e] rounded-xl shadow-2xl w-full max-w-md mx-4 border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-md mx-4 border border-default overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default">
           <div className="flex items-center gap-2">
-            <TriangleAlert className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Docker OpenCode — Configuration Required</h3>
+            <TriangleAlert className="w-4 h-4 text-attention" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <h3 className="text-sm font-semibold text-primary">Docker OpenCode — Configuration Required</h3>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary">
             <X className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </button>
         </div>
         {/* Body */}
         <div className="px-4 py-4 space-y-3">
           {displayError && (
-            <div className="p-2.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <p className="text-xs text-red-700 dark:text-red-400 font-mono break-all">{displayError}</p>
+            <div className="p-2.5 rounded-md bg-danger-subtle border border-danger">
+              <p className="text-xs text-danger font-mono break-all">{displayError}</p>
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">OpenCode auth.json</label>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              Paste your local <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">~/.local/share/opencode/auth.json</code> here.
+            <label className="text-xs font-medium text-primary">OpenCode auth.json</label>
+            <p className="text-[10px] text-secondary">
+              Paste your local <code className="bg-subtle px-1 rounded">~/.local/share/opencode/auth.json</code> here.
             </p>
             <textarea
               value={authJson}
@@ -795,20 +795,20 @@ function DockerConfigModalContent({ open: _open, errorMessage, onClose, onSaved 
               placeholder={EXAMPLE_AUTH_JSON}
               rows={6}
               autoFocus
-              className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1e2130] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono resize-y"
+              className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary placeholder:text-secondary focus:ring-1 focus:ring-accent focus:outline-none font-mono resize-y"
             />
-            {error && <p className="text-[10px] text-red-500">{error}</p>}
+            {error && <p className="text-[10px] text-danger">{error}</p>}
           </div>
         </div>
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+        <div className="px-4 py-3 border-t border-default flex justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs font-medium rounded-md border border-default text-primary hover:bg-hover transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!authJson.trim()}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 disabled:opacity-40 transition-colors"
           >
             Save & Retry
           </button>
@@ -869,7 +869,7 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
         <div className="px-4 py-4 space-y-4 overflow-y-auto h-full">
           <div className={settingsCardCls}>
             <p className={sectionHeadCls}>Providers</p>
-            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-[10px] text-secondary">
               Manage detected ACP providers, install additional agents, hide noisy entries, and configure provider-specific credentials.
             </p>
           </div>
@@ -879,7 +879,7 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
           <ProviderCatalogSection allProviders={providers} />
 
           <div className={settingsCardCls}>
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Provider Credentials</p>
+            <p className="text-[10px] font-semibold text-secondary mb-2">Provider Credentials</p>
             <DockerOpenCodeSection embedded={true} />
           </div>
 
@@ -891,7 +891,7 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
           <div className={settingsCardCls}>
             <div className="mb-3">
               <p className={sectionHeadCls}>{t.settings.registry}</p>
-              <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+              <p className="mt-1 text-[10px] text-secondary">
                 {t.settings.registryDesc}
               </p>
             </div>
@@ -953,33 +953,33 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="relative mx-4 flex h-full max-h-[92vh] w-[calc(100vw-2rem)] max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#1a1d2e]"
+        className="relative mx-4 flex h-full max-h-[92vh] w-[calc(100vw-2rem)] max-w-6xl flex-col overflow-hidden rounded-xl border border-default bg-surface shadow-2xl"
         style={{ height: SETTINGS_PANEL_HEIGHT }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default shrink-0">
           <div className="flex items-center gap-2">
-            <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.settings.title}</h2>
+            <Settings className="w-4 h-4 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <h2 className="text-sm font-semibold text-primary">{t.settings.title}</h2>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <ThemeSwitcher showLabel />
             <button onClick={onClose}
-              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+              className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors">
               <X className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 dark:border-slate-700 shrink-0">
+        <div className="flex border-b border-default shrink-0">
           {TAB_DEFS.map(({ key, label }) => (
             <button key={key} onClick={() => handleTabChange(key)}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
                 activeTab === key
-                  ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "text-accent border-b-2 border-accent"
+                  : "text-secondary hover:text-primary"
               }`}>
               {label}
             </button>
@@ -991,9 +991,9 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
         <SystemInfoFooter />
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end shrink-0">
+        <div className="px-4 py-3 border-t border-default flex justify-end shrink-0">
           <button onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors">
             Done
           </button>
         </div>

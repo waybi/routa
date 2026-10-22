@@ -25,33 +25,33 @@ interface CategoryConfig {
 const CATEGORIES: CategoryConfig[] = [
   {
     name: "Task",
-    toneClass: "text-sky-700 dark:text-sky-300",
-    panelClass: "border-sky-200 bg-sky-50/80 dark:border-sky-900/40 dark:bg-sky-900/10",
+    toneClass: "text-accent",
+    panelClass: "border-accent bg-accent-subtle",
   },
   {
     name: "Agent",
-    toneClass: "text-indigo-700 dark:text-indigo-300",
-    panelClass: "border-indigo-200 bg-indigo-50/80 dark:border-indigo-900/40 dark:bg-indigo-900/10",
+    toneClass: "text-accent",
+    panelClass: "border-accent bg-accent-subtle",
   },
   {
     name: "Note",
-    toneClass: "text-emerald-700 dark:text-emerald-300",
-    panelClass: "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-900/10",
+    toneClass: "text-success",
+    panelClass: "border-success bg-success-subtle",
   },
   {
     name: "Workspace",
-    toneClass: "text-amber-700 dark:text-amber-300",
-    panelClass: "border-amber-200 bg-amber-50/80 dark:border-amber-900/40 dark:bg-amber-900/10",
+    toneClass: "text-attention",
+    panelClass: "border-attention bg-attention-subtle",
   },
   {
     name: "Kanban",
-    toneClass: "text-cyan-700 dark:text-cyan-300",
-    panelClass: "border-cyan-200 bg-cyan-50/80 dark:border-cyan-900/40 dark:bg-cyan-900/10",
+    toneClass: "text-accent",
+    panelClass: "border-accent bg-accent-subtle",
   },
   {
     name: "Git",
-    toneClass: "text-rose-700 dark:text-rose-300",
-    panelClass: "border-rose-200 bg-rose-50/80 dark:border-rose-900/40 dark:bg-rose-900/10",
+    toneClass: "text-danger",
+    panelClass: "border-danger bg-danger-subtle",
   },
 ];
 
@@ -198,7 +198,7 @@ export function McpToolsExplorer() {
                 onChange={(event) => void handleToggleMode(event.target.checked)}
                 className="peer sr-only"
               />
-              <div className="h-4 w-8 rounded-full bg-slate-300 transition-colors peer-checked:bg-sky-500 dark:bg-slate-700" />
+              <div className="h-4 w-8 rounded-full bg-default transition-colors peer-checked:bg-accent" />
               <div className="absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white transition-transform peer-checked:translate-x-4" />
             </div>
             <span>Essential ({ESSENTIAL_TOOLS_COUNT})</span>
@@ -207,7 +207,7 @@ export function McpToolsExplorer() {
 
         <div className="max-h-[70vh] overflow-y-auto p-3">
           {loadError ? (
-            <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/10 dark:text-rose-300">
+            <div className="mb-3 rounded-xl border border-danger bg-danger-subtle px-3 py-2 text-[11px] text-danger">
               {loadError}
             </div>
           ) : null}
@@ -247,7 +247,7 @@ export function McpToolsExplorer() {
                             onClick={() => setSelectedToolName(tool.name)}
                             className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
                               active
-                                ? "border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-900/50 dark:bg-sky-900/15 dark:text-sky-200"
+                                ? "border-accent bg-accent-subtle text-accent"
                                 : "border-transparent bg-desktop-bg-primary text-desktop-text-secondary hover:border-desktop-border hover:bg-desktop-bg-active hover:text-desktop-text-primary"
                             }`}
                           >
@@ -293,7 +293,7 @@ export function McpToolsExplorer() {
                     type="button"
                     onClick={() => void handleExecuteTool()}
                     disabled={executing}
-                    className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-900/50 dark:bg-sky-900/10 dark:text-sky-300 dark:hover:bg-sky-900/20"
+                    className="rounded-full border border-accent bg-accent-subtle px-3 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {executing ? "Running..." : "Run Tool"}
                   </button>
@@ -301,7 +301,7 @@ export function McpToolsExplorer() {
                 <textarea
                   value={argsJson}
                   onChange={(event) => setArgsJson(event.target.value)}
-                  className="h-[360px] w-full resize-y rounded-xl border border-desktop-border bg-desktop-bg-primary px-3 py-3 font-mono text-[12px] text-desktop-text-primary outline-none transition-colors focus:border-sky-400"
+                  className="h-[360px] w-full resize-y rounded-xl border border-desktop-border bg-desktop-bg-primary px-3 py-3 font-mono text-[12px] text-desktop-text-primary outline-none transition-colors focus:border-accent"
                   spellCheck={false}
                 />
               </div>
