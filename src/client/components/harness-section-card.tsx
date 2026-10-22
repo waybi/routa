@@ -11,9 +11,9 @@ const CARD_CLASS: Record<"compact" | "full", string> = {
 
 const STATE_TONE_CLASS: Record<HarnessSectionStateTone, string> = {
   neutral: "border-desktop-border bg-desktop-bg-secondary/70 text-desktop-text-secondary",
-  warning: "border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100",
-  error: "border border-red-300 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100",
-  success: "border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100",
+  warning: "border border-attention bg-attention-subtle text-attention",
+  error: "border border-danger bg-danger-subtle text-danger",
+  success: "border border-success bg-success-subtle text-success",
 };
 
 type HarnessSectionCardProps = {
@@ -54,7 +54,7 @@ export function HarnessSectionCard({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               {eyebrow ? (
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-desktop-text-secondary">
+                <div className="text-[10px] font-semibold text-desktop-text-secondary">
                   {eyebrow}
                 </div>
               ) : null}

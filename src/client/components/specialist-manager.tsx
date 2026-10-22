@@ -237,24 +237,24 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative bg-white dark:bg-[#1a1d2e] rounded-xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col">
+      <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden border border-default max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-default flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.specialists.manageSpecialists}</h2>
+            <Briefcase className="w-5 h-5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <h2 className="text-sm font-semibold text-primary">{t.specialists.manageSpecialists}</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-primary bg-subtle rounded-md hover:bg-hover disabled:opacity-50 transition-colors"
             >
               {syncing ? `${t.common.loading}...` : t.specialists.sync}
             </button>
             <button
               onClick={onClose}
-              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
             >
               <X className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             </button>
@@ -264,8 +264,8 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
         {/* Content */}
         <div className="flex-1 overflow-auto p-5">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <div className="mb-4 p-3 bg-danger-subtle border border-danger rounded-md">
+              <p className="text-sm text-danger">{error}</p>
             </div>
           )}
 
@@ -273,12 +273,12 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
             <>
               {/* Specialists List */}
               <div className="mb-4 flex justify-between items-center">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-secondary">
                   {specialists.length} {t.specialists.configured}
                 </p>
                 <button
                   onClick={() => setShowCreateForm(true)}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-on-accent bg-accent rounded-md hover:opacity-90 transition-colors"
                 >
                   {t.specialists.newSpecialist}
                 </button>
@@ -288,39 +288,39 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                 {specialists.map((specialist) => (
                   <div
                     key={specialist.id}
-                    className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700"
+                    className="p-4 bg-subtle rounded-lg border border-default"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-slate-900 dark:text-slate-100">{specialist.name}</h3>
+                          <h3 className="font-medium text-primary">{specialist.name}</h3>
                           <span className={`px-2 py-0.5 text-xs rounded-full ${
                             specialist.source === "user"
-                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                              ? "bg-attention-subtle text-attention"
                               : specialist.source === "bundled"
-                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                              : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                              ? "bg-accent-subtle text-accent"
+                              : "bg-subtle text-primary"
                           }`}>
                             {t.specialists.source[specialist.source] || specialist.source}
                           </span>
-                          <span className="px-2 py-0.5 text-xs rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          <span className="px-2 py-0.5 text-xs rounded bg-subtle text-primary">
                             {getRoleLabels(t)[specialist.role]}
                           </span>
                         </div>
                         {specialist.description && (
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{specialist.description}</p>
+                          <p className="text-sm text-secondary mb-2">{specialist.description}</p>
                         )}
                         <div className="space-y-1">
-                          <p className="text-xs text-slate-500 dark:text-slate-500">
+                          <p className="text-xs text-secondary">
                             {t.specialists.tier}: {getTierLabels(t)[specialist.defaultModelTier]}
                           </p>
                           {specialist.defaultProvider ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-500">
+                            <p className="text-xs text-secondary">
                               {t.specialists.provider}: <span className="font-mono">{specialist.defaultProvider}</span>
                             </p>
                           ) : null}
                           {specialist.defaultAdapter ? (
-                            <p className="text-xs text-slate-500 dark:text-slate-500">
+                            <p className="text-xs text-secondary">
                               {t.specialists.adapter}: <span className="font-mono">{specialist.defaultAdapter}</span>
                             </p>
                           ) : null}
@@ -331,13 +331,13 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                           <>
                             <button
                               onClick={() => handleEdit(specialist)}
-                              className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                              className="p-1.5 text-secondary hover:text-accent hover:bg-hover rounded transition-colors"
                             >
                               <SquarePen className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                             </button>
                             <button
                               onClick={() => handleDelete(specialist.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                              className="p-1.5 text-secondary hover:text-danger hover:bg-hover rounded transition-colors"
                             >
                               <Trash2 className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                             </button>
@@ -350,7 +350,7 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
               </div>
 
               {specialists.length === 0 && !loading && (
-                <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                <div className="text-center py-12 text-secondary">
                   <p>{t.specialists.noSpecialistsFound} {t.specialists.noSpecialistsHint}</p>
                 </div>
               )}
@@ -359,14 +359,14 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
             <>
               {/* Create/Edit Form */}
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+                <h3 className="text-lg font-medium text-primary">
                   {editingId ? t.specialists.editSpecialist : t.specialists.newSpecialistForm}
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* ID */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.id} *
                     </label>
                     <input
@@ -375,13 +375,13 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                       onChange={(e) => setForm({ ...form, id: e.target.value })}
                       disabled={!!editingId}
                       placeholder={t.specialists.idPlaceholder}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary disabled:opacity-50 disabled:bg-subtle"
                     />
                   </div>
 
                   {/* Name */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.name} *
                     </label>
                     <input
@@ -389,14 +389,14 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       placeholder={t.specialists.namePlaceholder}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                     />
                   </div>
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-primary mb-1">
                     {t.specialists.description}
                   </label>
                   <input
@@ -404,20 +404,20 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                     placeholder={t.specialists.descriptionPlaceholder}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Role */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.role} *
                     </label>
                     <Select
                       value={form.role}
                       onChange={(e) => setForm({ ...form, role: e.target.value as AgentRole })}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary"
                     >
                       {Object.entries(getRoleLabels(t)).map(([key, label]) => (
                         <option key={key} value={key}>
@@ -429,13 +429,13 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
 
                   {/* Model Tier */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.defaultModelTier} *
                     </label>
                     <Select
                       value={form.defaultModelTier}
                       onChange={(e) => setForm({ ...form, defaultModelTier: e.target.value as ModelTier })}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary"
                     >
                       {Object.entries(getTierLabels(t)).map(([key, label]) => (
                         <option key={key} value={key}>
@@ -449,7 +449,7 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Default Provider */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.defaultAcpProvider}
                     </label>
                     <input
@@ -457,16 +457,16 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                       value={form.defaultProvider}
                       onChange={(e) => setForm({ ...form, defaultProvider: e.target.value })}
                       placeholder={t.specialists.defaultProviderPlaceholder}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                     />
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs text-secondary">
                       {t.specialists.defaultProviderHint}
                     </p>
                   </div>
 
                   {/* Default Adapter */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-primary mb-1">
                       {t.specialists.defaultAdapterLabel}
                     </label>
                     <input
@@ -474,9 +474,9 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                       value={form.defaultAdapter}
                       onChange={(e) => setForm({ ...form, defaultAdapter: e.target.value })}
                       placeholder={t.specialists.defaultAdapterPlaceholder}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                      className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                     />
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs text-secondary">
                       {t.specialists.defaultAdapterHint}
                     </p>
                   </div>
@@ -484,7 +484,7 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
 
                 {/* Model Override */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-primary mb-1">
                     {t.specialists.modelOverride}
                   </label>
                   <input
@@ -492,16 +492,16 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                     value={form.model}
                     onChange={(e) => setForm({ ...form, model: e.target.value })}
                     placeholder={t.specialists.modelOverridePlaceholder}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                   />
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-secondary">
                     {t.specialists.modelOverrideHint}
                   </p>
                 </div>
 
                 {/* System Prompt */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-primary mb-1">
                     {t.specialists.systemPromptLabel} *
                   </label>
                   <textarea
@@ -509,13 +509,13 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                     onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })}
                     placeholder={t.specialists.systemPromptPlaceholder}
                     rows={8}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 font-mono"
+                    className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary font-mono"
                   />
                 </div>
 
                 {/* Role Reminder */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-primary mb-1">
                     {t.specialists.roleReminderLabel}
                   </label>
                   <input
@@ -523,23 +523,23 @@ export function SpecialistManager({ open, onClose }: SpecialistManagerProps) {
                     value={form.roleReminder}
                     onChange={(e) => setForm({ ...form, roleReminder: e.target.value })}
                     placeholder={t.specialists.roleReminderPlaceholder}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface border border-default rounded-md text-sm text-primary placeholder:text-secondary"
                   />
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex justify-end gap-3 pt-4 border-t border-default">
                   <button
                     onClick={handleCancelEdit}
                     disabled={loading}
-                    className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-primary bg-surface border border-default rounded-md hover:bg-hover disabled:opacity-50 transition-colors"
                   >
                     {t.specialists.cancel}
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={loading || !form.id || !form.name || !form.systemPrompt}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-on-accent bg-accent rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {loading ? t.specialists.saving : editingId ? t.common.update : t.common.create}
                   </button>

@@ -68,11 +68,11 @@ function buildMatrixColumns(matrix: TranslationDictionary["fitness"]["matrix"]):
     title: matrix[key].title,
     subtitle: matrix[key].subtitle,
     color: {
-      collaboration: "#0D4E63",
-      sdlc: "#53A8B7",
-      harness: "#EF6A82",
-      governance: "#6C548F",
-      context: "#D28A07",
+      collaboration: "var(--blue)",
+      sdlc: "var(--green)",
+      harness: "var(--red)",
+      governance: "var(--accent)",
+      context: "var(--amber)",
     }[key],
   }));
 }
@@ -90,7 +90,7 @@ function SvgMultilineText({
   lines,
   fontSize = 16,
   lineGap = 1.2,
-  fill = "#111",
+  fill = "var(--ink)",
   fontWeight = 600,
   textAnchor = "middle",
 }: {
@@ -131,7 +131,7 @@ function CapabilityPin({ x, y, color, size = 22 }: { x: number; y: number; color
         d="M12 2C7.58 2 4 5.58 4 10c0 6.2 8 14 8 14s8-7.8 8-14c0-4.42-3.58-8-8-8z"
         fill={color}
       />
-      <circle cx="12" cy="10" r="2.7" fill="#fff" />
+      <circle cx="12" cy="10" r="2.7" fill="var(--panel)" />
     </g>
   );
 }
@@ -201,7 +201,7 @@ function FitnessMatrix({
             y={plotY}
             width={plotW}
             height={plotH}
-            fill="#EEF1F2"
+            fill="var(--soft)"
           />
 
           {Array.from({ length: colCount + 1 }).map((_, i) => {
@@ -213,7 +213,7 @@ function FitnessMatrix({
                 y1={plotY}
                 x2={x}
                 y2={plotY + plotH}
-                stroke="#FFFFFF"
+                stroke="var(--panel)"
                 strokeWidth={1}
               />
             );
@@ -227,7 +227,7 @@ function FitnessMatrix({
                 y1={y}
                 x2={plotX + plotW}
                 y2={y}
-                stroke="#FFFFFF"
+                stroke="var(--panel)"
                 strokeWidth={1}
               />
             );
@@ -276,14 +276,14 @@ function FitnessMatrix({
                   lines={row.title}
                   fontSize={12}
                   fontWeight={600}
-                  fill="#111"
+                  fill="var(--ink)"
                   textAnchor="end"
                 />
                 {row.subtitle ? (
                   <text
                     x={labelX}
                     y={cy + 17}
-                    fill="#A1A1A1"
+                    fill="var(--muted)"
                     fontSize={8.5}
                     fontWeight={500}
                     textAnchor="end"
@@ -300,7 +300,7 @@ function FitnessMatrix({
             <polyline
               points={polylinePoints}
               fill="none"
-              stroke="#757575"
+              stroke="var(--muted)"
               strokeWidth={2}
               strokeDasharray="4 10"
               strokeLinecap="round"
@@ -334,7 +334,7 @@ function StatusBadge({
   };
 
   return (
-    <span className={`inline-flex items-center rounded-sm border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${profileStateTone(state)}`}>
+    <span className={`inline-flex items-center rounded-sm border px-2 py-1 text-[10px] font-semibold ${profileStateTone(state)}`}>
       {labels[state]}
     </span>
   );
@@ -579,7 +579,7 @@ export function FitnessAnalysisPanel({
       <section className="rounded-sm border border-desktop-border bg-desktop-bg-secondary/60 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-[11px] uppercase tracking-[0.14em] text-desktop-text-secondary">
+            <div className="truncate text-[11px] text-desktop-text-secondary">
               {heroModel.title}
             </div>
             <div className="mt-1 truncate text-[11px] leading-tight text-desktop-text-secondary">
@@ -619,7 +619,7 @@ export function FitnessAnalysisPanel({
         </div>
 
         <div className="mt-1 border-t border-desktop-border/80 pt-1">
-          <div className="text-[10px] uppercase tracking-[0.1em] text-desktop-text-secondary">{fitness.panel.capabilityMatrix}</div>
+          <div className="text-[10px] text-desktop-text-secondary">{fitness.panel.capabilityMatrix}</div>
           <FitnessMatrix
             selectedReport={selectedReport}
             matrixColumns={matrixColumns}
@@ -629,7 +629,7 @@ export function FitnessAnalysisPanel({
         </div>
 
         {globalError ? (
-          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] leading-5 text-rose-700">
+          <div className="mt-3 rounded-xl border border-danger bg-danger-subtle px-3 py-2 text-[11px] leading-5 text-danger">
             {globalError}
           </div>
         ) : null}

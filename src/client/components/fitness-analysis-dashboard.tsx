@@ -20,9 +20,9 @@ type FitnessAnalysisDashboardProps = {
 };
 
 function statusTone(status: DashboardGateState) {
-  if (status === "pass") return "border-emerald-300 bg-emerald-50 text-emerald-700";
-  if (status === "warn") return "border-amber-300 bg-amber-50 text-amber-700";
-  return "border-rose-300 bg-rose-50 text-rose-700";
+  if (status === "pass") return "border-success bg-success-subtle text-success";
+  if (status === "warn") return "border-attention bg-attention-subtle text-attention";
+  return "border-danger bg-danger-subtle text-danger";
 }
 
 function gridTone(score: number) {
@@ -69,7 +69,7 @@ function MetricCard({
 }) {
   return (
     <div className={`rounded-sm border px-4 py-3 ${statusTone(status)}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em]">{label}</div>
+      <div className="text-[10px] font-semibold">{label}</div>
       <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
       <div className="mt-1 text-[11px] leading-5 opacity-80">{hint}</div>
     </div>
@@ -89,7 +89,7 @@ function Section({
     <section className="rounded-sm border border-desktop-border bg-desktop-bg-secondary/60 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-desktop-text-secondary">{title}</div>
+          <div className="text-[11px] font-semibold text-desktop-text-secondary">{title}</div>
           <p className="mt-1 text-[12px] leading-5 text-desktop-text-secondary">{subtitle}</p>
         </div>
       </div>
@@ -140,11 +140,11 @@ function TargetRadar({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-desktop-text-secondary">
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
           {currentLabel}
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full border border-slate-400 bg-slate-200" />
+          <span className="h-2.5 w-2.5 rounded-full border border-default bg-subtle" />
           {targetLabel}
         </span>
       </div>
@@ -221,8 +221,8 @@ function UnlockRunway({
   noNextLevel: string;
 }) {
   const rows = [
-    { label: currentLabel, value: currentValue, accent: "bg-sky-500" },
-    { label: nextLabel, value: nextValue, accent: "bg-violet-500" },
+    { label: currentLabel, value: currentValue, accent: "bg-accent" },
+    { label: nextLabel, value: nextValue, accent: "bg-information" },
   ];
 
   return (
@@ -263,9 +263,9 @@ function GateSummaryBars({
   failLabel: string;
 }) {
   const items = [
-    { label: passLabel, count: pass, accent: "bg-emerald-500" },
-    { label: warnLabel, count: warn, accent: "bg-amber-500" },
-    { label: failLabel, count: fail, accent: "bg-rose-500" },
+    { label: passLabel, count: pass, accent: "bg-success" },
+    { label: warnLabel, count: warn, accent: "bg-attention" },
+    { label: failLabel, count: fail, accent: "bg-danger" },
   ];
   const max = Math.max(...items.map((item) => item.count), 1);
 
@@ -315,12 +315,12 @@ function BlockerHotspots({
               <div className="text-sm font-semibold text-desktop-text-primary">{item.label}</div>
               <div className="text-[11px] text-desktop-text-secondary">{item.leadingCriterion}</div>
             </div>
-            <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+            <span className="rounded-full border border-attention bg-attention-subtle px-2 py-0.5 text-[10px] font-semibold text-attention">
               {item.count}
             </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-desktop-bg-primary">
-            <div className="h-full rounded-full bg-amber-400" style={{ width: `${(item.count / max) * 100}%` }} />
+            <div className="h-full rounded-full bg-attention" style={{ width: `${(item.count / max) * 100}%` }} />
           </div>
         </div>
       ))}
@@ -504,7 +504,7 @@ export function FitnessAnalysisDashboard({ report }: FitnessAnalysisDashboardPro
               />
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-sm border border-desktop-border bg-desktop-bg-primary/70 px-3 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-desktop-text-secondary">
+                  <div className="text-[10px] font-semibold text-desktop-text-secondary">
                     {dashboard.fromLastRun}
                   </div>
                   <div className="mt-2 text-sm font-semibold text-desktop-text-primary">
@@ -512,13 +512,13 @@ export function FitnessAnalysisDashboard({ report }: FitnessAnalysisDashboardPro
                   </div>
                 </div>
                 <div className="rounded-sm border border-desktop-border bg-desktop-bg-primary/70 px-3 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-desktop-text-secondary">
+                  <div className="text-[10px] font-semibold text-desktop-text-secondary">
                     {dashboard.changedDimensions}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-desktop-text-primary">{model.metrics.changedDimensions}</div>
                 </div>
                 <div className="rounded-sm border border-desktop-border bg-desktop-bg-primary/70 px-3 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-desktop-text-secondary">
+                  <div className="text-[10px] font-semibold text-desktop-text-secondary">
                     {dashboard.changedCriteria}
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-desktop-text-primary">{model.metrics.changedCriteria}</div>

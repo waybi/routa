@@ -140,7 +140,7 @@ export function FluencySettingsPageClient({ defaultRepoPath }: FluencySettingsPa
         <div className="flex flex-wrap items-center gap-2">
           <span className="desktop-badge">{t.settings.diagnosticsBeta}</span>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-desktop-text-secondary">
+            <span className="text-[10px] font-semibold text-desktop-text-secondary">
               {t.settings.repository}
             </span>
             <RepoPicker
