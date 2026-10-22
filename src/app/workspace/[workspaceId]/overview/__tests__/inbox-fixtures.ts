@@ -1,4 +1,4 @@
-import type { KanbanBoardInfo, TaskInfo } from "../../../types";
+import type { KanbanBoardInfo, TaskInfo } from "../../types";
 
 export type LaneSession = NonNullable<TaskInfo["laneSessions"]>[number];
 

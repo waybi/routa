@@ -10,7 +10,7 @@
  * de-duplication and ordering on top.
  */
 
-import type { KanbanBoardInfo, TaskInfo } from "../../types";
+import type { KanbanBoardInfo, TaskInfo } from "../types";
 import { attentionDismissKey, type KanbanAttentionItem } from "../kanban/kanban-attention-rules";
 import { DONE_LANE_ID, getDoneEnteredAt, getTrailingDoneSessions } from "../kanban/kanban-done-time";
 import { KANBAN_DETAIL_TAB_QUERY_KEY } from "../kanban/kanban-detail-tab-request";

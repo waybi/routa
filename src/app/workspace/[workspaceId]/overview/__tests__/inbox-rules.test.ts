@@ -139,7 +139,7 @@ describe("home summary", () => {
   });
 
   it("falls back to updatedAt only when no run or createdAt exists", () => {
-    const bare = { id: "x", title: "x", status: "PENDING", updatedAt: iso(NOW - HOUR) } as Parameters<typeof taskAuthoritativeAt>[0];
+    const bare = { id: "x", title: "x", status: "PENDING", updatedAt: iso(NOW - HOUR) } as unknown as Parameters<typeof taskAuthoritativeAt>[0];
     expect(taskAuthoritativeAt(bare)).toBe(NOW - HOUR);
   });
 });
