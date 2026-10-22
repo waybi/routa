@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -37,7 +37,16 @@ beforeEach(() => {
 });
 
 describe("NotificationBell (redesign look)", () => {
-  it("keeps one entry per card and opens the card link", () => {
+  it("renders no unread badge on the first (server-matching) render", () => {
+    window.localStorage.setItem(
+      "routa_notifications",
+      JSON.stringify([{ id: "n1", type: "task", title: "Done · X", message: "", timestamp: "2026-10-22T00:00:00Z", read: false }]),
+    );
+    const { getByTestId } = renderBell();
+    expect(getByTestId("notification-bell").querySelector(".bg-danger")).toBeNull();
+  });
+
+  it("keeps one entry per card and opens the card link", async () => {
     renderBell();
     act(() => {
       add({ type: "task", title: "Blocked · Card A", message: "m1", link: "/workspace/w/kanban?card=a", metadata: { taskId: "a" } });
@@ -45,19 +54,21 @@ describe("NotificationBell (redesign look)", () => {
     });
 
     const bell = screen.getByTestId("notification-bell");
-    expect(bell.textContent).toContain("1");
+    // The unread badge appears after mount so SSR and hydration match.
+    await waitFor(() => expect(bell.textContent).toContain("1"));
     fireEvent.click(bell);
 
     expect(screen.getByText("Done · Card A")).toBeTruthy();
     expect(screen.queryByText("Blocked · Card A")).toBeNull();
   });
 
-  it("uses redesign tokens rather than fixed palette colors", () => {
+  it("uses redesign tokens rather than fixed palette colors", async () => {
     renderBell();
     act(() => {
       add({ type: "task", title: "Done · Card B", message: "m", metadata: { taskId: "b" } });
     });
     const bell = screen.getByTestId("notification-bell");
+    await waitFor(() => expect(bell.querySelector(".bg-danger")).not.toBeNull());
     fireEvent.click(bell);
 
     const html = bell.parentElement?.innerHTML ?? "";

@@ -177,7 +177,10 @@ export function NotificationBell() {
         data-testid="notification-bell"
       >
         <Bell className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
-        {unreadCount > 0 && (
+        {/* Notifications are restored from localStorage, which the server
+            render cannot see; show the badge only after mount (`now` is set
+            by the mount effect) so SSR and the first client render match. */}
+        {now > 0 && unreadCount > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-0.5 text-[9px] font-bold text-on-accent">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
