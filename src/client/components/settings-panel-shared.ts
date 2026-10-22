@@ -171,10 +171,10 @@ export type SettingsTab =
   | "workflows";
 
 export const inputCls =
-  "w-full text-xs px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#1e2130] text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:outline-none";
-export const labelCls = "text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider";
-export const sectionHeadCls = "text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider";
-export const settingsCardCls = "rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-[#1e2130]";
+  "w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary placeholder:text-secondary focus:ring-1 focus:ring-accent focus:outline-none";
+export const labelCls = "text-[11px] font-medium text-secondary";
+export const sectionHeadCls = "text-[13px] font-semibold text-primary";
+export const settingsCardCls = "rounded-xl border border-default bg-surface p-4";
 
 export const BASE_URL_SUGGESTIONS = [
   "https://api.atlascloud.ai/v1",
