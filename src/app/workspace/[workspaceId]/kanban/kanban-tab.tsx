@@ -350,13 +350,7 @@ export function KanbanTab({
     });
   }, [ensureBoardAutoProviderPersisted]);
 
-  const {
-    agentInput,
-    setAgentInput,
-    agentLoading,
-    agentError,
-    handleAgentSubmit,
-  } = useKanbanAgentInput({
+  const { agentInput, setAgentInput, agentLoading, agentError, handleAgentSubmit } = useKanbanAgentInput({
     workspaceId,
     selectedBoardId,
     defaultBoardId,
@@ -1288,9 +1282,7 @@ export function KanbanTab({
     kanbanTaskAgentCopy,
     agentInput,
     onAgentInputChange: setAgentInput,
-    onAgentSubmit: () => {
-      void handleAgentSubmit();
-    },
+    onAgentSubmit: () => { void handleAgentSubmit(); },
     showCreateTaskModal: () => setShowCreateModal(true),
     agentLoading,
     agentError,

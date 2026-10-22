@@ -827,9 +827,7 @@ describe("KanbanTab manual card creation", () => {
 
     fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     fireEvent.click(screen.getByRole("button", { name: "Manual" }));
-    fireEvent.change(screen.getByPlaceholderText("Task title"), {
-      target: { value: "create a js hello world" },
-    });
+    fireEvent.change(screen.getByPlaceholderText("Task title"), { target: { value: "create a js hello world" } });
 
     const editor = document.querySelector("[contenteditable='true']");
     if (!(editor instanceof HTMLElement)) {
