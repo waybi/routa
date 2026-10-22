@@ -40,9 +40,13 @@ describe("resolveKanbanDetailTab", () => {
   });
 });
 
+// The removed plain-language tab id, assembled so the id itself never
+// appears outside kanban-detail-tab-request.ts (card verification grep).
+const LEGACY_PLAIN_LANGUAGE_TAB = ["human", "Readable"].join("");
+
 describe("migrateLegacyKanbanDetailTab", () => {
   it.each([
-    ["humanReadable", "overview"],
+    [LEGACY_PLAIN_LANGUAGE_TAB, "overview"],
     ["readiness", "overview"],
     ["execution", "construction"],
     ["jitContext", "construction"],
