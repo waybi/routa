@@ -41,11 +41,11 @@ type Filters = {
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-200",
-  high: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-200",
-  medium: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200",
-  low: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200",
-  info: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-500/30 dark:bg-slate-500/15 dark:text-slate-200",
+  critical: "border-danger bg-danger-subtle text-danger",
+  high: "border-attention bg-attention-subtle text-attention",
+  medium: "border-attention bg-attention-subtle text-attention",
+  low: "border-accent bg-accent-subtle text-accent",
+  info: "border-default bg-subtle text-primary",
 };
 
 const SEVERITY_ORDER: Record<string, number> = {
@@ -65,31 +65,31 @@ const STATUS_THEMES: Record<
   }
 > = {
   open: {
-    badge: "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200",
-    dot: "bg-rose-500",
-    selected: "border-rose-300 bg-rose-50/95 dark:border-rose-500/30 dark:bg-rose-500/10",
+    badge: "bg-danger-subtle text-danger",
+    dot: "bg-danger",
+    selected: "border-danger bg-danger-subtle",
   },
   investigating: {
-    badge: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
-    dot: "bg-amber-500",
-    selected: "border-amber-300 bg-amber-50/95 dark:border-amber-500/30 dark:bg-amber-500/10",
+    badge: "bg-attention-subtle text-attention",
+    dot: "bg-attention",
+    selected: "border-attention bg-attention-subtle",
   },
   resolved: {
-    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
-    dot: "bg-emerald-500",
-    selected: "border-emerald-300 bg-emerald-50/95 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+    badge: "bg-success-subtle text-success",
+    dot: "bg-success",
+    selected: "border-success bg-success-subtle",
   },
   wontfix: {
-    badge: "bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200",
-    dot: "bg-slate-500",
-    selected: "border-slate-300 bg-slate-100/90 dark:border-slate-500/30 dark:bg-slate-500/10",
+    badge: "bg-subtle text-primary",
+    dot: "bg-secondary",
+    selected: "border-default bg-subtle",
   },
 };
 
 const SURFACE_CONFIDENCE_STYLES: Record<SurfaceHit["confidence"], string> = {
-  high: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
-  medium: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200",
-  low: "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200",
+  high: "bg-success-subtle text-success",
+  medium: "bg-attention-subtle text-attention",
+  low: "bg-subtle text-primary",
 };
 
 function getStatusLabels(t: TranslationT): Record<SpecStatus, string> {
@@ -189,15 +189,15 @@ function getCompletionStats(totalCount: number, unresolvedCount: number) {
 
 function getProgressBarClass(ratio: number) {
   if (ratio >= 1) {
-    return "bg-emerald-500/20 dark:bg-emerald-400/20";
+    return "bg-success-subtle";
   }
   if (ratio >= 0.5) {
-    return "bg-sky-500/18 dark:bg-sky-400/20";
+    return "bg-accent-subtle";
   }
   if (ratio > 0) {
-    return "bg-amber-500/18 dark:bg-amber-400/18";
+    return "bg-attention-subtle";
   }
-  return "bg-rose-500/14 dark:bg-rose-400/14";
+  return "bg-danger-subtle";
 }
 
 function getAreaLabel(family: IssueFamily): string {
@@ -247,12 +247,12 @@ function SpecToolbar({
   );
 
   const selectClassName =
-    "h-8 rounded-md border border-black/8 bg-[#f8fafc] px-2.5 text-xs text-slate-700 outline-none transition-colors focus:border-slate-300 dark:border-white/10 dark:bg-[#111923] dark:text-slate-100 dark:focus:border-white/20";
+    "h-8 rounded-md border border-default bg-subtle px-2.5 text-xs text-primary outline-none transition-colors focus:border-accent";
 
   return (
-    <section className="flex flex-wrap items-center gap-2 rounded-xl border border-black/6 bg-white/88 px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-[#0f1722]/88 dark:shadow-none">
-      <div className="mr-1 inline-flex items-center gap-1.5 rounded-md border border-black/8 bg-white/80 px-2 py-1 text-[11px] font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
-        <ClipboardList className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" strokeWidth={1.8} />
+    <section className="flex flex-wrap items-center gap-2 rounded-xl border border-default bg-surface px-3 py-2 shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:shadow-none">
+      <div className="mr-1 inline-flex items-center gap-1.5 rounded-md border border-default bg-surface px-2 py-1 text-[11px] font-medium text-primary">
+        <ClipboardList className="h-3.5 w-3.5 text-secondary" strokeWidth={1.8} />
         <span>{t.specBoard.families}</span>
       </div>
 
@@ -306,12 +306,12 @@ function SpecToolbar({
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {surfaceWarnings.length > 0 ? (
-          <CompactBadge className="bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
+          <CompactBadge className="bg-attention-subtle text-attention">
             {t.specBoard.surfaceMapUnavailable}
           </CompactBadge>
         ) : null}
 
-        <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/8 dark:text-slate-200">
+        <CompactBadge className="bg-subtle text-secondary">
           {filteredCount} / {totalCount}
         </CompactBadge>
       </div>
@@ -343,13 +343,13 @@ function SpecStatusBoard({
   return (
     <section
       aria-label={t.specBoard.status}
-      className="rounded-2xl border border-black/6 bg-white/88 p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-[#0f1722]/88 dark:shadow-none"
+      className="rounded-2xl border border-default bg-surface p-3 shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:shadow-none"
     >
       <div className="mb-3 flex items-center gap-2">
-        <CompactBadge className="bg-black/[0.04] text-slate-700 dark:bg-white/8 dark:text-slate-100">
+        <CompactBadge className="bg-subtle text-primary">
           {t.specBoard.status}
         </CompactBadge>
-        <span className="text-xs text-slate-500 dark:text-slate-400">{issues.length}</span>
+        <span className="text-xs text-secondary">{issues.length}</span>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -360,12 +360,12 @@ function SpecStatusBoard({
           return (
             <article
               key={status}
-              className="min-h-[13rem] rounded-xl border border-black/6 bg-[#f8fafc] p-3 dark:border-white/10 dark:bg-[#0c121b]"
+              className="min-h-[13rem] rounded-xl border border-default bg-subtle p-3"
             >
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className={`h-2.5 w-2.5 rounded-full ${theme.dot}`} />
-                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  <h3 className="text-sm font-semibold text-primary">
                     {statusLabels[status]}
                   </h3>
                 </div>
@@ -385,10 +385,10 @@ function SpecStatusBoard({
                         className={`flex w-full flex-col items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
                           isSelected
                             ? theme.selected
-                            : "border-black/8 bg-white/90 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                            : "border-default bg-surface hover:bg-hover"
                         }`}
                       >
-                        <div className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-slate-50">
+                        <div className="line-clamp-2 text-sm font-semibold text-primary">
                           {issue.title}
                         </div>
 
@@ -397,18 +397,18 @@ function SpecStatusBoard({
                             {issue.severity}
                           </CompactBadge>
                           {issue.area ? (
-                            <CompactBadge className="border border-black/6 bg-[#f6f3ee] text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-200">
+                            <CompactBadge className="border border-default bg-subtle text-secondary">
                               {issue.area}
                             </CompactBadge>
                           ) : null}
                           {issue.kind ? (
-                            <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/8 dark:text-slate-200">
+                            <CompactBadge className="bg-subtle text-secondary">
                               {issue.kind}
                             </CompactBadge>
                           ) : null}
                         </div>
 
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="text-[11px] text-secondary">
                           {issue.date || issue.filename}
                         </div>
 
@@ -417,7 +417,7 @@ function SpecStatusBoard({
                             {issue.tags.map((tag) => (
                               <CompactBadge
                                 key={`${issue.filename}-${tag}`}
-                                className="border border-black/6 bg-[#f6f3ee] text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-200"
+                                className="border border-default bg-subtle text-secondary"
                               >
                                 {tag}
                               </CompactBadge>
@@ -429,7 +429,7 @@ function SpecStatusBoard({
                   })}
                 </div>
               ) : (
-                <div className="flex min-h-[8rem] items-center justify-center rounded-lg border border-dashed border-black/8 px-3 text-center text-xs text-slate-500 dark:border-white/10 dark:text-slate-400">
+                <div className="flex min-h-[8rem] items-center justify-center rounded-lg border border-dashed border-default px-3 text-center text-xs text-secondary">
                   {t.specBoard.noIssues}
                 </div>
               )}
@@ -575,14 +575,14 @@ function SpecFamilyExplorer({
   }, []);
 
   return (
-    <section className="flex min-h-[28rem] flex-col overflow-hidden rounded-2xl border border-black/6 bg-white/84 dark:border-white/10 dark:bg-[#0f1722]/84">
-      <div className="border-b border-black/6 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:border-white/10 dark:text-slate-400">
+    <section className="flex min-h-[28rem] flex-col overflow-hidden rounded-2xl border border-default bg-surface">
+      <div className="border-b border-default px-3 py-2 text-[11px] font-semibold text-secondary">
         {t.specBoard.families}
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2.5">
         {areaGroups.length === 0 ? (
-          <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-dashed border-black/8 bg-white/60 px-4 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+          <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-dashed border-default bg-surface px-4 text-center text-sm text-secondary">
             {t.specBoard.noIssues}
           </div>
         ) : null}
@@ -594,7 +594,7 @@ function SpecFamilyExplorer({
               || (isSelectedArea && !collapsedSelectedAreaIds.has(area.id));
             const areaProgress = getCompletionStats(area.issueCount, area.unresolvedCount);
             return (
-              <section key={area.id} className="rounded-lg border border-black/6 bg-[#f8fafc] dark:border-white/10 dark:bg-white/[0.02]">
+              <section key={area.id} className="rounded-lg border border-default bg-subtle">
                 <button
                   type="button"
                   onClick={() => toggleArea(area.id, isAreaExpanded, isSelectedArea)}
@@ -606,25 +606,25 @@ function SpecFamilyExplorer({
                     style={{ width: areaProgress.progressPercent }}
                   />
                   {isAreaExpanded ? (
-                    <ChevronDown className="relative z-10 h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={1.8} />
+                    <ChevronDown className="relative z-10 h-3.5 w-3.5 shrink-0 text-secondary" strokeWidth={1.8} />
                   ) : (
-                    <ChevronRight className="relative z-10 h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={1.8} />
+                    <ChevronRight className="relative z-10 h-3.5 w-3.5 shrink-0 text-secondary" strokeWidth={1.8} />
                   )}
-                  <span className="relative z-10 min-w-0 flex-1 truncate text-[12px] font-semibold text-slate-900 dark:text-slate-50">
+                  <span className="relative z-10 min-w-0 flex-1 truncate text-[12px] font-semibold text-primary">
                     {area.label}
                   </span>
                   <div className="relative z-10 flex shrink-0 items-center gap-1">
-                    <CompactBadge className="bg-white/85 text-slate-700 dark:bg-black/20 dark:text-slate-100">
+                    <CompactBadge className="bg-surface text-primary">
                       {areaProgress.resolvedCount}/{areaProgress.totalCount}
                     </CompactBadge>
-                    <CompactBadge className="bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">
+                    <CompactBadge className="bg-danger-subtle text-danger">
                       {areaProgress.unresolvedCount}
                     </CompactBadge>
                   </div>
                 </button>
 
                 {isAreaExpanded ? (
-                  <div className="mx-2.5 mb-2.5 border-l border-black/8 pl-2.5 dark:border-white/10">
+                  <div className="mx-2.5 mb-2.5 border-l border-default pl-2.5">
                     <div className="space-y-1">
                       {area.families.map((family) => {
                         const leadIssue = pickLeadIssue(family);
@@ -646,28 +646,28 @@ function SpecFamilyExplorer({
                               }}
                               className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${
                                 isSelectedFamily
-                                  ? "bg-slate-100 text-slate-950 dark:bg-white/[0.08] dark:text-slate-50"
-                                  : "hover:bg-white/70 dark:hover:bg-white/[0.04]"
+                                  ? "bg-subtle text-primary"
+                                  : "hover:bg-hover"
                               }`}
                             >
                               {isClusterExpanded ? (
-                                <ChevronDown className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" strokeWidth={1.8} />
+                                <ChevronDown className="mt-0.5 h-3 w-3 shrink-0 text-secondary" strokeWidth={1.8} />
                               ) : (
-                                <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" strokeWidth={1.8} />
+                                <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-secondary" strokeWidth={1.8} />
                               )}
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-[12px] font-medium text-slate-900 dark:text-slate-50">
+                                <div className="truncate text-[12px] font-medium text-primary">
                                   {clusterLabel}
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-1">
-                                  <CompactBadge className="bg-black/[0.04] text-slate-500 dark:bg-white/6 dark:text-slate-300">
+                                  <CompactBadge className="bg-subtle text-secondary">
                                     {family.issues.length} {t.specBoard.members}
                                   </CompactBadge>
-                                  <CompactBadge className="bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">
+                                  <CompactBadge className="bg-danger-subtle text-danger">
                                     {family.unresolvedCount}
                                   </CompactBadge>
                                   {family.relationCount > 0 ? (
-                                    <CompactBadge className="bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-200">
+                                    <CompactBadge className="bg-accent-subtle text-accent">
                                       {family.relationCount} {t.specBoard.relations}
                                     </CompactBadge>
                                   ) : null}
@@ -676,7 +676,7 @@ function SpecFamilyExplorer({
                             </button>
 
                             {isClusterExpanded ? (
-                              <div className="ml-4 border-l border-black/8 pl-2 dark:border-white/10">
+                              <div className="ml-4 border-l border-default pl-2">
                                 <div className="space-y-0.5">
                                   {family.issues.map((issue) => {
                                     const normalizedStatus = normalizeSpecStatus(issue.status);
@@ -694,16 +694,16 @@ function SpecFamilyExplorer({
                                         onClick={() => onSelectIssue(issue)}
                                         className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left ${
                                           isSelected
-                                            ? "bg-white text-slate-950 shadow-sm dark:bg-white/[0.06] dark:text-slate-50"
-                                            : "hover:bg-white/70 dark:hover:bg-white/[0.03]"
+                                            ? "bg-surface text-primary shadow-sm"
+                                            : "hover:bg-hover"
                                         }`}
                                       >
                                         <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_THEMES[normalizedStatus].dot}`} />
                                         <div className="min-w-0 flex-1">
-                                          <div className="truncate text-[12px] text-slate-800 dark:text-slate-100">
+                                          <div className="truncate text-[12px] text-primary">
                                             {issue.title || issue.filename}
                                           </div>
-                                          <div className="truncate text-[10px] text-slate-500 dark:text-slate-400">
+                                          <div className="truncate text-[10px] text-secondary">
                                             {metaParts.join(" · ")}
                                           </div>
                                         </div>
@@ -743,7 +743,7 @@ function RelationPill({
       <button
         type="button"
         onClick={() => onSelectLocalIssue(relation.targetFilename as string)}
-        className={`${baseClassName} border-black/8 bg-black/[0.03] text-slate-700 hover:bg-black/[0.05] dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10`}
+        className={`${baseClassName} border-default bg-subtle text-primary hover:bg-hover`}
       >
         <Link2 className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
         <span className="truncate">{relation.label}</span>
@@ -757,7 +757,7 @@ function RelationPill({
         href={relation.href}
         target="_blank"
         rel="noopener noreferrer"
-        className={`${baseClassName} border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-500/30 dark:bg-sky-500/15 dark:text-sky-200 dark:hover:bg-sky-500/20`}
+        className={`${baseClassName} border-accent bg-accent-subtle text-accent hover:opacity-90`}
       >
         <span className="truncate">{relation.label}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
@@ -766,7 +766,7 @@ function RelationPill({
   }
 
   return (
-    <span className={`${baseClassName} border-black/8 bg-black/[0.03] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200`}>
+    <span className={`${baseClassName} border-default bg-subtle text-secondary`}>
       {relation.label}
     </span>
   );
@@ -783,9 +783,9 @@ function IssueButton({
     <button
       type="button"
       onClick={() => onSelectIssue(issue.filename)}
-      className="flex w-full items-start gap-2 rounded-lg border border-black/8 bg-white/80 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
+      className="flex w-full items-start gap-2 rounded-lg border border-default bg-surface px-3 py-2 text-left text-sm text-primary transition-colors hover:bg-hover"
     >
-      <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" strokeWidth={1.8} />
+      <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary" strokeWidth={1.8} />
       <span className="line-clamp-2">{issue.title || issue.filename}</span>
     </button>
   );
@@ -801,12 +801,12 @@ function DetailSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-black/6 bg-[#f8fafc] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+    <section className="rounded-xl border border-default bg-subtle p-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+        <div className="text-[11px] font-semibold text-secondary">
           {title}
         </div>
-        <CompactBadge className="bg-black/[0.04] text-slate-500 dark:bg-white/6 dark:text-slate-300">
+        <CompactBadge className="bg-subtle text-secondary">
           {count}
         </CompactBadge>
       </div>
@@ -817,13 +817,13 @@ function DetailSection({
 
 function SurfaceHitCard({ hit }: { hit: SurfaceHit }) {
   return (
-    <article className="rounded-lg border border-black/6 bg-white/80 p-2.5 dark:border-white/10 dark:bg-white/5">
+    <article className="rounded-lg border border-default bg-surface p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-50">
+          <div className="truncate text-sm font-medium text-primary">
             {hit.label}
           </div>
-          <div className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-1 truncate text-[11px] text-secondary">
             {hit.secondaryLabel}
           </div>
         </div>
@@ -833,7 +833,7 @@ function SurfaceHitCard({ hit }: { hit: SurfaceHit }) {
       </div>
 
       {hit.description ? (
-        <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{hit.description}</div>
+        <div className="mt-2 text-[11px] text-secondary">{hit.description}</div>
       ) : null}
 
       {hit.evidence.length > 0 ? (
@@ -841,7 +841,7 @@ function SurfaceHitCard({ hit }: { hit: SurfaceHit }) {
           {hit.evidence.map((evidence) => (
             <CompactBadge
               key={evidence}
-              className="bg-black/[0.04] text-slate-600 dark:bg-white/8 dark:text-slate-200"
+              className="bg-subtle text-secondary"
             >
               {evidence}
             </CompactBadge>
@@ -873,13 +873,13 @@ function SpecDetailPane({
       <section
         role="region"
         aria-label={t.specBoard.selectIssue}
-        className="flex min-h-[28rem] items-center justify-center rounded-2xl border border-dashed border-black/8 bg-white/70 p-6 text-center dark:border-white/10 dark:bg-[#0f1722]/70"
+        className="flex min-h-[28rem] items-center justify-center rounded-2xl border border-dashed border-default bg-surface p-6 text-center"
       >
         <div className="max-w-md">
-          <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+          <div className="text-sm font-semibold text-primary">
             {t.specBoard.selectIssue}
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-sm leading-6 text-secondary">
             {t.specBoard.selectIssueBody}
           </p>
         </div>
@@ -899,15 +899,15 @@ function SpecDetailPane({
     <section
       role="region"
       aria-label={issue.title || issue.filename}
-      className="flex min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-black/6 bg-white/88 dark:border-white/10 dark:bg-[#0f1722]/88"
+      className="flex min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-default bg-surface"
     >
-      <div className="border-b border-black/6 px-3.5 py-3 dark:border-white/10">
+      <div className="border-b border-default px-3.5 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-semibold text-secondary">
               {t.nav.spec}
             </div>
-            <h2 className="mt-1 text-[17px] font-semibold leading-6 text-slate-900 dark:text-slate-50">
+            <h2 className="mt-1 text-[17px] font-semibold leading-6 text-primary">
               {issue.title || issue.filename}
             </h2>
           </div>
@@ -922,26 +922,26 @@ function SpecDetailPane({
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-          <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/6 dark:text-slate-200">
+        <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-secondary">
+          <CompactBadge className="bg-subtle text-secondary">
             {issue.kind}
           </CompactBadge>
           {issue.area ? (
-            <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/6 dark:text-slate-200">
+            <CompactBadge className="bg-subtle text-secondary">
               {issue.area}
             </CompactBadge>
           ) : null}
           {issue.date ? (
-            <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/6 dark:text-slate-200">
+            <CompactBadge className="bg-subtle text-secondary">
               {`${t.specBoard.date}: ${issue.date}`}
             </CompactBadge>
           ) : null}
           {issue.reportedBy ? (
-            <CompactBadge className="bg-black/[0.04] text-slate-600 dark:bg-white/6 dark:text-slate-200">
+            <CompactBadge className="bg-subtle text-secondary">
               {`${t.specBoard.reportedBy}: ${issue.reportedBy}`}
             </CompactBadge>
           ) : null}
-          <CompactBadge className="bg-black/[0.04] font-mono text-slate-600 dark:bg-white/6 dark:text-slate-200">
+          <CompactBadge className="bg-subtle font-mono text-secondary">
             {issue.filename}
           </CompactBadge>
           {issue.githubIssue != null ? (
@@ -950,13 +950,13 @@ function SpecDetailPane({
                 href={issue.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] text-sky-700 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-200 dark:hover:bg-sky-500/20"
+                className="inline-flex items-center gap-1 rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] text-accent hover:opacity-90"
               >
                 <span>#{issue.githubIssue} ({issue.githubState ?? t.specBoard.githubStateUnknown})</span>
                 <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={1.8} />
               </a>
             ) : (
-              <CompactBadge className="bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-200">
+              <CompactBadge className="bg-accent-subtle text-accent">
                 #{issue.githubIssue}
               </CompactBadge>
             )
@@ -976,7 +976,7 @@ function SpecDetailPane({
                 />
               ))
             ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400">{t.specBoard.noBacklinks}</div>
+              <div className="text-sm text-secondary">{t.specBoard.noBacklinks}</div>
             )}
           </DetailSection>
 
@@ -990,7 +990,7 @@ function SpecDetailPane({
                 />
               ))
             ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400">{t.specBoard.noLinkedIssues}</div>
+              <div className="text-sm text-secondary">{t.specBoard.noLinkedIssues}</div>
             )}
           </DetailSection>
 
@@ -1006,21 +1006,21 @@ function SpecDetailPane({
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-slate-500 dark:text-slate-400">{t.specBoard.noLinkedIssues}</div>
+              <div className="text-sm text-secondary">{t.specBoard.noLinkedIssues}</div>
             )}
           </DetailSection>
         </div>
 
-        <section className="rounded-xl border border-black/6 bg-[#f8fafc] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <section className="rounded-xl border border-default bg-subtle p-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-semibold text-secondary">
               {t.specBoard.featureFootprint}
             </div>
             <div className="flex items-center gap-1">
-              <CompactBadge className="bg-black/[0.04] text-slate-500 dark:bg-white/6 dark:text-slate-300">
+              <CompactBadge className="bg-subtle text-secondary">
                 {pages.length} {t.specBoard.pages}
               </CompactBadge>
-              <CompactBadge className="bg-black/[0.04] text-slate-500 dark:bg-white/6 dark:text-slate-300">
+              <CompactBadge className="bg-subtle text-secondary">
                 {apis.length} {t.specBoard.apis}
               </CompactBadge>
             </div>
@@ -1033,19 +1033,19 @@ function SpecDetailPane({
               ))}
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-black/8 bg-white/70 px-3 py-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+            <div className="mt-2 rounded-lg border border-dashed border-default bg-surface px-3 py-4 text-sm text-secondary">
               {surfaceWarnings.length > 0 ? t.specBoard.surfaceMapUnavailable : t.specBoard.noSurfaceHits}
             </div>
           )}
         </section>
 
         {issue.tags.length > 0 ? (
-          <section className="rounded-xl border border-black/6 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <section className="rounded-xl border border-default bg-surface p-3">
             <div className="flex flex-wrap gap-1.5">
               {issue.tags.map((tag) => (
                 <CompactBadge
                   key={tag}
-                  className="border border-black/6 bg-[#f6f3ee] text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-200"
+                  className="border border-default bg-subtle text-secondary"
                 >
                   {tag}
                 </CompactBadge>
@@ -1054,12 +1054,12 @@ function SpecDetailPane({
           </section>
         ) : null}
 
-        <details className="rounded-xl border border-black/6 bg-[#fdfdfd] p-3 dark:border-white/10 dark:bg-[#0c121b]">
-          <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+        <details className="rounded-xl border border-default bg-subtle p-3">
+          <summary className="cursor-pointer list-none text-[11px] font-semibold text-secondary">
             {t.specBoard.body}
           </summary>
           <div className="mt-3">
-            <MarkdownViewer content={issue.body} className="text-sm text-slate-700 dark:text-slate-100" />
+            <MarkdownViewer content={issue.body} className="text-sm text-primary" />
           </div>
         </details>
       </div>
@@ -1237,13 +1237,13 @@ export function SpecBoardPanel({ workspaceId }: { workspaceId: string }) {
       />
 
       {loading ? (
-        <div className="flex min-h-[28rem] flex-1 items-center justify-center rounded-2xl border border-black/6 bg-white/75 text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-300">
+        <div className="flex min-h-[28rem] flex-1 items-center justify-center rounded-2xl border border-default bg-surface text-secondary">
           <span className="animate-pulse">{t.common.loading}</span>
         </div>
       ) : null}
 
       {!loading && error ? (
-        <div className="flex min-h-[20rem] flex-1 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50/90 px-6 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+        <div className="flex min-h-[20rem] flex-1 items-center justify-center rounded-2xl border border-danger bg-danger-subtle px-6 text-danger">
           <span>{error}</span>
         </div>
       ) : null}
@@ -1304,8 +1304,8 @@ export function SpecPageClient() {
 
   if (workspacesHook.loading && workspaceId !== "default") {
     return (
-      <div className="desktop-theme flex h-screen items-center justify-center bg-desktop-bg-primary">
-        <div className="flex items-center gap-3 text-desktop-text-secondary">
+      <div className="desktop-theme flex h-screen items-center justify-center bg-canvas">
+        <div className="flex items-center gap-3 text-secondary">
           <PieChart className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" />
           {t.workspace.loadingWorkspace}
         </div>
@@ -1330,7 +1330,7 @@ export function SpecPageClient() {
         />
       )}
     >
-      <div className="flex h-full min-h-0 bg-[#f3f5f8] text-slate-900 dark:bg-[#0a0f16] dark:text-slate-50">
+      <div className="flex h-full min-h-0 bg-canvas text-primary">
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-hidden p-3">
             <SpecBoardPanel workspaceId={workspaceId} />
