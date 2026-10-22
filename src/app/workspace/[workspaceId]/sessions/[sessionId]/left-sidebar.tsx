@@ -73,10 +73,10 @@ function SpecViewer({ specNote, onDeleteNote }: {
   return (
     <div className="flex flex-col h-full">
       {/* Spec header */}
-      <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+      <div className="px-3 py-2 border-b border-default flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+          <FileText className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <span className="text-xs font-semibold text-accent">
             {specNote?.title || t.common.spec}
           </span>
         </div>
@@ -84,7 +84,7 @@ function SpecViewer({ specNote, onDeleteNote }: {
           <button
             onClick={() => onDeleteNote(specNote.id)}
             title={t.common.deleteSpec}
-            className="p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="p-0.5 rounded text-secondary hover:text-danger hover:bg-danger-subtle transition-colors"
           >
             <X className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </button>
@@ -95,10 +95,10 @@ function SpecViewer({ specNote, onDeleteNote }: {
         {specNote ? (
           <MarkdownViewer
             content={specNote.content || t.common.noSpecContentYet}
-            className="text-[12px] text-slate-700 dark:text-slate-300"
+            className="text-[12px] text-primary"
           />
         ) : (
-          <div className="h-full rounded-xl border border-dashed border-blue-200 bg-blue-50/60 px-3 py-4 text-[12px] text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200">
+          <div className="h-full rounded-xl border border-dashed border-accent bg-accent-subtle px-3 py-4 text-[12px] text-accent">
             {t.common.noSpecNoteYet}
           </div>
         )}
@@ -126,13 +126,13 @@ function TaskSnapshotSummary({
   if (taskCount === 0 && !hasSpec) return null;
 
   return (
-    <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-[#171a23] shrink-0" data-testid="session-quick-access">
+    <div className="border-t border-default bg-subtle shrink-0" data-testid="session-quick-access">
       <div className="px-3 py-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+          <p className="text-[10px] font-semibold text-secondary">
             Quick Access
           </p>
-          <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
+          <p className="mt-1 text-[12px] text-secondary">
             {taskCount > 0
               ? `${taskCount} task${taskCount === 1 ? "" : "s"}${runningCount > 0 ? `, ${runningCount} running` : ""}`
               : t.common.specAvailable}
@@ -143,7 +143,7 @@ function TaskSnapshotSummary({
             <button
               type="button"
               onClick={onOpenSpec}
-              className="px-2 py-1 rounded-md text-[10px] font-medium text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+              className="px-2 py-1 rounded-md text-[10px] font-medium text-accent bg-accent-subtle hover:bg-accent-subtle transition-colors"
             >
               Spec
             </button>
@@ -152,7 +152,7 @@ function TaskSnapshotSummary({
             <button
               type="button"
               onClick={onOpenTasks}
-              className="px-2 py-1 rounded-md text-[10px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+              className="px-2 py-1 rounded-md text-[10px] font-medium text-success bg-success-subtle hover:bg-success-subtle transition-colors"
             >
               Open Tasks
             </button>
@@ -164,15 +164,15 @@ function TaskSnapshotSummary({
           type="button"
           onClick={onOpenSpec}
           data-testid="session-spec-preview"
-          className="mx-3 mb-3 flex w-[calc(100%-1.5rem)] flex-col gap-1 rounded-lg border border-blue-100 bg-white/80 px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-white dark:border-blue-900/40 dark:bg-[#121722] dark:hover:border-blue-800"
+          className="mx-3 mb-3 flex w-[calc(100%-1.5rem)] flex-col gap-1 rounded-lg border border-accent bg-surface px-3 py-2 text-left transition-colors hover:border-accent hover:bg-surface"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-500 dark:text-blue-300">
+          <span className="text-[10px] font-semibold text-accent">
             Spec Preview
           </span>
           {specPreviewLines.map((line, index) => (
             <span
               key={`${index}-${line}`}
-              className="text-[11px] leading-5 text-slate-600 dark:text-slate-300 line-clamp-1"
+              className="text-[11px] leading-5 text-secondary line-clamp-1"
             >
               {line}
             </span>
@@ -299,11 +299,11 @@ function SessionsSplitPane({
       {(hasTasks || hasSpec) && (
         <>
           <div
-            className="hidden md:flex h-2 shrink-0 cursor-row-resize items-center justify-center border-y border-slate-100 bg-slate-50/90 transition-colors hover:bg-blue-50 dark:border-slate-800 dark:bg-[#13151d] dark:hover:bg-blue-950/20"
+            className="hidden md:flex h-2 shrink-0 cursor-row-resize items-center justify-center border-y border-default bg-subtle transition-colors hover:bg-accent-subtle"
             onMouseDown={() => setIsDraggingSplit(true)}
             data-testid="session-sidebar-split-handle"
           >
-            <div className="h-1 w-10 rounded-full bg-slate-300 dark:bg-slate-600" />
+            <div className="h-1 w-10 rounded-full bg-default" />
           </div>
           <div
             className="min-h-44 shrink-0 overflow-hidden"
@@ -318,7 +318,7 @@ function SessionsSplitPane({
             onOpenSpec={onSwitchToSpec}
           />
           {hasTasks && (
-            <div className="flex-1 min-h-0 overflow-y-auto border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#13151d]">
+            <div className="flex-1 min-h-0 overflow-y-auto border-t border-default bg-surface">
               <MiniTaskList
                 hasCollabNotes={hasCollabNotes}
                 sessionNotes={sessionNotes}
@@ -337,15 +337,15 @@ function SessionsSplitPane({
 
 /* ─── Mini Task List (summary list in Sessions tab) ─────────────────── */
 const STATUS_COLORS: Record<string, string> = {
-  pending:     "bg-slate-300 dark:bg-slate-600",
-  confirmed:   "bg-blue-400 dark:bg-blue-500",
-  running:     "bg-amber-400 animate-pulse",
-  completed:   "bg-emerald-500",
-  error:       "bg-red-500",
-  IN_PROGRESS: "bg-amber-400 animate-pulse",
-  COMPLETED:   "bg-emerald-500",
-  FAILED:      "bg-red-500",
-  PENDING:     "bg-slate-300 dark:bg-slate-600",
+  pending:     "bg-default",
+  confirmed:   "bg-accent",
+  running:     "bg-attention animate-pulse",
+  completed:   "bg-success",
+  error:       "bg-danger",
+  IN_PROGRESS: "bg-attention animate-pulse",
+  COMPLETED:   "bg-success",
+  FAILED:      "bg-danger",
+  PENDING:     "bg-default",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -400,24 +400,24 @@ function MiniTaskList({
     <div className="px-3 py-2 space-y-2" data-testid="session-task-snapshot">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <span className="text-[10px] font-semibold text-secondary">
             Task Snapshot
           </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-subtle text-secondary">
             {items.length} total
           </span>
           {runningCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-attention-subtle text-attention">
               {runningCount} running
             </span>
           )}
           {completedCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success-subtle text-success">
               {completedCount} done
             </span>
           )}
         </div>
-        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 shrink-0">
+        <span className="text-[10px] font-medium text-secondary shrink-0">
           quick run
         </span>
       </div>
@@ -426,15 +426,15 @@ function MiniTaskList({
           <div
             key={item.id}
             data-testid="session-task-snapshot-item"
-            className="w-full flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#171a23] px-2.5 py-2"
+            className="w-full flex items-center gap-2 rounded-lg border border-default bg-surface px-2.5 py-2"
           >
-            <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_COLORS[item.status] ?? "bg-slate-300"}`} />
+            <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_COLORS[item.status] ?? "bg-default"}`} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate">
+                <span className="text-[11px] font-medium text-primary truncate">
                   {item.title}
                 </span>
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
+                <span className="text-[9px] text-secondary shrink-0">
                   {STATUS_LABEL[item.status] ?? item.status}
                 </span>
               </div>
@@ -451,7 +451,7 @@ function MiniTaskList({
                   setExecutingId((current) => current === item.id ? null : current);
                 }
               }}
-              className="shrink-0 inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-60 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+              className="shrink-0 inline-flex items-center gap-1 rounded-md border border-success bg-success-subtle px-2 py-1 text-[10px] font-medium text-success transition-colors hover:bg-success-subtle disabled:cursor-wait disabled:opacity-60"
               title={`${item.actionLabel ?? "Run"} ${item.title}`}
             >
               <Play className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -478,8 +478,8 @@ function TabButton({ active, label, badge, badgePulse, icon, onClick }: {
       onClick={onClick}
       className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-t-md border-b-2 transition-colors whitespace-nowrap ${
         active
-          ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/10"
-          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          ? "border-accent text-accent bg-accent-subtle"
+          : "border-transparent text-secondary hover:text-primary hover:bg-hover"
       }`}
     >
       {icon}
@@ -487,10 +487,10 @@ function TabButton({ active, label, badge, badgePulse, icon, onClick }: {
       {badge != null && badge > 0 && (
         <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${
           badgePulse
-            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 animate-pulse"
+            ? "bg-attention-subtle text-attention animate-pulse"
             : active
-              ? "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300"
-              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+              ? "bg-accent-subtle text-accent"
+              : "bg-default text-secondary"
         }`}>
           {badge > 99 ? "99+" : badge}
         </span>
@@ -559,8 +559,8 @@ export function LeftSidebar({
   return (
     <>
       <aside
-        className={`shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151d] flex flex-col relative transition-[width] duration-200
-          ${showMobileSidebar ? "fixed inset-y-13 left-0 z-40 shadow-2xl overflow-hidden rounded-r-2xl" : "hidden md:flex overflow-hidden"}
+        className={`shrink-0 border-r border-default bg-surface flex flex-col relative transition-[width] duration-200
+          ${showMobileSidebar ? "fixed inset-y-13 left-0 z-40 shadow-overlay overflow-hidden rounded-r-lg" : "hidden lg:flex overflow-hidden"}
         `}
         style={{ width: isDesktopCollapsed ? "44px" : showMobileSidebar ? "min(360px, calc(100vw - 16px))" : `${width}px` }}
       >
@@ -569,7 +569,7 @@ export function LeftSidebar({
           <div className="flex flex-col items-center py-2 gap-1.5 h-full">
             <button
               onClick={onToggleCollapse}
-              className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              className="p-1.5 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
               title={t.common.expandSidebar}
             >
               <ChevronsRight className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -579,7 +579,7 @@ export function LeftSidebar({
             <button
               onClick={() => { onCreateSession(""); }}
               disabled={!canCreateSession}
-              className="p-1.5 rounded-md text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-md text-accent hover:bg-accent-subtle transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title={t.common.newSession}
             >
               <Plus className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -588,7 +588,7 @@ export function LeftSidebar({
             {/* Sessions */}
             <button
               onClick={() => { onToggleCollapse(); setActiveTab("sessions"); }}
-              className={`p-1.5 rounded-md transition-colors ${activeTab === "sessions" ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+              className={`p-1.5 rounded-md transition-colors ${activeTab === "sessions" ? "text-accent bg-accent-subtle" : "text-secondary hover:text-primary hover:bg-hover"}`}
               title={t.sessions.title}
             >
               <MessageSquareMore className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -597,7 +597,7 @@ export function LeftSidebar({
             {/* Spec */}
             <button
               onClick={() => { onToggleCollapse(); setActiveTab("spec"); }}
-              className={`p-1.5 rounded-md transition-colors ${activeTab === "spec" ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+              className={`p-1.5 rounded-md transition-colors ${activeTab === "spec" ? "text-accent bg-accent-subtle" : "text-secondary hover:text-primary hover:bg-hover"}`}
               title={t.common.spec}
             >
               <FileText className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -606,12 +606,12 @@ export function LeftSidebar({
             {/* Tasks */}
             <button
               onClick={() => { onToggleCollapse(); setActiveTab("tasks"); }}
-              className={`relative p-1.5 rounded-md transition-colors ${activeTab === "tasks" ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+              className={`relative p-1.5 rounded-md transition-colors ${activeTab === "tasks" ? "text-success bg-success-subtle" : "text-secondary hover:text-primary hover:bg-hover"}`}
               title={t.common.tasks}
             >
               <ClipboardCheck className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
               {taskCount > 0 && (
-                <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full text-white text-[8px] font-bold ${hasRunningTasks ? "bg-amber-400 animate-pulse" : "bg-emerald-500"}`}>
+                <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full text-on-accent text-[8px] font-bold ${hasRunningTasks ? "bg-attention animate-pulse" : "bg-success"}`}>
                   {taskCount > 9 ? "9+" : taskCount}
                 </span>
               )}
@@ -622,7 +622,7 @@ export function LeftSidebar({
           /* ─── Expanded: tabbed sidebar ───────────────────────── */
           <>
             {/* Header: codebase + new session + collapse */}
-            <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
+            <div className="px-3 py-1.5 border-b border-default flex items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <button
                   onClick={() => {
@@ -632,15 +632,15 @@ export function LeftSidebar({
                     }
                     onToggleCollapse();
                   }}
-                  className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
+                  className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors shrink-0"
                   title={showMobileSidebar ? t.nav.closeSidebar : t.common.collapseSidebar}
                 >
                   <ChevronsLeft className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                 </button>
                 {codebases.length > 0 && repoSelection && (
                   <>
-                    <Folder className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    <Folder className="w-3.5 h-3.5 text-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                    <span className="text-xs text-secondary truncate">
                       {repoSelection.name ?? repoSelection.path.split("/").pop()}
                     </span>
                   </>
@@ -654,7 +654,7 @@ export function LeftSidebar({
                   }}
                   disabled={!canCreateSession}
                   title={t.common.newSession}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent-subtle transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                   <span className="hidden sm:inline">{t.common.new}</span>
@@ -663,7 +663,7 @@ export function LeftSidebar({
             </div>
 
             {/* Tab bar */}
-            <div className="flex items-end px-1 pt-1 border-b border-slate-200 dark:border-slate-700 shrink-0 gap-0.5 overflow-x-auto">
+            <div className="flex items-end px-1 pt-1 border-b border-default shrink-0 gap-0.5 overflow-x-auto">
               <TabButton
                 active={activeTab === "sessions"}
                 label={t.sessions.title}
@@ -757,7 +757,7 @@ export function LeftSidebar({
         )}
 
         {/* Left sidebar resize handle */}
-        <div className="left-resize-handle hidden md:block" onMouseDown={onResizeStart}>
+        <div className="left-resize-handle hidden lg:block" onMouseDown={onResizeStart}>
           <div className="resize-indicator" />
         </div>
       </aside>

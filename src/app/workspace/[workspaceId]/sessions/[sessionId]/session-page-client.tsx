@@ -34,9 +34,10 @@ import { type AgentRole, type SpecialistOption, useSessionPageBootstrap } from "
 import { useSessionCrafters } from "./use-session-crafters";
 import { useSessionCanvasArtifacts } from "./use-session-canvas-artifacts";
 import { RepoSlideSessionPanel } from "./repo-slide-session-panel";
+import { SessionDetailHeader } from "./session-detail-header";
 import { Select } from "@/client/components/select";
 import { useTranslation } from "@/i18n";
-import { ChevronDown, Columns2, ScrollText, X } from "lucide-react";
+import { ChevronDown, Columns2, PanelLeft, ScrollText, X } from "lucide-react";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { buildLiveCanvasAgentPrompt } from "@/core/canvas/session-canvas-prompt";
 
@@ -810,8 +811,8 @@ export function SessionPageClient() {
   // or while workspaces are loading
   if (!isResolved || (workspacesHook.loading && !isDefaultWorkspace)) {
     return (
-      <div className="desktop-theme h-screen flex items-center justify-center bg-[var(--dt-bg-primary)]">
-        <div className="text-[var(--dt-text-secondary)]">{t.common.loading}</div>
+      <div className="h-screen flex items-center justify-center bg-surface">
+        <div className="text-secondary">{t.common.loading}</div>
       </div>
     );
   }
@@ -819,8 +820,8 @@ export function SessionPageClient() {
   // For non-default workspaces, require workspace to exist
   if (!workspace && !isDefaultWorkspace) {
     return (
-      <div className="desktop-theme h-screen flex items-center justify-center bg-[var(--dt-bg-primary)]">
-        <div className="text-[var(--dt-text-secondary)]">{t.common.loading}</div>
+      <div className="h-screen flex items-center justify-center bg-surface">
+        <div className="text-secondary">{t.common.loading}</div>
       </div>
     );
   }
@@ -878,7 +879,7 @@ export function SessionPageClient() {
       <Select
         value={selectedSpecialistId ? `specialist:${selectedSpecialistId}` : selectedAgent}
         onChange={(e) => handleAgentChange(e.target.value)}
-        className="appearance-none rounded-xl border border-desktop-border bg-desktop-bg-secondary py-1.5 pl-2.5 pr-7 text-[11px] font-medium text-desktop-text-primary cursor-pointer focus:ring-1 focus:ring-desktop-accent"
+        className="appearance-none rounded-xl border border-default bg-subtle py-1.5 pl-2.5 pr-7 text-[11px] font-medium text-primary cursor-pointer focus:ring-1 focus:ring-accent"
       >
         {BUILTIN_ROLES.map((r) => (
           <option key={r.value} value={r.value}>{r.label}</option>
@@ -893,7 +894,7 @@ export function SessionPageClient() {
           </optgroup>
         )}
       </Select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-desktop-text-secondary pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-secondary pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
     </div>
   );
   const sessionTitleBarRight = (
@@ -904,7 +905,7 @@ export function SessionPageClient() {
           type="button"
           onClick={() => void handleResumeCurrentSession()}
           disabled={isResumingSession || acp.loading}
-          className="inline-flex rounded-xl border border-desktop-border bg-desktop-bg-secondary px-2.5 py-1.5 text-[11px] font-medium text-desktop-text-primary transition-colors hover:bg-desktop-bg-active disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex rounded-xl border border-default bg-subtle px-2.5 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
           title={t.sessions.resumeHint}
         >
           {isResumingSession || acp.loading ? t.sessions.resuming : t.sessions.resume}
@@ -914,16 +915,16 @@ export function SessionPageClient() {
   );
 
   const sessionPageContent = (
-    <div className={`desktop-theme flex min-w-0 flex-col bg-[var(--dt-bg-primary)] ${isEmbedMode ? "h-screen embed-mode" : "h-full"}`}>
+    <div className={`flex min-w-0 flex-col bg-surface ${isEmbedMode ? "h-screen embed-mode" : "h-full"}`}>
 
       {isPlanningSession && !isEmbedMode ? (
-        <div className="border-b border-black/6 bg-[#f7f3ea] px-5 py-4 dark:border-white/8 dark:bg-[#10161d]">
+        <div className="border-b border-default bg-surface px-5 py-4">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-end">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => router.push(`/workspace/${workspaceId}/sessions`)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-full border border-default bg-surface px-3 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-hover"
               >
                 <ScrollText className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
                 {t.nav.sessions}
@@ -931,7 +932,7 @@ export function SessionPageClient() {
               <button
                 type="button"
                 onClick={() => router.push(`/workspace/${workspaceId}/kanban`)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-slate-800 dark:bg-amber-500 dark:text-slate-950 dark:hover:bg-amber-400"
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[11px] font-medium text-on-accent transition-colors hover:opacity-90"
               >
                 <Columns2 className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
                 {t.workspace.goToBoard}
@@ -941,12 +942,35 @@ export function SessionPageClient() {
         </div>
       ) : null}
 
+      {!isEmbedMode ? (
+        <SessionDetailHeader
+          eyebrow={t.sessionsRedesign.sessionDetailEyebrow}
+          title={activeSessionRecord?.name || `${t.sessionsRedesign.sessionDetailEyebrow} ${displaySessionId.slice(0, 8)}`}
+          sessionId={displaySessionId}
+          model={activeSessionRecord?.model}
+          role={activeSessionRecord?.role}
+          provider={activeSessionRecord?.provider}
+          actions={(
+            <button
+              type="button"
+              onClick={() => setShowMobileSidebar((open) => !open)}
+              aria-expanded={showMobileSidebar}
+              data-testid="session-context-toggle"
+              className="inline-flex min-h-7 items-center gap-1.5 rounded-control border border-default bg-surface px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
+            >
+              <PanelLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              {showMobileSidebar ? t.sessionsRedesign.hideContext : t.sessionsRedesign.showContext}
+            </button>
+          )}
+        />
+      ) : null}
+
       {/* ─── Main Area ────────────────────────────────────────────── */}
       <div className="flex-1 flex min-h-0 relative">
         {/* Mobile sidebar overlay */}
         {showMobileSidebar && (
           <div
-            className="fixed inset-0 z-30 bg-black/40 md:hidden"
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
             onClick={() => setShowMobileSidebar(false)}
           />
         )}
@@ -992,7 +1016,7 @@ export function SessionPageClient() {
         )}
 
         {/* ─── Chat Area ──────────────────────────────────────────── */}
-        <div className="flex flex-1 min-w-0 flex-col">
+        <div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden">
           {repoSlideSource && (
             <RepoSlideSessionPanel
               workspaceId={workspaceId}
@@ -1032,13 +1056,13 @@ export function SessionPageClient() {
           <>
             {/* Right sidebar resize handle */}
             <div
-              className="hidden md:flex items-center justify-center w-1 cursor-col-resize hover:bg-[var(--dt-accent)]/30 active:bg-[var(--dt-accent)]/50 transition-colors group shrink-0"
+              className="hidden lg:flex items-center justify-center w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors group shrink-0"
               onMouseDown={handleResizeStart}
             >
-              <div className="w-0.5 h-8 rounded-full bg-[var(--dt-border)] group-hover:bg-[var(--dt-accent)] group-active:bg-[var(--dt-accent)] transition-colors" />
+              <div className="w-0.5 h-8 rounded-full bg-default group-hover:bg-accent group-active:bg-accent transition-colors" />
             </div>
             <aside
-              className="hidden md:flex shrink-0 border-l border-[var(--dt-border)] bg-[var(--dt-bg-primary)] flex-col overflow-hidden"
+              className="hidden lg:flex shrink-0 border-l border-default bg-surface flex-col overflow-hidden"
               style={{ width: `${sidebarWidth}px` }}
             >
               {hasSessionCanvasPanel ? (
@@ -1051,29 +1075,29 @@ export function SessionPageClient() {
               ) : (
                 <>
                   {/* CRAFTER agents header */}
-                  <div className="px-3 py-2 border-b border-[var(--dt-border)] flex items-center justify-between">
+                  <div className="px-3 py-2 border-b border-default flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-[var(--dt-text-primary)]">
+                      <span className="text-xs font-semibold text-primary">
                         {t.sessions.craftersLabel}
                       </span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--dt-bg-active)] text-[var(--dt-accent)]">
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-hover text-accent">
                         {crafterAgents.length}
                       </span>
                     </div>
                     {/* Concurrency control */}
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium text-[var(--dt-text-secondary)] uppercase tracking-wider">
+                      <span className="text-[10px] font-medium text-secondary">
                         {t.sessions.concurrencyLabel}
                       </span>
-                      <div className="flex items-center rounded-md border border-[var(--dt-border)] overflow-hidden">
+                      <div className="flex items-center rounded-md border border-default overflow-hidden">
                         {[1, 2].map((n) => (
                           <button
                             key={n}
                             onClick={() => handleConcurrencyChange(n)}
                             className={`px-2 py-0.5 text-[11px] font-medium transition-colors ${
                               concurrency === n
-                                ? "bg-[var(--dt-accent)] text-[var(--dt-accent-text)]"
-                                : "bg-[var(--dt-bg-primary)] text-[var(--dt-text-secondary)] hover:bg-[var(--dt-bg-active)]"
+                                ? "bg-accent text-on-accent"
+                                : "bg-surface text-secondary hover:bg-hover"
                             }`}
                           >
                             {n}
@@ -1115,19 +1139,19 @@ export function SessionPageClient() {
             aria-hidden="true"
           />
           <div
-            className="relative w-full max-w-5xl h-[80vh] bg-[var(--dt-bg-primary)] border border-[var(--dt-border)] rounded-xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-5xl h-[80vh] bg-surface border border-default rounded-xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-11 px-4 border-b border-[var(--dt-border)] flex items-center justify-between">
+            <div className="h-11 px-4 border-b border-default flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div id="agent-install-title" className="text-sm font-semibold text-[var(--dt-text-primary)]">
+                <div id="agent-install-title" className="text-sm font-semibold text-primary">
                   {t.sessions.installAgents}
                 </div>
                 <a
                   href="/settings/agents"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[11px] text-[var(--dt-text-secondary)] hover:text-[var(--dt-text-primary)] transition-colors"
+                  className="text-[11px] text-secondary hover:text-primary transition-colors"
                 >
                   {t.sessions.openInNewTab}
                 </a>
@@ -1136,7 +1160,7 @@ export function SessionPageClient() {
                 ref={agentInstallCloseRef}
                 type="button"
                 onClick={() => setShowAgentInstallPopup(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--dt-bg-active)] text-[var(--dt-text-secondary)] hover:text-[var(--dt-text-primary)] transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
                 title={t.common.closeEsc}
                 aria-label={t.common.close}
               >
@@ -1152,7 +1176,7 @@ export function SessionPageClient() {
 
       {/* ─── Agent Toast ──────────────────────────────────────────── */}
       {showAgentToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-[var(--dt-text-primary)] text-[var(--dt-accent-text)] text-sm font-medium shadow-lg animate-fade-in">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-primary text-on-accent text-sm font-medium shadow-lg animate-fade-in">
           {t.common.routaModeToast}
         </div>
       )}
