@@ -64,7 +64,7 @@ steps:
 `;
 
 const sectionHeadCls =
-  "text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+  "text-[11px] font-semibold text-secondary";
 
 // ─── DAG Visualization ───────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ function WorkflowDag({ steps, onStepClick }: WorkflowDagProps) {
 
   if (!nodes.length) {
     return (
-      <div className="flex items-center justify-center h-24 text-xs text-slate-400 dark:text-slate-500">
+      <div className="flex items-center justify-center h-24 text-xs text-secondary">
         {t.workflows.noSteps}
       </div>
     );
@@ -173,11 +173,11 @@ function WorkflowDag({ steps, onStepClick }: WorkflowDagProps) {
   // Generate deterministic color per specialist
   function nodeColor(specialist: string) {
     const palette = [
-      { bg: "#dbeafe", border: "#3b82f6", text: "#1d4ed8" }, // blue
-      { bg: "#d1fae5", border: "#10b981", text: "#065f46" }, // green
-      { bg: "#fef3c7", border: "#f59e0b", text: "#92400e" }, // amber
-      { bg: "#e2e8f0", border: "#64748b", text: "#334155" }, // slate
-      { bg: "#fce7f3", border: "#ec4899", text: "#9d174d" }, // pink
+      { bg: "var(--accentbg)", border: "var(--accent)", text: "var(--accent)" }, // accent
+      { bg: "var(--greenbg)", border: "var(--green)", text: "var(--green)" }, // green
+      { bg: "var(--amberbg)", border: "var(--amber)", text: "var(--amber)" }, // amber
+      { bg: "var(--soft)", border: "var(--muted)", text: "var(--ink)" }, // neutral
+      { bg: "var(--redbg)", border: "var(--red)", text: "var(--red)" }, // red
     ];
     let hash = 0;
     for (let i = 0; i < specialist.length; i++) {
@@ -204,7 +204,7 @@ function WorkflowDag({ steps, onStepClick }: WorkflowDagProps) {
             markerHeight="6"
             orient="auto"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)" />
           </marker>
         </defs>
 
@@ -223,7 +223,7 @@ function WorkflowDag({ steps, onStepClick }: WorkflowDagProps) {
               key={i}
               d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
               fill="none"
-              stroke="#94a3b8"
+              stroke="var(--muted)"
               strokeWidth="1.5"
               markerEnd="url(#arrow)"
             />
@@ -338,14 +338,14 @@ function EditorModal({ workflow, onClose, onSaved }: EditorModalProps) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-[#1a1d2e] rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col border border-slate-200 dark:border-slate-700" style={{ maxHeight: "85vh" }}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col border border-default" style={{ maxHeight: "85vh" }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default shrink-0">
+          <h3 className="text-sm font-semibold text-primary">
             {isNew ? t.workflows.newWorkflow : `${t.workflows.editLabel}${workflow!.name}`}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary"
           >
             <X className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </button>
@@ -354,7 +354,7 @@ function EditorModal({ workflow, onClose, onSaved }: EditorModalProps) {
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
           {isNew && (
             <div>
-              <label htmlFor="workflow-id-input" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <label htmlFor="workflow-id-input" className="block text-xs font-medium text-primary mb-1">
                 Workflow ID
               </label>
               <input
@@ -363,16 +363,16 @@ function EditorModal({ workflow, onClose, onSaved }: EditorModalProps) {
                 value={id}
                 onChange={(e) => setId(e.target.value)}
                 placeholder="e.g. my-workflow"
-                className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1e2130] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono"
+                className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary placeholder:text-secondary focus-visible:outline-2 focus-visible:outline-accent font-mono"
               />
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+              <p className="text-[10px] text-secondary mt-0.5">
                 Used as the filename (letters, numbers, hyphens, underscores only)
               </p>
             </div>
           )}
 
           <div>
-            <label htmlFor="workflow-yaml-input" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label htmlFor="workflow-yaml-input" className="block text-xs font-medium text-primary mb-1">
               YAML Content
             </label>
             <textarea
@@ -382,27 +382,27 @@ function EditorModal({ workflow, onClose, onSaved }: EditorModalProps) {
               onChange={(e) => setYamlContent(e.target.value)}
               rows={20}
               spellCheck={false}
-              className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono resize-y"
+              className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-subtle text-primary focus-visible:outline-2 focus-visible:outline-accent font-mono resize-y"
               placeholder="Workflow YAML..."
             />
           </div>
 
           {error && (
-            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-xs text-danger">{error}</p>
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2 shrink-0">
+        <div className="px-4 py-3 border-t border-default flex justify-end gap-2 shrink-0">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded-md border border-default text-primary hover:bg-hover transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || (isNew && !id.trim())}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? t.workflows.saving : t.common.save}
           </button>
@@ -467,14 +467,14 @@ function ExecuteModal({ workflow, onClose }: ExecuteModalProps) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-[#1a1d2e] rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <div className="relative bg-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col border border-default">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default">
+          <h3 className="text-sm font-semibold text-primary">
             Run: {workflow.name}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary"
           >
             <X className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </button>
@@ -482,14 +482,14 @@ function ExecuteModal({ workflow, onClose }: ExecuteModalProps) {
 
         <div className="px-4 py-4 space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-medium text-primary mb-1">
               Workspace
             </label>
             <Select
               value={selectedWorkspaceId}
               onChange={(e) => setSelectedWorkspaceId(e.target.value)}
               disabled={executing || workspacesHook.loading || workspacesHook.workspaces.length === 0}
-              className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-subtle text-primary focus-visible:outline-2 focus-visible:outline-accent"
             >
               {workspacesHook.workspaces.length === 0 ? (
                 <option value="">No active workspace</option>
@@ -504,30 +504,30 @@ function ExecuteModal({ workflow, onClose }: ExecuteModalProps) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-medium text-primary mb-1">
               Trigger Payload (optional)
             </label>
             <textarea
               value={payload}
               onChange={(e) => setPayload(e.target.value)}
               rows={4}
-              className="w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-[#0f1117] text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono resize-none"
+              className="w-full text-xs px-2 py-1.5 rounded-md border border-default bg-subtle text-primary focus-visible:outline-2 focus-visible:outline-accent font-mono resize-none"
               placeholder="JSON payload or description for this workflow run..."
             />
           </div>
 
           {result && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">{result}</p>
+            <p className="text-xs text-success">{result}</p>
           )}
           {error && (
-            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-xs text-danger">{error}</p>
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+        <div className="px-4 py-3 border-t border-default flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded-md border border-default text-primary hover:bg-hover transition-colors"
           >
             {result ? t.common.close : t.common.cancel}
           </button>
@@ -535,7 +535,7 @@ function ExecuteModal({ workflow, onClose }: ExecuteModalProps) {
             <button
               onClick={handleExecute}
               disabled={executing || workspacesHook.loading || !selectedWorkspaceId}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-success text-on-accent hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {executing ? t.common.running : `▶ ${t.workflows.run}`}
             </button>
@@ -569,9 +569,9 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
   const triggerBadge = triggerBadgeMap[triggerType] ?? triggerType;
 
   const triggerColors: Record<string, string> = {
-    manual: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
-    webhook: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    schedule: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+    manual: "bg-subtle text-primary",
+    webhook: "bg-accent-subtle text-accent",
+    schedule: "bg-attention-subtle text-attention",
   };
 
   const handleDelete = async () => {
@@ -584,25 +584,25 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
 
   return (
     <div
-      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130] overflow-hidden"
+      className="rounded-lg border border-default bg-surface overflow-hidden"
       data-testid={`workflow-card-${workflow.id}`}
     >
       {/* Header */}
       <div className="px-3 py-2.5 flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+            <span className="text-sm font-medium text-primary truncate">
               {workflow.name}
             </span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${triggerColors[triggerType] ?? triggerColors.manual}`}>
               {triggerBadge}
             </span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+            <span className="text-[10px] text-secondary">
               v{workflow.version ?? "1.0"} · {workflow.steps.length} step{workflow.steps.length !== 1 ? "s" : ""}
             </span>
           </div>
           {workflow.description && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            <p className="text-xs text-secondary mt-0.5 truncate">
               {workflow.description}
             </p>
           )}
@@ -610,7 +610,7 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => onRun(workflow)}
-            className="p-1.5 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+            className="p-1.5 rounded-md text-success hover:bg-success-subtle transition-colors"
             title={t.workflows.runWorkflow}
             aria-label={`${t.workflows.runWorkflow} ${workflow.name}`}
           >
@@ -618,7 +618,7 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
           </button>
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className="p-1.5 rounded-md text-secondary hover:bg-hover transition-colors"
             title={expanded ? t.workflows.collapse : t.workflows.showGraph}
             aria-label={expanded ? `${t.workflows.collapse} ${workflow.name}` : `${t.workflows.showGraph} ${workflow.name}`}
           >
@@ -628,7 +628,7 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
           </button>
           <button
             onClick={() => onEdit(workflow)}
-            className="p-1.5 rounded-md text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            className="p-1.5 rounded-md text-accent hover:bg-accent-subtle transition-colors"
             title={t.workflows.editWorkflow}
             aria-label={`${t.workflows.editWorkflow} ${workflow.name}`}
           >
@@ -639,8 +639,8 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
             onBlur={() => setDeletePending(false)}
             className={`p-1.5 rounded-md transition-colors ${
               deletePending
-                ? "text-white bg-red-500 hover:bg-red-600"
-                : "text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                ? "text-on-accent bg-danger hover:opacity-90"
+                : "text-danger hover:bg-danger-subtle"
             }`}
             title={deletePending ? t.workflows.deleteConfirm : t.workflows.deleteWorkflow}
             aria-label={deletePending ? `${t.workflows.deleteConfirm} ${workflow.name}` : `${t.workflows.deleteWorkflow} ${workflow.name}`}
@@ -652,7 +652,7 @@ function WorkflowCard({ workflow, onEdit, onDelete, onRun }: WorkflowCardProps) 
 
       {/* DAG Graph */}
       {expanded && (
-        <div className="border-t border-slate-200 dark:border-slate-700 px-3 py-3 bg-slate-50 dark:bg-[#0f1117]">
+        <div className="border-t border-default px-3 py-3 bg-subtle">
           <p className={`${sectionHeadCls} mb-2`}>Workflow Graph</p>
           <WorkflowDag
             steps={workflow.steps}
@@ -720,7 +720,7 @@ export function WorkflowPanel() {
         <p className={sectionHeadCls}>Workflows ({workflows.length})</p>
         <button
           onClick={() => setEditTarget(null)}
-          className="px-2.5 py-1 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="px-2.5 py-1 text-xs font-medium rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors"
           aria-label={t.workflows.createNew}
         >
           + {t.workflows.newWorkflow}
@@ -729,12 +729,12 @@ export function WorkflowPanel() {
 
       {/* Error */}
       {error && (
-        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-xs text-danger">{error}</p>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 text-xs text-secondary">
           <PieChart className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"/>
           {t.workflows.loadingWorkflows}
         </div>
@@ -742,7 +742,7 @@ export function WorkflowPanel() {
 
       {/* Workflow list */}
       {!loading && workflows.length === 0 && (
-        <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500">
+        <div className="text-center py-8 text-xs text-secondary">
           <p>{t.workflows.noWorkflows}</p>
           <p className="mt-1">{t.workflows.noWorkflowsHint}</p>
         </div>

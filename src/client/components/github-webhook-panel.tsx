@@ -379,25 +379,25 @@ export function GitHubWebhookPanel() {
         </div>
       )}
       {success && (
-        <div className="mx-4 mt-3 px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 text-sm flex items-start gap-2">
+        <div className="mx-4 mt-3 px-4 py-2 rounded-lg bg-success-subtle border border-success text-success text-sm flex items-start gap-2">
           <span className="shrink-0 mt-0.5">✓</span>
           <span>{success}</span>
-          <button onClick={() => setSuccess(null)} className="ml-auto shrink-0 text-emerald-400 hover:text-emerald-600">✕</button>
+          <button onClick={() => setSuccess(null)} className="ml-auto shrink-0 text-success hover:opacity-80">✕</button>
         </div>
       )}
 
       {/* Header actions */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+        <div className="flex gap-1 bg-subtle rounded-lg p-0.5">
           {(["configs", "logs"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-3 py-1 text-sm rounded-md transition-colors ${
                 activeTab === tab
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-surface text-primary shadow-sm"
+                  : "text-secondary hover:text-primary"
               }`}
             >
               {tab === "configs" ? wt.tabs.configurations : wt.tabs.triggerLogs}
@@ -408,7 +408,7 @@ export function GitHubWebhookPanel() {
         {activeTab === "configs" && (
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             {wt.addTrigger}
@@ -421,17 +421,17 @@ export function GitHubWebhookPanel() {
         {activeTab === "configs" && (
           <>
             {/* Polling Control Panel */}
-            <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="mb-4 p-3 bg-subtle rounded-lg border border-default">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <span className="text-sm font-medium text-primary">
                       {wt.localPolling}
                     </span>
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                       pollingRunning
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                        ? "bg-success-subtle text-success"
+                        : "bg-subtle text-secondary"
                     }`}>
                       {pollingRunning ? wt.running : wt.stopped}
                     </span>
@@ -439,7 +439,7 @@ export function GitHubWebhookPanel() {
                   <button
                     onClick={handleTogglePolling}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      pollingEnabled ? "bg-blue-600" : "bg-slate-300 dark:bg-slate-600"
+                      pollingEnabled ? "bg-accent" : "bg-default"
                     }`}
                     title={pollingEnabled ? wt.disablePolling : wt.enablePolling}
                   >
@@ -452,7 +452,7 @@ export function GitHubWebhookPanel() {
                   <Select
                     value={String(pollingInterval)}
                     onChange={(e) => handleUpdatePollingInterval(Number(e.target.value))}
-                    className="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                    className="text-xs px-2 py-1 rounded border border-default bg-surface text-primary"
                     disabled={!pollingEnabled}
                   >
                     <option value={10}>10s</option>
@@ -463,11 +463,11 @@ export function GitHubWebhookPanel() {
                   <button
                     onClick={handleManualCheck}
                     disabled={pollingChecking}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-300"
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-surface border border-default rounded hover:bg-hover disabled:opacity-50 text-primary"
                     title={wt.manuallyCheckNow}
                   >
                     {pollingChecking ? (
-                      <div className="w-3 h-3 border border-slate-400 border-t-blue-500 rounded-full animate-spin" />
+                      <div className="w-3 h-3 border border-default border-t-accent rounded-full animate-spin" />
                     ) : (
                       <RefreshCw className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     )}
@@ -476,11 +476,11 @@ export function GitHubWebhookPanel() {
                 </div>
               </div>
               {pollingLastChecked && (
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="mt-2 text-xs text-secondary">
                   {wt.lastChecked}: {new Date(pollingLastChecked).toLocaleString()}
                 </div>
               )}
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-xs text-secondary">
                 {wt.localPollingHint}
               </p>
             </div>
@@ -501,8 +501,8 @@ export function GitHubWebhookPanel() {
             {!showForm && (
               <>
                 {loading ? (
-                  <div className="flex items-center justify-center py-12 text-slate-400">
-                    <div className="w-5 h-5 border-2 border-slate-300 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin mr-2" />
+                  <div className="flex items-center justify-center py-12 text-secondary">
+                    <div className="w-5 h-5 border-2 border-default border-t-accent rounded-full animate-spin mr-2" />
                     {wt.loading}
                   </div>
                 ) : configs.length === 0 ? (
@@ -540,16 +540,16 @@ export function GitHubWebhookPanel() {
 function EmptyState({ onAdd, t }: { onAdd: () => void; t: TranslationDictionary["webhook"] }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-        <Link2 className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
+      <div className="w-16 h-16 bg-subtle rounded-2xl flex items-center justify-center mb-4">
+        <Link2 className="w-8 h-8 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
       </div>
-      <h3 className="text-base font-medium text-slate-900 dark:text-slate-100 mb-1">{t.emptyTitle}</h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-4">
+      <h3 className="text-base font-medium text-primary mb-1">{t.emptyTitle}</h3>
+      <p className="text-sm text-secondary max-w-sm mb-4">
         {t.emptyDescription}
       </p>
       <button
         onClick={onAdd}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+        className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
       >
         {t.addFirstTrigger}
       </button>
@@ -571,14 +571,14 @@ interface WebhookConfigFormProps {
 function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmit, onCancel, toggleEvent }: WebhookConfigFormProps) {
   const { t } = useTranslation();
   return (
-    <form onSubmit={onSubmit} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mt-2 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+    <form onSubmit={onSubmit} className="bg-surface border border-default rounded-xl p-5 mt-2 space-y-4">
+      <h3 className="text-sm font-semibold text-primary">
         {editId ? t.webhook.editWebhookTrigger : t.webhook.newWebhookTrigger}
       </h3>
 
       {/* Name */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.nameLabel} <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <input
@@ -587,16 +587,16 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           value={form.name}
           onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
           placeholder={t.webhook.namePlaceholder}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required
         />
       </div>
 
       {/* Repository */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.githubRepository} <span className={dangerRequiredMarkClassName}>*</span>
-          <span className="ml-1 text-slate-400 font-normal">{t.webhook.repoFormatHint}</span>
+          <span className="ml-1 text-secondary font-normal">{t.webhook.repoFormatHint}</span>
         </label>
         <input
           data-testid="webhook-repo"
@@ -604,16 +604,16 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           value={form.repo}
           onChange={(e) => setForm((p) => ({ ...p, repo: e.target.value }))}
           placeholder="phodal-archive/data-mesh-spike"
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required
         />
       </div>
 
       {/* GitHub Token */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.githubToken} <span className={dangerRequiredMarkClassName}>{editId ? "" : "*"}</span>
-          {editId && <span className="ml-1 text-slate-400 font-normal">{t.webhook.tokenKeepHint}</span>}
+          {editId && <span className="ml-1 text-secondary font-normal">{t.webhook.tokenKeepHint}</span>}
         </label>
         <input
           data-testid="webhook-token"
@@ -621,16 +621,16 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           value={form.githubToken}
           onChange={(e) => setForm((p) => ({ ...p, githubToken: e.target.value }))}
           placeholder={editId ? t.webhook.tokenEditPlaceholder : t.webhook.tokenPlaceholder}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required={!editId}
         />
       </div>
 
       {/* {t.webhook.webhookSecret} */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.webhookSecret}
-          <span className="ml-1 text-slate-400 font-normal">{t.webhook.secretHint}</span>
+          <span className="ml-1 text-secondary font-normal">{t.webhook.secretHint}</span>
         </label>
         <input
           data-testid="webhook-secret"
@@ -638,13 +638,13 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           value={form.webhookSecret}
           onChange={(e) => setForm((p) => ({ ...p, webhookSecret: e.target.value }))}
           placeholder="routa-webhook-secret-2026"
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
         />
       </div>
 
       {/* Events */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+        <label className="block text-xs font-medium text-primary mb-2">
           {t.webhook.eventsToSubscribe} <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -653,8 +653,8 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
               key={ev.value}
               className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
                 form.eventTypes.includes(ev.value)
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500"
-                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  ? "border-accent bg-accent-subtle"
+                  : "border-default hover:border-secondary"
               }`}
             >
               <input
@@ -665,8 +665,8 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
                 className="mt-0.5 accent-blue-600"
               />
               <div>
-                <p className="text-xs font-medium text-slate-900 dark:text-slate-100">{ev.label}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{ev.description}</p>
+                <p className="text-xs font-medium text-primary">{ev.label}</p>
+                <p className="text-xs text-secondary">{ev.description}</p>
               </div>
             </label>
           ))}
@@ -675,9 +675,9 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
 
       {/* Label filter */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.labelFilter}
-          <span className="ml-1 text-slate-400 font-normal">{t.webhook.labelFilterHint}</span>
+          <span className="ml-1 text-secondary font-normal">{t.webhook.labelFilterHint}</span>
         </label>
         <input
           data-testid="webhook-label-filter"
@@ -685,20 +685,20 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           value={form.labelFilter}
           onChange={(e) => setForm((p) => ({ ...p, labelFilter: e.target.value }))}
           placeholder={t.webhook.labelFilterPlaceholder}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
         />
       </div>
 
       {/* Trigger Agent */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.triggerAgent} <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <Select
           data-testid="webhook-agent"
           value={form.triggerAgentId}
           onChange={(e) => setForm((p) => ({ ...p, triggerAgentId: e.target.value }))}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required
         >
           <option value="">{t.webhook.selectAgent}</option>
@@ -718,9 +718,9 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
 
       {/* Prompt Template */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           {t.webhook.promptTemplate}
-          <span className="ml-1 text-slate-400 font-normal">{t.webhook.promptTemplateHint}</span>
+          <span className="ml-1 text-secondary font-normal">{t.webhook.promptTemplateHint}</span>
         </label>
         <textarea
           data-testid="webhook-prompt"
@@ -728,7 +728,7 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           onChange={(e) => setForm((p) => ({ ...p, promptTemplate: e.target.value }))}
           rows={3}
           placeholder={t.webhook.promptTemplatePlaceholder}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100 resize-none"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent resize-none"
         />
       </div>
 
@@ -741,15 +741,15 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))}
           className="accent-blue-600"
         />
-        <span className="text-sm text-slate-700 dark:text-slate-300">{t.webhook.enabled}</span>
+        <span className="text-sm text-primary">{t.webhook.enabled}</span>
       </label>
 
       {/* Actions */}
-      <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex justify-end gap-2 pt-2 border-t border-default">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+          className="px-4 py-2 text-sm text-primary hover:bg-hover rounded-lg transition-colors"
         >
           {t.common.cancel}
         </button>
@@ -757,7 +757,7 @@ function WebhookConfigForm({ form, setForm, editId, saving, specialists, onSubmi
           data-testid="webhook-submit"
           type="submit"
           disabled={saving}
-          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+          className="px-4 py-2 text-sm bg-accent hover:opacity-90 disabled:opacity-50 text-on-accent rounded-lg transition-colors"
         >
           {saving ? `${t.common.loading}…` : editId ? t.common.update : t.common.create}
         </button>
@@ -778,19 +778,19 @@ interface WebhookConfigCardProps {
 function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, registering }: WebhookConfigCardProps) {
   const { t } = useTranslation();
   return (
-    <div className={`bg-white dark:bg-slate-800/50 border rounded-xl p-4 transition-colors ${
+    <div className={`bg-surface border rounded-xl p-4 transition-colors ${
       config.enabled
-        ? "border-slate-200 dark:border-slate-700"
-        : "border-slate-100 dark:border-slate-800 opacity-60"
+        ? "border-default"
+        : "border-default opacity-60"
     }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${config.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{config.name}</h4>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${config.enabled ? "bg-success" : "bg-secondary"}`} />
+            <h4 className="text-sm font-semibold text-primary truncate">{config.name}</h4>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 ml-4">
-            <span className="font-medium text-slate-700 dark:text-slate-300">{config.repo}</span>
+          <p className="text-xs text-secondary mb-2 ml-4">
+            <span className="font-medium text-primary">{config.repo}</span>
             {" → "}
             <span className="inline-flex items-center gap-1">
               <span className="w-3.5 h-3.5 inline-block">🤖</span>
@@ -799,12 +799,12 @@ function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, reg
           </p>
           <div className="ml-4 flex flex-wrap gap-1">
             {config.eventTypes.map((ev) => (
-              <span key={ev} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+              <span key={ev} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-accent-subtle text-accent border border-accent">
                 {ev}
               </span>
             ))}
             {(config.labelFilter ?? []).length > 0 && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-subtle text-primary border border-default">
                 labels: {config.labelFilter.join(", ")}
               </span>
             )}
@@ -815,7 +815,7 @@ function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, reg
         <button
           onClick={onToggle}
           title={config.enabled ? t.webhook.disable : t.webhook.enable}
-          className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          className="p-1 rounded-md text-secondary hover:text-primary transition-colors"
         >
           {config.enabled ? (
             <CircleOff className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -826,14 +826,14 @@ function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, reg
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-default">
         <button
           onClick={onRegister}
           disabled={registering}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 rounded-md transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary text-canvas hover:opacity-90 rounded-md transition-colors disabled:opacity-50"
         >
           {registering ? (
-            <span className="w-3 h-3 border border-white dark:border-slate-900 border-t-transparent rounded-full animate-spin" />
+            <span className="w-3 h-3 border border-canvas border-t-transparent rounded-full animate-spin" />
           ) : (
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -844,7 +844,7 @@ function WebhookConfigCard({ config, onEdit, onDelete, onRegister, onToggle, reg
 
         <button
           onClick={onEdit}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 text-xs text-secondary hover:bg-hover rounded-md transition-colors"
         >
           <SquarePen className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           {t.webhook.edit}
@@ -875,10 +875,10 @@ function TriggerLogsTable({ logs, configs, onRefresh }: TriggerLogsTableProps) {
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{logs.length} {t.webhook.recentEvents}</p>
+        <p className="text-xs text-secondary">{logs.length} {t.webhook.recentEvents}</p>
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+          className="flex items-center gap-1 text-xs text-secondary hover:text-primary"
         >
           <RefreshCw className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           {t.webhook.refresh}
@@ -887,32 +887,32 @@ function TriggerLogsTable({ logs, configs, onRefresh }: TriggerLogsTableProps) {
 
       {logs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400">{t.webhook.noEventsYet}</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{t.webhook.noEventsHint}</p>
+          <p className="text-sm text-secondary">{t.webhook.noEventsYet}</p>
+          <p className="text-xs text-secondary mt-1">{t.webhook.noEventsHint}</p>
         </div>
       ) : (
         <div className="space-y-2">
           {logs.map((log) => (
-            <div key={log.id} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 flex items-center gap-3">
+            <div key={log.id} className="bg-surface border border-default rounded-lg px-3 py-2.5 flex items-center gap-3">
               <span className={`w-2 h-2 rounded-full shrink-0 ${
-                log.outcome === "triggered" ? "bg-emerald-500" :
-                log.outcome === "skipped" ? "bg-amber-400" : "bg-red-500"
+                log.outcome === "triggered" ? "bg-success" :
+                log.outcome === "skipped" ? "bg-attention" : "bg-danger"
               }`} />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
+                <p className="text-xs font-medium text-primary truncate">
                   {log.eventType}{log.eventAction ? ` · ${log.eventAction}` : ""}
-                  <span className="ml-1.5 text-slate-400 font-normal">
+                  <span className="ml-1.5 text-secondary font-normal">
                     {configMap[log.configId] ?? log.configId}
                   </span>
                 </p>
                 {log.errorMessage && (
-                  <p className="text-xs text-red-500 truncate">{log.errorMessage}</p>
+                  <p className="text-xs text-danger truncate">{log.errorMessage}</p>
                 )}
                 {log.backgroundTaskId && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{t.webhook.taskLabel}: {log.backgroundTaskId}</p>
+                  <p className="text-xs text-secondary">{t.webhook.taskLabel}: {log.backgroundTaskId}</p>
                 )}
               </div>
-              <span className="shrink-0 text-xs text-slate-400">
+              <span className="shrink-0 text-xs text-secondary">
                 {new Date(log.createdAt).toLocaleTimeString()}
               </span>
             </div>

@@ -324,7 +324,7 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {!workspaceId && (
-        <div className="mx-4 mt-3 rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <div className="mx-4 mt-3 rounded-lg border border-dashed border-default px-4 py-6 text-sm text-secondary">
           {t.schedules.selectWorkspace}
         </div>
       )}
@@ -337,21 +337,21 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
         </div>
       )}
       {success && (
-        <div className="mx-4 mt-3 px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 text-sm flex items-start gap-2">
+        <div className="mx-4 mt-3 px-4 py-2 rounded-lg bg-success-subtle border border-success text-success text-sm flex items-start gap-2">
           <span className="shrink-0 mt-0.5">✓</span>
           <span>{success}</span>
-          <button onClick={() => setSuccess(null)} className="ml-auto shrink-0 text-emerald-400 hover:text-emerald-600">✕</button>
+          <button onClick={() => setSuccess(null)} className="ml-auto shrink-0 text-success hover:opacity-80">✕</button>
         </div>
       )}
 
       {/* Header actions */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-secondary">
           {schedules.length} {t.schedules.configured}
         </p>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           {t.schedules.newSchedule}
@@ -377,8 +377,8 @@ export function SchedulePanel({ workspaceId }: { workspaceId?: string }) {
         {!showForm && (
           <>
             {loading ? (
-              <div className="flex items-center justify-center py-12 text-slate-400">
-                <div className="w-5 h-5 border-2 border-slate-300 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin mr-2" />
+              <div className="flex items-center justify-center py-12 text-secondary">
+                <div className="w-5 h-5 border-2 border-default border-t-accent rounded-full animate-spin mr-2" />
                 {t.common.loading}
               </div>
             ) : schedules.length === 0 ? (
@@ -412,17 +412,17 @@ function ScheduleEmptyState({ onAdd }: { onAdd: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-        <Clock className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
+      <div className="w-16 h-16 bg-subtle rounded-2xl flex items-center justify-center mb-4">
+        <Clock className="w-8 h-8 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
       </div>
-      <h3 className="text-base font-medium text-slate-900 dark:text-slate-100 mb-1">{t.schedules.noSchedulesTitle}</h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-4">
+      <h3 className="text-base font-medium text-primary mb-1">{t.schedules.noSchedulesTitle}</h3>
+      <p className="text-sm text-secondary max-w-sm mb-4">
         {t.schedules.noSchedulesDesc}
 
       </p>
       <button
         onClick={onAdd}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+        className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm rounded-lg transition-colors"
       >
         {t.schedules.createFirst}
       </button>
@@ -448,14 +448,14 @@ function ScheduleForm({
 }: ScheduleFormProps) {
   const { t } = useTranslation();
   return (
-    <form onSubmit={onSubmit} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mt-2 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+    <form onSubmit={onSubmit} className="bg-surface border border-default rounded-xl p-5 mt-2 space-y-4">
+      <h3 className="text-sm font-semibold text-primary">
         {editId ? t.schedules.editSchedule : t.schedules.newSchedule}
       </h3>
 
       {/* Name */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           Name <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <input
@@ -463,14 +463,14 @@ function ScheduleForm({
           value={form.name}
           onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
           placeholder="e.g. Nightly Dependency Update"
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required
         />
       </div>
 
       {/* Cron Expression */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           Schedule <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <div className="space-y-2">
@@ -478,7 +478,7 @@ function ScheduleForm({
           <Select
             value={form.cronMode === "preset" ? form.cronExpr : "__custom__"}
             onChange={(e) => onPresetChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+            className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           >
             {CRON_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
@@ -493,16 +493,16 @@ function ScheduleForm({
                 value={form.cronExpr}
                 onChange={(e) => setForm((p) => ({ ...p, cronExpr: e.target.value }))}
                 placeholder="0 2 * * *"
-                className="w-full px-3 py-2 text-sm font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+                className="w-full px-3 py-2 text-sm font-mono bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
                 required
               />
-              <p className="mt-1 text-xs text-slate-400 font-mono">min  hour  dom  mon  dow</p>
+              <p className="mt-1 text-xs text-secondary font-mono">min hour dom mon dow</p>
             </div>
           )}
 
           {/* Human-readable description */}
           {cronDescription && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1">
+            <p className="text-xs text-accent font-medium flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
               {cronDescription}
             </p>
@@ -512,13 +512,13 @@ function ScheduleForm({
 
       {/* Agent */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           Agent <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <Select
           value={form.agentId}
           onChange={(e) => setForm((p) => ({ ...p, agentId: e.target.value }))}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent"
           required
         >
           <option value="">— Select an agent —</option>
@@ -538,7 +538,7 @@ function ScheduleForm({
 
       {/* Task Prompt */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <label className="block text-xs font-medium text-primary mb-1">
           Task Prompt <span className={dangerRequiredMarkClassName}>*</span>
         </label>
         <textarea
@@ -546,19 +546,19 @@ function ScheduleForm({
           onChange={(e) => setForm((p) => ({ ...p, taskPrompt: e.target.value }))}
           rows={4}
           placeholder="Check for outdated npm packages and create a PR with the updates. Run tests to verify nothing broke..."
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100 resize-none"
+          className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent resize-none"
           required
         />
-        <p className="mt-1 text-xs text-slate-400">
-          Tip: You can reference <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">{"{timestamp}"}</code>,{" "}
-          <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">{"{cronExpr}"}</code>, or{" "}
-          <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">{"{scheduleName}"}</code> in your prompt.
+        <p className="mt-1 text-xs text-secondary">
+          Tip: You can reference <code className="px-1 bg-subtle rounded">{"{timestamp}"}</code>,{" "}
+          <code className="px-1 bg-subtle rounded">{"{cronExpr}"}</code>, or{" "}
+          <code className="px-1 bg-subtle rounded">{"{scheduleName}"}</code> in your prompt.
         </p>
       </div>
 
       {/* Prompt Template (advanced override) */}
       <details className="group">
-        <summary className="text-xs text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 select-none">
+        <summary className="text-xs text-secondary cursor-pointer hover:text-primary select-none">
           {t.schedules.promptTemplateOverride}
         </summary>
         <div className="mt-2">
@@ -567,7 +567,7 @@ function ScheduleForm({
             onChange={(e) => setForm((p) => ({ ...p, promptTemplate: e.target.value }))}
             rows={2}
             placeholder="Leave blank to use Task Prompt directly. When set, this overrides the task prompt."
-            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100 resize-none"
+            className="w-full px-3 py-2 text-sm bg-surface border border-default rounded-lg focus-visible:outline-2 focus-visible:outline-accent resize-none"
           />
         </div>
       </details>
@@ -580,22 +580,22 @@ function ScheduleForm({
           onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))}
           className="accent-blue-600"
         />
-        <span className="text-sm text-slate-700 dark:text-slate-300">{t.common.enabled}</span>
+        <span className="text-sm text-primary">{t.common.enabled}</span>
       </label>
 
       {/* Actions */}
-      <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex justify-end gap-2 pt-2 border-t border-default">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+          className="px-4 py-2 text-sm text-primary hover:bg-hover rounded-lg transition-colors"
         >
           {t.common.cancel}
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+          className="px-4 py-2 text-sm bg-accent hover:opacity-90 disabled:opacity-50 text-on-accent rounded-lg transition-colors"
         >
           {saving ? t.common.loading : editId ? t.schedules.editSchedule : t.schedules.newSchedule}
         </button>
@@ -637,34 +637,34 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle, onRunNow, isRunnin
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-800/50 border rounded-xl p-4 transition-colors ${
+    <div className={`bg-surface border rounded-xl p-4 transition-colors ${
       schedule.enabled
-        ? "border-slate-200 dark:border-slate-700"
-        : "border-slate-100 dark:border-slate-800 opacity-60"
+        ? "border-default"
+        : "border-default opacity-60"
     }`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${schedule.enabled ? "bg-emerald-500" : "bg-slate-400"}`} />
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{schedule.name}</h4>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${schedule.enabled ? "bg-success" : "bg-secondary"}`} />
+            <h4 className="text-sm font-semibold text-primary truncate">{schedule.name}</h4>
           </div>
 
           <div className="ml-4 flex flex-wrap gap-1.5 mb-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono bg-subtle text-primary border border-default">
               {schedule.cronExpr}
             </span>
             {description !== schedule.cronExpr && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs text-blue-600 dark:text-blue-400">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs text-accent">
                 {description}
               </span>
             )}
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-accent-subtle text-accent border border-accent">
               🤖 {schedule.agentId}
             </span>
           </div>
 
           {/* Timing info */}
-          <div className="ml-4 flex gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="ml-4 flex gap-3 text-xs text-secondary">
             {schedule.lastRunAt && (
               <span className="flex items-center gap-1">
                 <Check className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -678,7 +678,7 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle, onRunNow, isRunnin
               </span>
             )}
             {!schedule.enabled && (
-              <span className="text-amber-500 dark:text-amber-400">{t.common.disabled}</span>
+              <span className="text-attention">{t.common.disabled}</span>
             )}
           </div>
         </div>
@@ -688,7 +688,7 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle, onRunNow, isRunnin
           onClick={onToggle}
           title={schedule.enabled ? t.schedules.disableSchedule : t.schedules.enableSchedule}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 mt-0.5 ${
-            schedule.enabled ? "bg-blue-600" : "bg-slate-300 dark:bg-slate-600"
+            schedule.enabled ? "bg-accent" : "bg-default"
           }`}
         >
           <span
@@ -699,15 +699,15 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle, onRunNow, isRunnin
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-default">
         <button
           onClick={onRunNow}
           disabled={isRunning || !schedule.enabled}
           title={schedule.enabled ? t.schedules.runScheduleNow : t.schedules.enableToRun}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 rounded-md transition-colors disabled:opacity-40"
+          className="flex items-center gap-1 px-2.5 py-1 text-xs bg-primary text-canvas hover:opacity-90 rounded-md transition-colors disabled:opacity-40"
         >
           {isRunning ? (
-            <span className="w-3 h-3 border border-white/50 dark:border-slate-900/50 border-t-white dark:border-t-slate-900 rounded-full animate-spin" />
+            <span className="w-3 h-3 border border-canvas/50 border-t-canvas rounded-full animate-spin" />
           ) : (
             <Play className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           )}
@@ -716,7 +716,7 @@ function ScheduleCard({ schedule, onEdit, onDelete, onToggle, onRunNow, isRunnin
 
         <button
           onClick={onEdit}
-          className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 text-xs text-secondary hover:bg-hover rounded-md transition-colors"
         >
           <SquarePen className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           {t.common.edit}
