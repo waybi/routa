@@ -34,7 +34,7 @@ Done 列的步骤顺序为：
 - `--check`：只读检查，不写数据库。
 - `--apply`：先把原列配置备份成 JSON，再在一个事务里只改目标看板 Done 列的步骤；已配置好的看板重复执行不写入、不备份。
 
-`--apply` 只配置 3 块看板：local-tools Board、deepseek-harness Board、Routa Board。TopBI Board 与 Default Workspace Board 不配置。
+`--apply` 只配置 4 块看板：local-tools Board、deepseek-harness Board、Routa Board、turnilo Board。TopBI Board 与 Default Workspace Board 不配置。
 
 ## 流程（与 main-pusher.yaml 的 Workflow 第 1–8 步一致）
 
@@ -78,3 +78,9 @@ Done 列的步骤顺序为：
 - 唯一允许的推送命令是 `git push origin HEAD:<branch>`，只推送到登记分支 `<branch>`，不推其他分支。
 - 不自动解决变基冲突；验证失败的代码不推送。
 - 不修改卡片标题和原始描述，只追加评论。
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交号 |
+|---|---|---|---|
+| 2026-10-22 | 目标看板加入 turnilo Board（`d13eba6a-42db-43ed-835b-18c544f6c985`，登记分支 master），Done 列配成 `[kanban-main-pusher, kanban-done-reporter]`；加载测试补「推送员提示词不写死 main」断言（不含 `HEAD:main`、`origin/main`） | 目标看板 3→4 | `d1bfa79f`（变基后提交号可能变化，按改动内容对应） |
