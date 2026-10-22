@@ -108,20 +108,20 @@ export function McpStatusIndicator({ compact = false, className = "" }: McpStatu
   const isChecking = loading && !status;
   const available = !!status?.available;
   const toneClass = isChecking
-    ? "border-gray-200 text-gray-500 bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800/30"
+    ? "border border-default text-secondary bg-subtle"
     : available
-      ? "border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 dark:border-sky-800/60 dark:text-sky-300 dark:bg-sky-900/20 dark:hover:bg-sky-900/30"
-      : "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-800/60 dark:text-amber-300 dark:bg-amber-900/20 dark:hover:bg-amber-900/30";
+      ? "border border-default text-information bg-accent-subtle hover:bg-hover"
+      : "border border-default text-attention bg-attention-subtle hover:bg-hover";
   const compactToneClass = isChecking
-    ? "text-desktop-text-tertiary"
+    ? "text-secondary"
     : available
-      ? "text-sky-500"
-      : "text-amber-500";
+      ? "text-information"
+      : "text-attention";
   const dotClass = isChecking
-    ? "bg-gray-400 animate-pulse"
+    ? "bg-secondary animate-pulse motion-reduce:animate-none"
     : available
-      ? "bg-sky-500"
-      : "bg-amber-500";
+      ? "bg-information"
+      : "bg-attention";
   const label = isChecking
     ? "Checking MCP..."
     : available

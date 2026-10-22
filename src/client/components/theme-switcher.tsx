@@ -52,8 +52,8 @@ export function ThemeSwitcher({ showLabel = false, compact = false, className = 
         }}
         className={`${buttonBaseClassName} ${
           active
-            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100"
-            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            ? "bg-surface text-primary shadow-sm"
+            : "text-secondary hover:text-primary"
         }`}
         aria-pressed={active}
         aria-label={label}
@@ -75,10 +75,10 @@ export function ThemeSwitcher({ showLabel = false, compact = false, className = 
 
   return (
     <div
-      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#111423] ${className}`}
+      className={`flex items-center gap-1 rounded-control border border-default bg-subtle p-0.5 ${className}`}
     >
       {showLabel ? (
-        <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <span className="px-1.5 text-[11px] font-medium text-secondary">
           {t.settings.theme}
         </span>
       ) : null}

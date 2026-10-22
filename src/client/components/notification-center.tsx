@@ -168,13 +168,17 @@ export function NotificationBell() {
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="relative p-1.5 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#151720] transition-colors"
+        className="relative rounded-control p-1.5 text-secondary transition-colors hover:bg-hover hover:text-primary motion-reduce:transition-none"
         title={t.notifications.title}
+        aria-label={t.notifications.title}
+        aria-expanded={open}
+        data-testid="notification-bell"
       >
         <Bell className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 flex items-center justify-center text-[9px] font-bold text-white bg-red-500 rounded-full">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-0.5 text-[9px] font-bold text-on-accent">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -183,39 +187,40 @@ export function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-hidden bg-white dark:bg-[#12141c] border border-slate-200 dark:border-[#1c1f2e] rounded-xl shadow-xl z-50">
-            <div className="px-3 py-2 border-b border-slate-100 dark:border-[#1c1f2e] flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t.notifications.title}</span>
+          <div className="absolute right-0 top-full z-50 mt-2 max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-default bg-surface text-primary shadow-overlay">
+            <div className="flex items-center justify-between border-b border-default px-3 py-2">
+              <span className="text-xs font-semibold text-primary">{t.notifications.title}</span>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline">
+                  <button type="button" onClick={markAllAsRead} className="text-[11px] text-accent hover:underline">
                     {t.notifications.markAllRead}
                   </button>
                 )}
-                <a href="/messages" className="text-[10px] text-amber-600 dark:text-amber-500 hover:underline">
+                <a href="/messages" className="text-[11px] text-secondary hover:text-primary hover:underline">
                   {t.notifications.viewAll}
                 </a>
               </div>
             </div>
             <div className="max-h-72 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">{t.notifications.empty}</div>
+                <div className="p-6 text-center text-xs text-secondary">{t.notifications.empty}</div>
               ) : (
                 notifications.slice(0, 20).map((n) => (
                   <button
                     key={n.id}
+                    type="button"
                     onClick={() => { markAsRead(n.id); if (n.link) window.location.href = n.link; }}
-                    className={`w-full px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-[#171a24] transition-colors border-b border-slate-50 dark:border-[#171a24] last:border-0 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/10" : ""}`}
+                    className={`w-full border-b border-default px-3 py-2.5 text-left transition-colors last:border-0 hover:bg-hover motion-reduce:transition-none ${!n.read ? "bg-accent-subtle" : ""}`}
                   >
                     <div className="flex items-start gap-2">
                       <span className="text-sm">{getTypeIcon(n.type)}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{n.title}</span>
-                          {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                          <span className="truncate text-xs font-medium text-primary">{n.title}</span>
+                          {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{n.message}</p>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatTime(n.timestamp)}</span>
+                        <p className="truncate text-[11px] text-secondary">{n.message}</p>
+                        <span className="text-[10px] text-secondary">{formatTime(n.timestamp)}</span>
                       </div>
                     </div>
                   </button>

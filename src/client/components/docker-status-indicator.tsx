@@ -61,22 +61,22 @@ export function DockerStatusIndicator({ compact = false, className = "" }: Docke
         ? t.dockerStatus.retrying
         : t.dockerStatus.unavailable;
   const toneClass = isChecking
-    ? "border-gray-200 text-gray-500 bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800/30"
+    ? "border-default text-secondary bg-subtle"
     : available
-      ? "border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-800/60 dark:text-emerald-300 dark:bg-emerald-900/20"
-      : "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-800/60 dark:text-amber-300 dark:bg-amber-900/20 dark:hover:bg-amber-900/30";
+      ? "border-default text-success bg-success-subtle"
+      : "border-default text-attention bg-attention-subtle hover:bg-hover";
   const compactToneClass = isChecking
-    ? "text-desktop-text-tertiary"
+    ? "text-secondary"
     : available
-      ? "text-emerald-500"
-      : "text-amber-500";
+      ? "text-success"
+      : "text-attention";
   const dotClass = isChecking
-    ? "bg-gray-400 animate-pulse"
+    ? "bg-secondary animate-pulse motion-reduce:animate-none"
     : available
-      ? "bg-emerald-500"
+      ? "bg-success"
       : loading
-        ? "bg-amber-500 animate-pulse"
-        : "bg-amber-500";
+        ? "bg-attention animate-pulse motion-reduce:animate-none"
+        : "bg-attention";
   const title = available
     ? status?.error ?? label
     : loading
