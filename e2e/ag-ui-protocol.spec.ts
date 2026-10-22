@@ -14,7 +14,7 @@ test.describe("AG-UI Protocol Page", () => {
   test("renders AG-UI page with correct title", async ({ page }) => {
     const title = page.getByTestId("ag-ui-page-title");
     await expect(title).toBeVisible();
-    await expect(title).toHaveText("AG-UI Protocol");
+    await expect(title).toHaveText("AG-UI");
   });
 
   test("shows protocol toggle with AG-UI selected by default", async ({
@@ -26,8 +26,8 @@ test.describe("AG-UI Protocol Page", () => {
     await expect(aguiBtn).toBeVisible();
     await expect(acpBtn).toBeVisible();
 
-    // AG-UI should be active (indigo background)
-    await expect(aguiBtn).toHaveClass(/bg-indigo-500/);
+    await expect(aguiBtn).toHaveAttribute("aria-pressed", "true");
+    await expect(acpBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   test("toggles between AG-UI and ACP protocols", async ({ page }) => {
@@ -36,7 +36,7 @@ test.describe("AG-UI Protocol Page", () => {
 
     // Switch to ACP
     await acpBtn.click();
-    await expect(acpBtn).toHaveClass(/bg-emerald-500/);
+    await expect(acpBtn).toHaveAttribute("aria-pressed", "true");
 
     // Input placeholder should change
     const input = page.getByTestId("ag-ui-input");
@@ -47,7 +47,7 @@ test.describe("AG-UI Protocol Page", () => {
 
     // Switch back to AG-UI
     await aguiBtn.click();
-    await expect(aguiBtn).toHaveClass(/bg-indigo-500/);
+    await expect(aguiBtn).toHaveAttribute("aria-pressed", "true");
     await expect(input).toHaveAttribute(
       "placeholder",
       "Send via AG-UI protocol…",
