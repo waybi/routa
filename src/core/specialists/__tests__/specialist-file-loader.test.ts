@@ -391,6 +391,33 @@ markdown prompt
           "blocked",
         ],
       },
+      {
+        id: "kanban-flight-review-guard",
+        role: "GATE",
+        prompt: [
+          /re-run every command in the card's `verificationCommands`|逐条复跑卡上 `verificationCommands` 的每一条/i,
+          "## 证据表",
+          /撤掉实现|Revert the implementation/,
+          "~/.routa/flight-checklist/<完整卡号>/regression.md",
+          "无回归题",
+          /a=10/,
+          "【评审打回 第 N 次】",
+          /第 3 次|third/,
+          "高风险：是/否",
+        ],
+      },
+      {
+        id: "kanban-high-risk-reviewer",
+        role: "GATE",
+        prompt: [
+          "高风险：",
+          "【评审打回 第 N 次】",
+          /共用|shared/,
+          /第 3 次|third/,
+          "done",
+          "blocked",
+        ],
+      },
     ];
 
     it.each(loadPaths)("loads every flight checklist specialist from the %s path", (_label, dir, locale) => {
