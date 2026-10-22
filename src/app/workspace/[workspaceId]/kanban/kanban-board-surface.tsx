@@ -46,7 +46,7 @@ import { resolveCardLinkedSession } from "./kanban-session-activity";
 import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-done-column-window";
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 import { KanbanDoneSegments } from "./kanban-done-segments";
-import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
+import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanDoneCollapsedRail, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
 import { HighlightedText, matchTask, normalizeSearchQuery } from "./kanban-board-search";
 import { Badge } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
@@ -324,7 +324,8 @@ export function KanbanBoardSurface({
                     const renderedTasks = doneWindow ? [] : shownTasks;
                     const laneAutomation = columnAutomation[column.id] ?? column.automation;
                     const isEmptyColumn = columnTasks.length === 0;
-                    const widthClass = isEmptyColumn
+                    const doneRail = isDoneColumn && doneCollapsed && !isEmptyColumn;
+                    const widthClass = isEmptyColumn || doneRail
                       ? EMPTY_COLUMN_RAIL_WIDTH_CLASS
                       : column.width === "compact" ? "w-[14rem] min-w-[210px]" : column.width === "wide" || (isDoneColumn && !column.width) ? "w-[24rem]" : "w-[18rem] min-w-[210px]";
 
@@ -334,9 +335,17 @@ export function KanbanBoardSurface({
                         columnId={column.id}
                         hasActiveDrag={activeDragTaskId !== null}
                         widthClass={widthClass}
-                        rail={isEmptyColumn}
+                        rail={isEmptyColumn || doneRail}
                       >
-                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} /> : <>
+                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} /> : doneRail ? (
+                          <KanbanDoneCollapsedRail
+                            columnId={column.id}
+                            name={column.name}
+                            total={columnTasks.length}
+                            unmergedCount={unmergedCount}
+                            onExpand={doneColumn.toggleCollapsed}
+                          />
+                        ) : <>
                         <div className="mb-2.5 space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 truncate text-[12px] font-semibold text-primary" data-testid={`kanban-column-name-${column.id}`}>{column.name}</div>
