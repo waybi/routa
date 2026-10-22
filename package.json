@@ -250,7 +250,7 @@
   },
   "overrides": {
     "@hono/node-server": "2.0.12",
-    "dompurify": "3.4.12",
+    "dompurify": "3.4.17",
     "esbuild": "0.28.1",
     "follow-redirects": "1.16.0",
     "hono": "4.12.32",
