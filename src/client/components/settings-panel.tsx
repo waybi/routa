@@ -5,6 +5,8 @@ import { desktopAwareFetch } from "../utils/diagnostics";
 import { GitHubWebhookPanel } from "./github-webhook-panel";
 import { AgentInstallPanel } from "./agent-install-panel";
 import { SettingsFrame } from "./settings-route-shell";
+import { SettingsPageHeader } from "./settings-page-header";
+import { SettingsOverviewCards } from "./settings-overview-cards";
 import { Tabs } from "./ui/tabs";
 import {
   loadCustomAcpProviders,
@@ -861,8 +863,6 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
     { key: "webhooks", label: t.settings.webhooks },
   ];
 
-  const activeTabMeta = TAB_DEFS.find((tab) => tab.key === activeTab) ?? TAB_DEFS[0];
-
   const renderTabContent = () => (
     <div className="flex-1 min-h-0 overflow-hidden">
       {activeTab === "providers" && (
@@ -918,25 +918,35 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
   if (isPageVariant) {
     return (
       <SettingsFrame activeItem={activeTab}>
-        <div className="flex h-full min-w-0 flex-1 flex-col">
-          <header className="px-8 pb-3 pt-6">
-            <p className="text-[11px] text-secondary">{t.settings.preferences}</p>
-            <h1 className="mt-1 text-[21px] font-semibold leading-snug text-primary">{activeTabMeta.label}</h1>
-            <p className="mt-2 max-w-2xl text-[13px] text-secondary">
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-auto">
+          <SettingsPageHeader
+            title={t.settingsRedesign.overview.title}
+            description={t.settingsRedesign.overview.description}
+          />
+
+          <div className="px-6 pt-5 max-[800px]:px-4">
+            <SettingsOverviewCards />
+          </div>
+
+          <section className="mt-6 px-6 max-[800px]:px-4" aria-labelledby="settings-legacy-title" data-testid="settings-legacy-section">
+            <h2 id="settings-legacy-title" className="m-0 text-sm font-semibold text-primary">
+              {t.settingsRedesign.overview.legacyTitle}
+            </h2>
+            <p className="m-0 mt-0.5 max-w-2xl text-xs text-secondary">
               {activeTab === "providers" && t.settings.providersDesc}
               {activeTab === "registry" && t.settings.registryDesc}
               {activeTab === "roles" && t.settings.rolesDesc}
               {activeTab === "models" && t.settings.modelsDesc}
               {activeTab === "webhooks" && t.settings.webhooksDesc}
             </p>
-          </header>
+          </section>
 
           <Tabs
-            label={t.settings.title}
+            label={t.settingsRedesign.overview.legacyTitle}
             value={activeTab}
             onChange={(key) => handleTabChange(key as SettingsTab)}
-            className="flex min-h-0 flex-1 flex-col"
-            listClassName="px-8"
+            className="flex min-h-[480px] flex-1 flex-col"
+            listClassName="px-6"
             panelClassName="flex min-h-0 flex-1 flex-col"
             items={TAB_DEFS.map((tab) => ({
               id: tab.key,
