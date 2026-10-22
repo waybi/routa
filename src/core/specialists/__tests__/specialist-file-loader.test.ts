@@ -347,4 +347,70 @@ markdown prompt
       expect(porter?.frontmatter.name).toMatch(/[\u4e00-\u9fff]/);
     });
   });
+
+  describe("bundled flight checklist specialists", () => {
+    const bundledRoot = path.join(process.cwd(), "resources", "specialists");
+    const loadPaths: Array<[string, string, string | undefined]> = [
+      ["default", bundledRoot, undefined],
+      ["en", path.join(bundledRoot, "locales", "en"), "en"],
+      ["zh-CN", path.join(bundledRoot, "locales", "zh-CN"), "zh-CN"],
+    ];
+    const flightSpecialists: Array<{ id: string; role: string; prompt: Array<string | RegExp> }> = [
+      {
+        id: "kanban-contract-setter",
+        role: "CRAFTER",
+        prompt: [
+          "## 验收契约（出题人）",
+          "F1",
+          "F2",
+          "F3",
+          "F4",
+          /最多 8 条|at most 8/,
+          /90 分钟|90 minutes/,
+          "~/.routa/flight-checklist/<完整卡号>/regression.md",
+          "情况表缺失",
+          "grep -n '^## 情况表'",
+          "回归题已出",
+        ],
+      },
+      {
+        id: "kanban-flight-dev-executor",
+        role: "CRAFTER",
+        prompt: [
+          "## 验收契约（出题人）",
+          "缺验收契约",
+          "## 证据表",
+          "/tmp/routa-evidence/",
+          /改前|before the change/,
+          /改后|after the change/,
+          /撤掉实现|implementation reverted/,
+          /花钱|spending money/,
+          /删数据|deleting data/,
+          /改线上|changing production/,
+          /对外发消息|sending external messages/,
+          "blocked",
+        ],
+      },
+    ];
+
+    it.each(loadPaths)("loads every flight checklist specialist from the %s path", (_label, dir, locale) => {
+      const loaded = loadSpecialistsFromDirectory(dir, "bundled", locale);
+      for (const spec of flightSpecialists) {
+        const entry = loaded.find((candidate) => candidate.id === spec.id);
+        expect(entry, spec.id).toBeDefined();
+        expect(entry?.frontmatter.role, spec.id).toBe(spec.role);
+        expect(entry?.frontmatter.modelTier, spec.id).toBe("smart");
+        if (locale === "zh-CN") {
+          expect(entry?.frontmatter.name, spec.id).toMatch(/[\u4e00-\u9fff]/);
+        }
+        for (const text of spec.prompt) {
+          if (typeof text === "string") {
+            expect(entry?.behaviorPrompt, `${spec.id} should contain ${text}`).toContain(text);
+          } else {
+            expect(entry?.behaviorPrompt, `${spec.id} should match ${text}`).toMatch(text);
+          }
+        }
+      }
+    });
+  });
 });
