@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { SettingsFrame } from "@/client/components/settings-route-shell";
+import { SettingsPageHeader } from "@/client/components/settings-page-header";
 import { FitnessAnalysisPanel } from "@/client/components/fitness-analysis-panel";
 import { RepoPicker, type RepoSelection } from "@/client/components/repo-picker";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
@@ -175,19 +176,24 @@ export function FluencySettingsPageClient({ defaultRepoPath }: FluencySettingsPa
       )}
     >
       <SettingsFrame activeItem="fluency">
-      <div className="flex h-full min-h-0 overflow-hidden bg-desktop-bg-primary text-desktop-text-primary" data-testid="fluency-console-root">
+      <div className="flex h-full min-h-0 flex-col">
+      <SettingsPageHeader
+        title={t.settingsRedesign.pages.fluency.title}
+        description={t.settingsRedesign.pages.fluency.description}
+      />
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-canvas text-primary" data-testid="fluency-console-root">
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="border-b border-desktop-border bg-desktop-bg-secondary/50 px-4 py-2 text-[11px] text-desktop-text-secondary">
+          <div className="border-b border-default bg-subtle px-4 py-2 text-[11px] text-secondary">
             <span>{t.workspace.workspaceLabel} </span>
-            <span className="text-desktop-text-primary">{activeWorkspaceStatus}</span>
-            <span className="mx-2 text-desktop-text-tertiary">|</span>
+            <span className="text-primary">{activeWorkspaceStatus}</span>
+            <span className="mx-2 text-secondary">|</span>
             <span>{t.settings.repository}: </span>
-            <span className="text-desktop-text-primary">{activeRepoSelection?.name ?? "-"}</span>
-            <span className="mx-2 text-desktop-text-tertiary">|</span>
+            <span className="text-primary">{activeRepoSelection?.name ?? "-"}</span>
+            <span className="mx-2 text-secondary">|</span>
             <span className="truncate">{activeRepoSelection?.path ?? "-"}</span>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-desktop-bg-primary desktop-scrollbar">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-canvas desktop-scrollbar">
             <FitnessAnalysisPanel
               workspaceId={workspaceId}
               codebaseId={activeRepoCodebaseId}
@@ -204,6 +210,7 @@ export function FluencySettingsPageClient({ defaultRepoPath }: FluencySettingsPa
             </div>
           </div>
         </div>
+      </div>
       </div>
       </SettingsFrame>
     </DesktopAppShell>

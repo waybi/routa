@@ -91,5 +91,22 @@ export const enRedesignSettings: RedesignSettingsTranslationDictionarySections =
       spec: { title: "Spec", description: "Issues and specs collected for this workspace." },
       reposlide: { title: "Repo slides", description: "Generate a slide deck that explains this repository." },
     },
+    messagesPage: {
+      tabTasks: "Background tasks",
+      tabLogs: "Webhook logs",
+      tasksTitle: "PR agent and background tasks",
+      tasksEmpty: "No background tasks yet",
+      logsTitle: "Webhook trigger logs",
+      logsEmpty: "No webhook logs yet",
+      type: "Type: {value}",
+      created: "Created: {value}",
+      completed: "Completed: {value}",
+      config: "Config: {value}",
+      signature: "Signature: {value}",
+    },
+    canvasPage: {
+      loadFailedTitle: "This canvas could not be opened",
+      loadFailedDescription: "It may have been deleted, or the link is wrong. Open it again from the session that generated it.",
+    },
   },
 };

@@ -435,6 +435,16 @@ describe("HarnessSettingsPage", () => {
     expect(screen.getByText("Test Feedback")).not.toBeNull();
   });
 
+  it("renders exactly one settings page header with the 21px harness title", () => {
+    render(<HarnessSettingsPage />);
+
+    const headers = screen.getAllByTestId("settings-page-header");
+    expect(headers).toHaveLength(1);
+    const heading = within(headers[0]).getByRole("heading", { level: 1 });
+    expect(heading.textContent).toBe("Harness");
+    expect(heading.className).toContain("text-[21px]");
+  });
+
   it("uses the active codebase context by default", () => {
     render(<HarnessSettingsPage />);
 

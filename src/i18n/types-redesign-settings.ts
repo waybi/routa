@@ -95,5 +95,22 @@ export interface RedesignSettingsTranslationDictionarySections {
       spec: { title: string; description: string };
       reposlide: { title: string; description: string };
     };
+    messagesPage: {
+      tabTasks: string;
+      tabLogs: string;
+      tasksTitle: string;
+      tasksEmpty: string;
+      logsTitle: string;
+      logsEmpty: string;
+      type: string;
+      created: string;
+      completed: string;
+      config: string;
+      signature: string;
+    };
+    canvasPage: {
+      loadFailedTitle: string;
+      loadFailedDescription: string;
+    };
   };
 }

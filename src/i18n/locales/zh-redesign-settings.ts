@@ -91,5 +91,22 @@ export const zhRedesignSettings: RedesignSettingsTranslationDictionarySections =
       spec: { title: "规格", description: "这个工作区收集到的问题和规格。" },
       reposlide: { title: "代码仓幻灯", description: "生成一套讲解这个代码仓的幻灯片。" },
     },
+    messagesPage: {
+      tabTasks: "后台任务",
+      tabLogs: "Webhook 日志",
+      tasksTitle: "PR 执行器与后台任务",
+      tasksEmpty: "还没有后台任务",
+      logsTitle: "Webhook 触发日志",
+      logsEmpty: "还没有 Webhook 日志",
+      type: "类型：{value}",
+      created: "创建：{value}",
+      completed: "完成：{value}",
+      config: "配置：{value}",
+      signature: "签名：{value}",
+    },
+    canvasPage: {
+      loadFailedTitle: "这个画布打不开",
+      loadFailedDescription: "画布可能已删除，或链接有误。请从生成它的会话里重新打开。",
+    },
   },
 };
