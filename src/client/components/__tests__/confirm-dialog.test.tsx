@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ConfirmDialogProvider, useConfirm } from "../confirm-dialog";
 
@@ -93,6 +93,35 @@ describe("ConfirmDialogProvider", () => {
       screen.getByTestId("confirm-dialog-confirm").click();
     });
     await waitFor(() => expect(second).toBe(true));
+  });
+
+  it("resolves false when Escape is pressed inside the dialog", async () => {
+    const getConfirm = renderWithProvider();
+
+    let resolved: boolean | undefined;
+    act(() => {
+      void getConfirm()({ message: "Delete schedule?", destructive: true }).then((value) => { resolved = value; });
+    });
+
+    expect(await screen.findByText("Delete schedule?")).toBeTruthy();
+    act(() => {
+      fireEvent.keyDown(screen.getByTestId("confirm-dialog-confirm"), { key: "Escape" });
+    });
+
+    await waitFor(() => expect(resolved).toBe(false));
+    expect(screen.queryByTestId("confirm-dialog")).toBeNull();
+  });
+
+  it("uses the redesign tokens instead of fixed palette colors", async () => {
+    const getConfirm = renderWithProvider();
+    act(() => {
+      void getConfirm()({ message: "Remove repo?", destructive: true });
+    });
+    await screen.findByText("Remove repo?");
+    const dialog = screen.getByTestId("confirm-dialog");
+    expect(dialog.innerHTML).toContain("bg-surface");
+    expect(screen.getByTestId("confirm-dialog-confirm").className).toContain("text-danger");
+    expect(dialog.innerHTML).not.toMatch(/#[0-9a-fA-F]{3,8}\b|slate-|rose-/);
   });
 
   it("renders nothing until a confirmation is requested", () => {

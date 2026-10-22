@@ -99,7 +99,5 @@ export const zhShell: ShellTranslationDictionarySections = {
     retry: "重试",
     errorTitle: "读取失败",
     emptyTitle: "暂时没有内容",
-    dismiss: "关闭",
-    notificationsRegion: "通知",
   },
 };

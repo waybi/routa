@@ -54,6 +54,35 @@ describe("ToastProvider", () => {
     expect(screen.getByRole("alert").textContent).toContain("Failed to create card");
   });
 
+  it("auto-dismisses info toasts after their default duration but not before", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderProvider();
+
+    act(() => {
+      toast.info("Board refreshed");
+      toast.error("Push failed");
+    });
+    expect(await screen.findByText("Board refreshed")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(4_000);
+    });
+    expect(screen.getByText("Board refreshed")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(1_100);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Board refreshed")).toBeNull();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    // The error pushed at the same time is still there after 60 s.
+    expect(screen.getByText("Push failed")).toBeTruthy();
+  });
+
   it("replaces a toast in place when the same id is reused", async () => {
     renderProvider();
 

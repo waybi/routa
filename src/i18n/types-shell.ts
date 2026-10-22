@@ -105,7 +105,5 @@ export interface ShellTranslationDictionarySections {
     retry: string;
     errorTitle: string;
     emptyTitle: string;
-    dismiss: string;
-    notificationsRegion: string;
   };
 }

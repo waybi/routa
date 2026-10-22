@@ -99,7 +99,5 @@ export const enShell: ShellTranslationDictionarySections = {
     retry: "Retry",
     errorTitle: "Could not load",
     emptyTitle: "Nothing here yet",
-    dismiss: "Dismiss",
-    notificationsRegion: "Notifications",
   },
 };

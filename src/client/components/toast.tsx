@@ -30,6 +30,7 @@ import {
   useState,
 } from "react";
 import { AlertTriangle, CheckCircle2, Info, Loader2, X } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -222,22 +223,10 @@ export function useToast(): ToastContextValue {
 // ─── Viewport ────────────────────────────────────────────────────────────────
 
 const VARIANT_STYLES: Record<ToastVariant, { ring: string; icon: string }> = {
-  success: {
-    ring: "border-emerald-200 bg-white dark:border-emerald-900/50 dark:bg-[#12141c]",
-    icon: "text-emerald-500",
-  },
-  error: {
-    ring: "border-rose-300 bg-white dark:border-rose-900/60 dark:bg-[#12141c]",
-    icon: "text-rose-500",
-  },
-  info: {
-    ring: "border-sky-200 bg-white dark:border-sky-900/50 dark:bg-[#12141c]",
-    icon: "text-sky-500",
-  },
-  loading: {
-    ring: "border-slate-200 bg-white dark:border-slate-700 dark:bg-[#12141c]",
-    icon: "text-slate-400",
-  },
+  success: { ring: "border-default border-l-success", icon: "text-success" },
+  error: { ring: "border-danger border-l-danger", icon: "text-danger" },
+  info: { ring: "border-default border-l-information", icon: "text-information" },
+  loading: { ring: "border-default border-l-default", icon: "text-secondary" },
 };
 
 function ToastIcon({ variant }: { variant: ToastVariant }) {
@@ -250,7 +239,7 @@ function ToastIcon({ variant }: { variant: ToastVariant }) {
     case "info":
       return <Info className={className} aria-hidden="true" />;
     case "loading":
-      return <Loader2 className={`${className} animate-spin`} aria-hidden="true" />;
+      return <Loader2 className={`${className} animate-spin motion-reduce:animate-none`} aria-hidden="true" />;
   }
 }
 
@@ -261,13 +250,14 @@ function ToastViewport({
   toasts: ToastRecord[];
   onDismiss: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   if (toasts.length === 0) return null;
 
   return (
     <div
       className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
       role="region"
-      aria-label="Notifications"
+      aria-label={t.nav?.notifications}
       data-testid="toast-viewport"
     >
       {toasts.map((item) => (
@@ -276,15 +266,15 @@ function ToastViewport({
           data-testid={`toast-${item.variant}`}
           role={item.variant === "error" ? "alert" : "status"}
           aria-live={item.variant === "error" ? "assertive" : "polite"}
-          className={`pointer-events-auto flex items-start gap-2.5 rounded-xl border px-3.5 py-3 shadow-lg ${VARIANT_STYLES[item.variant].ring}`}
+          className={`pointer-events-auto flex items-start gap-2.5 rounded-lg border border-l-[3px] bg-surface px-3.5 py-3 text-primary shadow-overlay ${VARIANT_STYLES[item.variant].ring}`}
         >
           <ToastIcon variant={item.variant} />
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-medium leading-5 text-slate-900 dark:text-slate-100">
+            <div className="text-[13px] font-medium leading-5 text-primary">
               {item.title}
             </div>
             {item.description && (
-              <div className="mt-0.5 break-words text-xs leading-5 text-slate-500 dark:text-slate-400">
+              <div className="mt-0.5 break-words text-xs leading-5 text-secondary">
                 {item.description}
               </div>
             )}
@@ -295,7 +285,7 @@ function ToastViewport({
                   item.action?.onClick();
                   onDismiss(item.id);
                 }}
-                className="mt-1.5 text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                className="mt-1.5 text-xs font-medium text-accent hover:underline"
               >
                 {item.action.label}
               </button>
@@ -305,8 +295,8 @@ function ToastViewport({
             <button
               type="button"
               onClick={() => onDismiss(item.id)}
-              aria-label="Dismiss"
-              className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-[#1f232f] dark:hover:text-slate-200"
+              aria-label={t.common?.dismiss}
+              className="shrink-0 rounded p-0.5 text-secondary transition-colors hover:bg-hover hover:text-primary motion-reduce:transition-none"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>

@@ -21,6 +21,7 @@ import {
 } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { buttonClassName } from "./ui/button";
 
 export interface ConfirmOptions {
   /** Main line. Required — the user must know what they are agreeing to. */
@@ -89,56 +90,54 @@ export function ConfirmDialogProvider({ children }: { children: React.ReactNode 
           data-testid="confirm-dialog"
           role="dialog"
           aria-modal="true"
+          aria-labelledby={pending.title ? "confirm-dialog-title" : undefined}
+          aria-describedby="confirm-dialog-message"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              settle(false);
+            }
+          }}
         >
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-[#1c1f2e] dark:bg-[#12141c]">
-            <div className="p-6">
-              <div className="flex items-start gap-4">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-default bg-surface text-primary shadow-overlay">
+            <div className="p-5">
+              <div className="flex items-start gap-3">
                 <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                    pending.destructive
-                      ? "bg-rose-100 dark:bg-rose-900/20"
-                      : "bg-amber-100 dark:bg-amber-900/20"
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    pending.destructive ? "bg-danger-subtle text-danger" : "bg-attention-subtle text-attention"
                   }`}
                 >
-                  <TriangleAlert
-                    className={`h-6 w-6 ${
-                      pending.destructive
-                        ? "text-rose-600 dark:text-rose-400"
-                        : "text-amber-600 dark:text-amber-400"
-                    }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  />
+                  <TriangleAlert className="h-[18px] w-[18px]" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
                   {pending.title && (
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    <h3 id="confirm-dialog-title" className="m-0 text-base font-semibold leading-snug text-primary">
                       {pending.title}
                     </h3>
                   )}
-                  <p className="mt-1 whitespace-pre-line break-words text-sm text-slate-600 dark:text-slate-400">
+                  <p
+                    id="confirm-dialog-message"
+                    className="mt-1 whitespace-pre-line break-words text-[13px] leading-relaxed text-secondary"
+                  >
                     {pending.message}
                   </p>
                 </div>
               </div>
-              <div className="mt-6 flex gap-3">
+              <div className="mt-5 flex justify-end gap-2">
                 <button
+                  type="button"
                   onClick={() => settle(false)}
                   data-testid="confirm-dialog-cancel"
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-300 dark:hover:bg-[#191c28]"
+                  className={buttonClassName("secondary", "md")}
                 >
                   {pending.cancelLabel ?? t.common.cancel}
                 </button>
                 <button
+                  type="button"
                   onClick={() => settle(true)}
                   data-testid="confirm-dialog-confirm"
                   autoFocus
-                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                    pending.destructive
-                      ? "bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
-                      : "bg-amber-500 hover:bg-amber-600"
-                  }`}
+                  className={buttonClassName(pending.destructive ? "danger" : "primary", "md")}
                 >
                   {pending.confirmLabel ?? t.common.confirm}
                 </button>
