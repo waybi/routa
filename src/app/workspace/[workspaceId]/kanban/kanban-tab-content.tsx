@@ -13,6 +13,7 @@ import { KanbanGitHubImportModal } from "./kanban-github-import-modal";
 import { KanbanBoardSurface, KanbanCreateTaskModal } from "./kanban-board-surface";
 import { KanbanTaskDetailOverlay } from "./kanban-tab-panels";
 import { matchTask, normalizeSearchQuery } from "./kanban-board-search";
+import { useKanbanBoardKeyboard } from "./use-kanban-board-keyboard";
 import { KanbanSettingsModal } from "./kanban-settings-modal";
 import { KanbanFitnessWorkbenchModal } from "./kanban-fitness-workbench-modal";
 import {
@@ -274,6 +275,10 @@ export function KanbanTabContent({
   const boardTasks = boardSurfaceProps?.boardTasks ?? [];
   const searching = normalizeSearchQuery(search.query) !== "";
   const hits = searching ? boardTasks.filter((task) => matchTask(task, search.query)).length : boardTasks.length;
+  const { onKeyDown: onBoardKeyDown } = useKanbanBoardKeyboard({
+    enabled: Boolean(boardSurfaceProps) && view === "board",
+    onNewCard: headerProps.onCreateCard,
+  });
 
   const toolbar = (
     <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="kanban-toolbar">
@@ -378,7 +383,7 @@ export function KanbanTabContent({
               ) : null}
             />
           ) : null}
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onBoardKeyDown} data-testid="kanban-board-keyboard-scope">
             <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
           </div>
         </>

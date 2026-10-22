@@ -261,6 +261,36 @@ describe("AC10 skeleton, error and empty states", () => {
   });
 });
 
+describe("AC13 board keyboard", () => {
+  it("N opens New card on the board but not while typing in an input", () => {
+    renderTab([card("backlog-1", "backlog", 0)]);
+    const search = screen.getByTestId("kanban-board-search");
+    search.focus();
+    fireEvent.keyDown(search, { key: "n" });
+    expect(screen.queryByTestId("kanban-create-submit")).toBeNull();
+
+    search.blur();
+    fireEvent.keyDown(document.body, { key: "n" });
+    expect(screen.getByTestId("kanban-create-submit")).toBeTruthy();
+  });
+
+  it("↓ moves focus to the next card in the same column, → to the next column", () => {
+    renderTab([card("b-0", "backlog", 0), card("b-1", "backlog", 1), card("d-0", "done", 5)]);
+    const backlogCards = within(column("backlog")).getAllByTestId("kanban-card");
+    backlogCards[0].focus();
+    fireEvent.keyDown(backlogCards[0], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(backlogCards[1]);
+
+    fireEvent.keyDown(backlogCards[1], { key: "ArrowRight" });
+    expect(document.activeElement).toBe(within(column("done")).getAllByTestId("kanban-card")[0]);
+
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Enter" });
+    expect(new URLSearchParams(window.location.search).get("taskId")).toBe("d-0");
+  });
+});
+
 describe("AC11 dispatch failure stays visible", () => {
   it("shows the error inline, raises a sticky error toast and keeps the typed request", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({})));
