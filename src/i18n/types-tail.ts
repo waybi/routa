@@ -466,6 +466,8 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     showLess: string;
     collapse: string;
     expand: string;
+    /** Done footer counter; "{shown}" on screen / "{total}" cards. */
+    windowCount: string;
   };
   /** Done column day segments and compact two-line Done cards. */
   kanbanDoneSegments: {
@@ -522,6 +524,29 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     loading: string;
     searchPlaceholder: string;
     noWorkspaces: string;
+  };
+  /** Redesigned board page: header actions, toolbar, load/empty/error states. */
+  kanbanBoardPage: {
+    title: string;
+    boardSettings: string;
+    addRequest: string;
+    newCard: string;
+    /** Toolbar hit counter; "{hits}" / "{total}". */
+    hitCount: string;
+    loadFailedTitle: string;
+    loadFailedHint: string;
+    reload: string;
+    emptyTitle: string;
+    emptyHint: string;
+    closeDispatch: string;
+    /** Activity line when only the lane and its age are known; "{who}" "{age}". */
+    laneActivity: string;
+    noActivity: string;
+    ageJustNow: string;
+    ageMinutes: string;
+    ageHours: string;
+    ageDays: string;
+    unknownWorkspace: string;
   };
   /** Card detail overlay: top-right close icon button. */
   kanbanDetailOverlay: {

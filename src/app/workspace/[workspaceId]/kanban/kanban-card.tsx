@@ -12,15 +12,15 @@ import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../t
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
 import {
-  cardRunStatusDotClass,
   cardRunStatusLabelKey,
-  cardRunStatusTone,
   describeCardActivity,
   type CardActivityDetail,
-  cardMergeStateTone,
+  type KanbanCardRunStatus,
   resolveCardMergeState,
 } from "./kanban-card-status";
 import { GripVertical, Trash2 } from "lucide-react";
+import { Badge, type Tone } from "@/client/components/ui/badge";
+import { Button } from "@/client/components/ui/button";
 
 
 interface SpecialistOption {
@@ -51,6 +51,9 @@ export interface KanbanCardProps {
   onRefresh: () => void;
   /** Optional title renderer, e.g. to highlight board-search hits. */
   renderTitle?: (title: string) => ReactNode;
+  /** All-projects view: always show the workspace chip on the first row. */
+  showWorkspace?: boolean;
+  workspaceName?: string;
 }
 
 interface KanbanCardSurfaceProps extends KanbanCardProps {
@@ -77,17 +80,40 @@ function summarizeReviewFeedback(report: string | undefined, maxLength = 180): s
     : `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function getPriorityTone(priority?: string) {
+function getPriorityBadgeTone(priority?: string): Tone {
   switch ((priority ?? "medium").toLowerCase()) {
     case "high":
     case "urgent":
-      return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-900/40";
-    case "medium":
-      return "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40";
+      return "danger";
     case "low":
-      return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40";
+      return "success";
     default:
-      return "bg-slate-200 text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-[#1c1f2e] dark:text-slate-300 dark:ring-white/5";
+      return "attention";
+  }
+}
+
+/** Status dot tone per run status (design-spec §5: colour always paired with text). */
+export const CARD_RUN_STATUS_TONE: Record<KanbanCardRunStatus, Tone> = {
+  queued: "attention",
+  starting: "info",
+  working: "success",
+  stalled: "attention",
+  idle: "neutral",
+  completed: "success",
+  failed: "danger",
+};
+
+/** Left border token per run status; idle / queued keep the default border. */
+export function cardStatusBorderClass(status: KanbanCardRunStatus): string {
+  switch (status) {
+    case "working":
+      return "border-l-[3px] !border-l-success";
+    case "stalled":
+      return "border-l-[3px] !border-l-attention";
+    case "failed":
+      return "border-l-[3px] !border-l-danger";
+    default:
+      return "";
   }
 }
 
@@ -112,14 +138,10 @@ export function getPrioritySizeLabel(priority?: string | null): "S" | "M" | "L" 
  * state ("starting" / "queued"), which put two identical "starting" pills on
  * every running card; the run badge owns process state now.
  */
-function getSyncTone(hasSyncError: boolean, githubSyncedAt?: string) {
-  if (hasSyncError) {
-    return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:ring-rose-900/40";
-  }
-  if (githubSyncedAt) {
-    return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40";
-  }
-  return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5";
+function getSyncBadgeTone(hasSyncError: boolean, githubSyncedAt?: string): Tone {
+  if (hasSyncError) return "danger";
+  if (githubSyncedAt) return "success";
+  return "neutral";
 }
 
 function getSyncLabel(hasSyncError: boolean, githubSyncedAt?: string) {
@@ -237,6 +259,45 @@ function formatActivityLine(activity: CardActivityDetail, dict: ActivityDict): s
   }
 }
 
+const STATUS_DOT_CLASS: Record<Tone, string> = {
+  neutral: "bg-secondary",
+  info: "bg-information",
+  attention: "bg-attention",
+  danger: "bg-danger",
+  success: "bg-success",
+};
+
+type BoardPageCopy = Record<"laneActivity" | "noActivity" | "ageJustNow" | "ageMinutes" | "ageHours" | "ageDays", string>;
+
+function formatAge(ms: number, copy: BoardPageCopy): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return copy.ageJustNow;
+  if (minutes < 60) return copy.ageMinutes.replace("{count}", String(minutes));
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return copy.ageHours.replace("{count}", String(hours));
+  return copy.ageDays.replace("{count}", String(Math.floor(hours / 24)));
+}
+
+/**
+ * Fallback activity line when no live session is attached: the newest lane
+ * run's specialist and how long ago it started ("Dev Crafter · 1 h ago").
+ * Returns null when the card has never run, so the card does not invent one.
+ */
+export function formatLaneActivityLine(
+  task: Pick<TaskInfo, "laneSessions" | "updatedAt">,
+  now: number,
+  copy: BoardPageCopy,
+): string | null {
+  const latest = [...(task.laneSessions ?? [])]
+    .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())[0];
+  if (!latest?.specialistName) return null;
+  const at = new Date(latest.completedAt ?? latest.lastActivityAt ?? latest.startedAt).getTime();
+  if (!Number.isFinite(at)) return null;
+  return copy.laneActivity
+    .replace("{who}", latest.specialistName)
+    .replace("{age}", formatAge(Math.max(0, now - at), copy));
+}
+
 function KanbanCardSurface({
   task,
   boardColumns,
@@ -256,6 +317,8 @@ function KanbanCardSurface({
   onRetryTrigger,
   onRefresh,
   renderTitle,
+  showWorkspace = false,
+  workspaceName,
   dragHandleProps = {},
   dragOverlay = false,
   isDragging = false,
@@ -270,7 +333,6 @@ function KanbanCardSurface({
   const effectiveAutomation = resolveEffectiveTaskAutomation(task, boardColumns, resolveSpecialist, {
     autoProviderId,
   });
-  const priorityTone = getPriorityTone(task.priority);
   const prioritySizeLabel = getPrioritySizeLabel(task.priority);
   const mergeState = resolveCardMergeState(task);
   // Folds acpStatus, the live activity heartbeat and the lane-session record
@@ -289,14 +351,15 @@ function KanbanCardSurface({
     || (!task.triggerSessionId && task.columnId === "dev")
   ) && !queuePosition;
   const canRun = effectiveAutomation.canRun && !task.triggerSessionId && task.columnId !== "done" && !queuePosition;
-  const activityLine = isTerminalCard ? null : formatActivityLine(activity, t.kanbanCardActivity as unknown as ActivityDict);
+  const pageCopy = t.kanbanBoardPage;
+  const liveActivityLine = isTerminalCard ? null : formatActivityLine(activity, t.kanbanCardActivity as unknown as ActivityDict);
+  const laneActivityLine = isTerminalCard ? null : formatLaneActivityLine(task, now, pageCopy);
+  const activityLine = liveActivityLine ?? laneActivityLine;
   const lastActivityTitle = linkedSession?.lastActivityAt
     ? new Date(linkedSession.lastActivityAt).toLocaleString()
     : undefined;
   const statusLabel = cardRunStatusLabelKey(runStatus);
-  const sessionTone = isTerminalCard
-    ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40"
-    : cardRunStatusTone(runStatus);
+  const statusTone: Tone = isTerminalCard ? "success" : CARD_RUN_STATUS_TONE[runStatus];
   const resolvedStatusLabel = isTerminalCard
     ? t.kanban.done
     : queuePosition
@@ -313,15 +376,12 @@ function KanbanCardSurface({
   );
   const syncLabelKey = getSyncLabel(Boolean(task.lastSyncError), task.githubSyncedAt);
   const resolvedSyncLabel = (t.kanban as Record<string, string>)[syncLabelKey] ?? syncLabelKey;
-  const syncTone = getSyncTone(Boolean(task.lastSyncError), task.githubSyncedAt);
+  const syncTone = getSyncBadgeTone(Boolean(task.lastSyncError), task.githubSyncedAt);
   const objectiveText = buildCardSummary(task, task.objective?.trim() || t.kanban.noObjective);
   const transitionArtifacts = resolveKanbanTransitionArtifacts(boardColumns, task.columnId);
   const missingNextArtifacts = transitionArtifacts.nextRequiredArtifacts.filter(
     (artifactType) => (task.artifactSummary?.byType?.[artifactType] ?? 0) === 0,
   );
-  const artifactGateTone = missingNextArtifacts.length === 0
-    ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40"
-    : "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40";
   const artifactCount = task.artifactSummary?.total ?? 0;
   const artifactCountLabel = `${artifactCount} artifact${artifactCount === 1 ? "" : "s"}`;
   const artifactCountTooltip = formatArtifactCountTooltip(task);
@@ -341,24 +401,17 @@ function KanbanCardSurface({
         ? t.kanbanDetail.reviewApprovedVerdict
         : t.kanbanDetail.reviewFeedback;
   const reviewFeedbackTone = task.verificationVerdict === "BLOCKED"
-    ? "border-rose-200/80 bg-rose-50/80 text-rose-800 dark:border-rose-900/40 dark:bg-rose-900/15 dark:text-rose-200"
+    ? "border-danger bg-danger-subtle text-danger"
     : task.verificationVerdict === "APPROVED"
-      ? "border-emerald-200/80 bg-emerald-50/80 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/15 dark:text-emerald-200"
-      : "border-amber-200/80 bg-amber-50/80 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200";
-  const attentionClass = isTerminalCard || dragOverlay
-    ? ""
-    : runStatus === "failed"
-      ? "border-l-4 !border-l-rose-500"
-      : runStatus === "stalled"
-        ? "border-l-4 !border-l-orange-400"
-        : runStatus === "working"
-          ? "border-l-4 !border-l-emerald-400"
-          : "";
-  const cardClassName = `group relative flex flex-col gap-2 border border-slate-200/80 bg-white/90 p-2.5 ${attentionClass} transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:border-[#262938] dark:bg-[#0d1018] dark:hover:border-[#34384a] ${dragOverlay
-    ? "pointer-events-none border-amber-300/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.28)] ring-2 ring-amber-300/55 will-change-transform dark:border-amber-700/60 dark:bg-[#11141d] dark:ring-amber-700/45"
+      ? "border-success bg-success-subtle text-success"
+      : "border-attention bg-attention-subtle text-attention";
+  const borderClass = isTerminalCard || dragOverlay ? "" : cardStatusBorderClass(runStatus);
+  const cardClassName = `group relative flex flex-col gap-1.5 rounded-md border border-default bg-surface py-2.5 pl-7 pr-2.5 ${borderClass} transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none hover:bg-hover focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${dragOverlay
+    ? "pointer-events-none shadow-overlay ring-2 ring-accent will-change-transform"
     : isDragging
-      ? "opacity-15 ring-1 ring-slate-300/70 dark:ring-white/10"
+      ? "opacity-15"
       : ""}`.trim();
+  const workspaceLabel = showWorkspace ? (workspaceName ?? pageCopy.unknownWorkspace) : null;
 
   void availableProviders;
   void specialistLanguage;
@@ -375,6 +428,7 @@ function KanbanCardSurface({
       style={style}
       onClick={dragOverlay ? undefined : onOpenDetail}
       onKeyDown={dragOverlay ? undefined : (event) => {
+        if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onOpenDetail();
@@ -385,104 +439,112 @@ function KanbanCardSurface({
       aria-label={dragOverlay ? undefined : `${t.kanban.openCard} ${task.title}`}
       className={cardClassName}
       data-testid={dragOverlay ? "kanban-card-overlay" : "kanban-card"}
+      data-card-id={dragOverlay ? undefined : task.id}
+      data-column-id={dragOverlay ? undefined : task.columnId}
     >
       <button
         type="button"
         {...dragHandleProps}
         onClickCapture={stopCardInteraction}
-        className="absolute left-2.5 top-2.5 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:text-slate-500 dark:hover:bg-[#191c28] dark:hover:text-slate-300"
+        className="absolute left-1.5 top-2.5 rounded p-0.5 text-secondary transition hover:bg-hover hover:text-primary focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
         aria-label={`${t.kanban.dragCard} ${task.title}`}
         title={t.kanban.dragCard}
         style={{ touchAction: "none" }}
         data-testid="kanban-card-drag-handle"
       >
-        <GripVertical className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" />
-      </button>
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          onDelete();
-        }}
-        className="absolute right-2.5 top-2.5 rounded-lg p-1 text-red-500 opacity-0 transition-all hover:bg-red-100 hover:text-red-600 group-hover:opacity-100 dark:text-red-400 dark:hover:bg-red-900/20"
-        title={t.kanban.deleteTask}
-        data-testid="kanban-card-delete"
-      >
-        <Trash2 className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"/>
+        <GripVertical className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" />
       </button>
 
-      <div className="flex items-start justify-between gap-3 pl-7 pr-6">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1">
-            {task.githubNumber ? (
-              <a
-                href={task.githubUrl}
-                target="_blank"
-                rel="noreferrer"
-                onClick={stopCardInteraction}
-                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ring-1 ring-inset hover:opacity-80 ${task.isPullRequest
-                  ? "bg-purple-50 text-purple-700 ring-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:ring-purple-900/40"
-                  : "bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40"
-                }`}
-              >
-                {task.isPullRequest ? `PR #${task.githubNumber}` : `Issue #${task.githubNumber}`}
-              </a>
-            ) : null}
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${sessionTone}`}
-              data-testid="kanban-card-run-status"
-              data-run-status={isTerminalCard ? "done" : runStatus}
-            >
-              {!isTerminalCard && <span className={`h-1.5 w-1.5 rounded-full ${cardRunStatusDotClass(runStatus)}`} />}
-              {resolvedStatusLabel}
-            </span>
-            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${syncTone}`}>
-              {resolvedSyncLabel}
-            </span>
-            {mergeState !== "unknown" && (
-              <span
-                data-testid={`kanban-card-merge-state-${mergeState}`}
-                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${cardMergeStateTone(mergeState)}`}
-              >
-                {mergeState === "unmerged" ? t.kanbanDetail.unmerged : t.kanbanDetail.merged}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {(canRun || canRetry) && (
-            <button
-              onClick={() => void onRetryTrigger(task.id)}
-              onClickCapture={stopCardInteraction}
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${canRetry
-                ? "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/50 dark:bg-amber-900/10 dark:text-amber-300"
-                : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/50 dark:bg-emerald-900/10 dark:text-emerald-300"
-                }`}
-            >
-              {canRetry ? t.kanban.rerun : t.kanban.run}
-            </button>
-          )}
-          {prioritySizeLabel && (
-            <span
-              className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${priorityTone}`}
-              data-testid="kanban-card-priority-size"
-            >
-              {prioritySizeLabel}
-            </span>
-          )}
-        </div>
+      <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-secondary" data-testid="kanban-card-meta">
+        {workspaceLabel && (
+          <span className="min-w-0 truncate rounded bg-subtle px-1.5 py-0.5 text-[11px] text-secondary" data-testid="kanban-card-workspace">
+            {workspaceLabel}
+          </span>
+        )}
+        {task.githubNumber ? (
+          <a
+            href={task.githubUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={stopCardInteraction}
+            className="shrink-0 rounded hover:opacity-80"
+          >
+            <Badge tone={task.isPullRequest ? "info" : "attention"}>
+              {task.isPullRequest ? `PR #${task.githubNumber}` : `Issue #${task.githubNumber}`}
+            </Badge>
+          </a>
+        ) : null}
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-secondary" data-testid="kanban-card-id">
+          {task.id.slice(0, 8)}
+        </span>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          className="shrink-0 rounded p-0.5 text-danger opacity-0 transition hover:bg-danger-subtle focus-visible:opacity-100 group-hover:opacity-100"
+          title={t.kanban.deleteTask}
+          aria-label={`${t.kanban.deleteTask} ${task.title}`}
+          data-testid="kanban-card-delete"
+        >
+          <Trash2 className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"/>
+        </button>
       </div>
 
-      <div className="text-[14px] font-semibold leading-[1.2] text-slate-900 dark:text-slate-100">
+      <div className="text-[13px] font-[550] leading-[1.45] text-primary [overflow-wrap:anywhere]" data-testid="kanban-card-title">
         {renderTitle ? renderTitle(task.title) : task.title}
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span
+          className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-primary"
+          data-testid="kanban-card-run-status"
+          data-run-status={isTerminalCard ? "done" : runStatus}
+          data-tone={statusTone}
+        >
+          <span
+            aria-hidden="true"
+            data-testid="kanban-card-status-dot"
+            className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_CLASS[statusTone]}${!isTerminalCard && (runStatus === "working" || runStatus === "starting") ? " motion-safe:animate-pulse" : ""}`}
+          />
+          {resolvedStatusLabel}
+        </span>
+        <Badge tone={syncTone}>{resolvedSyncLabel}</Badge>
+        {mergeState !== "unknown" && (
+          <span data-testid={`kanban-card-merge-state-${mergeState}`} className="inline-flex">
+            <Badge tone={mergeState === "unmerged" ? "attention" : "neutral"}>
+              {mergeState === "unmerged" ? t.kanbanDetail.unmerged : t.kanbanDetail.merged}
+            </Badge>
+          </span>
+        )}
+        {prioritySizeLabel && (
+          <span data-testid="kanban-card-priority-size" className="inline-flex">
+            <Badge tone={getPriorityBadgeTone(task.priority)}>{prioritySizeLabel}</Badge>
+          </span>
+        )}
+        {(canRun || canRetry) && (
+          <Button
+            variant={canRetry ? "secondary" : "ghost"}
+            size="xs"
+            className="ml-auto"
+            onClick={(event) => {
+              event.stopPropagation();
+              void onRetryTrigger(task.id);
+            }}
+          >
+            {canRetry ? t.kanban.rerun : t.kanban.run}
+          </Button>
+        )}
       </div>
 
       {activityLine && (
         <div
-          className={`truncate text-[10px] leading-[1.3] ${runStatus === "failed"
-            ? "text-rose-600 dark:text-rose-300"
+          className={`text-[11px] leading-[1.4] [overflow-wrap:anywhere] ${runStatus === "failed"
+            ? "text-danger"
             : runStatus === "stalled"
-              ? "font-medium text-orange-600 dark:text-orange-300"
-              : "text-slate-500 dark:text-slate-400"}`}
+              ? "font-medium text-attention"
+              : "text-secondary"}`}
           title={[activityLine, lastActivityTitle].filter(Boolean).join(" · ")}
           data-testid="kanban-card-activity"
         >
@@ -493,37 +555,29 @@ function KanbanCardSurface({
       {(transitionArtifacts.nextRequiredArtifacts.length > 0 || artifactCount > 0) && (
         <div className="flex flex-wrap items-center gap-1">
           {transitionArtifacts.nextRequiredArtifacts.length > 0 && (
-            <span
-              className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${artifactGateTone}`}
-              title={artifactGateTooltip}
-              data-testid="kanban-card-artifact-gate"
-            >
-              {formatArtifactGateBadgeLabel(transitionArtifacts.nextColumn?.name, missingNextArtifacts)}
+            <span title={artifactGateTooltip} data-testid="kanban-card-artifact-gate" className="inline-flex">
+              <Badge tone={missingNextArtifacts.length === 0 ? "success" : "attention"}>
+                {formatArtifactGateBadgeLabel(transitionArtifacts.nextColumn?.name, missingNextArtifacts)}
+              </Badge>
             </span>
           )}
           {artifactCount > 0 && (
-            <span
-              className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5"
-              title={artifactCountTooltip}
-              data-testid="kanban-card-artifact-count"
-            >
-              {artifactCountLabel}
+            <span title={artifactCountTooltip} data-testid="kanban-card-artifact-count" className="inline-flex">
+              <Badge>{artifactCountLabel}</Badge>
             </span>
           )}
         </div>
       )}
 
-      <p className="line-clamp-3 text-[11px] leading-[1.35] text-slate-600 dark:text-slate-400">{objectiveText}</p>
+      <p className="line-clamp-2 text-[11px] leading-[1.45] text-secondary">{objectiveText}</p>
       {hasReviewFeedback && (
         <div
-          className={`rounded-lg border px-2 py-1.5 ${reviewFeedbackTone}`}
+          className={`rounded border px-2 py-1.5 ${reviewFeedbackTone}`}
           data-testid="kanban-card-review-feedback"
         >
-          <div className="flex flex-wrap items-center gap-1">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.14em]">
-              {t.kanbanDetail.reviewFeedback}
-            </div>
-            <span className="rounded-full bg-white/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] dark:bg-black/20">
+          <div className="flex flex-wrap items-center gap-1 text-[11px] font-semibold">
+            <span>{t.kanbanDetail.reviewFeedback}</span>
+            <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium">
               {task.columnId === "dev" && task.verificationVerdict !== "APPROVED"
                 ? t.kanbanDetail.reviewReturnedToDev
                 : reviewVerdictLabel}
@@ -531,7 +585,7 @@ function KanbanCardSurface({
           </div>
           {(reviewFeedbackPreview || task.verificationVerdict) && (
             <div
-              className="mt-1 line-clamp-2 text-[10px] leading-[1.35]"
+              className="mt-1 line-clamp-2 text-[11px] leading-[1.4]"
               title={task.verificationReport ?? reviewVerdictLabel}
             >
               {reviewFeedbackPreview ?? reviewVerdictLabel}
@@ -540,12 +594,12 @@ function KanbanCardSurface({
         </div>
       )}
       {!isTerminalCard && liveMessageTail && (
-        <div className="rounded-lg border border-sky-200/80 bg-sky-50/70 px-2 py-1.5 dark:border-sky-900/50 dark:bg-sky-900/10">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-600 dark:text-sky-300">
+        <div className="rounded border border-default bg-subtle px-2 py-1.5">
+          <div className="text-[11px] font-semibold text-information">
             {t.kanban.liveSession}
           </div>
           <div
-            className="mt-1 line-clamp-2 font-mono text-[10px] leading-[1.35] text-sky-700 dark:text-sky-200"
+            className="mt-1 line-clamp-2 font-mono text-[11px] leading-[1.4] text-primary"
             title={liveMessageTail}
             data-testid="kanban-card-live-tail"
           >
@@ -557,38 +611,25 @@ function KanbanCardSurface({
       {(visibleLabels.length > 0
         || ((task.codebaseIds && task.codebaseIds.length > 0) || allCodebaseIds.length > 0)
         || task.worktreeId) && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {visibleLabels.map((label) => (
-            <span key={label} className="rounded-full bg-amber-100/80 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40">
-              {label}
-            </span>
+            <Badge key={label}>{label}</Badge>
           ))}
-          {remainingLabelCount > 0 && (
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-400 dark:ring-white/5">
-              +{remainingLabelCount}
-            </span>
-          )}
+          {remainingLabelCount > 0 && <Badge>+{remainingLabelCount}</Badge>}
           {visibleCodebaseIds.map((cbId) => {
             const cb = codebases.find((c) => c.id === cbId);
             return cb ? (
-              <span
-                key={cbId}
-                className="inline-flex items-center gap-1 rounded-full bg-blue-100/90 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:ring-blue-900/40"
-                data-testid="repo-badge"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                {cb.label ?? cb.repoPath.split("/").pop() ?? cb.repoPath}
+              <span key={cbId} data-testid="repo-badge" className="inline-flex">
+                <Badge tone="info">{cb.label ?? cb.repoPath.split("/").pop() ?? cb.repoPath}</Badge>
               </span>
             ) : (
-              <span key={cbId} className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-medium text-red-600 ring-1 ring-inset ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-900/40" title={t.kanban.repoMissing}>
-                {t.kanban.repoMissing}
+              <span key={cbId} title={t.kanban.repoMissing} className="inline-flex">
+                <Badge tone="danger">{t.kanban.repoMissing}</Badge>
               </span>
             );
           })}
           {remainingCodebaseCount > 0 && (
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-400 dark:ring-white/5">
-              +{remainingCodebaseCount} repo{remainingCodebaseCount > 1 ? "s" : ""}
-            </span>
+            <Badge>+{remainingCodebaseCount} repo{remainingCodebaseCount > 1 ? "s" : ""}</Badge>
           )}
           <WorktreeBadge task={task} worktreeCache={worktreeCache} onOpenDetail={onOpenDetail} stopCardInteraction={stopCardInteraction} />
         </div>
@@ -642,23 +683,26 @@ function WorktreeBadge({ task, worktreeCache, onOpenDetail, stopCardInteraction 
   const wt = worktreeCache[task.worktreeId];
   if (!wt) {
     return (
-      <div className="inline-flex items-center text-[9px] text-slate-500 dark:text-slate-400">
+      <div className="inline-flex items-center text-[10px] text-secondary">
         worktree {t.common.loading}...
       </div>
     );
   }
 
   const wtDotColor = wt.status === "active"
-    ? "bg-emerald-500"
+    ? STATUS_DOT_CLASS.success
     : wt.status === "creating"
-      ? "bg-amber-500"
-      : "bg-rose-500";
+      ? STATUS_DOT_CLASS.attention
+      : STATUS_DOT_CLASS.danger;
 
   return (
     <button
-      onClick={onOpenDetail}
-      onClickCapture={stopCardInteraction}
-      className="inline-flex max-w-full items-center gap-1 text-[9px] text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+      type="button"
+      onClick={(event) => {
+        stopCardInteraction(event);
+        onOpenDetail();
+      }}
+      className="inline-flex max-w-full items-center gap-1 text-[10px] text-secondary transition hover:text-primary"
       title={t.kanban.worktreeLoading}
       data-testid="worktree-badge"
     >

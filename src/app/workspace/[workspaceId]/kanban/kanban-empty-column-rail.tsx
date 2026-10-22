@@ -3,7 +3,7 @@
 import { useTranslation } from "@/i18n";
 
 /** Width class for a column with no cards: a ~40px rail that is still a drop target. */
-export const EMPTY_COLUMN_RAIL_WIDTH_CLASS = "w-10 items-center !px-0";
+export const EMPTY_COLUMN_RAIL_WIDTH_CLASS = "w-10 items-center";
 
 /**
  * Body of an empty column: vertical column name and a 0 count. The caller
@@ -13,13 +13,13 @@ export function KanbanEmptyColumnRail({ columnId, name }: { columnId: string; na
   const { t } = useTranslation();
   return (
     <div
-      className="flex h-full flex-col items-center gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+      className="flex h-full flex-col items-center gap-2 text-[12px] font-semibold text-primary"
       title={t.kanbanEmptyColumn.railHint.replace("{name}", name)}
       data-testid="kanban-empty-column-rail"
       data-column-id={columnId}
     >
-      <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500" data-testid={`kanban-column-count-${columnId}`}>0</span>
       <span className="whitespace-nowrap [writing-mode:vertical-rl]">{name}</span>
+      <span className="font-mono text-[10px] font-normal text-secondary" data-testid={`kanban-column-count-${columnId}`}>0</span>
     </div>
   );
 }

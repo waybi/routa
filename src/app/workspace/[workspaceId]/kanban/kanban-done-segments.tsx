@@ -22,11 +22,9 @@ import {
   type DoneSegmentKey,
 } from "./kanban-done-time";
 import { HighlightedText, normalizeSearchQuery } from "./kanban-board-search";
+import { resolveCardMergeState } from "./kanban-card-status";
+import { Badge } from "@/client/components/ui/badge";
 
-const PILL_BASE = "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium";
-const PILL_SLATE = `${PILL_BASE} bg-slate-100 font-mono text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-[#181c28] dark:text-slate-300 dark:ring-white/5`;
-const PILL_AMBER = `${PILL_BASE} bg-amber-100/80 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40`;
-const PILL_RUNNING = `${PILL_BASE} gap-1 bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:ring-emerald-900/40`;
 
 export function isDoneReportPending(task: TaskInfo): boolean {
   if (task.completionReport) return false;
@@ -57,6 +55,8 @@ export function KanbanDoneCard({
   const showSecondLine = segment !== "older" || needle !== "";
   const pending = showSecondLine && isDoneReportPending(task);
   const commit = report?.commit?.trim() ? report.commit.trim() : null;
+  // Unknown never renders (design-spec §11): only an explicit landedOnBase=false with commits.
+  const unmerged = resolveCardMergeState(task) === "unmerged";
   const renderText = (text: string) => (needle ? <HighlightedText text={text} query={searchQuery} /> : text);
   // Show the full hash when the search hit falls outside the 7-char prefix.
   const commitLabel = commit && needle && commit.toLowerCase().includes(needle) && !commit.slice(0, 7).toLowerCase().includes(needle)
@@ -77,8 +77,10 @@ export function KanbanDoneCard({
       }}
       aria-label={`${t.kanban.openCard} ${task.title}`}
       style={isDragging ? { opacity: 0.16 } : undefined}
-      className="group relative flex flex-col gap-1 border border-slate-200/80 bg-white/90 py-1.5 pl-7 pr-2 transition-[background-color,border-color] duration-150 hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:border-[#262938] dark:bg-[#0d1018] dark:hover:border-[#34384a]"
+      className={`group relative flex flex-col gap-1 rounded-md border border-default bg-surface pl-7 pr-2 transition-colors duration-150 motion-reduce:transition-none hover:bg-hover focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${showSecondLine ? "py-2" : "py-1.5"}`}
       data-testid="kanban-card"
+      data-card-id={task.id}
+      data-column-id={task.columnId}
       data-variant="done"
       data-segment={segment}
     >
@@ -87,7 +89,7 @@ export function KanbanDoneCard({
         {...attributes}
         {...listeners}
         onClickCapture={(event) => event.stopPropagation()}
-        className="absolute left-1.5 top-1.5 rounded-lg p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400/50 dark:text-slate-500 dark:hover:bg-[#191c28] dark:hover:text-slate-300"
+        className="absolute left-1.5 top-1.5 rounded p-0.5 text-secondary transition hover:bg-hover hover:text-primary focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
         aria-label={`${t.kanban.dragCard} ${task.title}`}
         title={t.kanban.dragCard}
         style={{ touchAction: "none" }}
@@ -96,34 +98,39 @@ export function KanbanDoneCard({
         <GripVertical className="h-3.5 w-3.5" />
       </button>
       <div className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold leading-[1.3] text-slate-900 dark:text-slate-100" title={task.title}>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-[550] leading-[1.4] text-primary" title={task.title}>
           {renderText(task.title)}
         </span>
-        <span className="shrink-0 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="kanban-done-card-time">
+        {unmerged && (
+          <span className="shrink-0" data-testid="kanban-done-card-unmerged">
+            <Badge tone="attention">{t.kanbanDetail.unmerged}</Badge>
+          </span>
+        )}
+        <span className="shrink-0 font-mono text-[10px] text-secondary" data-testid="kanban-done-card-time">
           {formatDoneEnteredAt(getDoneEnteredAt(task), segment)}
         </span>
       </div>
       {showSecondLine && (report || pending) && (
-        <div className="flex min-w-0 items-center gap-1 text-[10px] leading-[1.3] text-slate-600 dark:text-slate-400" data-testid="kanban-done-card-line2">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-[1.4] text-secondary" data-testid="kanban-done-card-line2">
           {report ? (
             <>
               <span className="min-w-0 flex-1 truncate" title={report.excerpt ?? undefined}>
                 {report.excerpt ? renderText(report.excerpt) : null}
               </span>
               {commit && (
-                <span className={PILL_SLATE} title={commit} data-testid="kanban-done-card-commit">
+                <span className="shrink-0 font-mono text-[11px] text-primary" title={commit} data-testid="kanban-done-card-commit">
                   {renderText(commitLabel ?? "")}
                 </span>
               )}
               {report.hasLeftover && (
-                <span className={PILL_AMBER} data-testid="kanban-done-card-leftover">
-                  {t.kanbanDoneSegments.leftover}
+                <span className="shrink-0" data-testid="kanban-done-card-leftover">
+                  <Badge tone="attention">{t.kanbanDoneSegments.leftover}</Badge>
                 </span>
               )}
             </>
           ) : (
-            <span className={PILL_RUNNING} data-testid="kanban-done-card-report-pending">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span className="inline-flex items-center gap-1.5 text-success" data-testid="kanban-done-card-report-pending">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
               {t.kanbanDoneSegments.reportPending}
             </span>
           )}
@@ -174,12 +181,12 @@ export function KanbanDoneSegments({
               type="button"
               aria-expanded={expanded}
               onClick={() => setOverrides({ mode, values: { ...activeOverrides, [key]: !expanded } })}
-              className="flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-secondary transition-colors hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
               data-testid={`kanban-done-segment-toggle-${key}`}
             >
               <Chevron className="h-3 w-3" />
               <span>{t.kanbanDoneSegments[key]}</span>
-              <span className="font-normal text-slate-400 dark:text-slate-500">{items.length}</span>
+              <span className="ml-auto font-mono text-[10px] font-normal text-secondary">{items.length}</span>
             </button>
             {expanded && items.map((task) => (
               <KanbanDoneCard
