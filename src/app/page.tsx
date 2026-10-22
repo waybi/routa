@@ -25,6 +25,7 @@ import {
 } from "@/client/components/home/home-sections";
 import { useHomeProviderReadiness } from "@/client/components/home/use-home-provider-readiness";
 import { useMinuteClock } from "@/client/components/home/relative-time";
+import { useHomeCodebases } from "@/client/components/home/use-home-codebases";
 import {
   SettingsPanel,
   loadDefaultProviders,
@@ -36,7 +37,7 @@ import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { buttonClassName } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/states";
 import { useAcp } from "@/client/hooks/use-acp";
-import { useCodebases, useWorkspaces } from "@/client/hooks/use-workspaces";
+import { useWorkspaces } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { loadCustomAcpProviders } from "@/client/utils/custom-acp-providers";
 import {
@@ -126,7 +127,7 @@ function HomePageContent() {
     : (hydrated ? parseOnboardingMode(readStorage(ONBOARDING_MODE_KEY)) : null);
   const onboardingCompleted = completedOverride ?? (hydrated && readStorage(ONBOARDING_COMPLETED_KEY) === "true");
 
-  const { codebases, fetchCodebases } = useCodebases(activeWorkspaceId ?? "");
+  const { codebases, loaded: codebasesLoaded, refetch: fetchCodebases } = useHomeCodebases(activeWorkspaceId);
   const { data: overviewData, retry } = useKanbanOverviewData(workspacesHook.workspaces);
 
   useEffect(() => {
@@ -243,7 +244,7 @@ function HomePageContent() {
   const hasCodebase = codebases.length > 0;
   // Show onboarding until the user explicitly dismisses it.
   const needsInlineOnboarding = hasWorkspace && !onboardingCompleted;
-  const readinessReady = hydrated && readiness.loaded;
+  const readinessReady = hydrated && readiness.loaded && codebasesLoaded;
 
   // Read dismissals on every render: the board strip may have changed them.
   const inbox = buildInboxRows(workspaces, overviewData, now, readAttentionDismissals);

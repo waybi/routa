@@ -35,7 +35,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/client/hooks/use-workspaces", () => ({
   useWorkspaces: () => ({ workspaces: workspaceState.workspaces, loading: false, createWorkspace: vi.fn(async () => null) }),
-  useCodebases: () => ({ codebases: workspaceState.codebases, fetchCodebases: vi.fn(async () => {}) }),
 }));
 vi.mock("@/client/hooks/use-acp", () => ({
   useAcp: () => ({ connected: false, loading: false, connect: acpState.connect, providers: [] }),
@@ -116,6 +115,7 @@ function respond(url: string): Response {
     return json({ sessions: id === "alpha" ? [{ sessionId: "sess-1234567890", name: "Fix login", workspaceId: "alpha", createdAt: iso(NOW - HOUR) }] : [] });
   }
   if (parsed.pathname === "/api/providers") return json({ providers });
+  if (/^\/api\/workspaces\/[^/]+\/codebases$/.test(parsed.pathname)) return json({ codebases: workspaceState.codebases });
   return new Response("not found", { status: 404 });
 }
 
@@ -307,6 +307,7 @@ describe("preserved behaviors (AC3)", () => {
   it("hides the readiness notice when model and codebase are ready", async () => {
     await renderReady();
     await waitFor(() => expect(calls.some((call) => call.url.includes("/api/providers"))).toBe(true));
+    await waitFor(() => expect(calls.some((call) => call.url.includes("/codebases"))).toBe(true));
     await act(async () => {
       await Promise.resolve();
     });
@@ -315,6 +316,19 @@ describe("preserved behaviors (AC3)", () => {
 });
 
 describe("loading and error (AC8)", () => {
+  it("does not flash the missing-codebase notice before codebases are read", async () => {
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => (
+      String(url).includes("/codebases") ? new Promise<Response>(() => {}) : realFetch(url, init)
+    )));
+    await renderReady();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId("home-readiness")).toBeNull();
+  });
+
+
   it("shows skeletons, not 0, while loading", async () => {
     holdTasks = true;
     render(<HomePage />);
@@ -343,7 +357,7 @@ describe("read-only (AC7)", () => {
     await waitFor(() => expect(calls.some((call) => call.url.includes("/api/sessions"))).toBe(true));
     expect(calls.filter((call) => call.method !== "GET")).toEqual([]);
     expect(calls.some((call) => call.url.includes("revive") || call.url.includes("/api/acp") || call.url.includes("/api/clone"))).toBe(false);
-    const allowed = new Set(["/api/tasks", "/api/kanban/boards", "/api/sessions", "/api/providers"]);
+    const allowed = new Set(["/api/tasks", "/api/kanban/boards", "/api/sessions", "/api/providers", "/api/workspaces/alpha/codebases"]);
     expect(calls.map((call) => new URL(call.url, "http://localhost").pathname).filter((path) => !allowed.has(path))).toEqual([]);
     expect(acpState.connect).not.toHaveBeenCalled();
     expect(MockEventSource.instances.every((source) => source.url.includes("/api/kanban/events"))).toBe(true);
