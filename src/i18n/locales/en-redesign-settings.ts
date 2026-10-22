@@ -90,6 +90,8 @@ export const enRedesignSettings: RedesignSettingsTranslationDictionarySections =
       officeLab: { title: "Document lab", description: "Preview Office documents in the browser." },
       spec: { title: "Spec", description: "Issues and specs collected for this workspace." },
       reposlide: { title: "Repo slides", description: "Generate a slide deck that explains this repository." },
+      traces: { title: "Traces", description: "Pick a session, then read its event chain." },
+      featureExplorer: { title: "Feature explorer", description: "Find the routes, APIs and files behind each product feature." },
     },
     messagesPage: {
       tabTasks: "Background tasks",

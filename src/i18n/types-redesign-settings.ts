@@ -94,6 +94,8 @@ export interface RedesignSettingsTranslationDictionarySections {
       officeLab: { title: string; description: string };
       spec: { title: string; description: string };
       reposlide: { title: string; description: string };
+      traces: { title: string; description: string };
+      featureExplorer: { title: string; description: string };
     };
     messagesPage: {
       tabTasks: string;

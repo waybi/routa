@@ -309,7 +309,7 @@ function TracePageContent() {
       )}
     >
       <div
-        className="flex h-full flex-col overflow-hidden bg-desktop-bg-primary"
+        className="flex h-full flex-col overflow-hidden bg-canvas"
         data-testid="traces-page-shell"
         data-snapshot-ready={snapshotReady ? "true" : "false"}
       >
@@ -323,7 +323,7 @@ function TracePageContent() {
         />
 
         {/* View tab switcher */}
-        <TracesViewTabs className="shrink-0 px-4 pt-2" activeTab={activeTab} onTabChange={handleTabChange} />
+        <TracesViewTabs className="shrink-0 px-6 pt-3 max-[800px]:px-4" activeTab={activeTab} onTabChange={handleTabChange} />
 
         {/* Main Content */}
         <div className="flex-1 flex min-h-0">

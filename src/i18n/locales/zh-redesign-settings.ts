@@ -90,6 +90,8 @@ export const zhRedesignSettings: RedesignSettingsTranslationDictionarySections =
       officeLab: { title: "文档实验室", description: "在浏览器里预览 Office 文档。" },
       spec: { title: "规格", description: "这个工作区收集到的问题和规格。" },
       reposlide: { title: "代码仓幻灯", description: "生成一套讲解这个代码仓的幻灯片。" },
+      traces: { title: "追踪", description: "先选会话，再看它的事件链。" },
+      featureExplorer: { title: "功能浏览", description: "按产品功能找到对应的路由、接口和文件。" },
     },
     messagesPage: {
       tabTasks: "后台任务",

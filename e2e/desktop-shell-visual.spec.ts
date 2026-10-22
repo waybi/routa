@@ -105,7 +105,7 @@ async function openDesktopRoute(page: Page, path: string, colorScheme: "light" |
       [data-testid="kanban-task-count"],
       [data-testid="kanban-toolbar-hit-count"],
       [data-testid="traces-selected-session"],
-      [data-testid="traces-page-header"] > div:last-child {
+      [data-testid="traces-page-header"] [data-testid="settings-page-header-actions"] {
         visibility: hidden !important;
       }
 
