@@ -304,7 +304,7 @@ export function KanbanBoardSurface({
               }}
               onDragCancel={handleDragCancel}
             >
-              <div className="flex min-h-full min-w-max items-start gap-3 pr-4">
+              <div className="flex h-full min-w-max items-stretch gap-3 pr-4">
                 {board.columns
                   .slice()
                   .sort((left, right) => left.position - right.position)

@@ -471,7 +471,7 @@ export const zhTail: TailTranslationDictionarySections = {
     viewBoard: "本看板",
     viewAll: "全部项目",
     inProgress: "进行中",
-    needsYou: "需要你看",
+    needsYou: "需要你处理",
     recentDone7d: "新完成（7 天）",
     recentDoneMatches: "已完成命中 {count}",
     blockCount: "{count} 张",

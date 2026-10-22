@@ -490,7 +490,7 @@ export function KanbanSettingsModal({
   }, [requestClose, showUnsavedChangesPrompt]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-accent backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={requestClose} aria-hidden="true" />
       <div className="relative flex h-full w-full items-center justify-center p-2 sm:p-4">
         <div
@@ -535,7 +535,7 @@ export function KanbanSettingsModal({
                   onClick={() => setSelectedViewId(BOARD_VIEW_ID)}
                   className={`w-full min-w-0 rounded-[10px] border px-2.5 py-2 text-left text-[13px] font-semibold transition ${
                     selectedViewId === BOARD_VIEW_ID
-                      ? "border-default bg-accent text-on-accent shadow-lg"
+                      ? "border-accent bg-accent-subtle text-primary"
                       : "border-default bg-surface text-primary hover:border-default"
                   }`}
                 >
@@ -554,13 +554,13 @@ export function KanbanSettingsModal({
                           onClick={() => setSelectedViewId(column.id)}
                           className={`w-full min-w-0 rounded-[10px] border px-2.5 py-2 text-left transition ${
                             active
-                              ? "border-default bg-accent text-on-accent shadow-lg"
+                              ? "border-accent bg-accent-subtle text-primary"
                               : "border-default bg-surface hover:border-default"
                           }`}
                         >
                           <div className="flex min-w-0 items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className={`text-[13px] font-semibold ${active ? "text-primary" : "text-primary"}`}>{column.name}</div>
+                              <div className={`text-[13px] font-semibold text-primary`}>{column.name}</div>
                               <div className={`mt-1 flex items-center justify-between gap-2 ${active ? "text-primary" : "text-secondary"}`}>
                                 <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
                                   active ? "bg-surface text-primary" : "bg-subtle text-secondary"
@@ -568,7 +568,7 @@ export function KanbanSettingsModal({
                                   {getStageTypeLabel(column.stage, t)}
                                 </span>
                                 <span
-                                  className={`h-2 w-2 shrink-0 rounded-full ${automated ? "bg-success" : active ? "bg-secondary" : "bg-secondary"}`}
+                                  className={`h-2 w-2 shrink-0 rounded-full ${automated ? "bg-success" : "bg-secondary"}`}
                                   title={automated ? t.kanban.automationOn : t.kanban.manualLabel}
                                   aria-hidden
                                 />
@@ -1007,7 +1007,7 @@ export function KanbanSettingsModal({
           </div>
 
           {showUnsavedChangesPrompt ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-accent px-4">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/45 px-4">
               <div className="w-full max-w-md rounded-2xl border border-default bg-surface p-5 shadow-2xl">
                 <h3 className="text-base font-semibold text-primary">
                   {t.kanban.closeWithUnsavedTitle}
