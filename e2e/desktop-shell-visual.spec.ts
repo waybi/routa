@@ -80,6 +80,19 @@ async function openDesktopRoute(page: Page, path: string, colorScheme: "light" |
     await page.getByTestId("kanban-page-header").waitFor({ state: "visible", timeout: 20_000 });
   }
 
+  // The workspace switcher renders "Loading…" until /api/workspaces answers; wait it out
+  // so the header snapshot does not depend on request timing.
+  await page
+    .waitForFunction(
+      () => {
+        const switcher = document.querySelector('[data-testid="desktop-workspace-switcher"]');
+        return !switcher || !/Loading|加载中|…/.test(switcher.textContent ?? "");
+      },
+      undefined,
+      { timeout: 20_000 },
+    )
+    .catch(() => null);
+
   await page.waitForTimeout(1000);
   await page.addStyleTag({
     content: `
@@ -100,6 +113,11 @@ async function openDesktopRoute(page: Page, path: string, colorScheme: "light" |
 
       [data-radix-popper-content-wrapper] {
         visibility: hidden !important;
+      }
+
+      /* next dev's build indicator ("N" / "Compiling…") overlaps the sidebar corner */
+      nextjs-portal {
+        display: none !important;
       }
     `,
   });
