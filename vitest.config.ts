@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      // Mirrors tsconfig paths: the package's dist/ is gitignored and unbuilt in fresh checkouts.
+      "@autodev/office-render": resolve(__dirname, "./packages/office-render/src/index.ts"),
     },
   },
 });
