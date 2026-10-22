@@ -317,4 +317,34 @@ markdown prompt
       expect(reporter?.behaviorPrompt).toContain("未找到主干推送记录");
     });
   });
+
+  describe("bundled kanban-topbi-porter", () => {
+    const bundledRoot = path.join(process.cwd(), "resources", "specialists");
+    const loadPaths: Array<[string, string, string | undefined]> = [
+      ["default", bundledRoot, undefined],
+      ["en", path.join(bundledRoot, "locales", "en"), "en"],
+      ["zh-CN", path.join(bundledRoot, "locales", "zh-CN"), "zh-CN"],
+    ];
+
+    it.each(loadPaths)("loads from the %s path as a smart DEVELOPER", (_label, dir, locale) => {
+      const porter = loadSpecialistsFromDirectory(dir, "bundled", locale).find(
+        (entry) => entry.id === "kanban-topbi-porter"
+      );
+
+      expect(porter).toBeDefined();
+      expect(porter?.frontmatter.role).toBe("DEVELOPER");
+      expect(porter?.frontmatter.modelTier).toBe("smart");
+      expect(porter?.behaviorPrompt.trim()).toBeTruthy();
+    });
+
+    it("uses a Chinese name in the zh-CN overlay", () => {
+      const porter = loadSpecialistsFromDirectory(
+        path.join(bundledRoot, "locales", "zh-CN"),
+        "bundled",
+        "zh-CN"
+      ).find((entry) => entry.id === "kanban-topbi-porter");
+
+      expect(porter?.frontmatter.name).toMatch(/[\u4e00-\u9fff]/);
+    });
+  });
 });
