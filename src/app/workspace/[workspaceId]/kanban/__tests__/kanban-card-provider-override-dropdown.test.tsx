@@ -4,6 +4,10 @@ import { KanbanCardDetail } from "../kanban-card-detail";
 import { resetModelEffortChoicesCache } from "../kanban-model-effort-fields";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 
+// The Construction tab also shows run records; keep the run ledger off fetch
+// so these tests only see the provider config-options requests.
+vi.mock("../use-task-runs", () => ({ useTaskRuns: () => ({ runs: [], error: null }) }));
+
 const board: KanbanBoardInfo = {
   id: "board-1",
   workspaceId: "workspace-1",
@@ -70,8 +74,8 @@ describe("KanbanCardDetail provider override", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
-    fireEvent.click(screen.getByText("Card session override").closest("summary")!);
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByText("Advanced").closest("summary")!); fireEvent.click(screen.getByText("Card session override").closest("summary")!);
 
     const providerDropdown = screen.getByTestId("kanban-detail-provider-override");
     expect(providerDropdown.tagName).toBe("BUTTON");
@@ -144,8 +148,8 @@ describe("KanbanCardDetail model and reasoning effort override", () => {
         onRefresh={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
-    fireEvent.click(screen.getByText("Card session override").closest("summary")!);
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByText("Advanced").closest("summary")!); fireEvent.click(screen.getByText("Card session override").closest("summary")!);
   };
 
   const picker = () => screen.getByTestId("kanban-detail-override-model-effort");

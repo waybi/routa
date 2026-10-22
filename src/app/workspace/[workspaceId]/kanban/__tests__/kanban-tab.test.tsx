@@ -967,7 +967,7 @@ describe("KanbanTab manual run provider selection", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Construction" }));
 
     const runButton = await screen.findByTestId("kanban-detail-run");
     expect(screen.getByText(/Manual runs use the current ACP provider with this lane's role and specialist/i)).toBeTruthy();
@@ -1078,7 +1078,7 @@ describe("KanbanTab manual run provider selection", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Construction" }));
 
     const runButton = await screen.findByTestId("kanban-detail-run");
     // The manual run message is only shown when it differs from lane defaults
@@ -1396,7 +1396,7 @@ describe("KanbanCardDetail changes tab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Changes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Changes & Evidence" }));
 
     await waitFor(() => {
       expect(desktopAwareFetch).toHaveBeenCalledWith("/api/tasks/task-1/changes", { cache: "no-store" });
@@ -1509,7 +1509,7 @@ describe("KanbanCardDetail changes tab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Changes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Changes & Evidence" }));
 
     await waitFor(() => {
       expect(desktopAwareFetch).toHaveBeenCalledWith("/api/tasks/task-1/changes", { cache: "no-store" });
@@ -1681,7 +1681,7 @@ describe("KanbanCardDetail changes tab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Changes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Changes & Evidence" }));
 
     expect(await screen.findByText("Upgrade tiptap core")).toBeTruthy();
     expect(screen.getByText("Add regression coverage")).toBeTruthy();
@@ -1797,7 +1797,7 @@ describe("KanbanCardDetail changes tab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Changes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Changes & Evidence" }));
 
     expect(await screen.findByText("Committed Changes")).toBeTruthy();
     expect(screen.getByText("Local Changes")).toBeTruthy();
@@ -1899,11 +1899,11 @@ describe("KanbanTab card detail manual runs", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
     // Run / lane-default copy live in the Execution tab since 38b1cb60.
-    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Construction" }));
 
     const runButton = await screen.findByTestId("kanban-detail-run");
     expect(runButton.textContent).toBe("Run");
-    expect(screen.getByTestId("kanban-detail-provider-override").textContent).toMatch(/lane default/i);
+    fireEvent.click(screen.getByText("Advanced").closest("summary")!); expect(screen.getByTestId("kanban-detail-provider-override").textContent).toMatch(/lane default/i);
 
     fireEvent.click(runButton);
 
@@ -2091,7 +2091,7 @@ describe("KanbanTab card detail manual runs", () => {
     fireEvent.click(screen.getByText("Repo").closest("summary")!);
 
     expect(await screen.findByText("Repo Health")).toBeTruthy();
-    expect(screen.getByText("/tmp/recovered-repo")).toBeTruthy();
+    expect(screen.getAllByText("/tmp/recovered-repo").length).toBeGreaterThan(0);
   });
 
   it("shows the next transition artifact gate in card detail", async () => {
@@ -2153,7 +2153,7 @@ describe("KanbanTab card detail manual runs", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Construction" }));
 
     expect(await screen.findByText(/Moving this card to Review requires Screenshot, Test Results\./i)).toBeTruthy();
     expect(screen.getByText(/This gate is injected into the ACP prompt/i)).toBeTruthy();
@@ -2400,7 +2400,7 @@ describe("KanbanTab card detail manual runs", () => {
     expect(runOne.getAttribute("title")).toContain("Dev Crafter");
     expect(runTwo.getAttribute("title")).toContain("Review Guard");
     expect(runTwo.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByText("completed")).toBeTruthy();
+    expect(screen.getAllByText("Ended").length).toBeGreaterThan(0);
 
     fireEvent.click(runOne);
 
@@ -3013,7 +3013,7 @@ describe("KanbanTab JIT Context session hydration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
     await screen.findByText("Card Detail");
 
-    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
     await screen.findByText("Matched feature");
 
@@ -3097,8 +3097,8 @@ describe("KanbanTab quick ACP assignment", () => {
     expect(screen.queryByTestId("kanban-detail-provider-override")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Execution" }));
-    fireEvent.click(screen.getByText("Card session override").closest("summary")!);
+    fireEvent.click(await screen.findByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByText("Advanced").closest("summary")!); fireEvent.click(screen.getByText("Card session override").closest("summary")!);
 
     const providerDropdown = await screen.findByTestId("kanban-detail-provider-override");
     expect(providerDropdown).toBeTruthy();

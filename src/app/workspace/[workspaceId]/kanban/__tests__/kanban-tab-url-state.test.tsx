@@ -93,13 +93,13 @@ function getToolbarCloseButton(): HTMLElement {
   return within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail/i });
 }
 
-/** Close card detail / Hide session pane / Show session pane share one pill style without uppercase. */
+/** Close card detail / Hide session pane / Show session pane: ui/Button classes, tokens only, no uppercase. */
 function expectDetailPaneButtonStyle(button: HTMLElement, text: string) {
   expectClasses(button, [
-    "rounded-full", "h-8", "text-[13px]", "border-slate-300", "text-slate-700",
-    "dark:border-slate-600", "dark:text-slate-200", "whitespace-nowrap", "shrink-0",
-    "hover:border-amber-300", "hover:bg-amber-50", "hover:text-amber-700",
-  ], ["uppercase", "text-[10px]", "border-slate-200"]);
+    "rounded-control", "min-h-7", "text-xs", "whitespace-nowrap", "shrink-0",
+    "focus-visible:outline-accent",
+  ], ["uppercase", "rounded-full", "text-[10px]"]);
+  expect(button.className).not.toMatch(/(?:bg|text|border)-(?:slate|amber|gray)-\d/);
   expectClasses(button.querySelector("svg"), ["h-4", "w-4"]);
   expect(button.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
   expect(button.textContent?.trim()).toBe(text);
@@ -110,7 +110,7 @@ function expectToolbarCloseButton() {
   expect(closeButtons).toHaveLength(1);
   const [closeButton] = closeButtons;
   expect(screen.getByTestId("kanban-detail-sticky-toolbar").contains(closeButton)).toBe(true);
-  expect(closeButton.parentElement?.firstElementChild).toBe(closeButton);
+  expect(closeButton.parentElement?.lastElementChild).toBe(closeButton);
   expectDetailPaneButtonStyle(closeButton, "Close card detail");
   expect(closeButton.className).not.toMatch(RED_COLOR_CLASS);
   expect(closeButton.getAttribute("title")).toBe("Close (Esc)");

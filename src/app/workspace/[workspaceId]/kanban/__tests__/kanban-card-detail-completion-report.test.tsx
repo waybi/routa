@@ -151,32 +151,32 @@ describe("KanbanCardDetail default tab (AC8/AC9)", () => {
 
   it("keeps a manual tab choice over the completion default", () => {
     const first = renderDetail([REPORT], { id: "default-manual-choice" });
-    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
-    expect(activeTabName()).toBe("Runs");
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    expect(activeTabName()).toBe("Construction");
     first.unmount();
 
     renderDetail([REPORT], { id: "default-manual-choice" });
-    expect(activeTabName()).toBe("Runs");
+    expect(activeTabName()).toBe("Construction");
   });
 
   it("a notification request opens Completion even over a stored choice, once", () => {
     const first = renderDetail([REPORT], { id: "requested-card" });
-    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
     first.unmount();
 
     requestKanbanDetailTab("requested-card", "completion");
     const second = renderDetail([REPORT], { id: "requested-card" });
     expect(activeTabName()).toBe("Completion");
-    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
     second.unmount();
 
     renderDetail([REPORT], { id: "requested-card" });
-    expect(activeTabName()).toBe("Runs");
+    expect(activeTabName()).toBe("Construction");
   });
 
   it("the bell link's detailTab=completion opens Completion and is removed from the URL", async () => {
     const first = renderDetail([REPORT], { id: "bell-card" });
-    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
     first.unmount();
 
     window.history.replaceState(null, "", "/workspace/w/kanban?taskId=bell-card&detailTab=completion");

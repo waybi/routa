@@ -77,11 +77,11 @@ test.describe("Kanban JIT Context", () => {
         waitUntil: "domcontentloaded",
       });
 
-      const jitTab = page.getByTestId("kanban-detail-tab-jitContext");
+      const jitTab = page.getByTestId("kanban-detail-tab-construction");
       await expect(jitTab).toBeVisible({ timeout: 15_000 });
       await jitTab.click();
 
-      const jitPanel = page.getByTestId("kanban-detail-panel-jitContext");
+      const jitPanel = page.getByTestId("kanban-detail-panel-construction");
       await expect(jitPanel).toBeVisible();
       await expect(jitPanel.getByRole("button", { name: /Show JIT Context/i })).toBeVisible();
       await jitPanel.getByRole("button", { name: /Show JIT Context/i }).click();
