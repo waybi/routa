@@ -332,7 +332,7 @@ function HomePageContent() {
         />
       )}
     >
-        <div className="flex h-full min-h-0 bg-[#f6f4ef] dark:bg-[#0c1118]">
+        <div className="flex h-full min-h-0 bg-canvas">
           <main className="flex min-w-0 flex-1 flex-col">
             {!hasWorkspace ? (
               <div className="flex min-h-0 flex-1 items-center justify-center p-6">
@@ -351,7 +351,7 @@ function HomePageContent() {
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto flex h-full w-full max-w-6xl flex-col px-6 py-8 lg:px-10 lg:py-10">
+                <div className="mx-auto flex h-full w-full max-w-6xl flex-col px-4 py-5 min-[801px]:px-[22px] min-[801px]:py-[22px] min-[1101px]:p-7">
                   {workspacesHook.loading ? (
                     <div className="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
                       {t.home.loadingWorkspaces}

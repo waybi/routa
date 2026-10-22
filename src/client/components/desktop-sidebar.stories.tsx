@@ -45,17 +45,17 @@ export const KanbanActive: Story = {
 
 export const HoverState: Story = {
   play: async ({ canvasElement }) => {
-    const settingsLink = canvasElement.querySelector('a[title="Settings"]');
+    const settingsLink = canvasElement.querySelector('a[data-nav-id="settings"]');
     if (settingsLink instanceof HTMLElement) {
-      settingsLink.style.backgroundColor = "var(--dt-bg-active)";
-      settingsLink.style.color = "var(--dt-text-primary)";
+      settingsLink.style.backgroundColor = "var(--hover)";
+      settingsLink.style.color = "var(--ink)";
     }
   },
 };
 
 export const FocusState: Story = {
   play: async ({ canvasElement }) => {
-    const settingsLink = canvasElement.querySelector('a[title="Settings"]');
+    const settingsLink = canvasElement.querySelector('a[data-nav-id="settings"]');
     if (settingsLink instanceof HTMLElement) {
       settingsLink.focus();
     }
