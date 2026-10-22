@@ -1,10 +1,12 @@
+import type { RedesignSettingsTranslationDictionarySections } from "./types-redesign-settings";
+
 /**
  * Copy for the redesigned app shell (sidebar, top bar, command palette,
  * settings sub-navigation) and the shared UI primitives under
  * src/client/components/ui. Kept in its own section so later redesign
  * cards can extend it without growing the legacy dictionaries.
  */
-export interface ShellTranslationDictionarySections {
+export interface ShellTranslationDictionarySections extends RedesignSettingsTranslationDictionarySections {
   shell: {
     /** Sidebar entries, in display order. */
     nav: {

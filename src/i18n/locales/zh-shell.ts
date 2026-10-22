@@ -1,4 +1,5 @@
 import type { ShellTranslationDictionarySections } from "../types-shell";
+import { zhRedesignSettings } from "./zh-redesign-settings";
 
 export const zhShell: ShellTranslationDictionarySections = {
   shell: {
@@ -100,4 +101,5 @@ export const zhShell: ShellTranslationDictionarySections = {
     errorTitle: "读取失败",
     emptyTitle: "暂时没有内容",
   },
+  ...zhRedesignSettings,
 };

@@ -1,4 +1,5 @@
 import type { ShellTranslationDictionarySections } from "../types-shell";
+import { enRedesignSettings } from "./en-redesign-settings";
 
 export const enShell: ShellTranslationDictionarySections = {
   shell: {
@@ -100,4 +101,5 @@ export const enShell: ShellTranslationDictionarySections = {
     errorTitle: "Could not load",
     emptyTitle: "Nothing here yet",
   },
+  ...enRedesignSettings,
 };
