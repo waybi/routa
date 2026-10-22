@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { AcpProviderDropdown } from "@/client/components/acp-provider-dropdown";
+import { SettingsPageHeader } from "@/client/components/settings-page-header";
 import { useAcp } from "@/client/hooks/use-acp";
 import { storePendingPrompt } from "@/client/utils/pending-prompt";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
+import { useTranslation } from "@/i18n";
 
 interface RepoSlideLaunchPoint {
   name: string;
@@ -58,6 +60,7 @@ interface RepoSlideResponse {
 }
 
 export function RepoSlidePageClient() {
+  const { t } = useTranslation();
   const params = useParams<{ workspaceId: string; codebaseId: string }>();
   const router = useRouter();
   const workspaceId = params.workspaceId;
@@ -179,45 +182,41 @@ export function RepoSlidePageClient() {
   }, [acp, codebaseId, data, router, selectableProvider, workspaceId]);
 
   const content = (
-    <div className="flex h-full flex-col bg-desktop-bg-primary" data-testid="reposlide-root">
-      <div className="flex shrink-0 items-center justify-between border-b border-desktop-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="text-xs text-desktop-text-secondary hover:text-desktop-text-primary"
-          >
-            ← Back
-          </button>
-          <div>
-            <div className="text-sm font-semibold text-desktop-text-primary">RepoSlide</div>
-            <div className="text-xs text-desktop-text-secondary">
-              Agent-driven deck generation via `slide-skill`
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <AcpProviderDropdown
-            providers={acp.providers}
-            selectedProvider={selectableProvider ?? acp.selectedProvider}
-            onProviderChange={acp.setProvider}
-            disabled={launching || acp.loading}
-            ariaLabel="Select RepoSlide provider"
-          />
-          <button
-            type="button"
-            onClick={handleLaunch}
-            disabled={loading || launching || !data || !selectableProvider || !data.launch.skillAvailable}
-            className="rounded-lg bg-[var(--dt-accent)] px-3 py-2 text-sm font-medium text-[var(--dt-accent-text)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {launching ? "Launching…" : "Launch RepoSlide"}
-          </button>
-        </div>
-      </div>
+    <div className="flex h-full flex-col bg-canvas" data-testid="reposlide-root">
+      <SettingsPageHeader
+        title={t.pagesRedesign.headers.reposlide.title}
+        description={t.pagesRedesign.headers.reposlide.description}
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="text-xs text-secondary hover:text-primary"
+            >
+              ← Back
+            </button>
+            <AcpProviderDropdown
+              providers={acp.providers}
+              selectedProvider={selectableProvider ?? acp.selectedProvider}
+              onProviderChange={acp.setProvider}
+              disabled={launching || acp.loading}
+              ariaLabel="Select RepoSlide provider"
+            />
+            <button
+              type="button"
+              onClick={handleLaunch}
+              disabled={loading || launching || !data || !selectableProvider || !data.launch.skillAvailable}
+              className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {launching ? "Launching…" : "Launch RepoSlide"}
+            </button>
+          </>
+        )}
+      />
 
       <div className="flex-1 overflow-auto px-5 py-5">
         {loading && (
-          <div className="text-sm text-desktop-text-secondary">Loading RepoSlide context…</div>
+          <div className="text-sm text-secondary">Loading RepoSlide context…</div>
         )}
         {error && (
           <div className="rounded-xl border border-danger bg-danger-subtle px-4 py-3 text-sm text-danger">

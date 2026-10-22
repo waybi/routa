@@ -7,6 +7,12 @@ vi.mock("@/client/components/canvas-viewer", () => ({
   ),
 }));
 
+vi.mock("@/client/components/desktop-app-shell", () => ({
+  DesktopAppShell: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="desktop-shell-root">{children}</div>
+  ),
+}));
+
 import { CanvasViewerClient } from "../canvas-viewer-client";
 
 describe("CanvasViewerClient", () => {

@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useTranslation } from "@/i18n";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { resolveApiPath } from "@/client/config/backend";
+import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { SettingsPageHeader } from "@/client/components/settings-page-header";
 
 type ReplayEvent = {
   sessionId?: string;
@@ -108,42 +110,49 @@ export function AcpReplayDebugPageClient() {
   };
 
   return (
-    <main style={{ padding: 24, fontFamily: "monospace" }}>
-      <h1>{t.debug.acpReplayTitle}</h1>
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 720 }}>
-        <label>
-          {t.debug.sessionId}
-          <input
-            value={sessionId}
-            onChange={(event) => setSessionId(event.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4 }}
-          />
-        </label>
-        <label>
-          {t.debug.lastEventId}
-          <input
-            value={lastEventId}
-            onChange={(event) => setLastEventId(event.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4 }}
-          />
-        </label>
-        <button type="submit" style={{ width: 160 }}>{t.debug.reconnect}</button>
-      </form>
+    <DesktopAppShell workspaceId={null}>
+      <div className="flex h-full min-h-0 flex-col bg-canvas text-primary" data-testid="acp-replay-page">
+        <SettingsPageHeader
+          title={t.pagesRedesign.headers.acpReplay.title}
+          description={t.pagesRedesign.headers.acpReplay.description}
+        />
+        <div className="min-h-0 flex-1 overflow-auto" style={{ padding: 24, fontFamily: "monospace" }}>
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 720 }}>
+            <label>
+              {t.debug.sessionId}
+              <input
+                value={sessionId}
+                onChange={(event) => setSessionId(event.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4 }}
+              />
+            </label>
+            <label>
+              {t.debug.lastEventId}
+              <input
+                value={lastEventId}
+                onChange={(event) => setLastEventId(event.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4 }}
+              />
+            </label>
+            <button type="submit" style={{ width: 160 }}>{t.debug.reconnect}</button>
+          </form>
 
-      <section style={{ marginTop: 24 }}>
-        <p><strong>{t.debug.status}:</strong> {status}</p>
-        {error ? <p><strong>{t.debug.error}:</strong> {error}</p> : null}
-      </section>
+          <section style={{ marginTop: 24 }}>
+            <p><strong>{t.debug.status}:</strong> {status}</p>
+            {error ? <p><strong>{t.debug.error}:</strong> {error}</p> : null}
+          </section>
 
-      <section style={{ marginTop: 24 }}>
-        <h2>{t.debug.historySnapshot}</h2>
-        <pre>{JSON.stringify(history, null, 2)}</pre>
-      </section>
+          <section style={{ marginTop: 24 }}>
+            <h2>{t.debug.historySnapshot}</h2>
+            <pre>{JSON.stringify(history, null, 2)}</pre>
+          </section>
 
-      <section style={{ marginTop: 24 }}>
-        <h2>{t.debug.replayEvents}</h2>
-        <pre>{JSON.stringify(events, null, 2)}</pre>
-      </section>
-    </main>
+          <section style={{ marginTop: 24 }}>
+            <h2>{t.debug.replayEvents}</h2>
+            <pre>{JSON.stringify(events, null, 2)}</pre>
+          </section>
+        </div>
+      </div>
+    </DesktopAppShell>
   );
 }

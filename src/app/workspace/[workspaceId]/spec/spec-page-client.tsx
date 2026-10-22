@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { resolveApiPath } from "@/client/config/backend";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { SettingsPageHeader } from "@/client/components/settings-page-header";
 import { MarkdownViewer } from "@/client/components/markdown/markdown-viewer";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
@@ -1332,6 +1333,10 @@ export function SpecPageClient() {
     >
       <div className="flex h-full min-h-0 bg-canvas text-primary">
         <main className="flex min-w-0 flex-1 flex-col">
+          <SettingsPageHeader
+            title={t.pagesRedesign.headers.spec.title}
+            description={t.pagesRedesign.headers.spec.description}
+          />
           <div className="min-h-0 flex-1 overflow-hidden p-3">
             <SpecBoardPanel workspaceId={workspaceId} />
           </div>

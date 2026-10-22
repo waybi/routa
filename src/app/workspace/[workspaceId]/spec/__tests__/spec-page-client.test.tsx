@@ -160,6 +160,18 @@ describe("SpecPageClient", () => {
     });
   });
 
+  it("renders the settings-style page header above the spec board", async () => {
+    mockSpecResponses();
+
+    render(<SpecPageClient />);
+
+    const header = screen.getByTestId("settings-page-header");
+    expect(within(screen.getByTestId("desktop-shell")).getByTestId("settings-page-header")).toBe(header);
+    expect(within(header).getByRole("heading", { level: 1 }).textContent).toBe("Spec");
+    expect(within(header).getByText("Issues and specs collected for this workspace.")).toBeTruthy();
+    await screen.findByRole("region", { name: "Spec board" });
+  });
+
   it("loads issue families, shows feature footprint matches, and follows local relations", async () => {
     mockSpecResponses();
 

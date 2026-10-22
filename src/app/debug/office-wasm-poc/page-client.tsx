@@ -5,6 +5,8 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 
 import { compileCanvasTsx } from "@/client/canvas-runtime";
 import { resolveApiPath } from "@/client/config/backend";
+import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { SettingsPageHeader } from "@/client/components/settings-page-header";
 import type { OfficeWasmArtifactKind } from "@/client/office-document-viewer/protocol/office-artifact-types";
 import {
   extractOfficeArtifactProto,
@@ -558,241 +560,249 @@ export function OfficeWasmPocPageClient() {
   const isPresentationArtifact = artifact?.kind === "presentation";
 
   return (
-    <main
-      style={{
-        boxSizing: "border-box",
-        display: "grid",
-        fontFamily:
-          "var(--font-sans, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif)",
-        gap: 0,
-        gridTemplateRows: "52px minmax(0, 1fr)",
-        height: "100vh",
-        maxWidth: "none",
-        minHeight: "100vh",
-        overflow: "hidden",
-        padding: 0,
-        width: "100%",
-      }}
-    >
-      <header
-        style={{
-          alignItems: "center",
-          borderBottom: "1px solid #e2e8f0",
-          display: isPresentationArtifact ? "grid" : "flex",
-          flexWrap: isPresentationArtifact ? undefined : "nowrap",
-          gridTemplateColumns: isPresentationArtifact ? "minmax(0, 1fr) auto minmax(0, 1fr)" : undefined,
-          gap: 12,
-          minWidth: 0,
-          overflow: "hidden",
-          padding: "0 16px",
-        }}
-      >
+    <DesktopAppShell workspaceId={null}>
+      <div className="flex h-full min-h-0 flex-col bg-canvas text-primary" data-testid="office-lab-page">
+        <SettingsPageHeader
+          title={t.pagesRedesign.headers.officeLab.title}
+          description={t.pagesRedesign.headers.officeLab.description}
+        />
         <div
           style={{
-            alignItems: "center",
-            display: "flex",
-            flex: isPresentationArtifact ? undefined : "0 0 auto",
-            gap: isPresentationArtifact ? 10 : 12,
-            minWidth: 0,
+            boxSizing: "border-box",
+            display: "grid",
+            flex: "1 1 auto",
+            fontFamily:
+              "var(--font-sans, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif)",
+            gap: 0,
+            gridTemplateRows: "52px minmax(0, 1fr)",
+            maxWidth: "none",
+            minHeight: 0,
+            overflow: "hidden",
+            padding: 0,
+            width: "100%",
           }}
         >
-          <label
+          <header
             style={{
               alignItems: "center",
-              color: "#475569",
-              cursor: isBusy ? "default" : "pointer",
-              display: "inline-flex",
-              fontSize: 13,
-              gap: 8,
-              minWidth: 0,
-            }}
-          >
-            <span>{t.debug.officeWasmPocSelectFile}</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.tsv,.docx,.pptx,.xlsx"
-              onChange={parseFile}
-              disabled={isBusy}
-              style={isPresentationArtifact ? { display: "none" } : undefined}
-            />
-          </label>
-          <label style={{ alignItems: "center", display: "flex", gap: 8, minWidth: 0 }}>
-            <span style={{ color: "#475569", fontSize: 13 }}>{t.debug.officeWasmPocReader}</span>
-            <select
-              data-testid="office-wasm-reader-mode"
-              disabled={isBusy}
-              onChange={changeReaderMode}
-              value={readerMode}
-              style={isPresentationArtifact ? { maxWidth: 156 } : undefined}
-            >
-              <option value="walnut">{t.debug.officeWasmPocReaderWalnut}</option>
-              <option value="routa">{t.debug.officeWasmPocReaderGenerated}</option>
-            </select>
-          </label>
-        </div>
-        {isPresentationArtifact ? (
-          <div
-            style={{
-              alignItems: "center",
-              color: "#111827",
-              display: "inline-flex",
-              fontSize: 13,
-              fontWeight: 600,
-              gap: 8,
-              justifySelf: "center",
-              maxWidth: "44vw",
+              borderBottom: "1px solid var(--line)",
+              display: isPresentationArtifact ? "grid" : "flex",
+              flexWrap: isPresentationArtifact ? undefined : "nowrap",
+              gridTemplateColumns: isPresentationArtifact ? "minmax(0, 1fr) auto minmax(0, 1fr)" : undefined,
+              gap: 12,
               minWidth: 0,
               overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              padding: "0 16px",
             }}
           >
-            <span
-              aria-hidden="true"
+            <div
               style={{
                 alignItems: "center",
-                background: "#fb923c",
-                borderRadius: 5,
-                color: "#ffffff",
-                display: "inline-flex",
-                height: 18,
-                justifyContent: "center",
-                width: 18,
+                display: "flex",
+                flex: isPresentationArtifact ? undefined : "0 0 auto",
+                gap: isPresentationArtifact ? 10 : 12,
+                minWidth: 0,
               }}
             >
-              <FileText aria-hidden="true" size={12} strokeWidth={2.4} />
-            </span>
-            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {selectedFileName}
-            </span>
-          </div>
-        ) : (
-          <>
-            <div style={{ color: "#475569", flex: "0 0 auto", fontSize: 13 }}>
-              <strong>{t.debug.officeWasmPocStatus}</strong> {statusLabel(t, status)}
-            </div>
-            {selectedFileName ? (
-              <div style={{ color: "#475569", flex: "1 1 auto", fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <code>{selectedFileName}</code>
-                {lastBytes !== null ? <> ({lastBytes} {t.debug.officeWasmPocBytes})</> : null}
-              </div>
-            ) : null}
-          </>
-        )}
-        <div
-          style={{
-            alignItems: "center",
-            display: "flex",
-            flex: isPresentationArtifact ? undefined : "0 0 auto",
-            gap: 10,
-            justifyContent: isPresentationArtifact ? "flex-end" : undefined,
-            minWidth: 0,
-          }}
-        >
-          {isPresentationArtifact ? (
-            <div style={{ color: "#475569", flex: "0 0 auto", fontSize: 13 }}>
-              <strong>{t.debug.officeWasmPocStatus}</strong> {statusLabel(t, status)}
-            </div>
-          ) : null}
-          {artifact?.kind === "presentation" ? (
-            <div
-              id={PRESENTATION_HEADER_ACTIONS_ID}
-              style={{ alignItems: "center", display: "flex", flex: "0 0 auto", minWidth: 0 }}
-            />
-          ) : null}
-          {errorMessage ? <div style={{ color: "#b91c1c", fontSize: 13 }}>{errorMessage}</div> : null}
-        </div>
-      </header>
-
-      <section style={{ minHeight: 0, overflow: "hidden" }}>
-        {artifact ? (
-          <div
-            style={{
-              display: "grid",
-              gap: showDebugDetails ? 12 : 0,
-              gridTemplateRows: showDebugDetails ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
-              height: "100%",
-              minHeight: 0,
-            }}
-          >
-            <section
-              data-testid="office-preview"
-              style={{
-                minHeight: 0,
-                overflowX: "hidden",
-                overflowY: artifact.kind === "document" ? "auto" : "hidden",
-                paddingBottom: artifact.kind === "document" ? 8 : 0,
-              }}
-            >
-              <OfficePreview artifact={artifact} labels={labels} />
-            </section>
-            {showDebugDetails ? (
-              <details
-                data-testid="office-wasm-debug-details"
+              <label
                 style={{
-                  borderColor: "#e2e8f0",
-                  borderRadius: 8,
-                  borderStyle: "solid",
-                  borderWidth: 1,
-                  overflow: "hidden",
+                  alignItems: "center",
+                  color: "var(--muted)",
+                  cursor: isBusy ? "default" : "pointer",
+                  display: "inline-flex",
+                  fontSize: 13,
+                  gap: 8,
+                  minWidth: 0,
                 }}
               >
-                <summary style={{ cursor: "pointer", padding: "10px 12px" }}>
-                  {t.debug.officeWasmPocDebugDetails}
-                </summary>
-                <div style={{ display: "grid", gap: 12, padding: "0 12px 12px" }}>
-                  {artifact.generatedSummary ? (
-                    <section>
-                      <div style={{ color: "#475569", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                        {t.debug.officeWasmPocGeneratedSummary}
-                      </div>
-                      <pre
-                        data-testid="office-wasm-generated-summary"
-                        style={{
-                          background: "#eef6ff",
-                          borderColor: "#bfdbfe",
-                          borderRadius: 8,
-                          borderStyle: "solid",
-                          borderWidth: 1,
-                          color: "#0f172a",
-                          margin: 0,
-                          maxHeight: "220px",
-                          overflow: "auto",
-                          padding: 12,
+                <span>{t.debug.officeWasmPocSelectFile}</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.tsv,.docx,.pptx,.xlsx"
+                  onChange={parseFile}
+                  disabled={isBusy}
+                  style={isPresentationArtifact ? { display: "none" } : undefined}
+                />
+              </label>
+              <label style={{ alignItems: "center", display: "flex", gap: 8, minWidth: 0 }}>
+                <span style={{ color: "var(--muted)", fontSize: 13 }}>{t.debug.officeWasmPocReader}</span>
+                <select
+                  data-testid="office-wasm-reader-mode"
+                  disabled={isBusy}
+                  onChange={changeReaderMode}
+                  value={readerMode}
+                  style={isPresentationArtifact ? { maxWidth: 156 } : undefined}
+                >
+                  <option value="walnut">{t.debug.officeWasmPocReaderWalnut}</option>
+                  <option value="routa">{t.debug.officeWasmPocReaderGenerated}</option>
+                </select>
+              </label>
+            </div>
+            {isPresentationArtifact ? (
+              <div
+                style={{
+                  alignItems: "center",
+                  color: "var(--ink)",
+                  display: "inline-flex",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  gap: 8,
+                  justifySelf: "center",
+                  maxWidth: "44vw",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    alignItems: "center",
+                    background: "var(--amber)",
+                    borderRadius: 5,
+                    color: "var(--on)",
+                    display: "inline-flex",
+                    height: 18,
+                    justifyContent: "center",
+                    width: 18,
+                  }}
+                >
+                  <FileText aria-hidden="true" size={12} strokeWidth={2.4} />
+                </span>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {selectedFileName}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div style={{ color: "var(--muted)", flex: "0 0 auto", fontSize: 13 }}>
+                  <strong>{t.debug.officeWasmPocStatus}</strong> {statusLabel(t, status)}
+                </div>
+                {selectedFileName ? (
+                  <div style={{ color: "var(--muted)", flex: "1 1 auto", fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <code>{selectedFileName}</code>
+                    {lastBytes !== null ? <> ({lastBytes} {t.debug.officeWasmPocBytes})</> : null}
+                  </div>
+                ) : null}
+              </>
+            )}
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                flex: isPresentationArtifact ? undefined : "0 0 auto",
+                gap: 10,
+                justifyContent: isPresentationArtifact ? "flex-end" : undefined,
+                minWidth: 0,
+              }}
+            >
+              {isPresentationArtifact ? (
+                <div style={{ color: "var(--muted)", flex: "0 0 auto", fontSize: 13 }}>
+                  <strong>{t.debug.officeWasmPocStatus}</strong> {statusLabel(t, status)}
+                </div>
+              ) : null}
+              {artifact?.kind === "presentation" ? (
+                <div
+                  id={PRESENTATION_HEADER_ACTIONS_ID}
+                  style={{ alignItems: "center", display: "flex", flex: "0 0 auto", minWidth: 0 }}
+                />
+              ) : null}
+              {errorMessage ? <div style={{ color: "var(--red)", fontSize: 13 }}>{errorMessage}</div> : null}
+            </div>
+          </header>
+
+          <section style={{ minHeight: 0, overflow: "hidden" }}>
+            {artifact ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: showDebugDetails ? 12 : 0,
+                  gridTemplateRows: showDebugDetails ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
+                  height: "100%",
+                  minHeight: 0,
+                }}
+              >
+                <section
+                  data-testid="office-preview"
+                  style={{
+                    minHeight: 0,
+                    overflowX: "hidden",
+                    overflowY: artifact.kind === "document" ? "auto" : "hidden",
+                    paddingBottom: artifact.kind === "document" ? 8 : 0,
+                  }}
+                >
+                  <OfficePreview artifact={artifact} labels={labels} />
+                </section>
+                {showDebugDetails ? (
+                  <details
+                    data-testid="office-wasm-debug-details"
+                    style={{
+                      borderColor: "var(--line)",
+                      borderRadius: 8,
+                      borderStyle: "solid",
+                      borderWidth: 1,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <summary style={{ cursor: "pointer", padding: "10px 12px" }}>
+                      {t.debug.officeWasmPocDebugDetails}
+                    </summary>
+                    <div style={{ display: "grid", gap: 12, padding: "0 12px 12px" }}>
+                      {artifact.generatedSummary ? (
+                        <section>
+                          <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                            {t.debug.officeWasmPocGeneratedSummary}
+                          </div>
+                          <pre
+                            data-testid="office-wasm-generated-summary"
+                            style={{
+                              background: "var(--accentbg)",
+                              borderColor: "var(--line)",
+                              borderRadius: 8,
+                              borderStyle: "solid",
+                              borderWidth: 1,
+                              color: "var(--ink)",
+                              margin: 0,
+                              maxHeight: "220px",
+                              overflow: "auto",
+                              padding: 12,
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {JSON.stringify(artifact.generatedSummary, null, 2)}
+                          </pre>
+                        </section>
+                      ) : null}
+                      <section>
+                        <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                          {labels.rawJson}
+                        </div>
+                        <pre style={{
                           whiteSpace: "pre-wrap",
                           wordBreak: "break-word",
-                        }}
-                      >
-                        {JSON.stringify(artifact.generatedSummary, null, 2)}
-                      </pre>
-                    </section>
-                  ) : null}
-                  <section>
-                    <div style={{ color: "#475569", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                      {labels.rawJson}
+                          maxHeight: "420px",
+                          overflow: "auto",
+                          background: "var(--soft)",
+                          color: "var(--ink)",
+                          padding: 12,
+                          borderRadius: 8,
+                        }}>
+                          {preview}
+                        </pre>
+                      </section>
                     </div>
-                    <pre style={{
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      maxHeight: "420px",
-                      overflow: "auto",
-                      background: "#0b1020",
-                      color: "#f8fafc",
-                      padding: 12,
-                      borderRadius: 8,
-                    }}>
-                      {preview}
-                    </pre>
-                  </section>
-                </div>
-              </details>
-            ) : null}
-          </div>
-        ) : (
-          <p>{t.debug.officeWasmPocNoResult}</p>
-        )}
-      </section>
-    </main>
+                  </details>
+                ) : null}
+              </div>
+            ) : (
+              <p>{t.debug.officeWasmPocNoResult}</p>
+            )}
+          </section>
+        </div>
+      </div>
+    </DesktopAppShell>
   );
 }
