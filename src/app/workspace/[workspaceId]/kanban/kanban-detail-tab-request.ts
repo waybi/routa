@@ -50,6 +50,53 @@ export function consumeKanbanDetailTabRequest(taskId: string): RequestableKanban
   return pending ?? fromUrl;
 }
 
+/** The four card-detail tabs of the redesign (design-spec §10). */
+export type KanbanDetailTabId = "overview" | "construction" | "changes" | "completion";
+
+export const KANBAN_DETAIL_TAB_IDS: readonly KanbanDetailTabId[] = ["overview", "construction", "changes", "completion"];
+
+/**
+ * Tab ids from the nine-tab detail, folded into the four new tabs. Written
+ * as tuples so the old ids never appear as object keys elsewhere.
+ */
+const LEGACY_KANBAN_DETAIL_TABS = new Map<string, KanbanDetailTabId>([
+  ["humanReadable", "overview"],
+  ["readiness", "overview"],
+  ["execution", "construction"],
+  ["jitContext", "construction"],
+  ["runs", "construction"],
+  ["evidence", "changes"],
+]);
+
+/** Maps a stored tab id (new or legacy) to one of the four tabs; unknown → null. */
+export function migrateLegacyKanbanDetailTab(id: string | null | undefined): KanbanDetailTabId | null {
+  if (!id) return null;
+  if ((KANBAN_DETAIL_TAB_IDS as readonly string[]).includes(id)) return id as KanbanDetailTabId;
+  return LEGACY_KANBAN_DETAIL_TABS.get(id) ?? null;
+}
+
+/**
+ * Which tab the detail opens on:
+ * 1. a notification request (`?detailTab=completion` / requestKanbanDetailTab);
+ * 2. the tab the user picked on this card before (legacy ids migrated);
+ * 3. the completion report when the card has one;
+ * 4. the overview.
+ */
+export function resolveKanbanDetailTab({
+  requested,
+  persisted,
+  hasCompletionReport,
+}: {
+  requested?: RequestableKanbanDetailTab | null;
+  persisted?: string | null;
+  hasCompletionReport: boolean;
+}): KanbanDetailTabId {
+  if (requested) return requested;
+  const remembered = migrateLegacyKanbanDetailTab(persisted);
+  if (remembered) return remembered;
+  return resolveDefaultKanbanDetailTab(hasCompletionReport);
+}
+
 /** Default tab when the user has not picked one for this card yet. */
 export function resolveDefaultKanbanDetailTab(hasCompletionReport: boolean): "completion" | "overview" {
   return hasCompletionReport ? "completion" : "overview";
