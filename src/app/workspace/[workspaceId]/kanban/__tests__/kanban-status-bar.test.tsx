@@ -364,6 +364,6 @@ describe("KanbanStatusBar runtime fitness", () => {
 
     const badge = screen.getByTestId("kanban-runtime-fitness-status");
     expect(badge.textContent).toContain("Hard gate failed");
-    expect(badge.firstElementChild?.className).toContain("bg-rose-500");
+    expect(badge.firstElementChild?.className).toContain("bg-danger");
   });
 });

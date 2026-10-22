@@ -23,6 +23,15 @@ describe("ui/Badge and ui/StatusDot", () => {
     expect(root.querySelector("[aria-hidden='true']")).not.toBeNull();
   });
 
+  it("pulses only when asked, and only outside reduced motion", () => {
+    const { container, rerender } = render(<StatusDot tone="success" label="live" pulse />);
+    const dot = () => (container.firstElementChild as HTMLElement).querySelector("[aria-hidden='true']") as HTMLElement;
+    expect(dot().className).toContain("motion-safe:animate-pulse");
+    expect(dot().className).not.toMatch(/(^|\s)animate-pulse/);
+    rerender(<StatusDot tone="success" label="live" />);
+    expect(dot().className).not.toContain("animate-pulse");
+  });
+
   it("gives each tone a different color class", () => {
     const classes = TONES.map((tone) => {
       const { container, unmount } = render(<Badge tone={tone}>x</Badge>);

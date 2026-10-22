@@ -49,13 +49,16 @@ export interface StatusDotProps {
   tone?: Tone;
   /** Required visible label shown next to the dot. */
   label: ReactNode;
+  /** Live work: the dot pulses, except under prefers-reduced-motion. */
+  pulse?: boolean;
   className?: string;
 }
 
-export function StatusDot({ tone = "neutral", label, className = "" }: StatusDotProps) {
+export function StatusDot({ tone = "neutral", label, pulse = false, className = "" }: StatusDotProps) {
+  const motion = pulse ? " motion-safe:animate-pulse" : "";
   return (
-    <span data-tone={tone} className={`inline-flex items-center gap-1.5 text-xs text-secondary ${className}`.trim()}>
-      <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[tone]}`} />
+    <span data-tone={tone} className={`inline-flex min-w-0 items-center gap-1.5 text-xs text-secondary ${className}`.trim()}>
+      <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${DOT_TONE[tone]}${motion}`} />
       <span>{label}</span>
     </span>
   );

@@ -92,9 +92,9 @@ function groupModels(models: ModelEffortChoice[]): ModelGroup[] {
 }
 
 const TOOLBAR_BUTTON_CLASS =
-  "flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-transparent transition-colors disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:cursor-default aria-disabled:hover:bg-white dark:aria-disabled:hover:bg-transparent";
+  "flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-md border border-default hover:bg-hover text-xs font-medium text-primary bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:cursor-default aria-disabled:hover:bg-surface";
 const FORM_BUTTON_CLASS =
-  "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition hover:bg-slate-50 focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-[#0b1119] dark:text-slate-100 dark:hover:bg-[#111722]";
+  "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-default bg-surface px-3 text-sm text-primary outline-none transition hover:bg-hover focus:border-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export function ModelEffortPicker({
   choices,
@@ -224,10 +224,10 @@ export function ModelEffortPicker({
     }
   };
 
-  const optionClass = (selected: boolean) => `flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-400 ${
+  const optionClass = (selected: boolean) => `flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent ${
     selected
-      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-      : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
+      ? "bg-accent-subtle text-primary"
+      : "text-primary hover:bg-hover"
   }`;
 
   const renderOption = (value: string, label: string) => {
@@ -281,7 +281,7 @@ export function ModelEffortPicker({
           {capsuleText}
         </span>
         {!readOnly && (
-          <ChevronDown className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden />
+          <ChevronDown className={`h-3 w-3 shrink-0 text-secondary transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden />
         )}
       </button>
 
@@ -292,7 +292,7 @@ export function ModelEffortPicker({
           aria-label={resolvedAriaLabel}
           data-testid={`${testIdPrefix}-panel`}
           onKeyDown={handlePanelKeyDown}
-          className="fixed overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl z-[9999] dark:border-slate-700 dark:bg-[#1e2130]"
+          className="fixed overflow-hidden rounded-xl border border-default bg-surface shadow-overlay z-[9999]"
           style={{
             left: position.left,
             top: position.top,
@@ -304,8 +304,8 @@ export function ModelEffortPicker({
           }}
         >
           <div className="flex max-h-[inherit] flex-col">
-            <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+            <div className="border-b border-default px-3 py-2">
+              <p className="text-[10px] font-semibold text-secondary">
                 {copy.model}
               </p>
             </div>
@@ -314,7 +314,7 @@ export function ModelEffortPicker({
               {modelGroups.map((group, index) => (
                 <div key={`${group.label ?? "ungrouped"}-${index}`} role="group" aria-label={group.label}>
                   {group.label && (
-                    <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                    <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold text-secondary">
                       {group.label}
                     </div>
                   )}
@@ -322,18 +322,18 @@ export function ModelEffortPicker({
                 </div>
               ))}
               {modelChoices.length === 0 && (
-                <div className="px-3 py-2 text-[11px] text-slate-400 dark:text-slate-500">{copy.noModels}</div>
+                <div className="px-3 py-2 text-[11px] text-secondary">{copy.noModels}</div>
               )}
             </div>
             {(effortChoices.length > 0 || currentEffort) && (
-              <div className="border-t border-slate-100 p-2 dark:border-slate-800">
-                <p className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+              <div className="border-t border-default p-2">
+                <p className="px-1 pb-1.5 text-[10px] font-semibold text-secondary">
                   {copy.reasoningEffort}
                 </p>
                 <div
                   role="radiogroup"
                   aria-label={copy.reasoningEffort}
-                  className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800/70"
+                  className="flex flex-wrap gap-1 rounded-lg bg-subtle p-0.5"
                 >
                   {[
                     // Not selectable: still shown while it is the current value.
@@ -352,10 +352,10 @@ export function ModelEffortPicker({
                         data-testid={`${testIdPrefix}-effort-option`}
                         data-value={choice.value}
                         onClick={() => selectEffort(choice.value)}
-                        className={`flex-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 ${
+                        className={`flex-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
                           selected
-                            ? "bg-white text-blue-700 shadow-sm dark:bg-[#0b1119] dark:text-blue-300"
-                            : "text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-white/5"
+                            ? "bg-surface text-primary shadow-sm"
+                            : "text-secondary hover:bg-hover"
                         }`}
                       >
                         {choice.label}

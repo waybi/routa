@@ -101,17 +101,17 @@ function fitnessDotClass(
   runtimeFitnessLoading: boolean,
   runtimeFitnessError: string | null | undefined,
 ): string {
-  if (summary?.currentStatus === "running") return "animate-pulse bg-sky-500";
+  if (summary?.currentStatus === "running") return "motion-safe:animate-pulse bg-information";
   if (summary?.currentStatus === "failed") {
-    if (summary.hardGateBlocked) return "bg-rose-500";
-    if (summary.scoreBlocked) return "bg-orange-500";
-    return "bg-rose-500";
+    if (summary.hardGateBlocked) return "bg-danger";
+    if (summary.scoreBlocked) return "bg-attention";
+    return "bg-danger";
   }
-  if (summary?.currentStatus === "skipped") return "bg-amber-500";
-  if (summary?.currentStatus === "passed") return "bg-emerald-500";
-  if (runtimeFitnessLoading) return "animate-pulse bg-slate-400";
-  if (runtimeFitnessError) return "bg-rose-500";
-  return "bg-slate-400";
+  if (summary?.currentStatus === "skipped") return "bg-attention";
+  if (summary?.currentStatus === "passed") return "bg-success";
+  if (runtimeFitnessLoading) return "motion-safe:animate-pulse bg-secondary";
+  if (runtimeFitnessError) return "bg-danger";
+  return "bg-secondary";
 }
 
 export function KanbanStatusBar({
@@ -180,43 +180,43 @@ export function KanbanStatusBar({
 
   return (
     <div
-      className="h-6 shrink-0 flex items-center justify-between border-t border-desktop-border bg-desktop-bg-tertiary text-[11px] select-none"
+      className="h-6 shrink-0 flex items-center justify-between border-t border-default bg-subtle text-[11px] select-none"
       data-testid="kanban-status-bar"
     >
       {/* 左侧：仓库和状态信息 */}
-      <div className="flex items-center divide-x divide-desktop-border/50">
+      <div className="flex items-center divide-x divide-default/50">
         {/* 仓库信息 */}
         {onRepoClick ? (
           <button
             onClick={onRepoClick}
-            className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-primary hover:bg-desktop-bg-active transition-colors"
+            className="flex items-center gap-1.5 px-2.5 h-6 text-primary hover:bg-hover transition-colors"
             title={defaultCodebase
               ? `${defaultCodebase.repoPath}${defaultCodebase.branch ? ` @ ${defaultCodebase.branch}` : ""}`
               : t.kanbanBoard.noReposLinked}
           >
             <GitBranch className="w-3 h-3" />
             <span className="font-medium">{t.kanbanBoard.repos}</span>
-            <span className="rounded-full bg-desktop-bg-active px-1.5 py-0.5 text-[10px] text-desktop-text-secondary">
+            <span className="rounded-full bg-hover px-1.5 py-0.5 text-[10px] text-secondary">
               {repoCount}
             </span>
             {repoDisplayName ? (
-              <span className="max-w-[180px] truncate text-desktop-text-secondary">
+              <span className="max-w-[180px] truncate text-secondary">
                 {repoDisplayName}
               </span>
             ) : (
-              <span className="max-w-[180px] truncate text-desktop-text-secondary">
+              <span className="max-w-[180px] truncate text-secondary">
                 {t.kanbanBoard.noReposLinked}
               </span>
             )}
             {defaultCodebase?.branch && (
-              <span className="text-desktop-text-secondary">@ {defaultCodebase.branch}</span>
+              <span className="text-secondary">@ {defaultCodebase.branch}</span>
             )}
           </button>
         ) : (
-          <div className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-secondary">
+          <div className="flex items-center gap-1.5 px-2.5 h-6 text-secondary">
             <GitBranch className="w-3 h-3" />
             <span className="font-medium">{t.kanbanBoard.repos}</span>
-            <span className="rounded-full bg-desktop-bg-active px-1.5 py-0.5 text-[10px]">
+            <span className="rounded-full bg-hover px-1.5 py-0.5 text-[10px]">
               {repoCount}
             </span>
             <span>{repoDisplayName ?? t.kanbanBoard.noReposLinked}</span>
@@ -230,8 +230,8 @@ export function KanbanStatusBar({
             data-testid="kanban-file-changes-open"
             className={`flex items-center gap-1.5 px-2.5 h-6 transition-colors ${
               fileChangesOpen
-                ? "bg-desktop-bg-active text-desktop-accent"
-                : "text-desktop-text-primary hover:bg-desktop-bg-active"
+                ? "bg-hover text-accent"
+                : "text-primary hover:bg-hover"
             }`}
             title={`${fileChangesSummary.changedFiles} file${fileChangesSummary.changedFiles === 1 ? "" : "s"} changed`}
           >
@@ -239,8 +239,8 @@ export function KanbanStatusBar({
             <span>{fileChangesSummary.changedFiles > 0 ? fileChangesSummary.changedFiles : "0"}</span>
             {fileChangesSummary.changedFiles > 0 && (
               <>
-                <span className="text-emerald-500">+{fileChangesSummary.totalAdditions}</span>
-                <span className="text-rose-500">-{fileChangesSummary.totalDeletions}</span>
+                <span className="text-success">+{fileChangesSummary.totalAdditions}</span>
+                <span className="text-danger">-{fileChangesSummary.totalDeletions}</span>
               </>
             )}
           </button>
@@ -252,8 +252,8 @@ export function KanbanStatusBar({
             onClick={onGitLogClick}
             className={`flex items-center gap-1.5 px-2.5 h-6 transition-colors ${
               gitLogOpen
-                ? "bg-desktop-bg-active text-desktop-accent"
-                : "text-desktop-text-primary hover:bg-desktop-bg-active"
+                ? "bg-hover text-accent"
+                : "text-primary hover:bg-hover"
             }`}
             title={t.gitLog.title}
           >
@@ -264,10 +264,10 @@ export function KanbanStatusBar({
       </div>
 
       {/* 右侧：同步状态、运行状态和 Provider */}
-      <div className="flex items-center divide-x divide-desktop-border/50">
+      <div className="flex items-center divide-x divide-default/50">
         {/* 看板健康 */}
         {repoHealth && (repoHealth.missingRepoTasks > 0 || repoHealth.cwdMismatchTasks > 0) && (
-          <div className="flex items-center gap-2 px-2.5 h-6 text-amber-600 dark:text-amber-300">
+          <div className="flex items-center gap-2 px-2.5 h-6 text-attention">
             <span className="font-medium">{t.kanban.kanbanHealth}</span>
             {repoHealth.missingRepoTasks > 0 && (
               <span>{repoHealth.missingRepoTasks} {t.kanban.missing}</span>
@@ -281,16 +281,16 @@ export function KanbanStatusBar({
         {/* 同步状态 */}
         {repoSync && repoSync.status !== "idle" && (
           <div
-            className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-secondary text-[11px]"
+            className="flex items-center gap-1.5 px-2.5 h-6 text-secondary text-[11px]"
             data-testid="kanban-repo-sync-progress"
           >
             <span
               className={`w-1.5 h-1.5 shrink-0 rounded-full ${
                 repoSync.status === "error"
-                  ? "bg-rose-500"
+                  ? "bg-danger"
                   : repoSync.status === "done"
-                    ? "bg-emerald-500"
-                    : "animate-pulse bg-sky-500"
+                    ? "bg-success"
+                    : "motion-safe:animate-pulse bg-information"
               }`}
             />
             <span className="max-w-[150px] truncate">
@@ -308,12 +308,12 @@ export function KanbanStatusBar({
         {onFitnessClick ? (
           <button
             onClick={onFitnessClick}
-            className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-secondary hover:bg-desktop-bg-active transition-colors"
+            className="flex items-center gap-1.5 px-2.5 h-6 text-secondary hover:bg-hover transition-colors"
             title={fitnessTitleParts.join("\n")}
             data-testid="kanban-runtime-fitness-status"
           >
             <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${fitnessStatusDotClass}`} />
-            <span className="font-medium text-desktop-text-primary">{t.kanban.fitnessLabel}</span>
+            <span className="font-medium text-primary">{t.kanban.fitnessLabel}</span>
             <span className="max-w-[220px] truncate">
               {[
                 latestModeLabel,
@@ -324,12 +324,12 @@ export function KanbanStatusBar({
           </button>
         ) : (
           <div
-            className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-secondary"
+            className="flex items-center gap-1.5 px-2.5 h-6 text-secondary"
             title={fitnessTitleParts.join("\n")}
             data-testid="kanban-runtime-fitness-status"
           >
             <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${fitnessStatusDotClass}`} />
-            <span className="font-medium text-desktop-text-primary">{t.kanban.fitnessLabel}</span>
+            <span className="font-medium text-primary">{t.kanban.fitnessLabel}</span>
             <span className="max-w-[220px] truncate">
               {[
                 latestModeLabel,
@@ -342,13 +342,13 @@ export function KanbanStatusBar({
 
         {/* 运行状态 */}
         {board && (
-          <div className="flex items-center gap-2 px-2.5 h-6 text-desktop-text-secondary">
+          <div className="flex items-center gap-2 px-2.5 h-6 text-secondary">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span className="w-1.5 h-1.5 rounded-full bg-success" />
               {t.kanban.runningLabel} {boardQueue?.runningCount ?? 0}
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <span className="w-1.5 h-1.5 rounded-full bg-attention" />
               {t.kanban.queuedLabel} {boardQueue?.queuedCount ?? 0}
             </span>
           </div>
@@ -358,7 +358,7 @@ export function KanbanStatusBar({
         {selectedProvider && (
           <button
             onClick={onProviderClick}
-            className="flex items-center gap-1.5 px-2.5 h-6 text-desktop-text-primary hover:bg-desktop-bg-active transition-colors"
+            className="flex items-center gap-1.5 px-2.5 h-6 text-primary hover:bg-hover transition-colors"
             title={selectedProvider.description}
           >
             <Zap className="w-3 h-3" />
