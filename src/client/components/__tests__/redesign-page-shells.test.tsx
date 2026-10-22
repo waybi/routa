@@ -80,7 +80,19 @@ describe("redesign page shells", () => {
     expect(screen.getByTestId("desktop-shell-root").getAttribute("data-workspace-id")).toBe("ws-1");
     expect(container.innerHTML).not.toContain("bg-[#fafafa]");
     expect(container.querySelector('img[alt="Routa"]')).toBeNull();
-    expect(screen.getByRole("button", { name: "Background Tasks" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: en.pagesRedesign.messagesPage.tabTasks })).toBeTruthy();
+    expect(screen.getByRole("button", { name: en.pagesRedesign.messagesPage.tabLogs })).toBeTruthy();
+  });
+
+  it("renders the /messages copy from the dictionary in Chinese too", async () => {
+    window.localStorage.setItem("routa.locale", "zh");
+    const { default: zh } = await import("@/i18n/locales/zh");
+    const { I18nProvider } = await import("@/i18n");
+    render(<I18nProvider><MessagesPage /></I18nProvider>);
+    expect(await screen.findByRole("button", { name: zh.pagesRedesign.messagesPage.tabTasks })).toBeTruthy();
+    expect(screen.queryByText("Background Tasks")).toBeNull();
+    expect(screen.queryByText("PR Agent & Background Tasks")).toBeNull();
+    window.localStorage.removeItem("routa.locale");
   });
 
   it("renders /a2a inside the app shell", async () => {

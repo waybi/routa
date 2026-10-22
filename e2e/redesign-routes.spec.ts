@@ -91,6 +91,27 @@ test.describe("redesign routes", () => {
     }
   }
 
+  test("a missing canvas ID shows the in-shell error and the shell stays", async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS[0]);
+    const response = await page.goto("/canvas/redesign-preview-canvas", { waitUntil: "domcontentloaded" });
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('[data-testid="canvas-load-error"]')).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(8_000);
+    await expect(page.locator('[data-testid="desktop-shell-root"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="canvas-load-error"]')).toBeVisible();
+  });
+
+  test("harness and fluency show the shared settings page header", async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS[0]);
+    for (const key of ["harness", "fluency"]) {
+      await page.goto(`/settings/${key}`, { waitUntil: "domcontentloaded" });
+      const header = page.locator('[data-testid="settings-page-header"]');
+      await expect(header).toHaveCount(1, { timeout: 30_000 });
+      const fontSize = await header.locator("h1").evaluate((el) => getComputedStyle(el).fontSize);
+      expect(fontSize).toBe("21px");
+    }
+  });
+
   test("settings sub-navigation highlights the current page", async ({ page }) => {
     await page.setViewportSize(VIEWPORTS[0]);
     const pages = ["agents", "specialists", "workflows", "mcp", "schedules", "webhooks", "harness", "fluency"];

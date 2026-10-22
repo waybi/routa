@@ -93,6 +93,7 @@ export default function MessagesPage() {
     return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${colors[outcome] ?? ""}`}>{outcome}</span>;
   };
 
+  const copy = t.pagesRedesign.messagesPage;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === effectiveWorkspaceId);
   const tabClassName = (active: boolean) =>
     `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${active ? "bg-accent-subtle text-accent" : "text-secondary hover:bg-hover hover:text-primary"}`;
@@ -129,13 +130,13 @@ export default function MessagesPage() {
               onClick={() => setTab("tasks")}
               className={tabClassName(tab === "tasks")}
             >
-              Background Tasks
+              {copy.tabTasks}
             </button>
             <button
               onClick={() => setTab("logs")}
               className={tabClassName(tab === "logs")}
             >
-              Webhook Logs
+              {copy.tabLogs}
             </button>
           </div>
         </SettingsPageHeader>
@@ -144,12 +145,12 @@ export default function MessagesPage() {
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="max-w-5xl mx-auto p-6">
             {loading ? (
-              <div className="text-center py-12 text-secondary">Loading...</div>
+              <div className="text-center py-12 text-secondary">{t.uiKit.loading}</div>
             ) : tab === "tasks" ? (
               <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-primary mb-4">PR Agent & Background Tasks</h2>
+                <h2 className="text-sm font-semibold text-primary mb-4">{copy.tasksTitle}</h2>
                 {tasks.length === 0 ? (
-                  <p className="text-sm text-secondary py-8 text-center">No background tasks yet</p>
+                  <p className="text-sm text-secondary py-8 text-center">{copy.tasksEmpty}</p>
                 ) : (
                   tasks.map((task) => (
                     <div key={task.id} className="p-4 bg-surface border border-default rounded-xl">
@@ -158,9 +159,9 @@ export default function MessagesPage() {
                         {getStatusBadge(task.status)}
                       </div>
                       <div className="flex items-center gap-4 text-[11px] text-secondary">
-                        <span>Type: {task.type}</span>
-                        <span>Created: {formatTime(task.createdAt)}</span>
-                        {task.completedAt && <span>Completed: {formatTime(task.completedAt)}</span>}
+                        <span>{copy.type.replace("{value}", task.type)}</span>
+                        <span>{copy.created.replace("{value}", formatTime(task.createdAt))}</span>
+                        {task.completedAt && <span>{copy.completed.replace("{value}", formatTime(task.completedAt))}</span>}
                       </div>
                       {task.error && <p className="mt-2 text-xs text-danger">{task.error}</p>}
                     </div>
@@ -169,9 +170,9 @@ export default function MessagesPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-primary mb-4">Webhook Trigger Logs</h2>
+                <h2 className="text-sm font-semibold text-primary mb-4">{copy.logsTitle}</h2>
                 {logs.length === 0 ? (
-                  <p className="text-sm text-secondary py-8 text-center">No webhook logs yet</p>
+                  <p className="text-sm text-secondary py-8 text-center">{copy.logsEmpty}</p>
                 ) : (
                   logs.map((l) => (
                     <div key={l.id} className="p-4 bg-surface border border-default rounded-xl">
@@ -180,8 +181,8 @@ export default function MessagesPage() {
                         {getOutcomeBadge(l.outcome)}
                       </div>
                       <div className="flex items-center gap-4 text-[11px] text-secondary">
-                        <span>Config: {l.configId.slice(0, 8)}</span>
-                        <span>Signature: {l.signatureValid ? "✓" : "✗"}</span>
+                        <span>{copy.config.replace("{value}", l.configId.slice(0, 8))}</span>
+                        <span>{copy.signature.replace("{value}", l.signatureValid ? "✓" : "✗")}</span>
                         <span>{formatTime(l.createdAt)}</span>
                       </div>
                       {l.errorMessage && <p className="mt-2 text-xs text-danger">{l.errorMessage}</p>}
