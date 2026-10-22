@@ -1,4 +1,5 @@
 import type { TailTranslationDictionarySections } from "../types-tail";
+import { zhShell } from "./zh-shell";
 
 export const zhTail: TailTranslationDictionarySections = {
   messageBubble: {
@@ -486,4 +487,5 @@ export const zhTail: TailTranslationDictionarySections = {
   kanbanDetailOverlay: {
     closeWithEscHint: "关闭（Esc）",
   },
+  ...zhShell,
 };

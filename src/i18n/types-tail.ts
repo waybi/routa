@@ -1,4 +1,6 @@
-export interface TailTranslationDictionarySections {
+import type { ShellTranslationDictionarySections } from "./types-shell";
+
+export interface TailTranslationDictionarySections extends ShellTranslationDictionarySections {
   messageBubble: {
     thinking: string;
     input: string;

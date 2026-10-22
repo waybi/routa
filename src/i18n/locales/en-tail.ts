@@ -1,4 +1,5 @@
 import type { TailTranslationDictionarySections } from "../types-tail";
+import { enShell } from "./en-shell";
 
 export const enTail: TailTranslationDictionarySections = {
   messageBubble: {
@@ -492,4 +493,5 @@ export const enTail: TailTranslationDictionarySections = {
   kanbanDetailOverlay: {
     closeWithEscHint: "Close (Esc)",
   },
+  ...enShell,
 };
