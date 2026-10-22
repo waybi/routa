@@ -165,13 +165,13 @@ export function CollaborativeTaskEditor({
   return (
     <div ref={containerRef} className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+      <div className="px-4 py-3 border-b border-default">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <span className="text-sm font-semibold text-primary">
               {t.tasks.collaborativeTasks}
             </span>
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-success-subtle text-success">
               {taskNotes.length}
             </span>
           </div>
@@ -179,14 +179,14 @@ export function CollaborativeTaskEditor({
           {/* Actions */}
           <div className="flex items-center gap-1.5">
             {hasRunning && (
-              <span className="text-xs font-medium text-amber-600 dark:text-amber-400 animate-pulse">
+              <span className="text-xs font-medium text-attention animate-pulse">
                 {t.collaborativeTasks.executing}{runningCrafterCount > 0 ? ` (${runningCrafterCount})` : ""}...
               </span>
             )}
             {pendingNotes.length > 0 && !hasRunning && (
               <button
                 onClick={toggleSelectAll}
-                className="text-xs font-medium px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                className="text-xs font-medium px-2 py-1 rounded-md bg-subtle text-primary hover:bg-hover transition-colors"
               >
                 {selectedNoteIds.size === pendingNotes.length ? t.tasks.deselectAll : t.tasks.selectAll}
               </button>
@@ -194,7 +194,7 @@ export function CollaborativeTaskEditor({
             {selectedNoteIds.size > 0 && !hasRunning && onExecuteTask && (
               <button
                 onClick={handleExecuteSelected}
-                className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="text-xs font-medium px-2.5 py-1 rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors"
               >
                 {t.tasks.executeSelected} ({selectedNoteIds.size})
               </button>
@@ -202,7 +202,7 @@ export function CollaborativeTaskEditor({
             {hasPending && !hasRunning && onExecuteAll && (
               <button
                 onClick={() => onExecuteAll(concurrency)}
-                className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                className="text-xs font-medium px-2.5 py-1 rounded-md bg-success text-on-accent hover:opacity-90 transition-colors"
               >
                 {t.tasks.executeAll}
               </button>
@@ -211,10 +211,10 @@ export function CollaborativeTaskEditor({
             <div className="flex items-center gap-1">
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  connected ? "bg-emerald-500" : "bg-slate-400"
+                  connected ? "bg-success" : "bg-secondary"
                 }`}
               />
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              <span className="text-[10px] text-secondary">
                 {connected ? t.collaborativeTasks.live : t.collaborativeTasks.off}
               </span>
             </div>
@@ -222,21 +222,21 @@ export function CollaborativeTaskEditor({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-300">
+          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-subtle text-secondary">
             {t.collaborativeTasks.crdt}
           </span>
-          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <span className="text-[10px] font-medium text-secondary">
             {t.tasks.concurrency}
           </span>
-          <div className="flex items-center rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="flex items-center rounded-md border border-default overflow-hidden">
             {[1, 2].map((n) => (
               <button
                 key={n}
                 onClick={() => onConcurrencyChange?.(n)}
                 className={`px-2 py-0.5 text-[11px] font-medium transition-colors ${
                   concurrency === n
-                    ? "bg-emerald-600 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    ? "bg-success text-on-accent"
+                    : "bg-surface text-secondary hover:bg-hover"
                 }`}
               >
                 {n}
@@ -288,7 +288,7 @@ export function CollaborativeTaskEditor({
           ))}
 
           {taskNotes.length === 0 && (
-            <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500">
+            <div className="text-center py-8 text-xs text-secondary">
               <div className="space-y-1.5">
                 <div className="text-sm">{t.collaborativeTasks.noTaskNotes}</div>
                 <div>{t.collaborativeTasks.tasksWillAppear}</div>
@@ -301,16 +301,16 @@ export function CollaborativeTaskEditor({
       {/* Spec Note (if exists) - resizable vertical split */}
       {specNote && specNote.content && (
         <div
-          className="shrink-0 flex flex-col bg-blue-50/50 dark:bg-blue-900/10 relative"
+          className="shrink-0 flex flex-col bg-accent-subtle relative"
           style={{ height: specExpanded ? `${specHeight}px` : "auto" }}
         >
           {/* Spec Header */}
           <div
-            className="flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-accent-subtle transition-colors shrink-0"
             onClick={() => setSpecExpanded((prev) => !prev)}
           >
-            <FileText className="w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex-1">
+            <FileText className="w-3 h-3 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <span className="text-[10px] font-semibold text-accent flex-1">
               Spec
             </span>
             {onDeleteNote && (
@@ -320,24 +320,24 @@ export function CollaborativeTaskEditor({
                   onDeleteNote(specNote.id);
                 }}
                 title="Delete spec"
-                className="p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="p-0.5 rounded text-secondary hover:text-danger hover:bg-danger-subtle transition-colors"
               >
                 <X className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
               </button>
             )}
-            <ChevronDown className={`w-3.5 h-3.5 text-blue-400 transition-transform ${specExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <ChevronDown className={`w-3.5 h-3.5 text-accent transition-transform ${specExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </div>
           {/* Spec Content */}
           {specExpanded ? (
             <div className="flex-1 overflow-y-auto px-3 pb-2">
               <MarkdownViewer
                 content={specNote.content}
-                className="text-[11px] text-slate-600 dark:text-slate-400"
+                className="text-[11px] text-secondary"
               />
             </div>
           ) : (
             <div className="px-3 pb-2">
-              <div className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
+              <div className="text-[11px] text-secondary line-clamp-2">
                 <MarkdownViewer
                   content={specNote.content.slice(0, 200) + (specNote.content.length > 200 ? "..." : "")}
                   className="text-[11px]"
@@ -348,17 +348,17 @@ export function CollaborativeTaskEditor({
           {/* Vertical resize handle - only show when expanded */}
           {specExpanded && (
             <div
-              className="absolute left-0 right-0 bottom-0 h-1 cursor-row-resize z-20 hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors group"
+              className="absolute left-0 right-0 bottom-0 h-1 cursor-row-resize z-20 hover:bg-accent active:bg-accent transition-colors group"
               onMouseDown={handleVerticalResizeStart}
             >
-              <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-8 h-1 rounded-full bg-slate-300 dark:bg-slate-600 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
+              <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-8 h-1 rounded-full bg-default group-hover:bg-accent group-active:bg-accent transition-colors" />
             </div>
           )}
         </div>
       )}
       {/* Divider between SPEC and Tasks when SPEC exists and is expanded */}
       {specNote && specNote.content && specExpanded && (
-        <div className="h-px bg-slate-200 dark:bg-slate-700 shrink-0" />
+        <div className="h-px bg-default shrink-0" />
       )}
 
       {/* Content */}
@@ -406,7 +406,7 @@ export function CollaborativeTaskEditor({
             ))}
 
             {taskNotes.length === 0 && (
-              <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500">
+              <div className="text-center py-8 text-xs text-secondary">
                 <div className="space-y-1.5">
                   <div className="text-sm">{t.collaborativeTasks.noTaskNotes}</div>
                   <div>{t.collaborativeTasks.tasksWillAppear}</div>
@@ -450,23 +450,23 @@ function getStatusLabels(t: TranslationDictionary): Record<string, { label: stri
   return {
     PENDING: {
       label: t.collaborativeTasks.status.pending,
-      color: "text-slate-600 dark:text-slate-400",
-      bg: "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700",
+      color: "text-secondary",
+      bg: "bg-subtle border-default",
     },
     IN_PROGRESS: {
       label: t.collaborativeTasks.status.inProgress,
-      color: "text-amber-600 dark:text-amber-400",
-      bg: "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800",
+      color: "text-attention",
+      bg: "bg-attention-subtle border-attention",
     },
     COMPLETED: {
       label: t.collaborativeTasks.status.completed,
-      color: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800",
+      color: "text-success",
+      bg: "bg-success-subtle border-success",
     },
     FAILED: {
       label: t.collaborativeTasks.status.failed,
-      color: "text-red-600 dark:text-red-400",
-      bg: "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800",
+      color: "text-danger",
+      bg: "bg-danger-subtle border-danger",
     },
   };
 }
@@ -529,11 +529,11 @@ function parseTaskContent(content: string): ParsedTaskSections {
 function TaskSection({ title, content }: { title: string; content: string }) {
   return (
     <div className="mb-2.5 last:mb-0">
-      <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-        <span className="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-500" />
+      <div className="text-[10px] font-semibold text-secondary mb-1 flex items-center gap-1.5">
+        <span className="w-1 h-1 rounded-full bg-secondary" />
         {title}
       </div>
-      <div className="text-xs text-slate-600 dark:text-slate-300 pl-2.5 border-l border-slate-200 dark:border-slate-700">
+      <div className="text-xs text-secondary pl-2.5 border-l border-default">
         <MarkdownViewer content={content} className="text-xs" />
       </div>
     </div>
@@ -544,7 +544,7 @@ function TaskSection({ title, content }: { title: string; content: string }) {
 function TaskContentRenderer({ content }: { content: string }) {
   if (!content) {
     return (
-      <div className="text-xs text-slate-400 dark:text-slate-500 italic">
+      <div className="text-xs text-secondary italic">
         No content
       </div>
     );
@@ -557,7 +557,7 @@ function TaskContentRenderer({ content }: { content: string }) {
   if (!hasSections) {
     // No structured sections found, render as plain markdown
     return (
-      <div className="text-xs text-slate-600 dark:text-slate-300">
+      <div className="text-xs text-secondary">
         <MarkdownViewer content={content} className="text-xs" />
       </div>
     );
@@ -581,8 +581,8 @@ function TaskContentRenderer({ content }: { content: string }) {
         <TaskSection title="Definition of Done" content={sections.definitionOfDone} />
       )}
       {sections.remainingContent && (
-        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-          <div className="text-xs text-slate-600 dark:text-slate-300">
+        <div className="mt-2 pt-2 border-t border-default">
+          <div className="text-xs text-secondary">
             <MarkdownViewer content={sections.remainingContent} className="text-xs" />
           </div>
         </div>
@@ -613,21 +613,21 @@ function TaskNoteCard({
 
   const statusIcon = {
     PENDING: (
-      <div className="w-5 h-5 rounded-md border-2 border-slate-300 dark:border-slate-600 shrink-0" />
+      <div className="w-5 h-5 rounded-md border-2 border-default shrink-0" />
     ),
     IN_PROGRESS: (
-      <div className="w-5 h-5 rounded-md bg-amber-500 flex items-center justify-center shrink-0 animate-pulse">
-        <Zap className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+      <div className="w-5 h-5 rounded-md bg-attention flex items-center justify-center shrink-0 animate-pulse">
+        <Zap className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
     ),
     COMPLETED: (
-      <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center shrink-0">
-        <Check className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
+      <div className="w-5 h-5 rounded-md bg-success flex items-center justify-center shrink-0">
+        <Check className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
       </div>
     ),
     FAILED: (
-      <div className="w-5 h-5 rounded-md bg-red-500 flex items-center justify-center shrink-0">
-        <X className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+      <div className="w-5 h-5 rounded-md bg-danger flex items-center justify-center shrink-0">
+        <X className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
     ),
   };
@@ -636,7 +636,7 @@ function TaskNoteCard({
     <div className={`rounded-lg border transition-all ${statusInfo.bg}`}>
       {/* Header */}
       <div
-        className="flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-black/2 dark:hover:bg-white/2 transition-colors"
+        className="flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-hover transition-colors"
         onClick={onToggleExpand}
       >
         {onToggleSelect && status === "PENDING" ? (
@@ -652,11 +652,11 @@ function TaskNoteCard({
             />
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
               selected
-                ? "bg-blue-600 border-blue-600"
-                : "border-slate-300 dark:border-slate-600 hover:border-blue-400"
+                ? "bg-accent border-accent"
+                : "border-default hover:border-accent"
             }`}>
               {selected && (
-                <Check className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
+                <Check className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
               )}
             </div>
           </label>
@@ -665,26 +665,26 @@ function TaskNoteCard({
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+            <span className="text-[10px] font-bold text-secondary">
               #{index + 1}
             </span>
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+            <span className="text-sm font-medium text-primary truncate">
               {note.title}
             </span>
           </div>
           {!expanded && note.content && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+            <p className="text-xs text-secondary mt-0.5 line-clamp-1">
               {note.content.slice(0, 100)}
             </p>
           )}
           {/* Last updated */}
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[9px] text-slate-400 dark:text-slate-500">
+            <span className="text-[9px] text-secondary">
               {new Date(note.updatedAt).toLocaleTimeString()}
             </span>
             {note.metadata.assignedAgentIds &&
               note.metadata.assignedAgentIds.length > 0 && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">
+                <span className="text-[9px] px-1 py-0.5 rounded bg-accent-subtle text-accent">
                   Agent: {note.metadata.assignedAgentIds.join(", ")}
                 </span>
               )}
@@ -697,17 +697,17 @@ function TaskNoteCard({
               onDelete();
             }}
             title="Delete task"
-            className="p-0.5 rounded text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+            className="p-0.5 rounded text-secondary hover:text-danger hover:bg-danger-subtle transition-colors shrink-0"
           >
             <X className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           </button>
         )}
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 mt-0.5 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+        <ChevronDown className={`w-4 h-4 text-secondary transition-transform shrink-0 mt-0.5 ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700/50">
+        <div className="px-3 pb-3 border-t border-default">
           {editing ? (
             <TaskNoteEditor
               note={note}
@@ -721,7 +721,7 @@ function TaskNoteCard({
               </div>
 
               {/* Actions */}
-              <div className="mt-3 border-t border-slate-100 pt-2.5 dark:border-slate-700/50">
+              <div className="mt-3 border-t border-default pt-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
                 {/* Execute button for pending tasks */}
                 {(status === "PENDING") && onExecute && (
@@ -730,18 +730,18 @@ function TaskNoteCard({
                       e.stopPropagation();
                       onExecute();
                     }}
-                    className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors bg-success text-on-accent hover:opacity-90"
                   >
                     {t.tasks.execute}
                   </button>
                 )}
                 {status === "IN_PROGRESS" && (
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium animate-pulse px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20">
+                  <span className="text-[11px] text-attention font-medium animate-pulse px-2 py-1 rounded-md bg-attention-subtle">
                     {t.common.running}...
                   </span>
                 )}
                 {status === "COMPLETED" && (
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20">
+                  <span className="text-[11px] text-success font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-success-subtle">
                     <Check className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     {t.tasks.completed}
                   </span>
@@ -752,7 +752,7 @@ function TaskNoteCard({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="text-[11px] font-medium px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  className="text-[11px] font-medium px-2 py-1 rounded-md bg-subtle text-primary hover:bg-hover transition-colors"
                 >
                   Edit
                 </button>
@@ -765,7 +765,7 @@ function TaskNoteCard({
                     onStatusChange(e.target.value);
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="min-w-29.5 text-[11px] px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  className="min-w-29.5 text-[11px] px-2 py-1 rounded-md border border-default bg-surface text-primary"
                 >
                   <option value="PENDING">Pending</option>
                   <option value="IN_PROGRESS">In Progress</option>
@@ -779,7 +779,7 @@ function TaskNoteCard({
                       e.stopPropagation();
                       onDelete();
                     }}
-                    className="text-[11px] font-medium px-2 py-1 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="text-[11px] font-medium px-2 py-1 rounded-md text-danger hover:bg-danger-subtle transition-colors"
                   >
                     {t.common.delete}
                   </button>
@@ -864,28 +864,28 @@ function TaskNoteEditor({
   return (
     <div className="mt-2.5 space-y-2">
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+        <label className="text-[10px] font-semibold text-secondary uppercase">
           Title
         </label>
         <input
           ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-emerald-500 outline-none"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-success outline-none"
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">
+        <label className="text-[10px] font-semibold text-secondary uppercase">
           Content
         </label>
         <textarea
           value={content}
           onChange={(e) => handleContentChange(e.target.value)}
           rows={8}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-emerald-500 outline-none resize-y font-mono"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-success outline-none resize-y font-mono"
           placeholder="Task content (Markdown supported)..."
         />
-        <div className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+        <div className="text-[9px] text-secondary mt-0.5">
           Auto-saves after 1.5s of inactivity
         </div>
       </div>
@@ -893,13 +893,13 @@ function TaskNoteEditor({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          className="text-xs font-medium px-2.5 py-1 rounded-md bg-success text-on-accent hover:opacity-90 transition-colors disabled:opacity-50"
         >
           {saving ? t.common.loading : t.common.saveAndClose}
         </button>
         <button
           onClick={onCancel}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+          className="text-xs font-medium px-2.5 py-1 rounded-md bg-subtle text-primary hover:bg-hover transition-colors"
         >
           {t.common.cancel}
         </button>

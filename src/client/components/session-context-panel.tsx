@@ -192,7 +192,7 @@ export function SessionContextPanel({
 
   if (loading) {
     return (
-      <div className="px-3 py-4 text-center text-slate-400 dark:text-slate-500 text-xs">
+      <div className="px-3 py-4 text-center text-secondary text-xs">
         {t.common.loading}
       </div>
     );
@@ -267,7 +267,7 @@ export function SessionContextPanel({
           setRenameValue(displayName);
           setRenamingId(sid);
         }}
-        className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+        className="p-0.5 rounded hover:bg-hover text-secondary hover:text-primary"
         title={t.sessions.rename}
       >
         <SquarePen className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -278,7 +278,7 @@ export function SessionContextPanel({
           e.stopPropagation();
           handleDelete(sid);
         }}
-        className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500"
+        className="p-0.5 rounded hover:bg-danger-subtle text-secondary hover:text-danger"
         title={t.common.delete}
       >
         <Trash2 className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -291,7 +291,7 @@ export function SessionContextPanel({
     session,
     label,
     icon,
-    iconColor = "text-slate-400",
+    iconColor = "text-secondary",
     indent = false,
     highlighted = false,
   }: {
@@ -310,7 +310,7 @@ export function SessionContextPanel({
       <div className={indent ? "ml-5" : ""}>
         <div
           onClick={() => !isRenaming && onSelectSession(session.sessionId)}
-          className={`group flex items-start gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${highlighted ? "bg-amber-50 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:ring-amber-800 dark:hover:bg-amber-900/30" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+          className={`group flex items-start gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${highlighted ? "bg-attention-subtle ring-1 ring-attention hover:bg-attention-subtle" : "hover:bg-hover"}`}
         >
           <span className={`shrink-0 mt-0.5 ${iconColor}`}>{icon}</span>
           <div className="min-w-0 flex-1">
@@ -325,26 +325,26 @@ export function SessionContextPanel({
                   if (e.key === "Escape") setRenamingId(null);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full text-[11px] font-medium bg-white dark:bg-slate-900 border border-blue-400 rounded px-1 py-0.5 outline-none text-slate-700 dark:text-slate-300"
+                className="w-full text-[11px] font-medium bg-surface border border-accent rounded px-1 py-0.5 outline-none text-primary"
               />
             ) : (
               <div className="flex items-center gap-1.5 min-w-0">
-                <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                <div className="text-[11px] font-medium text-primary truncate">
                   {displayName}
                 </div>
                 {isChildSession && (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  <span className="shrink-0 rounded-full bg-attention-subtle px-1.5 py-0.5 text-[9px] font-semibold text-attention">
                     {t.sessions.child}
                   </span>
                 )}
                 {highlighted && (
-                  <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <span className="shrink-0 rounded-full bg-accent-subtle px-1.5 py-0.5 text-[9px] font-semibold text-accent">
                     {t.sessions.focus}
                   </span>
                 )}
               </div>
             )}
-            <div className="text-[10px] text-slate-400 dark:text-slate-500">
+            <div className="text-[10px] text-secondary">
               {label ? `${label} • ` : ""}{session.role}{session.role ? " • " : ""}{formatTimeAgo(session.createdAt)}
             </div>
           </div>
@@ -355,11 +355,11 @@ export function SessionContextPanel({
   };
 
   return (
-    <div className="border-b border-slate-100 dark:border-slate-800">
+    <div className="border-b border-default">
       {/* Current Session Info */}
-      <div className="px-3 py-3 bg-blue-50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
+      <div className="px-3 py-3 bg-accent-subtle border-b border-accent">
         <div className="flex items-start gap-2">
-          <Zap className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <Zap className="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
           <div className="min-w-0 flex-1">
             {renamingId === context.current.sessionId ? (
               <input
@@ -371,11 +371,11 @@ export function SessionContextPanel({
                   if (e.key === "Enter") handleRename(context.current.sessionId);
                   if (e.key === "Escape") setRenamingId(null);
                 }}
-                className="w-full text-xs font-semibold bg-white dark:bg-slate-900 border border-blue-400 rounded px-1 py-0.5 outline-none text-blue-700 dark:text-blue-300"
+                className="w-full text-xs font-semibold bg-surface border border-accent rounded px-1 py-0.5 outline-none text-accent"
               />
             ) : (
               <div className="flex items-center gap-1">
-                <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 truncate flex-1">
+                <div className="text-xs font-semibold text-accent truncate flex-1">
                   {context.current.name ?? getDefaultName(context.current)}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
@@ -384,7 +384,7 @@ export function SessionContextPanel({
                       setRenameValue(context.current.name ?? getDefaultName(context.current));
                       setRenamingId(context.current.sessionId);
                     }}
-                    className="p-0.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+                    className="p-0.5 rounded hover:bg-accent-subtle text-accent hover:text-accent"
                     title={t.sessions.rename}
                   >
                     <SquarePen className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -392,24 +392,24 @@ export function SessionContextPanel({
                 </div>
               </div>
             )}
-            <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-accent">
               {context.current.role && (
-                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">
+                <span className="px-1.5 py-0.5 bg-accent-subtle rounded">
                   {context.current.role}
                 </span>
               )}
               {focusedSession && focusedSession.sessionId !== context.current.sessionId && (
-                <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded text-amber-700 dark:text-amber-300">
+                <span className="px-1.5 py-0.5 bg-attention-subtle rounded text-attention">
                   Focus: {focusedSession.name ?? getDefaultName(focusedSession)}
                 </span>
               )}
               {context.current.provider && (
-                <span className="text-blue-500 dark:text-blue-400">
+                <span className="text-accent">
                   {context.current.provider}
                 </span>
               )}
-              <span className="text-blue-400 dark:text-blue-500">•</span>
-              <span className="text-blue-500 dark:text-blue-400">
+              <span className="text-accent">•</span>
+              <span className="text-accent">
                 {formatTimeAgo(context.current.createdAt)}
               </span>
             </div>
@@ -419,15 +419,15 @@ export function SessionContextPanel({
                 <button
                   type="button"
                   onClick={() => setShowRecentSessionsMenu((current) => !current)}
-                  className="flex w-full items-center justify-between rounded-md border border-blue-200 bg-white/80 px-2.5 py-2 text-left transition-colors hover:bg-white dark:border-blue-900/30 dark:bg-[#11161f] dark:hover:bg-[#151b26]"
+                  className="flex w-full items-center justify-between rounded-md border border-accent bg-surface px-2.5 py-2 text-left transition-colors hover:bg-surface"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <ScrollText className="h-3.5 w-3.5 shrink-0 text-blue-500 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
-                    <span className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">
+                    <ScrollText className="h-3.5 w-3.5 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
+                    <span className="truncate text-[11px] font-semibold text-accent">
                       {t.sessions.recentSessions}
                     </span>
                   </span>
-                  <span className="ml-3 flex shrink-0 items-center gap-1.5 text-blue-500 dark:text-blue-300">
+                  <span className="ml-3 flex shrink-0 items-center gap-1.5 text-accent">
                     <span className="text-[10px] font-medium">{recentSessions.length}</span>
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showRecentSessionsMenu ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
                   </span>
@@ -436,7 +436,7 @@ export function SessionContextPanel({
                 {showRecentSessionsMenu && recentSessionsMenuPosition && typeof document !== "undefined" && createPortal(
                   <div
                     ref={recentSessionsPortalRef}
-                    className="max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white/98 p-1.5 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-[#11161f] dark:text-slate-100"
+                    className="max-h-64 overflow-y-auto rounded-md border border-default bg-surface p-1.5 text-primary shadow-2xl"
                     style={{
                       position: "fixed",
                       top: recentSessionsMenuPosition.top,
@@ -455,17 +455,17 @@ export function SessionContextPanel({
                             setShowRecentSessionsMenu(false);
                             onSelectSession(session.sessionId);
                           }}
-                          className="mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                          className="mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-hover"
                         >
                           <div className="min-w-0">
-                            <div className="truncate text-[11px] font-medium text-slate-700 dark:text-slate-200">
+                            <div className="truncate text-[11px] font-medium text-primary">
                               {displayName}
                             </div>
-                            <div className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                            <div className="mt-0.5 text-[10px] text-secondary">
                               {session.role}{session.role ? " • " : ""}{formatTimeAgo(session.createdAt)}
                             </div>
                           </div>
-                          <Zap className="ml-2 h-3 w-3 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
+                          <Zap className="ml-2 h-3 w-3 shrink-0 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
                         </button>
                       );
                     })}
@@ -479,68 +479,68 @@ export function SessionContextPanel({
       </div>
 
       {context.kanbanContext && (
-        <div className="border-b border-slate-100 dark:border-slate-800">
+        <div className="border-b border-default">
           <div className="px-3 py-2 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <FileText className="w-3.5 h-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <span className="text-[11px] font-semibold text-secondary">
               {t.sessions.kanbanStory}
             </span>
           </div>
           <div className="px-3 pb-3 space-y-2">
-            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2 dark:border-emerald-900/30 dark:bg-emerald-900/10">
+            <div className="rounded-lg border border-success bg-success-subtle px-3 py-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
+                <span className="text-[11px] font-semibold text-success">
                   {context.kanbanContext.taskTitle}
                 </span>
                 {context.kanbanContext.columnId && (
-                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-[#11161f] dark:text-emerald-300">
+                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[9px] font-semibold text-success">
                     {context.kanbanContext.columnId}
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+              <div className="mt-1 text-[10px] text-success">
                 Task {context.kanbanContext.taskId.slice(0, 8)}
               </div>
               {context.kanbanContext.currentLaneSession && (
-                <div className="mt-2 text-[10px] text-slate-600 dark:text-slate-300">
+                <div className="mt-2 text-[10px] text-secondary">
                   Current lane session: {formatLaneSessionLabel(context.kanbanContext.currentLaneSession)}
                   {" · "}
-                  <span className="font-semibold uppercase tracking-wide">
+                  <span className="font-semibold">
                     {context.kanbanContext.currentLaneSession.status}
                   </span>
                 </div>
               )}
               {context.kanbanContext.previousLaneSession && (
-                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-blue-100 bg-white/90 px-2.5 py-2 dark:border-blue-900/30 dark:bg-[#11161f]">
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-accent bg-surface px-2.5 py-2">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-500 dark:text-blue-300">
+                    <div className="text-[10px] font-semibold text-accent">
                       {t.sessions.previousLane}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-slate-700 dark:text-slate-200">
+                    <div className="mt-0.5 truncate text-[11px] text-primary">
                       {formatLaneSessionLabel(context.kanbanContext.previousLaneSession)}
                     </div>
                   </div>
                   <button
                     onClick={() => onSelectSession(context.kanbanContext!.previousLaneSession!.sessionId)}
-                    className="shrink-0 rounded-md border border-blue-200 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/20"
+                    className="shrink-0 rounded-md border border-accent px-2 py-1 text-[10px] font-medium text-accent hover:bg-accent-subtle"
                   >
                     {t.sessions.open}
                   </button>
                 </div>
               )}
               {context.kanbanContext.previousLaneRun && (
-                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white/90 px-2.5 py-2 dark:border-slate-800/40 dark:bg-[#11161f]">
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-default bg-surface px-2.5 py-2">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                    <div className="text-[10px] font-semibold text-secondary">
                       {t.sessions.previousRunInLane}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-slate-700 dark:text-slate-200">
+                    <div className="mt-0.5 truncate text-[11px] text-primary">
                       {formatLaneSessionLabel(context.kanbanContext.previousLaneRun)}
                     </div>
                   </div>
                   <button
                     onClick={() => onSelectSession(context.kanbanContext!.previousLaneRun!.sessionId)}
-                    className="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900/20"
+                    className="shrink-0 rounded-md border border-default px-2 py-1 text-[10px] font-medium text-secondary hover:bg-hover"
                   >
                     {t.sessions.open}
                   </button>
@@ -561,34 +561,34 @@ export function SessionContextPanel({
                   return (
                     <div
                       key={handoff.id}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-[#121722]"
+                      className="rounded-lg border border-default bg-surface px-3 py-2"
                     >
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <span className="rounded-full bg-subtle px-1.5 py-0.5 text-[9px] font-semibold text-primary">
                           {handoff.direction}
                         </span>
-                        <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                        <span className="rounded-full bg-accent-subtle px-1.5 py-0.5 text-[9px] font-semibold text-information">
                           {formatRequestType(handoff.requestType)}
                         </span>
-                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        <span className="rounded-full bg-attention-subtle px-1.5 py-0.5 text-[9px] font-semibold text-attention">
                           {handoff.status}
                         </span>
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-700 dark:text-slate-200">
+                      <div className="mt-1 text-[11px] text-primary">
                         {handoff.request}
                       </div>
                       {handoff.responseSummary && (
-                        <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-900/10 dark:text-emerald-200">
+                        <div className="mt-2 rounded-md border border-success bg-success-subtle px-2 py-1.5 text-[10px] text-success">
                           {handoff.responseSummary}
                         </div>
                       )}
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400 dark:text-slate-500">
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-secondary">
                         <span>
                           {counterpartLane} • {formatTimeAgo(handoff.requestedAt)}
                         </span>
                         <button
                           onClick={() => onSelectSession(counterpartSessionId)}
-                          className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          className="rounded-md border border-default px-2 py-1 font-medium text-secondary hover:bg-hover"
                         >
                           {t.sessions.openSession}
                         </button>
@@ -602,7 +602,7 @@ export function SessionContextPanel({
             <div className="flex justify-end pt-1">
               <Link
                 href={`/workspace/${workspaceId}/sessions`}
-                className="rounded-md border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-white dark:border-emerald-900/30 dark:bg-[#11161f] dark:text-emerald-300 dark:hover:bg-[#151b26]"
+                className="rounded-md border border-success bg-surface px-2.5 py-1 text-[10px] font-medium text-success transition-colors hover:bg-surface"
               >
                 {t.sessions.showAll}
               </Link>
@@ -613,10 +613,10 @@ export function SessionContextPanel({
 
       {/* Session Hierarchy — always expanded */}
       {hasHierarchy && (
-        <div className="border-b border-slate-100 dark:border-slate-800">
+        <div className="border-b border-default">
           <div className="px-3 py-2 flex items-center gap-1.5">
-            <GitBranch className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <GitBranch className="w-3.5 h-3.5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <span className="text-[11px] font-semibold text-secondary">
               {t.sessions.hierarchy}
             </span>
           </div>
@@ -638,8 +638,8 @@ export function SessionContextPanel({
             {context.siblings.length > 0 && (
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5 px-2 py-1">
-                  <ArrowUpDown className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <ArrowUpDown className="w-3 h-3 text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                  <span className="text-[10px] text-secondary">
                     {context.siblings.length} Sibling Session{context.siblings.length > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -652,7 +652,7 @@ export function SessionContextPanel({
                     icon={
                       <Zap className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     }
-                    iconColor="text-slate-500"
+                    iconColor="text-secondary"
                   />
                 ))}
               </div>
@@ -662,8 +662,8 @@ export function SessionContextPanel({
             {context.children.length > 0 && (
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5 px-2 py-1">
-                  <ArrowDown className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <ArrowDown className="w-3 h-3 text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                  <span className="text-[10px] text-secondary">
                     {context.children.length} Child Session{context.children.length > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -676,7 +676,7 @@ export function SessionContextPanel({
                     icon={
                       <Zap className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     }
-                    iconColor="text-amber-500"
+                    iconColor="text-attention"
                   />
                 ))}
               </div>

@@ -102,13 +102,13 @@ export function TaskPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+      <div className="px-4 py-3 border-b border-default">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <span className="text-sm font-semibold text-primary">
               {crafterAgents.length > 0 ? t.tasks.routaCrafters : t.tasks.subTasks}
             </span>
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent">
               {tasks.length}
             </span>
           </div>
@@ -118,7 +118,7 @@ export function TaskPanel({
             {hasPending && onConfirmAll && (
               <button
                 onClick={onConfirmAll}
-                className="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                className="text-xs font-medium px-2.5 py-1 rounded-md bg-subtle text-primary hover:bg-hover transition-colors"
               >
                 {t.tasks.confirmAll}
               </button>
@@ -126,13 +126,13 @@ export function TaskPanel({
             {hasConfirmed && !hasRunning && onExecuteAll && (
               <button
                 onClick={() => onExecuteAll(concurrency)}
-                className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="text-xs font-medium px-2.5 py-1 rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors"
               >
                 {t.tasks.executeAll}
               </button>
             )}
             {hasRunning && (
-              <span className="text-xs font-medium text-amber-600 dark:text-amber-400 animate-pulse">
+              <span className="text-xs font-medium text-attention animate-pulse">
                 {t.tasks.executing}
               </span>
             )}
@@ -143,17 +143,17 @@ export function TaskPanel({
         <div className="flex items-center justify-between">
           {/* Concurrency selector */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-medium text-secondary">
               {t.tasks.concurrency}
             </span>
-            <div className="flex items-center rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex items-center rounded-md border border-default overflow-hidden">
               {[1, 2].map((n) => (
                 <button
                   key={n}
                   onClick={() => onConcurrencyChange?.(n)}
                   className={`px-2 py-0.5 text-[11px] font-medium transition-colors ${concurrency === n
-                    ? "bg-blue-600 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    ? "bg-accent text-on-accent"
+                    : "bg-surface text-secondary hover:bg-hover"
                     }`}
                 >
                   {n}
@@ -164,12 +164,12 @@ export function TaskPanel({
 
           {/* View toggle */}
           {crafterAgents.length > 0 && (
-            <div className="flex items-center rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex items-center rounded-md border border-default overflow-hidden">
               <button
                 onClick={() => setUserViewMode("tasks")}
                 className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${viewMode === "tasks"
-                  ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
-                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  ? "bg-accent text-on-accent"
+                  : "bg-surface text-secondary hover:bg-hover"
                   }`}
               >
                 {t.tasks.viewTasks}
@@ -177,8 +177,8 @@ export function TaskPanel({
               <button
                 onClick={() => setUserViewMode("crafters")}
                 className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${viewMode === "crafters"
-                  ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
-                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  ? "bg-accent text-on-accent"
+                  : "bg-surface text-secondary hover:bg-hover"
                   }`}
               >
                 {t.tasks.viewCrafters} ({crafterAgents.length})
@@ -356,7 +356,7 @@ export function CraftersView({
 
   if (agents.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 p-4">
+      <div className="flex-1 flex items-center justify-center text-xs text-secondary p-4">
         {t.tasks.noCraftersYet}
       </div>
     );
@@ -365,23 +365,23 @@ export function CraftersView({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Agent Tabs */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-800 overflow-x-auto">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-default overflow-x-auto">
         {agents.map((agent, i) => {
           const isActive = agent.id === (activeCrafterId ?? agents[0]?.id);
           const statusColor =
             agent.status === "running"
-              ? "bg-amber-500"
+              ? "bg-attention"
               : agent.status === "completed"
-                ? "bg-emerald-500"
-                : "bg-red-500";
+                ? "bg-success"
+                : "bg-danger";
 
           return (
             <button
               key={agent.id}
               onClick={() => onSelectCrafter?.(agent.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors ${isActive
-                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                ? "bg-accent-subtle text-accent"
+                : "text-secondary hover:bg-hover"
                 }`}
               title={agent.taskTitle}
             >
@@ -396,15 +396,15 @@ export function CraftersView({
 
       {/* Active Agent Info */}
       {activeAgent && (
-        <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#161922]">
+        <div className="px-3 py-2 border-b border-default bg-subtle">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${activeAgent.status === "running" ? "bg-amber-500 animate-pulse" :
-              activeAgent.status === "completed" ? "bg-emerald-500" : "bg-red-500"
+            <span className={`w-2 h-2 rounded-full shrink-0 ${activeAgent.status === "running" ? "bg-attention animate-pulse" :
+              activeAgent.status === "completed" ? "bg-success" : "bg-danger"
               }`} />
-            <span className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
+            <span className="text-xs font-medium text-primary truncate">
               {activeAgent.taskTitle}
             </span>
-            <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500 capitalize">
+            <span className="ml-auto text-[10px] text-secondary capitalize">
               {activeAgent.status}
             </span>
           </div>
@@ -415,19 +415,19 @@ export function CraftersView({
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="p-3 space-y-2">
           {activeAgent?.messages.length === 0 && (
-            <div className="text-center py-8 text-xs text-slate-400 dark:text-slate-500">
+            <div className="text-center py-8 text-xs text-secondary">
               {activeAgent.status === "running" ? (
                 <div className="space-y-2">
-                  <div className="w-5 h-5 mx-auto border-2 border-slate-300 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin" />
+                  <div className="w-5 h-5 mx-auto border-2 border-default border-t-accent rounded-full animate-spin" />
                   <div>{t.tasks.agentWorking}</div>
                 </div>
               ) : activeAgentHistoryState === "loading" ? (
                 <div className="space-y-2">
-                  <div className="w-5 h-5 mx-auto border-2 border-slate-300 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin" />
+                  <div className="w-5 h-5 mx-auto border-2 border-default border-t-accent rounded-full animate-spin" />
                   <div>{t.tasks.loadingHistory}</div>
                 </div>
               ) : activeAgent.status === "error" ? (
-                <div className="space-y-2 text-red-500 dark:text-red-400">
+                <div className="space-y-2 text-danger">
                   <TriangleAlert className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                   <div>{t.tasks.agentFailedToStart}</div>
                 </div>
@@ -467,13 +467,13 @@ function CrafterMessageBubble({ message }: { message: CrafterMessage }) {
           className="w-full text-left"
         >
           <div className="flex items-center gap-1.5 mb-0.5">
-            <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            <ChevronRight className={`w-3 h-3 text-secondary transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+            <span className="text-[10px] font-medium text-secondary">
               {t.tasks.thinking}
             </span>
           </div>
           <div
-            className={`px-2 py-1.5 rounded-md bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-700/50 text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap transition-all duration-150 ${expanded ? "max-h-40 overflow-y-auto" : "max-h-[2em] overflow-hidden"
+            className={`px-2 py-1.5 rounded-md bg-subtle border border-default text-[11px] text-primary whitespace-pre-wrap transition-all duration-150 ${expanded ? "max-h-40 overflow-y-auto" : "max-h-[2em] overflow-hidden"
               }`}
           >
             {displayContent}
@@ -485,28 +485,28 @@ function CrafterMessageBubble({ message }: { message: CrafterMessage }) {
 
   if (message.role === "tool") {
     const statusColor =
-      message.toolStatus === "completed" ? "bg-emerald-500" :
-        message.toolStatus === "failed" ? "bg-red-500" :
-          "bg-amber-500 animate-pulse";
+      message.toolStatus === "completed" ? "bg-success" :
+        message.toolStatus === "failed" ? "bg-danger" :
+          "bg-attention animate-pulse";
 
     return (
-      <div className="rounded-md border border-slate-100 dark:border-slate-800 overflow-hidden">
+      <div className="rounded-md border border-default overflow-hidden">
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="w-full px-2.5 py-1 bg-slate-50 dark:bg-[#161922] border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 text-left"
+          className="w-full px-2.5 py-1 bg-subtle border-b border-default flex items-center gap-2 text-left"
         >
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor}`} />
-          <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300 truncate">
+          <span className="text-[11px] font-mono text-secondary truncate">
             {message.toolName ?? t.tasks.toolName}
           </span>
-          <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-auto">
+          <span className="text-[9px] text-secondary ml-auto">
             {message.toolStatus ?? t.tasks.toolStatus}
           </span>
-          <ChevronRight className={`w-2.5 h-2.5 text-slate-400 transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+          <ChevronRight className={`w-2.5 h-2.5 text-secondary transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
         </button>
         {expanded && (
-          <div className="px-2.5 py-1.5 text-[10px] font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap max-h-32 overflow-y-auto bg-white dark:bg-[#0f1117]">
+          <div className="px-2.5 py-1.5 text-[10px] font-mono text-secondary whitespace-pre-wrap max-h-32 overflow-y-auto bg-surface">
             {message.content}
           </div>
         )}
@@ -518,8 +518,8 @@ function CrafterMessageBubble({ message }: { message: CrafterMessage }) {
     const isError = message.content.toLowerCase().startsWith("error") || message.content.toLowerCase().includes("failed");
     return (
       <div className={`px-2.5 py-2 rounded-md text-[11px] border ${isError
-        ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300"
-        : "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300"
+        ? "bg-danger-subtle border-danger text-danger"
+        : "bg-accent-subtle border-accent text-accent"
         }`}>
         <MarkdownViewer content={message.content} className="text-[11px]" />
       </div>
@@ -528,7 +528,7 @@ function CrafterMessageBubble({ message }: { message: CrafterMessage }) {
 
   // Assistant message
   return (
-    <div className="text-xs text-slate-900 dark:text-slate-100">
+    <div className="text-xs text-primary">
       {mermaidMatch ? (
         <div className="space-y-2">
           {/* Render text before mermaid */}
@@ -584,29 +584,29 @@ function TaskCard({
 }: TaskCardProps) {
   const { t } = useTranslation();
   const statusColors = {
-    pending: "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700",
-    confirmed: "bg-blue-50 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
-    running: "bg-amber-50 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800",
-    completed: "bg-emerald-50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
+    pending: "bg-subtle border-default",
+    confirmed: "bg-accent-subtle border-accent",
+    running: "bg-attention-subtle border-attention",
+    completed: "bg-success-subtle border-success",
   };
 
   const statusIcons = {
     pending: (
-      <div className="h-5 w-5 shrink-0 rounded-md border-2 border-slate-300 dark:border-slate-600" />
+      <div className="h-5 w-5 shrink-0 rounded-md border-2 border-default" />
     ),
     confirmed: (
-      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-blue-600">
-        <Check className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
+      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-accent">
+        <Check className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
       </div>
     ),
     running: (
-      <div className="flex h-5 w-5 shrink-0 animate-pulse items-center justify-center rounded-md bg-amber-500">
-        <Zap className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+      <div className="flex h-5 w-5 shrink-0 animate-pulse items-center justify-center rounded-md bg-attention">
+        <Zap className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
     ),
     completed: (
-      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-500">
-        <Check className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
+      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-success">
+        <Check className="w-3 h-3 text-on-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}/>
       </div>
     ),
   };
@@ -615,31 +615,31 @@ function TaskCard({
     <div className={`rounded-lg border transition-all ${statusColors[task.status]}`}>
       {/* Header - always visible */}
       <div
-        className="flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-black/2 dark:hover:bg-white/2 transition-colors"
+        className="flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-hover transition-colors"
         onClick={onToggleExpand}
       >
         {statusIcons[task.status]}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+            <span className="text-[10px] font-bold text-secondary">
               #{index + 1}
             </span>
-            <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+            <span className="truncate text-sm font-medium text-primary">
               {task.title}
             </span>
           </div>
           {!expanded && task.objective && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 line-clamp-1 text-xs text-secondary">
               {task.objective}
             </p>
           )}
         </div>
-        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-secondary transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-slate-100 px-3 pb-3 dark:border-slate-700/50">
+        <div className="border-t border-default px-3 pb-3">
           {editing ? (
             <TaskEditor
               task={task}
@@ -650,18 +650,18 @@ function TaskCard({
             <>
               <TaskContent task={task} />
               {/* Actions */}
-              <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-700/50">
+              <div className="mt-3 flex items-center gap-2 border-t border-default pt-2.5">
                 {task.status === "pending" && (
                   <>
                     <button
                       onClick={(e) => { e.stopPropagation(); onConfirm(); }}
-                      className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+                      className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-on-accent transition-colors hover:opacity-90"
                     >
                       {t.common.confirm}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                      className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                      className="rounded-md bg-subtle px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-hover"
                     >
                       {t.common.edit}
                     </button>
@@ -670,18 +670,18 @@ function TaskCard({
                 {task.status === "confirmed" && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onExecute(); }}
-                    className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+                    className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-on-accent transition-colors hover:opacity-90"
                   >
                     {t.common.execute}
                   </button>
                 )}
                 {task.status === "running" && (
-                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <span className="text-xs font-medium text-attention">
                     {t.common.running}
                   </span>
                 )}
                 {task.status === "completed" && (
-                  <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1 text-xs font-medium text-success">
                     <Check className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     {t.common.completed}
                   </span>
@@ -703,17 +703,17 @@ function TaskContent({ task }: { task: ParsedTask }) {
     <div className="mt-2.5 space-y-2.5 text-xs">
       {task.objective && (
         <Section title={t.tasks.objective}>
-          <MarkdownViewer content={task.objective} className="text-slate-600 dark:text-slate-300" />
+          <MarkdownViewer content={task.objective} className="text-secondary" />
         </Section>
       )}
       {task.scope && (
         <Section title={t.tasks.scope}>
-          <MarkdownViewer content={task.scope} className="text-slate-600 dark:text-slate-300" />
+          <MarkdownViewer content={task.scope} className="text-secondary" />
         </Section>
       )}
       {task.definitionOfDone && (
         <Section title={t.tasks.definitionOfDone}>
-          <MarkdownViewer content={task.definitionOfDone} className="text-slate-600 dark:text-slate-300" />
+          <MarkdownViewer content={task.definitionOfDone} className="text-secondary" />
         </Section>
       )}
     </div>
@@ -723,7 +723,7 @@ function TaskContent({ task }: { task: ParsedTask }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <h4 className="mb-1 text-[11px] font-semibold text-secondary">
         {title}
       </h4>
       {children}
@@ -756,51 +756,51 @@ function TaskEditor({
   return (
     <div className="mt-2.5 space-y-2">
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{t.tasks.title}</label>
+        <label className="text-[10px] font-semibold text-secondary uppercase">{t.tasks.title}</label>
         <input
           ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent outline-none"
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{t.tasks.objective}</label>
+        <label className="text-[10px] font-semibold text-secondary uppercase">{t.tasks.objective}</label>
         <textarea
           value={objective}
           onChange={(e) => setObjective(e.target.value)}
           rows={2}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent outline-none resize-none"
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{t.tasks.scope}</label>
+        <label className="text-[10px] font-semibold text-secondary uppercase">{t.tasks.scope}</label>
         <textarea
           value={scope}
           onChange={(e) => setScope(e.target.value)}
           rows={3}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent outline-none resize-none"
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase">{t.tasks.definitionOfDone}</label>
+        <label className="text-[10px] font-semibold text-secondary uppercase">{t.tasks.definitionOfDone}</label>
         <textarea
           value={dod}
           onChange={(e) => setDod(e.target.value)}
           rows={3}
-          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+          className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent outline-none resize-none"
         />
       </div>
       <div className="flex gap-2 pt-1">
         <button
           onClick={() => onSave({ title, objective, scope, definitionOfDone: dod })}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="text-xs font-medium px-2.5 py-1 rounded-md bg-accent text-on-accent hover:opacity-90 transition-colors"
         >
           {t.common.save}
         </button>
         <button
           onClick={onCancel}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+          className="text-xs font-medium px-2.5 py-1 rounded-md bg-subtle text-primary hover:bg-hover transition-colors"
         >
           {t.common.cancel}
         </button>
