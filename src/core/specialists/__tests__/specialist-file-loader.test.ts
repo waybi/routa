@@ -299,6 +299,9 @@ markdown prompt
       expect(pusher?.behaviorPrompt).toContain("git push origin HEAD:");
       expect(pusher?.behaviorPrompt).toMatch(/Never use any force-push option|禁止任何强制推送/);
       expect(pusher?.behaviorPrompt).not.toContain("--force");
+      // Target branch comes from the codebase registration (e.g. turnilo uses master), never hardcoded main.
+      expect(pusher?.behaviorPrompt).not.toContain("HEAD:main");
+      expect(pusher?.behaviorPrompt).not.toContain("origin/main");
     });
 
     it.each(loadPaths)("keeps the done reporter title rule and asks for the mainline commit (%s)", (_label, dir, locale) => {

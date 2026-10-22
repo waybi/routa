@@ -1,5 +1,5 @@
 /**
- * Configure the Done lane of three boards to run
+ * Configure the Done lane of four boards to run
  * [kanban-main-pusher, kanban-done-reporter].
  *
  * Usage:
@@ -20,6 +20,7 @@ export const TARGET_BOARD_IDS = [
   "f635c1de-44a8-4d5c-af42-34244e69eb55", // local-tools Board
   "2c17ef3e-411b-4f22-b002-e2b4c9309c91", // deepseek-harness Board
   "361d06fd-6478-4995-9b6e-ab0b0b271471", // Routa Board
+  "d13eba6a-42db-43ed-835b-18c544f6c985", // turnilo Board
 ] as const;
 
 export const MAIN_PUSHER_STEP = {

@@ -14,6 +14,10 @@ import {
 
 const TOPBI_BOARD_ID = "312b1f5a-f1d6-4e51-b0da-334944e64609";
 const DEFAULT_BOARD_ID = "a754459a-c6eb-42bb-a4b3-66101ed88c82";
+const LOCAL_TOOLS_BOARD_ID = "f635c1de-44a8-4d5c-af42-34244e69eb55";
+const DSH_BOARD_ID = "2c17ef3e-411b-4f22-b002-e2b4c9309c91";
+const ROUTA_BOARD_ID = "361d06fd-6478-4995-9b6e-ab0b0b271471";
+const TURNILO_BOARD_ID = "d13eba6a-42db-43ed-835b-18c544f6c985";
 
 function stageColumn(stage: string, position: number) {
   return {
@@ -133,9 +137,10 @@ beforeEach(() => {
     "INSERT INTO kanban_boards (id, workspace_id, name, is_default, columns, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const fixtures: Array<[string, string, string, number, unknown]> = [
-    [TARGET_BOARD_IDS[0], "ws-local-tools", "local-tools Board", 1, boardColumns(reporterStep)],
-    [TARGET_BOARD_IDS[1], "ws-dsh", "deepseek-harness Board", 1, boardColumns(reporterStep)],
-    [TARGET_BOARD_IDS[2], "ws-routa", "Routa Board", 1, boardColumns(reporterStep)],
+    [LOCAL_TOOLS_BOARD_ID, "ws-local-tools", "local-tools Board", 1, boardColumns(reporterStep)],
+    [DSH_BOARD_ID, "ws-dsh", "deepseek-harness Board", 1, boardColumns(reporterStep)],
+    [ROUTA_BOARD_ID, "ws-routa", "Routa Board", 1, boardColumns(reporterStep)],
+    [TURNILO_BOARD_ID, "ws-turnilo", "turnilo Board", 1, boardColumns(reporterStep)],
     [TOPBI_BOARD_ID, "ws-topbi", "TopBI Board", 1, boardColumns(topbiReporterStep)],
     [DEFAULT_BOARD_ID, "default", "Default Workspace Board", 1, boardColumns(reporterStep)],
   ];
@@ -158,6 +163,10 @@ describe("configure-done-main-pusher", () => {
     expect(() => parseArgs(["--db", "x.db", "--check", "--apply"])).toThrow("exactly one");
   });
 
+  it("targets exactly the local-tools, deepseek-harness, Routa and turnilo boards", () => {
+    expect([...TARGET_BOARD_IDS]).toEqual([LOCAL_TOOLS_BOARD_ID, DSH_BOARD_ID, ROUTA_BOARD_ID, TURNILO_BOARD_ID]);
+  });
+
   it("--check prints the current Done steps without touching the database", () => {
     const before = sha256(dbPath);
     const result = runConfigure({ dbPath, mode: "check", backupDir });
@@ -168,15 +177,18 @@ describe("configure-done-main-pusher", () => {
     expect(fs.existsSync(backupDir)).toBe(false);
   });
 
-  it("--apply changes only the Done column of the three target boards, writes a backup, and is idempotent", () => {
+  it("--apply changes only the Done column of the four target boards, writes a backup, and is idempotent", () => {
     const before = readRows();
     const now = new Date("2026-10-15T08:00:00.000Z");
     const result = runConfigure({ dbPath, mode: "apply", backupDir }, now);
     const after = readRows();
 
-    // Backup holds the original columns of the three target boards.
+    expect(doneStepIds(after.get(TURNILO_BOARD_ID)!)).toEqual(["kanban-main-pusher", "kanban-done-reporter"]);
+
+    // Backup holds the original columns of the four target boards.
     expect(result.backupPath).toBeDefined();
     const backup = JSON.parse(fs.readFileSync(result.backupPath!, "utf8")) as Array<{ id: string; columns: string; updated_at: number }>;
+    expect(backup).toHaveLength(4);
     expect(backup.map((entry) => entry.id)).toEqual([...TARGET_BOARD_IDS]);
     for (const entry of backup) {
       expect(entry.columns).toBe(before.get(entry.id)!.columns);
