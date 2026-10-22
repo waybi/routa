@@ -59,14 +59,14 @@ export function splitHighlight(text: string, query: string): HighlightPart[] {
 export function HighlightedText({ text, query }: { text: string; query: string }): ReactNode {
   return splitHighlight(text, query).map((part, index) => (part.hit
     ? (
-      <mark key={index} className="rounded-sm bg-amber-200/80 px-0.5 text-inherit dark:bg-amber-500/30" data-testid="kanban-search-mark">
+      <mark key={index} className="rounded-sm bg-attention-subtle px-0.5 text-attention" data-testid="kanban-search-mark">
         {part.text}
       </mark>
     )
     : <span key={index}>{part.text}</span>));
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
+export function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || typeof (target as HTMLElement).tagName !== "string") return false;
   const element = target as HTMLElement;
   const tag = element.tagName.toLowerCase();
@@ -111,8 +111,8 @@ export function KanbanBoardSearchInput({
   const { t } = useTranslation();
   const label = placeholder ?? t.kanbanSearch.placeholder;
   return (
-    <label className="flex h-7 w-64 shrink-0 items-center border border-slate-200 bg-white transition-colors focus-within:border-amber-400/80 focus-within:ring-2 focus-within:ring-amber-400/15 dark:border-slate-700 dark:bg-[#12141c]">
-      <Search className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+    <label className="flex h-8 w-full min-w-0 max-w-[360px] items-center rounded-control border border-default bg-surface transition-colors focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent sm:w-[300px] sm:shrink-0">
+      <Search className="ml-2 h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden="true" />
       <input
         ref={inputRef}
         type="search"
@@ -128,10 +128,10 @@ export function KanbanBoardSearchInput({
         aria-label={label}
         title={t.kanbanSearch.shortcutHint}
         autoComplete="off"
-        className="h-7 min-w-0 flex-1 bg-transparent px-2 text-[12px] text-slate-800 placeholder-slate-400 outline-none dark:text-slate-200 dark:placeholder-slate-500"
+        className="h-8 min-w-0 flex-1 bg-transparent px-2 text-[12px] text-primary placeholder:text-secondary outline-none"
         data-testid="kanban-board-search"
       />
-      <kbd className="mr-1.5 rounded border border-slate-200 px-1 font-mono text-[10px] text-slate-400 dark:border-slate-700 dark:text-slate-500">/</kbd>
+      <kbd className="mr-1.5 rounded border border-default px-1 font-mono text-[10px] text-secondary">/</kbd>
     </label>
   );
 }

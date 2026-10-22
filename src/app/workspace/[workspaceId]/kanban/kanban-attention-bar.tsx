@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { Badge, type Tone } from "@/client/components/ui/badge";
 import type { KanbanBoardInfo, TaskInfo } from "../types";
 import {
   attentionDismissKey,
@@ -17,11 +18,11 @@ import {
 } from "./kanban-attention-rules";
 import { useKanbanAttentionDismissals } from "./use-kanban-attention-dismissals";
 
-const KIND_TONE: Record<KanbanAttentionKind, string> = {
-  blocked: "bg-red-100 text-red-600 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-900/40",
-  doneFailed: "bg-red-100 text-red-600 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-900/40",
-  noReport: "bg-red-100 text-red-600 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-900/40",
-  unmerged: "bg-amber-100/80 text-amber-800 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-900/40",
+const KIND_TONE: Record<KanbanAttentionKind, Tone> = {
+  blocked: "danger",
+  doneFailed: "danger",
+  noReport: "danger",
+  unmerged: "attention",
 };
 
 /** Wall clock refreshed once a minute, so the 7-day window keeps moving. */
@@ -63,13 +64,15 @@ export function KanbanAttentionBar({
 
   return (
     <div
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-amber-200/70 bg-amber-50/60 px-4 py-1.5 text-[11px] dark:border-amber-900/30 dark:bg-amber-900/10"
+      role="region"
+      aria-label={t.kanbanAttention.title}
+      className="mb-3 flex shrink-0 flex-wrap items-center gap-2 rounded-control border border-attention bg-attention-subtle px-3 py-2 text-[12px]"
       data-testid="kanban-attention-bar"
     >
-      <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-amber-800 dark:text-amber-300">
+      <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-attention">
         <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
         {t.kanbanAttention.title}
-        <span className="font-normal text-amber-700/80 dark:text-amber-300/70">{items.length}</span>
+        <span className="font-mono font-normal">{items.length}</span>
       </span>
       {items.map((item) => {
         const task = tasksById.get(item.taskId);
@@ -78,7 +81,7 @@ export function KanbanAttentionBar({
         return (
           <span
             key={key}
-            className="inline-flex max-w-[22rem] items-center gap-1 rounded-md border border-slate-200 bg-white pl-1 pr-0.5 dark:border-slate-700 dark:bg-[#12141c]"
+            className="inline-flex max-w-[24rem] items-center gap-1 rounded-control border border-default bg-surface pl-1.5 pr-0.5"
             data-testid="kanban-attention-item"
             data-kind={item.kind}
             data-task-id={item.taskId}
@@ -86,13 +89,13 @@ export function KanbanAttentionBar({
             <button
               type="button"
               onClick={() => onOpenTask(task)}
-              className="inline-flex min-w-0 items-center gap-1 py-0.5 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+              className="inline-flex min-w-0 items-center gap-1.5 py-1 text-primary hover:underline focus-visible:outline-2 focus-visible:outline-accent"
               title={task.title}
               data-testid="kanban-attention-open"
             >
-              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ring-1 ring-inset ${KIND_TONE[item.kind]}`}>
+              <Badge tone={KIND_TONE[item.kind]} className="shrink-0">
                 {kindLabel(item.kind, item.ahead)}
-              </span>
+              </Badge>
               <span className="truncate">{task.title}</span>
             </button>
             <button
@@ -101,7 +104,7 @@ export function KanbanAttentionBar({
                 event.stopPropagation();
                 dismiss(key);
               }}
-              className="shrink-0 rounded px-1 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-[#1f232f] dark:hover:text-slate-300"
+              className="shrink-0 rounded px-1.5 py-1 text-[11px] text-secondary hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
               data-testid="kanban-attention-dismiss"
             >
               {t.kanbanAttention.dismiss}

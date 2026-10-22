@@ -25,6 +25,7 @@ import {
 } from "./kanban-overview-rules";
 import { readAttentionDismissals } from "./use-kanban-attention-dismissals";
 import { useKanbanOverviewData, type OverviewWorkspaceData } from "./use-kanban-overview-data";
+import { buttonClassName } from "@/client/components/ui/button";
 
 export type KanbanViewMode = "board" | "all";
 export const KANBAN_VIEW_QUERY_KEY = "view";
@@ -65,15 +66,15 @@ export function KanbanViewToggle({ view, onChange }: { view: KanbanViewMode; onC
       aria-pressed={view === mode}
       onClick={() => onChange(mode)}
       data-testid={`kanban-view-toggle-${mode}`}
-      className={`h-6 px-2 text-[11px] font-medium transition-colors ${view === mode
-        ? "bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950"
-        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1f232f]"}`}
+      className={`h-7 rounded px-2.5 text-[12px] font-medium transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${view === mode
+        ? "bg-accent text-on-accent"
+        : "text-secondary hover:bg-hover hover:text-primary"}`}
     >
       {label}
     </button>
   );
   return (
-    <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700" role="group">
+    <div className="inline-flex shrink-0 gap-0.5 rounded-md border border-default bg-surface p-0.5" role="group" data-testid="kanban-view-toggle">
       {button("board", t.kanbanOverview.viewBoard)}
       {button("all", t.kanbanOverview.viewAll)}
     </div>
@@ -99,8 +100,8 @@ function columnName(task: TaskInfo, boards: readonly KanbanBoardInfo[]): string 
   return board?.columns.find((column) => column.id === task.columnId)?.name ?? task.columnId ?? "";
 }
 
-const cardClass = "flex w-full min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[11px] text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#1f232f]";
-const chipClass = "shrink-0 rounded-full bg-slate-100 px-1.5 text-[9px] text-slate-500 dark:bg-[#191c28] dark:text-slate-400";
+const cardClass = "flex w-full min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[11px] text-primary hover:bg-hover";
+const chipClass = "shrink-0 rounded bg-subtle px-1.5 text-[10px] text-secondary";
 
 interface BlockProps {
   title: string;
@@ -111,10 +112,10 @@ interface BlockProps {
 
 function Block({ title, count, testId, children }: BlockProps) {
   return (
-    <section className="min-w-0 flex-1 rounded-lg border border-slate-200/70 p-1.5 dark:border-[#1c1f2e]" data-testid={testId}>
-      <header className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200" data-testid={`${testId}-header`}>
+    <section className="min-w-0 flex-1 rounded-md border border-default bg-surface p-1.5" data-testid={testId}>
+      <header className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-primary" data-testid={`${testId}-header`}>
         {title}
-        <span className="font-normal text-slate-400">{count}</span>
+        <span className="font-normal text-secondary">{count}</span>
       </header>
       <div className="max-h-40 space-y-0.5 overflow-y-auto">{children}</div>
     </section>
@@ -148,10 +149,10 @@ function WorkspaceRow({
 
   const head = (
     <div className="w-44 shrink-0">
-      <div className="truncate text-[12px] font-semibold text-slate-900 dark:text-slate-100">{row.title}</div>
-      <div className="text-[11px] text-slate-500 dark:text-slate-400">{t.kanbanOverview.cardCount.replace("{count}", String(row.totalCount))}</div>
+      <div className="truncate text-[12px] font-semibold text-primary">{row.title}</div>
+      <div className="text-[11px] text-secondary">{t.kanbanOverview.cardCount.replace("{count}", String(row.totalCount))}</div>
       {row.showsNoUnmergedBadge && data.status === "ready" && (
-        <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-1.5 text-[9px] text-slate-500 dark:bg-[#191c28] dark:text-slate-400" title={t.kanbanOverview.noUnmergedHint} data-testid="kanban-overview-no-unmerged">
+        <span className="mt-0.5 inline-block rounded bg-subtle px-1.5 text-[10px] text-secondary" title={t.kanbanOverview.noUnmergedHint} data-testid="kanban-overview-no-unmerged">
           {t.kanbanOverview.noUnmergedBadge}
         </span>
       )}
@@ -161,17 +162,17 @@ function WorkspaceRow({
   let body: React.ReactNode;
   if (data.status === "error") {
     body = (
-      <div className="flex items-center gap-2 text-[11px] text-red-600 dark:text-red-400" data-testid="kanban-overview-error">
+      <div className="flex items-center gap-2 text-[11px] text-danger" data-testid="kanban-overview-error">
         {t.kanbanOverview.loadFailed}
-        <button type="button" onClick={onRetry} className="rounded border border-slate-200 px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300" data-testid="kanban-overview-retry">
+        <button type="button" onClick={onRetry} className={buttonClassName("secondary", "xs")} data-testid="kanban-overview-retry">
           {t.kanbanOverview.retry}
         </button>
       </div>
     );
   } else if (data.status === "loading") {
-    body = <div className="text-[11px] text-slate-400">{t.kanbanOverview.loading}</div>;
+    body = <div className="text-[11px] text-secondary">{t.kanbanOverview.loading}</div>;
   } else if (row.collapsed) {
-    body = <div className="text-[11px] text-slate-400">{t.kanbanOverview.emptyRow}</div>;
+    body = <div className="text-[11px] text-secondary">{t.kanbanOverview.emptyRow}</div>;
   } else {
     body = (
       <div className="flex min-w-0 flex-1 gap-2">
@@ -188,7 +189,7 @@ function WorkspaceRow({
             <span key={`${entry.task.id}|${entry.item.kind}`} className="block" data-kind={entry.item.kind}>
               {openButton(entry.task, (
                 <>
-                  <span className="shrink-0 rounded-full bg-red-100 px-1.5 text-[9px] text-red-600 dark:bg-red-900/20 dark:text-red-400">{kindLabel(entry.item.kind, entry.item.ahead)}</span>
+                  <span className="shrink-0 rounded bg-danger-subtle px-1.5 text-[10px] text-danger">{kindLabel(entry.item.kind, entry.item.ahead)}</span>
                   <span className="truncate"><HighlightedText text={entry.task.title} query={query} /></span>
                 </>
               ))}
@@ -204,9 +205,9 @@ function WorkspaceRow({
             const sha = shortSha(task.completionReport?.commit);
             return openButton(task, (
               <>
-                <span className="shrink-0 font-mono text-[10px] text-slate-400">{formatDoneShort(getDoneEnteredAt(task))}</span>
+                <span className="shrink-0 font-mono text-[10px] text-secondary">{formatDoneShort(getDoneEnteredAt(task))}</span>
                 <span className="truncate"><HighlightedText text={task.completionReport?.excerpt || task.title} query={query} /></span>
-                {sha && <span className="shrink-0 font-mono text-[10px] text-slate-400"><HighlightedText text={sha} query={query} /></span>}
+                {sha && <span className="shrink-0 font-mono text-[10px] text-secondary"><HighlightedText text={sha} query={query} /></span>}
               </>
             ));
           })}
@@ -217,7 +218,7 @@ function WorkspaceRow({
 
   return (
     <div
-      className={`flex items-start gap-3 border-b border-slate-200/70 px-4 ${row.collapsed && data.status === "ready" ? "py-1.5" : "py-2"} dark:border-[#1c1f2e]`}
+      className={`flex items-start gap-3 border-b border-default px-1 ${row.collapsed && data.status === "ready" ? "py-1.5" : "py-2"}`}
       data-testid="kanban-overview-row"
       data-workspace-id={row.workspaceId}
       data-collapsed={row.collapsed && data.status === "ready" ? "true" : "false"}
@@ -260,7 +261,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="kanban-overview">
-      <div className="flex items-center gap-2 px-4 py-1.5">
+      <div className="flex items-center gap-2 px-1 pb-2">
         <KanbanBoardSearchInput
           query={search.query}
           onQueryChange={search.setQuery}
@@ -269,7 +270,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
           placeholder={t.kanbanOverview.searchPlaceholder}
         />
       </div>
-      {workspaces.length === 0 && <div className="px-4 py-2 text-[12px] text-slate-500">{t.kanbanOverview.noWorkspaces}</div>}
+      {workspaces.length === 0 && <div className="px-1 py-2 text-[12px] text-secondary">{t.kanbanOverview.noWorkspaces}</div>}
       {rows.map((row) => (
         <WorkspaceRow
           key={row.workspaceId}

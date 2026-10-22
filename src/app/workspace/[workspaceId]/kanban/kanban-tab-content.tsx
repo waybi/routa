@@ -1,14 +1,18 @@
 "use client";
 
-import { type ComponentProps } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { useState, type ComponentProps } from "react";
+import { ArrowRight, Loader2, X } from "lucide-react";
+import { Button, buttonClassName } from "@/client/components/ui/button";
+import { EmptyState, ErrorState } from "@/client/components/ui/states";
 import { useTranslation } from "@/i18n";
 import { AcpProviderDropdown } from "@/client/components/acp-provider-dropdown";
 import type { KanbanAgentPromptHandler, KanbanBoardInfo } from "../types";
 import { KanbanTabHeader } from "./kanban-tab-header";
 import { KanbanStatusBar } from "./kanban-status-bar";
 import { KanbanGitHubImportModal } from "./kanban-github-import-modal";
-import { KanbanBoardSurface, KanbanCreateTaskModal, KanbanTaskDetailOverlay } from "./kanban-tab-panels";
+import { KanbanBoardSurface, KanbanCreateTaskModal } from "./kanban-board-surface";
+import { KanbanTaskDetailOverlay } from "./kanban-tab-panels";
+import { matchTask, normalizeSearchQuery } from "./kanban-board-search";
 import { KanbanSettingsModal } from "./kanban-settings-modal";
 import { KanbanFitnessWorkbenchModal } from "./kanban-fitness-workbench-modal";
 import {
@@ -26,7 +30,7 @@ import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-sea
 import { KanbanAttentionBar } from "./kanban-attention-bar";
 import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
 
-type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot">;
+type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onToggleDispatch" | "dispatchOpen">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
 type CreateTaskModalProps = ComponentProps<typeof KanbanCreateTaskModal>;
 type GitHubImportModalProps = ComponentProps<typeof KanbanGitHubImportModal>;
@@ -53,6 +57,8 @@ export interface KanbanTabHeaderActionProps {
   onAgentSubmit: () => void;
   showCreateTaskModal: () => void;
   agentLoading: boolean;
+  /** Inline failure of the last dispatch; the typed text is kept. */
+  agentError?: string | null;
   agentSessionId: string | null;
   openAgentPanel: (sessionId: string) => void;
 }
@@ -81,30 +87,37 @@ export interface KanbanTabContentProps {
  * settling. Keeps the board area occupied so the layout does not jump, and
  * makes it obvious that data is still on the way.
  */
-function KanbanBoardSkeleton({ label }: { label: string }) {
+export function KanbanBoardSkeleton({ label }: { label: string }) {
+  // Same rhythm as the real board: two rails, two lanes, a wide Done lane.
+  const lanes = ["rail", "rail", "lane", "lane", "done"] as const;
   return (
     <div
-      className="flex flex-1 gap-3 overflow-hidden px-4 py-2"
+      className="flex min-h-0 flex-1 gap-3 overflow-hidden"
       data-testid="kanban-board-skeleton"
       role="status"
+      aria-busy="true"
       aria-live="polite"
       aria-label={label}
     >
-      {[0, 1, 2, 3].map((column) => (
+      <span className="sr-only">{label}</span>
+      {lanes.map((kind, column) => (
         <div
           key={column}
-          className="flex w-64 shrink-0 flex-col gap-2 rounded-2xl border border-slate-200/60 bg-white p-3 dark:border-[#1c1f2e] dark:bg-[#12141c]"
+          aria-hidden="true"
+          data-testid="kanban-board-skeleton-column"
+          className={`flex shrink-0 flex-col gap-2 rounded-md bg-subtle p-2.5 ${kind === "rail" ? "w-10" : kind === "done" ? "w-[24rem]" : "w-[18rem] min-w-[210px]"}`}
         >
-          <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-          {[0, 1].map((card) => (
-            <div
-              key={card}
-              className="space-y-2 rounded-xl border border-slate-100 p-3 dark:border-[#1c1f2e]"
-            >
-              <div className="h-3 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="h-3 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-            </div>
-          ))}
+          {kind !== "rail" && (
+            <>
+              <div className="h-3 w-20 rounded bg-hover motion-safe:animate-pulse" />
+              {[0, 1, 2].map((card) => (
+                <div key={card} className="space-y-2 rounded-md border border-default bg-surface p-3">
+                  <div className="h-3 w-full rounded bg-hover motion-safe:animate-pulse" />
+                  <div className="h-3 w-2/3 rounded bg-hover motion-safe:animate-pulse" />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       ))}
     </div>
@@ -124,9 +137,11 @@ function KanbanTabHeaderActionSlot({
   onAgentSubmit,
   showCreateTaskModal,
   agentLoading,
+  agentError = null,
   agentSessionId,
   openAgentPanel,
-}: KanbanTabHeaderActionProps) {
+  onClose,
+}: KanbanTabHeaderActionProps & { onClose?: () => void }) {
   const { t } = useTranslation();
 
   if (!board) {
@@ -134,10 +149,13 @@ function KanbanTabHeaderActionSlot({
   }
 
   return (
-    <div className="flex min-w-[560px] flex-1 items-center border border-slate-200 bg-white transition-colors focus-within:border-amber-400/80 focus-within:ring-2 focus-within:ring-amber-400/15 dark:border-slate-700 dark:bg-[#12141c]">
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1 rounded-control border border-default bg-surface p-1 transition-colors focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent"
+      data-testid="kanban-dispatch-bar"
+    >
       {onAgentPrompt && (
         <>
-          <div className="ml-1 shrink-0 border-l border-r border-slate-200 dark:border-slate-700">
+          <div className="shrink-0 border-r border-default pr-1">
             <AcpProviderDropdown
               providers={availableProviders}
               selectedProvider={selectedProviderId}
@@ -145,7 +163,7 @@ function KanbanTabHeaderActionSlot({
               disabled={disableBoardProvider}
               ariaLabel={kanbanTaskAgentCopy.providerAriaLabel}
               dataTestId="kanban-agent-provider"
-              buttonClassName="flex h-7 items-center gap-1.5 bg-transparent px-2 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-800/40"
+              buttonClassName="flex h-7 items-center gap-1.5 rounded bg-transparent px-2 text-[12px] font-medium text-primary transition-colors hover:bg-hover disabled:opacity-50"
               labelClassName="max-w-[110px] truncate"
             />
           </div>
@@ -161,44 +179,60 @@ function KanbanTabHeaderActionSlot({
             }}
             placeholder={disableBoardProvider ? kanbanTaskAgentCopy.connectingPlaceholder : kanbanTaskAgentCopy.placeholder}
             disabled={agentLoading || disableBoardProvider}
-            className="h-7 min-w-64 flex-1 bg-transparent px-2 text-[12px] text-slate-800 placeholder-slate-400 outline-none disabled:opacity-50 dark:text-slate-200 dark:placeholder-slate-500"
+            className="h-7 min-w-[12rem] flex-1 bg-transparent px-2 text-[12px] text-primary placeholder:text-secondary outline-none disabled:opacity-50"
+            data-testid="kanban-agent-input"
           />
-          <button
+          <Button
+            size="sm"
             onClick={onAgentSubmit}
             disabled={!agentInput.trim() || agentLoading || disableBoardProvider}
             data-testid="kanban-agent-submit"
-            className="mr-1 inline-flex h-6 shrink-0 items-center gap-1 rounded-md bg-slate-900 px-2 text-[11px] font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:bg-amber-500 dark:hover:bg-amber-400 dark:disabled:bg-[#1a1d29] dark:disabled:text-slate-500"
           >
             {agentLoading ? (
               // Creating an ACP session takes seconds; say what is happening
               // instead of showing a bare "...".
               <>
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" />
                 <span>{t.feedback.agentSessionCreating}</span>
               </>
             ) : (
               <>
                 <span>{kanbanTaskAgentCopy.send}</span>
-                <ArrowRight className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
               </>
             )}
-          </button>
+          </Button>
         </>
       )}
-      <button
-        onClick={showCreateTaskModal}
-        className="mr-1 inline-flex h-6 shrink-0 items-center rounded-md border border-amber-200 bg-amber-50 px-2 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/30"
-      >
+      <Button variant="ghost" size="sm" onClick={showCreateTaskModal}>
         {kanbanTaskAgentCopy.manual}
-      </button>
+      </Button>
       {agentSessionId && (
         <button
+          type="button"
           onClick={() => openAgentPanel(agentSessionId)}
-          className="mr-2 shrink-0 text-[11px] text-amber-600 hover:underline dark:text-amber-400"
+          className="shrink-0 px-1 text-[12px] text-accent hover:underline"
           title={kanbanTaskAgentCopy.openPanelTitle}
         >
           {kanbanTaskAgentCopy.view}
         </button>
+      )}
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+          aria-label={t.kanbanBoardPage.closeDispatch}
+          title={t.kanbanBoardPage.closeDispatch}
+          data-testid="kanban-dispatch-close"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {agentError && (
+        <p role="alert" className="m-0 w-full px-2 pb-1 text-[12px] text-danger" data-testid="kanban-agent-error">
+          {agentError}
+        </p>
       )}
     </div>
   );
@@ -223,24 +257,44 @@ export function KanbanTabContent({
   fitnessWorkbenchModalProps,
 }: KanbanTabContentProps) {
   const { t } = useTranslation();
+  const copy = t.kanbanBoardPage;
   const search = useKanbanBoardSearch();
   const { view, setView } = useKanbanViewMode();
+  // The dispatch bar starts open while a planning run is in flight or has
+  // unsent text, so a failure never hides the typed request.
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const dispatchVisible = dispatchOpen
+    || headerActionProps.agentLoading
+    || Boolean(headerActionProps.agentError)
+    || (headerActionProps.agentInput ?? "").trim().length > 0;
   const overview = view === "all" ? <KanbanOverview onShowBoard={() => setView("board")}/> : null;
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
   };
+  const boardTasks = boardSurfaceProps?.boardTasks ?? [];
+  const searching = normalizeSearchQuery(search.query) !== "";
+  const hits = searching ? boardTasks.filter((task) => matchTask(task, search.query)).length : boardTasks.length;
 
-  const headerActionSlot = (
-    <>
-    <KanbanViewToggle view={view} onChange={setView}/>
-    {headerProps.board && view === "board" && (
-      <KanbanBoardSearchInput
-        query={search.query}
-        onQueryChange={search.setQuery}
-        onClear={search.clear}
-        inputRef={search.inputRef}
-      />
-    )}
+  const toolbar = (
+    <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="kanban-toolbar">
+      <KanbanViewToggle view={view} onChange={setView}/>
+      {headerProps.board && view === "board" && (
+        <>
+          <KanbanBoardSearchInput
+            query={search.query}
+            onQueryChange={search.setQuery}
+            onClear={search.clear}
+            inputRef={search.inputRef}
+          />
+          <span className="shrink-0 font-mono text-[12px] text-secondary" data-testid="kanban-toolbar-hit-count">
+            {copy.hitCount.replace("{hits}", String(hits)).replace("{total}", String(boardTasks.length))}
+          </span>
+        </>
+      )}
+    </div>
+  );
+
+  const dispatchBar = dispatchVisible ? (
     <KanbanTabHeaderActionSlot
       board={headerProps.board}
       onAgentPrompt={headerActionProps.onAgentPrompt}
@@ -254,11 +308,32 @@ export function KanbanTabContent({
       onAgentSubmit={headerActionProps.onAgentSubmit}
       showCreateTaskModal={headerActionProps.showCreateTaskModal}
       agentLoading={headerActionProps.agentLoading}
+      agentError={headerActionProps.agentError}
       agentSessionId={headerActionProps.agentSessionId}
       openAgentPanel={headerActionProps.openAgentPanel}
+      onClose={() => setDispatchOpen(false)}
     />
-    </>
+  ) : null;
+
+  const header = (
+    <KanbanTabHeader
+      {...headerProps}
+      onToggleDispatch={headerProps.board ? () => setDispatchOpen((open) => !open) : undefined}
+      dispatchOpen={dispatchVisible}
+      toolbarSlot={toolbar}
+      actionSlot={dispatchBar}
+    />
   );
+
+  const loadErrorBanner = headerProps.loadError ? (
+    <ErrorState
+      className="mb-3 shrink-0"
+      title={copy.loadFailedTitle}
+      message={`${copy.loadFailedHint} (${headerProps.loadError})`}
+      onRetry={headerProps.onRefresh}
+      retryLabel={copy.reload}
+    />
+  ) : null;
 
   if (!headerProps.board || !boardSurfaceProps || !taskDetailOverlayProps) {
     // Boards arrive asynchronously. Claiming "no board" during that window is
@@ -266,22 +341,24 @@ export function KanbanTabContent({
     // then state the empty case.
     const boardsSettled = headerProps.boards.length > 0;
     return (
-      <div className="flex h-full flex-col space-y-2">
-        <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
+      <div className="flex h-full flex-col px-1 pt-1" data-testid="kanban-board-page">
+        {header}
+        {loadErrorBanner}
         {overview ?? (boardsSettled ? (
-          <div className="rounded-2xl border border-gray-200/60 bg-white p-6 text-sm text-gray-500 dark:border-[#1c1f2e] dark:bg-[#12141c] dark:text-gray-400">
-            {t.kanban.noBoardAvailable}
-          </div>
-        ) : (
+          <EmptyState title={t.kanban.noBoardAvailable} />
+        ) : headerProps.loadError ? null : (
           <KanbanBoardSkeleton label={t.common.loading} />
         ))}
       </div>
     );
   }
 
+  const boardEmpty = boardSurfaceProps.boardTasks.length === 0;
+
   return (
-    <div className="flex flex-col h-full">
-      <KanbanTabHeader {...headerProps} actionSlot={headerActionSlot}/>
+    <div className="flex h-full flex-col px-1 pt-1" data-testid="kanban-board-page">
+      {header}
+      {loadErrorBanner}
       {overview ?? (
         <>
           <KanbanAttentionBar
@@ -289,7 +366,21 @@ export function KanbanTabContent({
             tasks={boardSurfaceProps.boardTasks}
             onOpenTask={(task) => void boardSurfaceProps.openTaskDetail(task)}
           />
-          <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
+          {boardEmpty && !headerProps.loadError ? (
+            <EmptyState
+              className="mb-3"
+              title={copy.emptyTitle}
+              description={copy.emptyHint}
+              action={headerProps.onCreateCard ? (
+                <button type="button" className={buttonClassName("primary", "md")} onClick={headerProps.onCreateCard} data-testid="kanban-empty-new-card">
+                  {copy.newCard}
+                </button>
+              ) : null}
+            />
+          ) : null}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <KanbanBoardSurface {...boardSurfaceProps} searchQuery={search.query}/>
+          </div>
         </>
       )}
       <KanbanCreateTaskModal {...createTaskModalProps}/>

@@ -273,7 +273,7 @@ describe("KanbanTab board settings persistence", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Board settings" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /toggle automation for backlog/i }));
     fireEvent.click(screen.getByRole("button", { name: /save board settings/i }));
 
@@ -825,6 +825,7 @@ describe("KanbanTab manual card creation", () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     fireEvent.click(screen.getByRole("button", { name: "Manual" }));
     fireEvent.change(screen.getByPlaceholderText("Task title"), {
       target: { value: "create a js hello world" },
@@ -1179,6 +1180,7 @@ describe("KanbanTab manual run provider selection", () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     fireEvent.click(screen.getByTestId("kanban-agent-provider"));
     fireEvent.click(screen.getByRole("button", { name: /Claude Code/i }));
 

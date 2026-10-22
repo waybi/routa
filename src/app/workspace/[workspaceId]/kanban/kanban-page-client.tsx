@@ -60,6 +60,9 @@ export function KanbanPageClient() {
   const [repoChanges, setRepoChanges] = useState<KanbanRepoChanges[]>([]);
   const [repoChangesLoading, setRepoChangesLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Board / task fetch failure. The last loaded data stays on screen
+  // (design-spec §6: an error never blanks the previous snapshot).
+  const [boardLoadError, setBoardLoadError] = useState<string | null>(null);
   // sessionId -> newest line, fed by kanban:session-tail over SSE.
   const [pushedSessionTails, setPushedSessionTails] = useState<Record<string, string>>({});
   // sessionId -> newest heartbeat, fed by kanban:session-activity over SSE.
@@ -94,10 +97,15 @@ export function KanbanPageClient() {
           cache: "no-store",
           signal: controller.signal,
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (controller.signal.aborted) return;
         setBoards(Array.isArray(data?.boards) ? data.boards : []);
-      } catch { /* ignore */ }
+        setBoardLoadError(null);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setBoardLoadError(error instanceof Error ? error.message : String(error));
+      }
     })();
     return () => controller.abort();
   }, [workspaceId, refreshKey]);
@@ -176,10 +184,14 @@ export function KanbanPageClient() {
         cache: "no-store",
         signal: controller.signal,
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (controller.signal.aborted) return;
       setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
-    } catch { /* ignore */ }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setBoardLoadError(error instanceof Error ? error.message : String(error));
+    }
   }, [workspaceId]);
 
   useEffect(() => {
@@ -558,6 +570,7 @@ export function KanbanPageClient() {
             specialistLanguage={specialistLanguage}
             codebases={codebases}
             onRefresh={handleRefresh}
+            loadError={boardLoadError}
             acp={acp}
             onAgentPrompt={handleAgentPrompt}
             repoSync={repoSync}

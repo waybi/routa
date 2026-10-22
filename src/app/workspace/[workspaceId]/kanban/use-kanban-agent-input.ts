@@ -46,11 +46,14 @@ export function useKanbanAgentInput({
   const { t } = useTranslation();
   const [agentInput, setAgentInput] = useState("");
   const [agentLoading, setAgentLoading] = useState(false);
+  // Inline failure next to the input; the sticky toast says the same thing.
+  const [agentError, setAgentError] = useState<string | null>(null);
 
   const handleAgentSubmit = useCallback(async () => {
     if (!agentInput.trim() || !onAgentPrompt || agentLoading) return;
 
     setAgentLoading(true);
+    setAgentError(null);
     try {
       // Best-effort: persisting the board provider must not block session
       // creation. A failure here only means lane automation may fall back to
@@ -83,6 +86,7 @@ export function useKanbanAgentInput({
         }),
       });
       if (!sessionId) {
+        setAgentError(t.feedback.agentSessionCreateFailed);
         toast.error(t.feedback.agentSessionCreateFailed);
         return;
       }
@@ -92,6 +96,7 @@ export function useKanbanAgentInput({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[kanban] Failed to submit Kanban agent prompt:", error);
+      setAgentError(`${t.feedback.agentSessionCreateFailed}: ${message}`);
       toast.error(t.feedback.agentSessionCreateFailed, { description: message });
     } finally {
       setAgentLoading(false);
@@ -112,5 +117,5 @@ export function useKanbanAgentInput({
     workspaceId,
   ]);
 
-  return { agentInput, setAgentInput, agentLoading, handleAgentSubmit };
+  return { agentInput, setAgentInput, agentLoading, agentError, handleAgentSubmit };
 }

@@ -976,6 +976,7 @@ describe("KanbanTab agent prompt flow", () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     fireEvent.change(screen.getByPlaceholderText("Describe work to plan in Kanban..."), {
       target: { value: "Investigate lane issue" },
     });
@@ -1032,6 +1033,7 @@ describe("KanbanTab agent prompt flow", () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     fireEvent.change(screen.getByPlaceholderText("描述要在 Kanban 中规划的工作..."), {
       target: { value: "调查 lane 问题" },
     });

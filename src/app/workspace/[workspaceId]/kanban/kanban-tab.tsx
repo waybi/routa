@@ -73,6 +73,8 @@ interface KanbanTabProps {
   pushedSessionTails?: Record<string, string>;
   acp?: UseAcpState & UseAcpActions;
   onAgentPrompt?: KanbanAgentPromptHandler;
+  /** Last board / task load failure; the loaded data stays on screen. */
+  loadError?: string | null;
 }
 
 function isLikelyGitHubCodebase(codebase: CodebaseData | null | undefined): boolean {
@@ -158,6 +160,7 @@ export function KanbanTab({
   pushedSessionTails,
   acp,
   onAgentPrompt,
+  loadError = null,
 }: KanbanTabProps) {
   const { t } = useTranslation();
   const kanbanTaskAgentCopy = getKanbanTaskAgentCopy(specialistLanguage);
@@ -351,6 +354,7 @@ export function KanbanTab({
     agentInput,
     setAgentInput,
     agentLoading,
+    agentError,
     handleAgentSubmit,
   } = useKanbanAgentInput({
     workspaceId,
@@ -1270,6 +1274,8 @@ export function KanbanTab({
     onOpenGitHubImport: () => setShowGitHubImportModal(true),
     onRefresh,
     onOpenSettings: board ? () => setShowSettings(true) : undefined,
+    onCreateCard: board ? () => setShowCreateModal(true) : undefined,
+    loadError,
   };
 
   const kanbanTabHeaderActionProps = {
@@ -1287,6 +1293,7 @@ export function KanbanTab({
     },
     showCreateTaskModal: () => setShowCreateModal(true),
     agentLoading,
+    agentError,
     agentSessionId,
     openAgentPanel,
   };
