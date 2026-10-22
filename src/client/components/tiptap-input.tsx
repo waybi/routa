@@ -33,7 +33,6 @@ import { common, createLowlight } from "lowlight";
 import type { SkillSummary } from "../skill-client";
 import { RepoPicker, type RepoSelection } from "./repo-picker";
 import type { FileMatch } from "../hooks/use-file-search";
-import { isDarkThemeActive } from "../utils/theme";
 import { AcpProviderDropdown } from "./acp-provider-dropdown";
 import { useTranslation } from "@/i18n";
 import { ChevronDown, Zap, Monitor, Square, ArrowRight } from "lucide-react";
@@ -103,7 +102,7 @@ function createSuggestionDropdown(triggerChar?: string, getT?: () => ReturnType<
     if (currentItems.length === 0) {
       const empty = document.createElement("div");
       empty.style.cssText =
-        "padding: 12px 14px; color: #9ca3af; font-size: 12px; text-align: center;";
+        "padding: 12px 14px; color: var(--muted); font-size: 12px; text-align: center;";
       const t = getT?.();
       if (!t) {
         empty.textContent = "No results";
@@ -132,13 +131,13 @@ function createSuggestionDropdown(triggerChar?: string, getT?: () => ReturnType<
         display: flex; align-items: center; gap: 8px; width: 100%;
         text-align: left; padding: 6px 10px; border: none; cursor: pointer;
         border-radius: 4px; font-size: 13px; line-height: 1.4;
-        background: ${isSelected ? "#3b82f6" : "transparent"};
-        color: ${isSelected ? "#fff" : "inherit"};
+        background: ${isSelected ? "var(--accentbg)" : "transparent"};
+        color: ${isSelected ? "var(--ink)" : "inherit"};
         opacity: ${item.disabled ? "0.5" : "1"};
       `;
       // Status dot for provider items
       const statusDot = item.type === "provider"
-        ? `<span style="width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: ${item.disabled ? '#9ca3af' : '#22c55e'};"></span>`
+        ? `<span style="width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: ${item.disabled ? 'var(--muted)' : 'var(--green)'};"></span>`
         : "";
       // File icon for file items
       const fileIcon = item.type === "file"
@@ -197,16 +196,9 @@ function createSuggestionDropdown(triggerChar?: string, getT?: () => ReturnType<
       popup.style.cssText = `
         position: fixed; z-index: 100; min-width: 280px; max-width: 480px;
         max-height: 240px; overflow-y: auto; padding: 4px;
-        background: #1e2130; color: #e5e7eb; border: 1px solid #374151;
-        border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 8px; box-shadow: var(--shadow);
       `;
-      // Light mode detection
-      if (!isDarkThemeActive()) {
-        popup.style.background = "#fff";
-        popup.style.color = "#1f2937";
-        popup.style.border = "1px solid #e5e7eb";
-        popup.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)";
-      }
 
       renderList();
       document.body.appendChild(popup);
@@ -589,27 +581,27 @@ export function TiptapInput({
   const [modelDropdownPos, setModelDropdownPos] = useState<{ left: number; bottom?: number; top?: number; maxHeight: number } | null>(null);
   const [modelFilter, setModelFilter] = useState("");
   const editorClass = isHero
-    ? "tiptap-chat-input outline-none min-h-[120px] max-h-[360px] overflow-y-auto text-base leading-8 text-slate-900 dark:text-slate-100"
-    : "tiptap-chat-input outline-none min-h-[60px] max-h-[240px] overflow-y-auto text-sm text-slate-900 dark:text-slate-100";
+    ? "tiptap-chat-input outline-none min-h-[120px] max-h-[360px] overflow-y-auto text-base leading-8 text-primary"
+    : "tiptap-chat-input outline-none min-h-[60px] max-h-[240px] overflow-y-auto text-sm text-primary";
   const wrapperClass = isHero
-    ? `tiptap-input-wrapper relative rounded-[24px] border border-[#d6e5fb] bg-white/88 px-4 py-3 shadow-[0_18px_48px_-36px_rgba(14,116,144,0.32)] transition-colors focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-transparent dark:border-white/10 dark:bg-[#101a2d]/88 ${
+    ? `tiptap-input-wrapper relative rounded-[24px] border border-default bg-surface px-4 py-3 shadow-[0_18px_48px_-36px_rgba(14,116,144,0.32)] transition-colors focus-within:ring-2 focus-within:ring-information focus-within:border-transparent ${
         disabled ? "opacity-40 cursor-not-allowed" : ""
       }`
-    : `tiptap-input-wrapper relative px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#161922] transition-colors focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent ${
+    : `tiptap-input-wrapper relative px-4 py-2.5 rounded-xl border border-default bg-subtle transition-colors focus-within:ring-2 focus-within:ring-accent focus-within:border-transparent ${
         disabled ? "opacity-40 cursor-not-allowed" : ""
       }`;
   const toolbarClass = isHero
     ? "mt-2.5 flex min-w-0 items-center gap-2.5 overflow-visible"
     : "mt-1.5 -mb-0.5 flex min-w-0 items-center gap-2 overflow-hidden";
   const modelButtonClass = isHero
-    ? "flex items-center gap-2 rounded-lg border border-[#d6e5fb] px-3 py-1.5 text-sm transition-colors hover:bg-sky-50 dark:border-white/10 dark:hover:bg-white/5"
-    : "flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs transition-colors";
+    ? "flex items-center gap-2 rounded-lg border border-default px-3 py-1.5 text-sm transition-colors hover:bg-accent-subtle"
+    : "flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-default hover:bg-hover text-xs transition-colors";
   const sendButtonClass = isHero
-    ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-blue-600 text-white shadow-[0_12px_26px_-14px_rgba(37,99,235,0.75)] transition-all hover:bg-blue-700 hover:shadow-[0_16px_30px_-16px_rgba(37,99,235,0.85)] disabled:opacity-40 disabled:cursor-not-allowed"
-    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+    ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-accent text-on-accent shadow-[0_12px_26px_-14px_rgba(37,99,235,0.75)] transition-all hover:opacity-90 hover:shadow-[0_16px_30px_-16px_rgba(37,99,235,0.85)] disabled:opacity-40 disabled:cursor-not-allowed"
+    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-accent hover:opacity-90 text-on-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   const stopButtonClass = isHero
-    ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-red-600 text-white shadow-[0_12px_26px_-14px_rgba(220,38,38,0.7)] transition-all hover:bg-red-700 hover:shadow-[0_16px_30px_-16px_rgba(220,38,38,0.82)]"
-    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors";
+    ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-danger text-on-accent shadow-[0_12px_26px_-14px_rgba(220,38,38,0.7)] transition-all hover:opacity-90 hover:shadow-[0_16px_30px_-16px_rgba(220,38,38,0.82)]"
+    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-danger hover:opacity-90 text-on-accent transition-colors";
 
   // Keep mode chips aligned with the current session mode when switching sessions.
   useEffect(() => {
@@ -708,13 +700,13 @@ export function TiptapInput({
         code: {
           HTMLAttributes: {
             class:
-              "px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs font-mono",
+              "px-1 py-0.5 bg-default rounded text-xs font-mono",
           },
         },
         blockquote: {
           HTMLAttributes: {
             class:
-              "border-l-2 border-slate-300 dark:border-slate-600 pl-3 italic text-slate-600 dark:text-slate-400",
+              "border-l-2 border-default pl-3 italic text-secondary",
           },
         },
         bulletList: { HTMLAttributes: { class: "list-disc ml-4" } },
@@ -725,7 +717,7 @@ export function TiptapInput({
         lowlight,
         HTMLAttributes: {
           class:
-            "bg-slate-50 dark:bg-[#0d0f17] rounded-lg p-3 text-xs font-mono overflow-x-auto my-1 border border-slate-100 dark:border-slate-800",
+            "bg-subtle rounded-lg p-3 text-xs font-mono overflow-x-auto my-1 border border-default",
         },
       }),
       Placeholder.configure({
@@ -741,7 +733,7 @@ export function TiptapInput({
       }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: { class: "text-blue-500 underline cursor-pointer" },
+        HTMLAttributes: { class: "text-accent underline cursor-pointer" },
       }),
       TaskList.configure({
         HTMLAttributes: { class: "pl-0 list-none" },
@@ -1017,30 +1009,30 @@ export function TiptapInput({
                 className={modelButtonClass}
                 title={t.chatPanel.selectModel}
               >
-                <Monitor className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
-                <span className={`font-medium truncate ${isHero ? "max-w-[180px] text-slate-700 dark:text-slate-200" : "max-w-[140px] text-slate-700 dark:text-slate-300"}`}>
+                <Monitor className="w-3 h-3 text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                <span className={`font-medium truncate ${isHero ? "max-w-[180px] text-primary" : "max-w-[140px] text-primary"}`}>
                   {selectedModel ? selectedModel.split("/").pop() : t.chatPanel.defaultModel}
                 </span>
                 {modelLoading
-                  ? <span className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin" />
-                  : <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${modelDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                  ? <span className="w-3 h-3 border border-default border-t-transparent rounded-full animate-spin" />
+                  : <ChevronDown className={`w-3 h-3 text-secondary transition-transform ${modelDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                 }
               </button>
 
               {modelDropdownOpen && modelDropdownPos && (
                 <div
-                  className="fixed w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130] shadow-xl z-[9999] flex flex-col"
+                  className="fixed w-72 rounded-lg border border-default bg-surface shadow-xl z-[9999] flex flex-col"
                   style={{ left: modelDropdownPos.left, bottom: modelDropdownPos.bottom, top: modelDropdownPos.top, maxHeight: `${modelDropdownPos.maxHeight}px` }}
                 >
                   {/* Search */}
-                  <div className="p-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="p-2 border-b border-default">
                     <input
                       autoFocus
                       type="text"
                       value={modelFilter}
                       onChange={(e) => setModelFilter(e.target.value)}
                       placeholder={t.chatPanel.filterModels}
-                      className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-700 bg-transparent outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200"
+                      className="w-full px-2 py-1 text-xs rounded border border-default bg-transparent outline-none focus:ring-1 focus:ring-accent text-primary"
                     />
                   </div>
                   <div className="overflow-y-auto flex-1">
@@ -1050,8 +1042,8 @@ export function TiptapInput({
                       onClick={() => { setSelectedModel(""); setModelDropdownOpen(false); }}
                       className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
                         !selectedModel
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
+                          ? "bg-accent-subtle text-accent"
+                          : "hover:bg-hover text-primary"
                       }`}
                     >
                       <span className="font-medium">{t.chatPanel.defaultModel}</span>
@@ -1065,11 +1057,11 @@ export function TiptapInput({
                           onClick={() => { setSelectedModel(m); setModelDropdownOpen(false); setModelFilter(""); }}
                           className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
                             m === selectedModel
-                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                              : "hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
+                              ? "bg-accent-subtle text-accent"
+                              : "hover:bg-hover text-primary"
                           }`}
                         >
-                          <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px] shrink-0">
+                          <span className="text-secondary font-mono text-[10px] shrink-0">
                             {m.split("/")[0]}
                           </span>
                           <span className="font-medium truncate">{m.split("/").slice(1).join("/") || m}</span>
@@ -1077,7 +1069,7 @@ export function TiptapInput({
                       ))
                     }
                     {availableModels.length === 0 && !modelLoading && (
-                      <div className="px-3 py-3 text-xs text-slate-400 text-center">{t.chatPanel.noModelsFound}</div>
+                      <div className="px-3 py-3 text-xs text-secondary text-center">{t.chatPanel.noModelsFound}</div>
                     )}
                   </div>
                 </div>
@@ -1117,10 +1109,10 @@ export function TiptapInput({
 
           {/* Usage indicator (shown when we have usage data) */}
           {usageInfo && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 dark:text-slate-400 font-mono" title={`${t.chatPanel.inputLabel}: ${usageInfo.inputTokens.toLocaleString()} ${t.chatPanel.tokens}\n${t.chatPanel.outputLabel}: ${usageInfo.outputTokens.toLocaleString()} ${t.chatPanel.tokens}`}>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-subtle text-[10px] text-secondary font-mono" title={`${t.chatPanel.inputLabel}: ${usageInfo.inputTokens.toLocaleString()} ${t.chatPanel.tokens}\n${t.chatPanel.outputLabel}: ${usageInfo.outputTokens.toLocaleString()} ${t.chatPanel.tokens}`}>
               <Zap className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
               <span>{usageInfo.totalTokens.toLocaleString()}</span>
-              <span className="text-slate-400 dark:text-slate-500">{t.chatPanel.tokens}</span>
+              <span className="text-secondary">{t.chatPanel.tokens}</span>
             </div>
           )}
 
@@ -1167,8 +1159,8 @@ function ModeChip({
       onClick={onClick}
       className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
         active
-          ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
-          : "bg-transparent text-slate-500 border-slate-200 hover:bg-slate-100 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800"
+          ? "bg-accent-subtle text-accent border-accent"
+          : "bg-transparent text-secondary border-default hover:bg-hover"
       }`}
     >
       {label}

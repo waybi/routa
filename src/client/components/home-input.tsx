@@ -483,17 +483,17 @@ export function HomeInput({
   const specialistLocked = Boolean(effectiveLockedSpecialistId);
   const isHero = variant === "hero";
   const shellClass = isHero
-    ? "relative rounded-[28px] border border-blue-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,246,255,0.98))] shadow-[0_34px_100px_-44px_rgba(37,99,235,0.28)] transition-colors group-focus-within:border-blue-400 dark:border-slate-800 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] dark:group-focus-within:border-blue-400/70"
-    : "relative rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors group-focus-within:border-amber-400/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:group-focus-within:border-amber-500/30";
+    ? "relative rounded-[28px] border border-accent bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,246,255,0.98))] shadow-[0_34px_100px_-44px_rgba(37,99,235,0.28)] transition-colors group-focus-within:border-accent"
+    : "relative rounded-2xl border border-default bg-surface shadow-sm transition-colors group-focus-within:border-attention";
   const shellGlowClass = isHero
     ? "absolute -inset-3 rounded-[34px] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.24),transparent_42%),radial-gradient(circle_at_85%_30%,rgba(96,165,250,0.18),transparent_38%)] opacity-0 blur-2xl transition-opacity duration-500 pointer-events-none group-focus-within:opacity-100"
-    : "absolute -inset-1 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-blue-500/20 opacity-0 blur-xl transition-opacity duration-500 pointer-events-none group-focus-within:opacity-100";
+    : "absolute -inset-1 rounded-2xl bg-accent-subtle opacity-0 blur-xl transition-opacity duration-500 pointer-events-none group-focus-within:opacity-100";
   const bottomBarClass = isHero
-    ? "flex flex-wrap items-center gap-1.5 overflow-visible rounded-b-[27px] border-t border-blue-100 bg-blue-50/80 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/88"
-    : "flex flex-wrap items-center gap-1.5 overflow-visible border-t border-slate-100 px-3 py-2 dark:border-slate-800";
+    ? "flex flex-wrap items-center gap-1.5 overflow-visible rounded-b-[27px] border-t border-accent bg-accent-subtle px-3 py-2 backdrop-blur"
+    : "flex flex-wrap items-center gap-1.5 overflow-visible border-t border-default px-3 py-2";
   const skillPillClass = isHero
-    ? "group shrink-0 flex w-[160px] flex-col gap-0.5 rounded-xl border border-blue-100/95 bg-white/94 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950 dark:hover:border-blue-700/40 dark:hover:bg-slate-900"
-    : "group shrink-0 flex w-[140px] flex-col gap-0.5 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-left transition-all hover:border-amber-300/60 hover:bg-white dark:border-slate-800 dark:bg-slate-900 dark:hover:border-amber-700/40 dark:hover:bg-slate-950";
+    ? "group shrink-0 flex w-[160px] flex-col gap-0.5 rounded-xl border border-accent bg-surface px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:border-accent hover:bg-accent-subtle"
+    : "group shrink-0 flex w-[140px] flex-col gap-0.5 rounded-lg border border-default bg-subtle px-2.5 py-2 text-left transition-all hover:border-attention hover:bg-surface";
   const showLaunchModeSelector = normalizedLaunchModes.length > 1;
   const fixedRoleLabel = selectedRole === "ROUTA" ? t.home.multiAgent : t.home.crafter;
 
@@ -510,14 +510,14 @@ export function HomeInput({
                 onClick={() => setActiveLaunchModeId(mode.id)}
                 className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
                   isActive
-                    ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-amber-400 dark:bg-amber-400 dark:text-slate-950"
-                    : "border-black/6 bg-white/70 text-slate-700 hover:bg-white dark:border-white/8 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                    ? "border-default bg-accent text-on-accent shadow-sm"
+                    : "border-default bg-surface text-primary hover:bg-surface"
                 }`}
               >
-                <div className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${isActive ? "text-white/80 dark:text-slate-950/70" : "text-slate-500 dark:text-slate-500"}`}>
+                <div className={`text-[11px] font-semibold ${isActive ? "text-on-accent" : "text-secondary"}`}>
                   {mode.label}
                 </div>
-                <div className={`mt-1 text-[12px] leading-5 ${isActive ? "text-white dark:text-slate-950" : "text-slate-500 dark:text-slate-400"}`}>
+                <div className={`mt-1 text-[12px] leading-5 ${isActive ? "text-on-accent" : "text-secondary"}`}>
                   {mode.description}
                 </div>
               </button>
@@ -576,7 +576,7 @@ export function HomeInput({
             {effectiveSelectedSpecialistId ? (
               /* ── Specialist mode: show specialist pill as primary selector ── */
               <div className="flex items-center gap-1.5">
-                <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                <div className="flex items-center gap-1.5 rounded-lg border border-attention bg-attention-subtle px-2.5 py-1 text-xs font-medium text-attention">
                   <CircleUser className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
                   <span className="max-w-35 truncate">
                     {selectedSpecialist?.name ?? t.home.customSpecialist}
@@ -585,7 +585,7 @@ export function HomeInput({
                     <button
                       type="button"
                       onClick={() => setSelectedSpecialistId(null)}
-                      className="ml-0.5 text-amber-400 transition-colors hover:text-amber-700 dark:hover:text-amber-200"
+                      className="ml-0.5 text-attention transition-colors hover:text-attention"
                       title="Switch to built-in role"
                       aria-label={t.common.clearSpecialist}
                     >
@@ -598,22 +598,22 @@ export function HomeInput({
                     <button
                       type="button"
                       onClick={() => setShowSpecialistDropdown((v) => !v)}
-                      className="flex items-center gap-1 rounded-lg border border-transparent px-1.5 py-1 text-xs text-slate-500 transition-all hover:border-slate-200 hover:bg-slate-100 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                      className="flex items-center gap-1 rounded-lg border border-transparent px-1.5 py-1 text-xs text-secondary transition-all hover:border-default hover:bg-hover"
                       title="Switch specialist"
                     >
                       <ChevronDown className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     </button>
                     {showSpecialistDropdown && (
-                      <div className="absolute bottom-full left-0 z-50 mb-1 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                      <div className="absolute bottom-full left-0 z-50 mb-1 w-52 overflow-hidden rounded-xl border border-default bg-surface shadow-xl">
                         <div className="p-1 max-h-48 overflow-y-auto">
                           {specialists.map((s) => (
                             <button key={s.id} onClick={() => { setSelectedSpecialistId(s.id); setShowSpecialistDropdown(false); }}
                               className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${
-                                s.id === selectedSpecialistId ? "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-300" : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                                s.id === selectedSpecialistId ? "bg-attention-subtle text-attention" : "text-primary hover:bg-hover"
                               }`}>
                               <div className="font-medium truncate">{s.name}</div>
-                              {s.description && <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{s.description}</div>}
-                              {s.defaultProvider && <div className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5 font-mono">provider:{s.defaultProvider}</div>}
+                              {s.description && <div className="text-[10px] text-secondary truncate mt-0.5">{s.description}</div>}
+                              {s.defaultProvider && <div className="text-[10px] text-secondary mt-0.5 font-mono">provider:{s.defaultProvider}</div>}
                             </button>
                           ))}
                         </div>
@@ -623,20 +623,20 @@ export function HomeInput({
                 )}
               </div>
             ) : !allowRoleSwitch ? (
-              <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+              <div className="flex items-center gap-1.5 rounded-lg border border-default bg-subtle px-2.5 py-1 text-xs font-medium text-primary">
                 <Zap className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}/>
                 <span>{fixedRoleLabel}</span>
               </div>
             ) : (
               /* ── Built-in role mode: segmented toggle + optional specialist picker ── */
               <>
-                <div className="flex items-center gap-0.5 rounded-[18px] border border-blue-100 bg-white/88 p-1 shadow-[0_10px_28px_-22px_rgba(37,99,235,0.42)] dark:border-slate-800 dark:bg-slate-900" role="group" aria-label={t.common.agentMode}>
+                <div className="flex items-center gap-0.5 rounded-[18px] border border-accent bg-surface p-1 shadow-[0_10px_28px_-22px_rgba(37,99,235,0.42)]" role="group" aria-label={t.common.agentMode}>
                   <button type="button" onClick={() => setSelectedRole("ROUTA")}
                     title="Multi-agent orchestration — spawns specialized agents for complex multi-step tasks (Routa)"
                     className={`flex items-center gap-1.5 rounded-[14px] px-3 py-1.5 text-xs font-medium transition-all ${
                       selectedRole === "ROUTA"
-                        ? "bg-blue-600 text-white shadow-[0_14px_26px_-18px_rgba(37,99,235,0.68)] dark:bg-blue-500 dark:text-white"
-                        : "text-slate-500 hover:bg-blue-50/70 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-300"
+                        ? "bg-accent text-on-accent shadow-[0_14px_26px_-18px_rgba(37,99,235,0.68)]"
+                        : "text-secondary hover:bg-accent-subtle hover:text-primary"
                     }`}>
                     <Sun className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={selectedRole === "ROUTA" ? 2.5 : 2}/>
                     {t.home.multiAgent}
@@ -645,8 +645,8 @@ export function HomeInput({
                     title="Single-agent implementation — best for focused coding tasks (Crafter)"
                     className={`flex items-center gap-1.5 rounded-[14px] px-3 py-1.5 text-xs font-medium transition-all ${
                       selectedRole === "CRAFTER"
-                        ? "bg-amber-500 text-white shadow-[0_14px_26px_-18px_rgba(245,158,11,0.65)] dark:bg-amber-500 dark:text-white"
-                        : "text-slate-500 hover:bg-amber-50/70 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-300"
+                        ? "bg-attention text-on-accent shadow-[0_14px_26px_-18px_rgba(245,158,11,0.65)]"
+                        : "text-secondary hover:bg-attention-subtle hover:text-primary"
                     }`}>
                     <Zap className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={selectedRole === "CRAFTER" ? 2.5 : 2}/>
                     {t.home.crafter}
@@ -656,28 +656,28 @@ export function HomeInput({
                 {/* Custom Specialist — shown as an additive option when specialists exist */}
                 {allowCustomSpecialist && specialists.length > 0 && (
                   <>
-                    <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
+                    <div className="h-4 w-px bg-default" />
                     <div className="relative" ref={specialistDropdownRef}>
                       <button type="button" onClick={() => setShowSpecialistDropdown((v) => !v)}
-                        className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-500 transition-all hover:border-amber-300 hover:bg-slate-100 hover:text-amber-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-amber-700 dark:hover:bg-slate-800 dark:hover:text-amber-300"
+                        className="flex items-center gap-1.5 rounded-lg border border-dashed border-default px-2 py-1 text-xs text-secondary transition-all hover:border-attention hover:bg-hover hover:text-attention"
                         title="Use a custom specialist instead">
                         <CircleUser className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
                         Custom
                         <ChevronDown className="w-2.5 h-2.5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                       </button>
                       {showSpecialistDropdown && (
-                        <div className="absolute bottom-full left-0 z-50 mb-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                        <div className="absolute bottom-full left-0 z-50 mb-1 w-56 overflow-hidden rounded-xl border border-default bg-surface shadow-xl">
                           <div className="px-2 pt-2 pb-1">
-                            <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{t.settings.specialists}</p>
+                            <p className="mb-1 px-1 text-[10px] font-semibold text-secondary">{t.settings.specialists}</p>
                           </div>
-                          <div className="max-h-48 overflow-y-auto border-t border-slate-100 p-1 dark:border-slate-800">
+                          <div className="max-h-48 overflow-y-auto border-t border-default p-1">
                             {specialists.map((s) => (
                               <button key={s.id} onClick={() => { setSelectedSpecialistId(s.id); setShowSpecialistDropdown(false); }}
-                                className="w-full rounded-lg px-3 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-amber-50 hover:text-amber-700 dark:text-slate-300 dark:hover:bg-amber-950/20 dark:hover:text-amber-300">
+                                className="w-full rounded-lg px-3 py-2 text-left text-xs text-primary transition-colors hover:bg-attention-subtle hover:text-attention">
                                 <div className="font-medium truncate">{s.name}</div>
-                                {s.description && <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{s.description}</div>}
-                                {s.role && <div className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5 font-mono">{s.role}</div>}
-                                {s.defaultProvider && <div className="text-[10px] text-slate-300 dark:text-slate-600 mt-0.5 font-mono">provider:{s.defaultProvider}</div>}
+                                {s.description && <div className="text-[10px] text-secondary truncate mt-0.5">{s.description}</div>}
+                                {s.role && <div className="text-[10px] text-secondary mt-0.5 font-mono">{s.role}</div>}
+                                {s.defaultProvider && <div className="text-[10px] text-secondary mt-0.5 font-mono">provider:{s.defaultProvider}</div>}
                               </button>
                             ))}
                           </div>
@@ -695,7 +695,7 @@ export function HomeInput({
                 <button
                   type="button"
                   onClick={() => setShowWorkspaceDropdown((v) => !v)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1c1f2e] border border-transparent hover:border-slate-200 dark:hover:border-[#2a2d3d] transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-secondary hover:bg-hover border border-transparent hover:border-default transition-all"
                 >
                   <Folder className="w-3.5 h-3.5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
                   <span className="max-w-30 truncate">
@@ -705,7 +705,7 @@ export function HomeInput({
                 </button>
 
                 {showWorkspaceDropdown && (
-                  <div className="absolute bottom-full left-0 mb-1 w-52 rounded-xl border border-slate-200 dark:border-[#1c1f2e] bg-white dark:bg-[#181b26] shadow-xl z-50 overflow-hidden">
+                  <div className="absolute bottom-full left-0 mb-1 w-52 rounded-xl border border-default bg-surface shadow-xl z-50 overflow-hidden">
                     <div className="p-1 max-h-48 overflow-y-auto">
                       {workspacesHook.workspaces.map((ws) => (
                         <button
@@ -713,14 +713,14 @@ export function HomeInput({
                           onClick={() => handleWorkspaceChange(ws.id)}
                           className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 ${
                             ws.id === selectedWorkspaceId
-                              ? "bg-amber-50 dark:bg-amber-900/15 text-amber-700 dark:text-amber-400"
-                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#1f2233]"
+                              ? "bg-attention-subtle text-attention"
+                              : "text-primary hover:bg-hover"
                           }`}
                         >
                           <Folder className="w-3.5 h-3.5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
                           {ws.title}
                           {ws.id === selectedWorkspaceId && (
-                            <Check className="w-3.5 h-3.5 ml-auto text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                            <Check className="w-3.5 h-3.5 ml-auto text-attention" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                           )}
                         </button>
                       ))}
@@ -734,8 +734,8 @@ export function HomeInput({
             <div className="hidden flex-1 sm:block" />
 
             {/* Keyboard hint */}
-            <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500">
-              <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-[#1c1f2e] font-mono text-[10px]">
+            <span className="hidden sm:inline text-[11px] text-secondary">
+              <kbd className="px-1 py-0.5 rounded bg-subtle font-mono text-[10px]">
                 ⏎
               </kbd>{" "}
               send
@@ -747,8 +747,8 @@ export function HomeInput({
       {/* ─── Mode Tips ──────────────────────────────────────────────── */}
       <div className="mt-1.5 min-h-5 px-1">
         {repoSelection?.path && (
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-            <span className="font-medium text-slate-500 dark:text-slate-400">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] text-secondary">
+            <span className="font-medium text-secondary">
               {t.home.repoPath}
             </span>
             <span className="font-mono truncate" title={repoSelection.path}>
@@ -757,9 +757,9 @@ export function HomeInput({
           </div>
         )}
         {effectiveFooterMetaMode === "default" && activeLaunchMode?.description ? (
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-            <span className="flex h-2 w-2 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800">
-              <span className="h-1 w-1 rounded-full bg-slate-500" />
+          <div className="flex items-center gap-1.5 text-[10px] text-secondary">
+            <span className="flex h-2 w-2 items-center justify-center rounded-full bg-default">
+              <span className="h-1 w-1 rounded-full bg-secondary" />
             </span>
             <span>{activeLaunchMode.description}</span>
           </div>
@@ -767,26 +767,26 @@ export function HomeInput({
           (() => {
             const spec = selectedSpecialist;
             return (
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-                <span className="flex h-2 w-2 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-                  <span className="h-1 w-1 rounded-full bg-amber-500" />
+              <div className="flex items-center gap-1.5 text-[10px] text-secondary">
+                <span className="flex h-2 w-2 items-center justify-center rounded-full bg-attention-subtle">
+                  <span className="h-1 w-1 rounded-full bg-attention" />
                 </span>
-                <span className="font-medium text-amber-600 dark:text-amber-400">{spec?.name}</span>
-                {spec?.role && <><span className="text-slate-300 dark:text-slate-700">·</span><span className="font-mono text-[9px]">{spec.role}</span></>}
+                <span className="font-medium text-attention">{spec?.name}</span>
+                {spec?.role && <><span className="text-secondary">·</span><span className="font-mono text-[9px]">{spec.role}</span></>}
               </div>
             );
           })()
         ) : effectiveFooterMetaMode === "default" && selectedRole === "ROUTA" ? (
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <span className="h-1 w-1 rounded-full bg-amber-500" />
+          <div className="flex items-center gap-1.5 text-[10px] text-secondary">
+            <span className="w-2 h-2 rounded-full bg-attention-subtle flex items-center justify-center">
+              <span className="h-1 w-1 rounded-full bg-attention" />
             </span>
             <span>{t.home.multiAgentDesc}</span>
           </div>
         ) : effectiveFooterMetaMode === "default" ? (
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-            <span className="flex h-2 w-2 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800">
-              <span className="h-1 w-1 rounded-full bg-slate-500" />
+          <div className="flex items-center gap-1.5 text-[10px] text-secondary">
+            <span className="flex h-2 w-2 items-center justify-center rounded-full bg-default">
+              <span className="h-1 w-1 rounded-full bg-secondary" />
             </span>
             <span>{t.home.directDesc}</span>
           </div>
@@ -806,14 +806,14 @@ export function HomeInput({
               >
                 <span className={`text-[11px] font-mono font-medium transition-colors truncate ${
                   isHero
-                    ? "text-slate-500 group-hover:text-sky-600 dark:text-slate-400 dark:group-hover:text-sky-300"
-                    : "text-slate-500 group-hover:text-amber-600 dark:text-slate-400 dark:group-hover:text-amber-400"
+                    ? "text-secondary group-hover:text-information"
+                    : "text-secondary group-hover:text-attention"
                 }`}>
                   /{skill.name}
                 </span>
                 {skill.description && (
                   <span className={`text-[10px] leading-snug line-clamp-1 ${
-                    isHero ? "text-slate-400 dark:text-slate-500" : "text-slate-400 dark:text-slate-600"
+                    isHero ? "text-secondary" : "text-secondary"
                   }`}>
                     {skill.description}
                   </span>
