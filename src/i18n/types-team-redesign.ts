@@ -133,5 +133,76 @@ export interface TeamRedesignTranslationDictionarySections {
       };
       eventType: { plan: string; assign: string; revision: string; finding: string; complete: string; blocked: string };
     };
+    /** Team page v2 (redesign card 14): header stats block and shortcut hints. */
+    header: {
+      statsLabel: string;
+      launchShortcut: string;
+      launchShortcutHint: string;
+    };
+    /** Always-visible launch box: "try" template chips. */
+    launch: {
+      templatesLabel: string;
+      template1: string;
+      template2: string;
+      template3: string;
+      template4: string;
+    };
+    /** Team formation: lead card, role groups, list view. */
+    formation: {
+      title: string;
+      viewLabel: string;
+      viewMap: string;
+      viewList: string;
+      groupRouta: string;
+      groupCrafter: string;
+      groupGate: string;
+      groupDeveloper: string;
+      groupOther: string;
+      groupCount: string;
+      details: string;
+      instancesLabel: string;
+      idle: string;
+      working: string;
+      mention: string;
+      mentionAria: string;
+      openMemberAria: string;
+      /** Display names of the bundled team specialists, keyed by specialist id. */
+      memberNames: Record<string, string>;
+    };
+    /** Member drawer. */
+    drawer: {
+      label: string;
+      specialistId: string;
+      role: string;
+      modelTier: string;
+      currentStatus: string;
+      recentRuns: string;
+      noRecentRuns: string;
+      mentionDispatch: string;
+      editInSettings: string;
+      close: string;
+    };
+    /** Run records: status filter, list footer, empty state. */
+    runs: {
+      filterLabel: string;
+      filterAll: string;
+      filterActive: string;
+      filterEnded: string;
+      filterError: string;
+      openArrow: string;
+      footer: string;
+      memberCount: string;
+      clearFilters: string;
+      emptyLead: string;
+      step1Title: string;
+      step1Body: string;
+      step2Title: string;
+      step2Body: string;
+      step3Title: string;
+      step3Body: string;
+      writeFirstTask: string;
+      searchShortcut: string;
+      searchShortcutHint: string;
+    };
   };
 }

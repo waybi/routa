@@ -1,8 +1,13 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+
+import { enTeamRedesign } from "@/i18n/locales/en-team-redesign";
+import { zhTeamRedesign } from "@/i18n/locales/zh-team-redesign";
 
 import { matchesSessionQuery } from "../../sessions-overview";
 import { findCoordinatorSession, selectCoordinators, sortTeamRuns, type CoordinatorAgent } from "../team-page-model";
 import { buildTeamRunName } from "../team-run-name";
+import { readTeamSpecialistNames, SPECIALISTS_ROOT } from "./team-yaml-names";
 
 /**
  * F3 random cross-checks. Each judge is written from the requirement, not by
@@ -134,5 +139,16 @@ describe("F3 random cross-check", () => {
       }
     }
     expect(true).toBe(true);
+  });
+});
+
+describe("team member names follow the bundled specialist yaml", () => {
+  it("zh memberNames equal locales/zh-CN/team/*.yaml and en memberNames equal team/*.yaml", () => {
+    const en = readTeamSpecialistNames(join(SPECIALISTS_ROOT, "team"));
+    const zh = readTeamSpecialistNames(join(SPECIALISTS_ROOT, "locales/zh-CN/team"));
+    expect(Object.keys(en)).toHaveLength(9);
+    expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+    expect(enTeamRedesign.teamRedesign.formation.memberNames).toEqual(en);
+    expect(zhTeamRedesign.teamRedesign.formation.memberNames).toEqual(zh);
   });
 });
