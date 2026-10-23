@@ -148,11 +148,17 @@ Agent 进程把机器打爆。
 关键机制：
 
 - **`enqueue()`**：来了新任务 → 检查当前 board 跑了几个 → 没超限就 `startEntry()` →
-  超了就 push 到等待队列。
+  超了就 push 到等待队列。有空位但队列里已有更早排队的卡时，新卡排到队尾，先放行
+  早来的（不插队）。
 - **`drainQueue()`**：某个 Agent 完成/失败/超时 → 从 running 删掉 → 检查等待队列 →
-  有空位就启动下一个。
+  有空位就启动下一个。每一轮都重新读 map 里当前的队首：`start()` 要等十几秒，
+  这期间别的流程可能新入队；循环外拿一份旧数组收尾写回，会把新入队的卡删掉
+  （2026-10-23 卡 1e7dd356 就这样丢了 Todo 第二步）。
 - **`reconcileBoardEntries()`**：防脏数据——检查 running / queued 里的卡片是不是
   还在这个 board 和这个列，不是就清掉（防止卡片已被手动挪走但队列里还有它）。
+  另外清掉「状态是 queued 却不在任何队列里」的孤儿条目，否则 `enqueue()` 会一直
+  回「已排队」，卡永远起不来。
+- 队列只在内存里，Routa 重启会清空；重启后靠 restart-recovery / revive 重新入队。
 
 ## 4. 创建会话：真正"叫一个 Agent 来干活"
 
@@ -249,8 +255,11 @@ Agent 完成/失败/超时
    │
    ▼
 ③ 成功 & 满足 & 还有下一个 step？
-   → 启动下一个 step（startNextAutomationStep）
+   → 启动下一个 step（startNextAutomationStep，结果是 started / queued / failed）
      例：先跑 CRAFTER 写代码，再跑 GATE 评审
+     board 名额满时 createSession 回 {queued:true}：自动化保持 queued，不记失败、
+     不写错误；队列之后拉起这一步时会写 triggerSessionId，编排器在它结束时接管
+     这个会话并继续推进
    │
    ▼
 ④ 失败 & 开了 automatic fallback & 还有下一个 step？
@@ -272,6 +281,26 @@ Agent 完成/失败/超时
    │
    ▼
 ⑦ 30 秒后从 activeAutomations 里清理掉这条记录
+~~~
+
+### 5c. 手动「重新运行」（PATCH retryTrigger）
+
+~~~plaintext
+PATCH /api/tasks/{id} {retryTrigger:true}
+   │  归档当前会话、清 triggerSessionId / lastSyncError、移出队列
+   │  先把这些改动存库（startKanbanTaskSession 会重读卡并写入新 lane 记录）
+   ▼
+enqueueKanbanTaskSession(resumeLane: true)
+   │  resolveLaneResumeStep 按本列最近一条 lane 记录选步骤：
+   │    没完成 → 重跑那一步；完成了 → 跑下一步（下一步丢了的情况）；
+   │    已是最后一步或还没跑过 → 第一步
+   │  卡上有卡片级 agent 覆盖时不选步骤，走原来的单步重跑
+   ▼
+编排器 adoptLaneRun：为这次运行建 ActiveAutomation（running 或 queued），
+   它结束后照常推进到列内下一步 / autoAdvance
+   │
+   ▼
+接口从库里重读卡再返回，不用请求开头复制的旧卡覆盖新 lane 记录
 ~~~
 
 这就是 Kanban 自动化能"像流水线一样自己跑"的原因：
@@ -470,3 +499,9 @@ code_diff     → 要有代码变更记录
 | watchdog vs ralph_loop | `board-session-supervision.ts` + orchestrator 恢复逻辑 | 两种监督模式的区别和运行细节 |
 | 泳道经验记忆 | `task-lane-experience.ts` | 跨任务历史怎么注入新会话——Routa 比普通看板"聪明"的地方 |
 | Flow 账本 | `flow-ledger.ts` | board 级别的流量/瓶颈分析怎么影响 Agent 行为 |
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交 |
+|---|---|---|---|
+| 2026-10-23 | 队列 drain 每轮读当前队首、清 queued 孤儿、空位先放行早排队的卡；下一步排队不再记失败；重新运行先存库再重读卡；重新运行按 lane 记录选步骤并由编排器接管（第 3 节、5b、5c） | 新增 8 个用例、1 个旧用例补断言，撤掉任一修复对应用例变红；卡 1e7dd356 那类「上一步完成、下一步报 ACP session did not complete successfully.」不再出现 | fix(kanban): board queue drain…、fix(kanban): a lane step queued…、fix(tasks): rerunning a card keeps…、本提交 |

@@ -37,6 +37,7 @@ import { upsertTaskLaneSession } from "./task-lane-history";
 import { formatEnvironmentFailureError, isEnvironmentFailureMessage } from "./environment-failure";
 import { refreshTaskLaneExperienceMemory } from "./task-lane-experience";
 import { completeRunningSessionsOutsideColumn } from "./task-session-transition";
+import { resolveLaneResumeStep } from "./lane-automation-state";
 import { analyzeFlowForTasks } from "./flow-ledger";
 import { resolveTaskWorktreeTruth } from "./task-worktree-truth";
 import { runDoneWorktreeCleanup } from "./done-worktree-cleanup";
@@ -109,6 +110,12 @@ export async function enqueueKanbanTaskSession(
     step?: KanbanAutomationStep;
     stepIndex?: number;
     supervision?: AutomationSessionSupervisionContext;
+    /**
+     * Manual rerun: start at the lane step that still has to run (see
+     * resolveLaneResumeStep) and hand the run to the workflow orchestrator so
+     * the lane's later steps follow it.
+     */
+    resumeLane?: boolean;
   },
 ): Promise<{ sessionId?: string; queued: boolean; error?: string }> {
   const task = params.task;
@@ -117,6 +124,27 @@ export async function enqueueKanbanTaskSession(
   }
   if (task.triggerSessionId && !params.ignoreExistingTrigger) {
     return { sessionId: task.triggerSessionId, queued: false };
+  }
+
+  if (params.resumeLane && !params.step) {
+    const resumeStep = await resolveLaneResumeForTask(system, task, params.expectedColumnId ?? task.columnId);
+    if (resumeStep) {
+      const { resumeLane: _resumeLane, ...startParams } = params;
+      const result = await enqueueKanbanTaskSession(system, {
+        ...startParams,
+        step: resumeStep.step,
+        stepIndex: resumeStep.stepIndex,
+      });
+      if (result.sessionId || result.queued) {
+        await getWorkflowOrchestrator(system).adoptLaneRun({
+          cardId: task.id,
+          columnId: resumeStep.columnId,
+          stepIndex: resumeStep.stepIndex,
+          sessionId: result.sessionId,
+        });
+      }
+      return result;
+    }
   }
 
   if (params.bypassQueue) {
@@ -137,6 +165,25 @@ export async function enqueueKanbanTaskSession(
     columnId: params.expectedColumnId ?? task.columnId,
     start: async () => startKanbanTaskSession(system, task.id, params),
   });
+}
+
+async function resolveLaneResumeForTask(
+  system: RoutaSystem,
+  task: NonNullable<Awaited<ReturnType<RoutaSystem["taskStore"]["get"]>>>,
+  columnId: string | undefined,
+): Promise<{ step: KanbanAutomationStep; stepIndex: number; columnId: string } | undefined> {
+  if (!task.boardId || !columnId) return undefined;
+  const board = await system.kanbanBoardStore.get(task.boardId);
+  if (!board) return undefined;
+  const workspace = await system.workspaceStore.get(task.workspaceId);
+  const laneTask = { ...task, columnId };
+  const effective = resolveEffectiveTaskAutomation(laneTask, board.columns, resolveKanbanSpecialist, {
+    autoProviderId: getKanbanAutoProvider(workspace?.metadata, task.boardId),
+  });
+  // A card-level agent override runs its own single step; keep its old rerun path.
+  if (effective.source !== "lane") return undefined;
+  const resumeStep = resolveLaneResumeStep(laneTask, board.columns);
+  return resumeStep ? { ...resumeStep, columnId } : undefined;
 }
 
 async function startKanbanTaskSession(

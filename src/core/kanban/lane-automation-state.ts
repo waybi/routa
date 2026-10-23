@@ -251,3 +251,34 @@ export function resolveRemainingLaneStepsMoveBlock(
   });
   return buildRemainingLaneStepsMessage(task.title, laneAutomationState);
 }
+
+/**
+ * Step a manual rerun of a lane starts at. The lane's latest run decides:
+ * if it did not complete, rerun that step; if it completed, run the step
+ * after it (that step was lost, e.g. its start failed); after the lane's last
+ * step, or with no run yet, start at the first step. Undefined when the lane
+ * has no enabled automation steps.
+ */
+export function resolveLaneResumeStep(
+  task: Pick<Task, "columnId" | "laneSessions">,
+  boardColumns: KanbanColumn[],
+): { step: KanbanAutomationStep; stepIndex: number } | undefined {
+  const columnId = task.columnId ?? "backlog";
+  const automation = boardColumns.find((column) => column.id === columnId)?.automation;
+  if (!automation?.enabled) return undefined;
+  const steps = getKanbanAutomationSteps(automation);
+  if (steps.length === 0) return undefined;
+
+  const latestRun = [...(task.laneSessions ?? [])]
+    .reverse()
+    .find((session) => session.columnId === columnId && typeof session.stepIndex === "number");
+  let stepIndex = 0;
+  const latestIndex = latestRun?.stepIndex;
+  if (typeof latestIndex === "number" && latestIndex >= 0 && latestIndex < steps.length) {
+    const finished = latestRun?.status === "completed" || latestRun?.status === "transitioned";
+    stepIndex = !finished
+      ? latestIndex
+      : latestIndex + 1 < steps.length ? latestIndex + 1 : 0;
+  }
+  return { step: steps[stepIndex], stepIndex };
+}

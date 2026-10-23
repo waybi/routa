@@ -206,6 +206,22 @@ export interface CreateAutomationSessionResult {
 
 type AutomationStepStart = "started" | "queued" | "failed";
 
+/** A lane's own steps followed by the card's automatic fallback agents. */
+function buildAutomationSteps(
+  automation: KanbanColumnAutomation,
+  task: Task | undefined,
+): KanbanAutomationStep[] {
+  const fallbackSteps = task?.enableAutomaticFallback && task.fallbackAgentChain?.length
+    ? task.fallbackAgentChain.map((agent, index) => ({
+      id: `fallback-${index + 1}`,
+      providerId: agent.providerId,
+      role: agent.role,
+      specialistId: agent.specialistId,
+      specialistName: agent.specialistName,
+    }))
+    : [];
+  return [...getKanbanAutomationSteps(automation), ...fallbackSteps];
+}
 
 function readCreatedSession(
   result: string | CreateAutomationSessionResult | null | undefined,
@@ -384,17 +400,7 @@ export class KanbanWorkflowOrchestrator {
     const laneObjective = task?.objective?.trim() || data.cardTitle;
     const targetColumn = resolved.column;
     const automation = resolved.automation;
-    const laneSteps = getKanbanAutomationSteps(automation);
-    const fallbackSteps = task?.enableAutomaticFallback && task.fallbackAgentChain?.length
-      ? task.fallbackAgentChain.map((agent, index) => ({
-        id: `fallback-${index + 1}`,
-        providerId: agent.providerId,
-        role: agent.role,
-        specialistId: agent.specialistId,
-        specialistName: agent.specialistName,
-      }))
-      : [];
-    const steps = [...laneSteps, ...fallbackSteps];
+    const steps = buildAutomationSteps(automation, task);
     if (steps.length === 0) return;
 
     if (hasExceededNonDevAutomationRepeatLimit(task, targetColumn.id, targetColumn.stage)) {
@@ -412,14 +418,7 @@ export class KanbanWorkflowOrchestrator {
       return;
     }
 
-    const supervision = shouldSuperviseStage(targetColumn.stage)
-      ? (await this.resolveDevSessionSupervision?.({
-        workspaceId: data.workspaceId,
-        boardId: data.boardId,
-        columnId: targetColumn.id,
-        stage: targetColumn.stage,
-      })) ?? getDefaultKanbanDevSessionSupervision()
-      : getDisabledSupervisionConfig();
+    const supervision = await this.resolveLaneSupervision(data.workspaceId, data.boardId, targetColumn);
 
     const existingAutomation = this.activeAutomations.get(data.cardId);
     if (
@@ -476,6 +475,65 @@ export class KanbanWorkflowOrchestrator {
         console.error("[WorkflowOrchestrator] Failed to create session:", err);
       }
     }
+  }
+
+  /**
+   * Follow a lane run started outside a column transition (a manual rerun of
+   * the card) at `stepIndex`, so the lane's later steps still run after it.
+   * Without a session id the run is queued; its session is adopted from the
+   * card's triggerSessionId when it starts. Replaces any finished automation.
+   */
+  async adoptLaneRun(params: {
+    cardId: string;
+    columnId: string;
+    stepIndex: number;
+    sessionId?: string;
+  }): Promise<boolean> {
+    const task = await this.taskStore.get(params.cardId);
+    if (!task?.boardId || task.columnId !== params.columnId) return false;
+    const board = await this.kanbanBoardStore.get(task.boardId);
+    const column = board?.columns.find((entry) => entry.id === params.columnId);
+    const automation = column?.automation;
+    if (!column || !automation?.enabled) return false;
+    const steps = buildAutomationSteps(automation, task);
+    if (!steps[params.stepIndex]) return false;
+
+    this.activeAutomations.set(params.cardId, {
+      cardId: params.cardId,
+      cardTitle: task.title,
+      boardId: task.boardId,
+      workspaceId: task.workspaceId,
+      columnId: column.id,
+      columnName: column.name,
+      stage: column.stage,
+      automation,
+      steps,
+      currentStepIndex: params.stepIndex,
+      sessionId: params.sessionId,
+      startedAt: new Date(),
+      status: params.sessionId ? "running" : "queued",
+      supervision: await this.resolveLaneSupervision(task.workspaceId, task.boardId, column),
+      attempt: 1,
+      recoveryAttempts: 0,
+      signaledSessionIds: new Set(),
+      enableAutomaticFallback: task.enableAutomaticFallback,
+    });
+    return true;
+  }
+
+  private async resolveLaneSupervision(
+    workspaceId: string,
+    boardId: string,
+    column: { id: string; stage: KanbanColumnStage },
+  ): Promise<KanbanDevSessionSupervision> {
+    return shouldSuperviseStage(column.stage)
+      ? (await this.resolveDevSessionSupervision?.({
+        workspaceId,
+        boardId,
+        columnId: column.id,
+        stage: column.stage,
+      })) ?? getDefaultKanbanDevSessionSupervision()
+      : getDisabledSupervisionConfig();
   }
 
   private async handleAgentCompletion(event: AgentEvent): Promise<void> {

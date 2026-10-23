@@ -503,4 +503,145 @@ describe("workflow orchestrator singleton prompt path", () => {
     ]));
   });
 
+  describe("rerunning a two-step lane", () => {
+    async function setupTwoStepTodo() {
+      const system = createInMemorySystem();
+      const board = createKanbanBoard({
+        id: "board-rerun",
+        workspaceId: "default",
+        name: "Board",
+        isDefault: true,
+        columns: [
+          { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
+          {
+            id: "todo",
+            name: "Todo",
+            position: 1,
+            stage: "todo",
+            automation: {
+              enabled: true,
+              transitionType: "entry",
+              autoAdvanceOnSuccess: false,
+              steps: [
+                { id: "orchestrate", providerId: "claude", role: "ROUTA", specialistId: "todo-orchestrator" },
+                { id: "contract", providerId: "claude", role: "ROUTA", specialistId: "contract-setter" },
+              ],
+            },
+          },
+          { id: "dev", name: "Dev", position: 2, stage: "dev" },
+        ],
+      });
+      await system.kanbanBoardStore.save(board);
+      const card = createTask({
+        id: "card-r",
+        title: "Card R",
+        objective: "Rerun a two-step lane",
+        workspaceId: "default",
+        boardId: board.id,
+        columnId: "todo",
+        status: TaskStatus.PENDING,
+      });
+      await system.taskStore.save(card);
+
+      let runCount = 0;
+      triggerAssignedTaskAgentMock.mockImplementation(async (params: { task: { id: string }; stepIndex?: number }) => {
+        runCount += 1;
+        return { sessionId: `${params.task.id}:${params.stepIndex ?? "x"}:${runCount}`, transport: "acp" };
+      });
+      const emit = (type: AgentEventType, sessionId: string, success: boolean) => system.eventBus.emit({
+        type,
+        agentId: sessionId,
+        workspaceId: "default",
+        data: { sessionId, success, ...(success ? {} : { error: "step failed" }) },
+        timestamp: new Date(),
+      });
+
+      startWorkflowOrchestrator(system);
+      await processKanbanColumnTransition(system, {
+        cardId: card.id,
+        cardTitle: card.title,
+        boardId: board.id,
+        workspaceId: "default",
+        fromColumnId: "backlog",
+        toColumnId: "todo",
+      });
+      expect((await system.taskStore.get(card.id))?.triggerSessionId).toBe("card-r:0:1");
+
+      // What PATCH retryTrigger does before it enqueues.
+      const rerun = async () => {
+        const current = (await system.taskStore.get(card.id))!;
+        current.triggerSessionId = undefined;
+        current.lastSyncError = undefined;
+        await system.taskStore.save(current);
+        getKanbanSessionQueue(system).removeCardJob(card.id);
+        return enqueueKanbanTaskSession(system, {
+          task: current,
+          expectedColumnId: "todo",
+          ignoreExistingTrigger: true,
+          resumeLane: true,
+        });
+      };
+
+      return { system, card, emit, rerun, orchestrator: getWorkflowOrchestrator(system) };
+    }
+
+    it("continues to the second step after a rerun of a failed first step", async () => {
+      const { system, card, emit, rerun, orchestrator } = await setupTwoStepTodo();
+
+      emit(AgentEventType.AGENT_FAILED, "card-r:0:1", false);
+      await vi.waitFor(() => {
+        expect(orchestrator.getAutomationForCard(card.id)?.status).toBe("failed");
+      });
+
+      const result = await rerun();
+      expect(result.sessionId).toBe("card-r:0:2");
+      expect(triggerAssignedTaskAgentMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        stepIndex: 0,
+        step: expect.objectContaining({ specialistId: "todo-orchestrator" }),
+      }));
+
+      emit(AgentEventType.AGENT_COMPLETED, "card-r:0:2", true);
+      await vi.waitFor(async () => {
+        expect((await system.taskStore.get(card.id))?.triggerSessionId).toBe("card-r:1:3");
+      });
+      expect(triggerAssignedTaskAgentMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        stepIndex: 1,
+        step: expect.objectContaining({ specialistId: "contract-setter" }),
+      }));
+      expect(orchestrator.getAutomationForCard(card.id)).toMatchObject({
+        status: "running",
+        currentStepIndex: 1,
+        sessionId: "card-r:1:3",
+      });
+    });
+
+    it("resumes at the step that never ran when the first step had completed", async () => {
+      const { system, card, emit, rerun, orchestrator } = await setupTwoStepTodo();
+
+      // Step 1 completes but step 2 cannot start (the case of card 1e7dd356).
+      triggerAssignedTaskAgentMock.mockResolvedValueOnce({ error: "Failed to create ACP session." });
+      emit(AgentEventType.AGENT_COMPLETED, "card-r:0:1", true);
+      await vi.waitFor(() => {
+        expect(orchestrator.getAutomationForCard(card.id)?.status).toBe("failed");
+      });
+
+      const result = await rerun();
+      expect(result.sessionId).toMatch(/^card-r:1:/);
+      expect(triggerAssignedTaskAgentMock).toHaveBeenLastCalledWith(expect.objectContaining({
+        stepIndex: 1,
+        step: expect.objectContaining({ specialistId: "contract-setter" }),
+      }));
+      expect(orchestrator.getAutomationForCard(card.id)).toMatchObject({
+        status: "running",
+        currentStepIndex: 1,
+        sessionId: result.sessionId,
+      });
+
+      emit(AgentEventType.AGENT_COMPLETED, result.sessionId!, true);
+      await vi.waitFor(() => {
+        expect(orchestrator.getAutomationForCard(card.id)?.status).toBe("completed");
+      });
+      expect((await system.taskStore.get(card.id))?.lastSyncError).toBeUndefined();
+    });
+  });
 });

@@ -642,6 +642,7 @@ export async function PATCH(
       expectedColumnId: nextTask.columnId,
       ignoreExistingTrigger: retryingTrigger,
       providerOverride: retryProviderId,
+      resumeLane: retryingTrigger,
     });
     nextTask = (await system.taskStore.get(taskId)) ?? nextTask;
     if (triggerResult.sessionId) {

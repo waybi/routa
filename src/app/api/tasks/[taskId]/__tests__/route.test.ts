@@ -874,6 +874,8 @@ describe("/api/tasks/[taskId]", () => {
     expect(enqueueKanbanTaskSession).toHaveBeenCalledWith(system, expect.objectContaining({
       expectedColumnId: "todo",
       ignoreExistingTrigger: true,
+      // A rerun resumes the lane at the step that failed and lets the orchestrator follow it.
+      resumeLane: true,
     }));
     expect(capturedEnqueueTask).toMatchObject({
       id: "task-1",
