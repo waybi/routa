@@ -11,12 +11,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// v2: the redesigned detail (card 3/6) defaults to a ~390px session column
-// at 1440px wide (design-spec §7); the old 0.48 ratio is not carried over.
-const STORAGE_KEY = "routa:kanban-detail-split-ratio:v2";
+// v3: the property rail moved under the title, so the session column gets
+// its width back (~605px at 1440px wide). v2 is not read: every browser
+// that opened a detail stored 0.73 there, which would keep the old width.
+const STORAGE_KEY = "routa:kanban-detail-split-ratio:v3";
 const MIN_RATIO = 0.4;
 const MAX_RATIO = 0.82;
-const DEFAULT_RATIO = 0.73;
+const DEFAULT_RATIO = 0.58;
 
 function clampRatio(ratio: number): number {
   return Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio));
