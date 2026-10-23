@@ -319,7 +319,7 @@ export function CollaborativeTaskEditor({
                   e.stopPropagation();
                   onDeleteNote(specNote.id);
                 }}
-                title="Delete spec"
+                title={t.sessionDetailRedesign.taskEditor.deleteSpec}
                 className="p-0.5 rounded text-secondary hover:text-danger hover:bg-danger-subtle transition-colors"
               >
                 <X className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -542,10 +542,11 @@ function TaskSection({ title, content }: { title: string; content: string }) {
 
 // ─── Task Content Renderer ──────────────────────────────────────────────────
 function TaskContentRenderer({ content }: { content: string }) {
+  const { t } = useTranslation();
   if (!content) {
     return (
       <div className="text-xs text-secondary italic">
-        No content
+        {t.sessionDetailRedesign.taskEditor.noContent}
       </div>
     );
   }
@@ -566,19 +567,19 @@ function TaskContentRenderer({ content }: { content: string }) {
   return (
     <div className="space-y-0">
       {sections.objective && (
-        <TaskSection title="Objective" content={sections.objective} />
+        <TaskSection title={t.sessionDetailRedesign.taskEditor.objective} content={sections.objective} />
       )}
       {sections.scope && (
-        <TaskSection title="Scope" content={sections.scope} />
+        <TaskSection title={t.sessionDetailRedesign.taskEditor.scope} content={sections.scope} />
       )}
       {sections.inputs && (
-        <TaskSection title="Inputs" content={sections.inputs} />
+        <TaskSection title={t.sessionDetailRedesign.taskEditor.inputs} content={sections.inputs} />
       )}
       {sections.outputs && (
-        <TaskSection title="Outputs" content={sections.outputs} />
+        <TaskSection title={t.sessionDetailRedesign.taskEditor.outputs} content={sections.outputs} />
       )}
       {sections.definitionOfDone && (
-        <TaskSection title="Definition of Done" content={sections.definitionOfDone} />
+        <TaskSection title={t.sessionDetailRedesign.taskEditor.definitionOfDone} content={sections.definitionOfDone} />
       )}
       {sections.remainingContent && (
         <div className="mt-2 pt-2 border-t border-default">
@@ -696,7 +697,7 @@ function TaskNoteCard({
               e.stopPropagation();
               onDelete();
             }}
-            title="Delete task"
+            title={t.sessionDetailRedesign.taskEditor.deleteTask}
             className="p-0.5 rounded text-secondary hover:text-danger hover:bg-danger-subtle transition-colors shrink-0"
           >
             <X className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -767,10 +768,10 @@ function TaskNoteCard({
                   onClick={(e) => e.stopPropagation()}
                   className="min-w-29.5 text-[11px] px-2 py-1 rounded-md border border-default bg-surface text-primary"
                 >
-                  <option value="PENDING">Pending</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="FAILED">Failed</option>
+                  <option value="PENDING">{t.sessionDetailRedesign.taskEditor.statusPending}</option>
+                  <option value="IN_PROGRESS">{t.sessionDetailRedesign.taskEditor.statusInProgress}</option>
+                  <option value="COMPLETED">{t.sessionDetailRedesign.taskEditor.statusCompleted}</option>
+                  <option value="FAILED">{t.sessionDetailRedesign.taskEditor.statusFailed}</option>
                 </Select>
 
                 {onDelete && (
@@ -883,7 +884,7 @@ function TaskNoteEditor({
           onChange={(e) => handleContentChange(e.target.value)}
           rows={8}
           className="mt-0.5 w-full text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-success outline-none resize-y font-mono"
-          placeholder="Task content (Markdown supported)..."
+          placeholder={t.sessionDetailRedesign.taskEditor.contentPlaceholder}
         />
         <div className="text-[9px] text-secondary mt-0.5">
           Auto-saves after 1.5s of inactivity

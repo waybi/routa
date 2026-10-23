@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Monitor } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
 
 interface ModelDropdownProps {
@@ -16,6 +17,7 @@ export function ModelDropdown({
   onModelChange,
   onFetchModels,
 }: ModelDropdownProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +67,7 @@ export function ModelDropdown({
     (m) => !filter || m.toLowerCase().includes(filter.toLowerCase())
   );
 
-  const displayName = selectedModel ? selectedModel.split("/").pop() : "Default model";
+  const displayName = selectedModel ? selectedModel.split("/").pop() : t.chatPanel.defaultModel;
 
   return (
     <div ref={dropdownRef}>
@@ -96,7 +98,7 @@ export function ModelDropdown({
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter models..."
+                placeholder={t.chatPanel.filterModels}
                 className="w-full px-2 py-1 text-xs rounded border border-default bg-transparent outline-none focus:ring-1 focus:ring-accent text-primary"
               />
             </div>
@@ -110,7 +112,7 @@ export function ModelDropdown({
                     : "hover:bg-hover text-primary"
                 }`}
               >
-                <span className="font-medium">Default model</span>
+                <span className="font-medium">{t.chatPanel.defaultModel}</span>
               </button>
               {filteredModels.map((m) => (
                 <button
@@ -130,7 +132,7 @@ export function ModelDropdown({
                 </button>
               ))}
               {models.length === 0 && !loading && (
-                <div className="px-3 py-3 text-xs text-secondary text-center">No models found</div>
+                <div className="px-3 py-3 text-xs text-secondary text-center">{t.chatPanel.noModelsFound}</div>
               )}
             </div>
           </div>,

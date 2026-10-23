@@ -22,7 +22,13 @@ export async function generateStaticParams() {
 
 export default function WorkspaceSessionPage() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
+    <Suspense
+      fallback={(
+        <div role="status" aria-busy="true" className="flex h-screen items-center justify-center">
+          <span aria-hidden="true" className="h-5 w-5 animate-spin rounded-full border-2 border-default border-t-accent motion-reduce:animate-none" />
+        </div>
+      )}
+    >
       <SessionPageClient />
     </Suspense>
   );
