@@ -117,6 +117,7 @@ function respond(url: string): Response {
   }
   if (parsed.pathname === "/api/providers") return json({ providers });
   if (/^\/api\/workspaces\/[^/]+\/codebases$/.test(parsed.pathname)) return json({ codebases: workspaceState.codebases });
+  if (parsed.pathname === "/api/clone/branches") return json({});
   return new Response("not found", { status: 404 });
 }
 
@@ -313,7 +314,8 @@ describe("preserved behaviors (AC3)", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(screen.queryByTestId("home-readiness")).toBeNull();
+    await waitFor(() => expect(within(screen.getByTestId("home-readiness")).getByTestId("home-readiness-codebase").getAttribute("data-tone")).toBe("success"));
+    expect(["home-readiness-model", "home-readiness-codebase", "home-readiness-workspace"].map((id) => screen.getByTestId(id).getAttribute("data-tone"))).toEqual(["success", "success", "success"]);
   });
 });
 
@@ -358,8 +360,8 @@ describe("read-only (AC7)", () => {
     await renderReady();
     await waitFor(() => expect(calls.some((call) => call.url.includes("/api/sessions"))).toBe(true));
     expect(calls.filter((call) => call.method !== "GET")).toEqual([]);
-    expect(calls.some((call) => call.url.includes("revive") || call.url.includes("/api/acp") || call.url.includes("/api/clone"))).toBe(false);
-    const allowed = new Set(["/api/tasks", "/api/kanban/boards", "/api/sessions", "/api/providers", "/api/workspaces/alpha/codebases"]);
+    expect(calls.some((call) => call.url.includes("revive") || call.url.includes("/api/acp") || (call.url.includes("/api/clone") && !call.url.includes("/api/clone/branches?")))).toBe(false);
+    const allowed = new Set(["/api/tasks", "/api/kanban/boards", "/api/sessions", "/api/providers", "/api/workspaces/alpha/codebases", "/api/clone/branches"]);
     expect(calls.map((call) => new URL(call.url, "http://localhost").pathname).filter((path) => !allowed.has(path))).toEqual([]);
     expect(acpState.connect).not.toHaveBeenCalled();
     expect(MockEventSource.instances.every((source) => source.url.includes("/api/kanban/events"))).toBe(true);

@@ -2,7 +2,8 @@
 
 /**
  * Home page blocks besides the workspace cards: the needs-you banner, the
- * latest completion report, the create block and the setup reminder.
+ * latest completion report and the create block (the setup reminder lives
+ * in home-readiness-strip.tsx).
  */
 
 import Link from "next/link";
@@ -70,9 +71,12 @@ export function HomeLatestResult({ result, loading, now }: { result: LatestResul
 export function HomeCreateSection({
   workspaceId,
   continueSession,
+  now,
 }: {
   workspaceId: string | null;
-  continueSession: { href: string; label: string } | null;
+  continueSession: { href: string; label: string; at: number } | null;
+  /** Minute clock; 0 before hydration, when the relative time is not shown. */
+  now: number;
 }) {
   const { t } = useTranslation();
   const copy = t.homeRedesign;
@@ -93,56 +97,21 @@ export function HomeCreateSection({
         </div>
       )}
       {continueSession && (
-        <Link
-          href={continueSession.href}
-          className="mt-3 block break-words text-[13px] text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
-          data-testid="home-continue-session"
-        >
-          {copy.continueSession.replace("{name}", continueSession.label)}
-        </Link>
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <Link
+            href={continueSession.href}
+            className="min-w-0 break-words text-[13px] text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            data-testid="home-continue-session"
+          >
+            {copy.continueSession.replace("{name}", continueSession.label)}
+          </Link>
+          {now > 0 && (
+            <span className="text-xs text-secondary" data-testid="home-continue-session-time">
+              {formatRelativeTime(continueSession.at, now, copy)}
+            </span>
+          )}
+        </div>
       )}
-    </section>
-  );
-}
-
-export function HomeReadinessNotice({
-  missingModel,
-  missingCodebase,
-  onConfigureModel,
-  onAddCodebase,
-}: {
-  missingModel: boolean;
-  missingCodebase: boolean;
-  onConfigureModel: () => void;
-  onAddCodebase: () => void;
-}) {
-  const { t } = useTranslation();
-  const copy = t.homeRedesign;
-  if (!missingModel && !missingCodebase) return null;
-  return (
-    <section
-      className="flex flex-col gap-2 rounded-lg border border-default bg-surface px-4 py-3 min-[801px]:flex-row min-[801px]:items-center min-[801px]:justify-between"
-      data-testid="home-readiness"
-    >
-      <div className="min-w-0">
-        <p className="m-0 text-[13px] font-semibold text-attention">{copy.readinessTitle}</p>
-        <ul className="m-0 mt-1 list-disc pl-5 text-xs text-secondary">
-          {missingModel && <li>{copy.readinessModel}</li>}
-          {missingCodebase && <li>{copy.readinessCodebase}</li>}
-        </ul>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {missingModel && (
-          <button type="button" onClick={onConfigureModel} className={buttonClassName("secondary", "sm")} data-testid="home-readiness-configure">
-            {copy.configure}
-          </button>
-        )}
-        {missingCodebase && (
-          <button type="button" onClick={onAddCodebase} className={buttonClassName("secondary", "sm")} data-testid="home-readiness-add-codebase">
-            {copy.addCodebase}
-          </button>
-        )}
-      </div>
     </section>
   );
 }

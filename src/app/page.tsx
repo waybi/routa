@@ -4,8 +4,10 @@
  * Home - /
  * Global home (design-spec §3): one card per workspace with in-progress and
  * needs-you counts and the newest activity, a needs-you banner, the latest
- * completion report and create shortcuts. Read-only: opening it issues GETs
- * only (workspaces, codebases, providers, tasks, boards, sessions) plus the
+ * completion report and create shortcuts, plus the restored execution-mode
+ * cards and always-visible readiness block (design-spec §12). Read-only:
+ * opening it issues GETs only (workspaces, codebases, providers, tasks,
+ * boards, sessions, clone/branches for the codebase access check) plus the
  * kanban SSE stream; ACP connects only when the user opens Settings.
  */
 
@@ -21,8 +23,10 @@ import {
   HomeAttentionBanner,
   HomeCreateSection,
   HomeLatestResult,
-  HomeReadinessNotice,
 } from "@/client/components/home/home-sections";
+import { HomeModeCards } from "@/client/components/home/home-mode-cards";
+import { HomeReadinessStrip } from "@/client/components/home/home-readiness-strip";
+import { useHomeCodebaseAccess } from "@/client/components/home/use-home-codebase-access";
 import { useHomeProviderReadiness } from "@/client/components/home/use-home-provider-readiness";
 import { useMinuteClock } from "@/client/components/home/relative-time";
 import { useHomeCodebases } from "@/client/components/home/use-home-codebases";
@@ -129,6 +133,7 @@ function HomePageContent() {
   const onboardingCompleted = completedOverride ?? (hydrated && readStorage(ONBOARDING_COMPLETED_KEY) === "true");
 
   const { codebases, loaded: codebasesLoaded, refetch: fetchCodebases } = useHomeCodebases(activeWorkspaceId);
+  const codebaseAccess = useHomeCodebaseAccess(codebases, codebasesLoaded);
   const { data: overviewData, retry } = useKanbanOverviewData(workspacesHook.workspaces);
 
   useEffect(() => {
@@ -242,10 +247,11 @@ function HomePageContent() {
         runtimeProviderCount: availableProviders.length,
       })
       : false;
-  const hasCodebase = codebases.length > 0;
+  // Ready only when at least one codebase path is accessible (e4e5c162 L275).
+  const hasCodebase = codebaseAccess.hasAccessibleCodebase;
   // Show onboarding until the user explicitly dismisses it.
   const needsInlineOnboarding = hasWorkspace && !onboardingCompleted;
-  const readinessReady = hydrated && readiness.loaded && codebasesLoaded;
+  const readinessReady = hydrated && readiness.loaded && codebasesLoaded && codebaseAccess.checked;
 
   // Read dismissals on every render: the board strip may have changed them.
   const inbox = buildInboxRows(workspaces, overviewData, now, readAttentionDismissals);
@@ -264,6 +270,7 @@ function HomePageContent() {
       label: latestSession.name
         || (latestSession.provider && latestSession.role ? `${latestSession.provider} · ${latestSession.role.toLowerCase()}` : latestSession.provider)
         || copy.sessionFallback.replace("{id}", latestSession.sessionId.slice(0, 8)),
+      at: Date.parse(latestSession.createdAt),
     }
     : null;
 
@@ -344,6 +351,8 @@ function HomePageContent() {
                   )}
                 </header>
 
+                {hasWorkspace && shownWorkspaceId && <HomeModeCards workspaceId={shownWorkspaceId} />}
+
                 {needsInlineOnboarding && (
                   <OnboardingCard
                     hasWorkspace
@@ -360,8 +369,8 @@ function HomePageContent() {
                   />
                 )}
 
-                {readinessReady && !needsInlineOnboarding && (
-                  <HomeReadinessNotice
+                {readinessReady && (
+                  <HomeReadinessStrip
                     missingModel={!hasProviderConfig}
                     missingCodebase={!hasCodebase}
                     onConfigureModel={handleOpenProviders}
@@ -424,7 +433,7 @@ function HomePageContent() {
 
                 <div className="grid grid-cols-1 gap-4 min-[801px]:grid-cols-2">
                   <HomeLatestResult result={latestResult} loading={anyLoading} now={now} />
-                  <HomeCreateSection workspaceId={shownWorkspaceId} continueSession={continueSession} />
+                  <HomeCreateSection workspaceId={shownWorkspaceId} continueSession={continueSession} now={now} />
                 </div>
               </div>
             </div>

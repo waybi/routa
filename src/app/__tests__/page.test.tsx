@@ -180,7 +180,7 @@ describe("HomePage", () => {
     });
   });
 
-  it("replaces the mode cards with one card per workspace", async () => {
+  it("shows one card per workspace and keeps the execution-mode cards visible", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
@@ -190,7 +190,7 @@ describe("HomePage", () => {
     const card = screen.getByTestId("home-workspace-card");
     expect(card.textContent).toContain("Default Workspace");
     expect(card.querySelector("a")?.getAttribute("href")).toBe("/workspace/default/kanban");
-    expect(screen.queryByText("Technical detail")).toBeNull();
+    expect(screen.getAllByText("Technical detail")).toHaveLength(3);
     expect(screen.queryByText("Kanban mode description")).toBeNull();
   });
 });
