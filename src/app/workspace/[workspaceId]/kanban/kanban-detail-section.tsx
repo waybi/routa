@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { useTranslation } from "@/i18n";
 
 /**
- * Building blocks shared by the four card-detail tabs (design-spec §5
- * "详情抽屉"): a titled section, a label/value line, a small summary cell
- * and a native <details> disclosure. Colors come from the redesign tokens
+ * Building blocks shared by the card-detail tabs (design-spec §5
+ * "详情抽屉"): a titled section, a label/value line and a small summary
+ * cell. Colors come from the redesign tokens
  * only (src/app/globals.css), so light and dark themes stay in contrast.
  */
 
@@ -69,47 +69,6 @@ export function SummaryGridItem({
       <div className="font-medium text-primary">{value}</div>
       {detail && !compact ? <div className="text-xs leading-5 text-secondary">{detail}</div> : null}
     </div>
-  );
-}
-
-/**
- * Native details/summary: Space/Enter toggle it and it keeps a visible focus
- * ring. Children mount only while open, so a collapsed area (e.g. Advanced)
- * does not fire its option requests when the card opens.
- */
-export function DetailDisclosure({
-  summary,
-  hint,
-  children,
-  defaultOpen = false,
-  testId,
-}: {
-  summary: ReactNode;
-  hint?: ReactNode;
-  children: ReactNode;
-  defaultOpen?: boolean;
-  testId?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <details open={open || undefined} className="group rounded-md border border-default bg-surface" data-testid={testId}>
-      <summary
-        onClick={(event) => {
-          // Toggle in React state (synchronously); Space/Enter on the
-          // focused summary fire this same click.
-          event.preventDefault();
-          setOpen((value) => !value);
-        }}
-        aria-expanded={open}
-        className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-3 py-2.5 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0">
-          <span className="block text-[13px] font-semibold text-primary">{summary}</span>
-          {hint ? <span className="mt-0.5 block text-xs text-secondary">{hint}</span> : null}
-        </span>
-        <span aria-hidden="true" className="shrink-0 text-xs text-secondary transition-transform group-open:rotate-90">›</span>
-      </summary>
-      {open ? <div className="space-y-3 border-t border-default px-3 py-3">{children}</div> : null}
-    </details>
   );
 }
 

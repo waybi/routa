@@ -23,7 +23,7 @@ import {
   getSpecialistName,
   type KanbanSpecialistOption as SpecialistOption,
 } from "./kanban-card-session-utils";
-import { DetailDisclosure, DetailSection, InlineSummary } from "./kanban-detail-section";
+import { DetailSection, InlineSummary } from "./kanban-detail-section";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useRetrySubmit } from "./use-kanban-retry-feedback";
 import {
@@ -35,9 +35,10 @@ import {
 } from "./kanban-specialist-language";
 
 /**
- * Stage progress (lane, pipeline, run target, artifact gates, run / rerun /
- * recover) and the collapsed "Advanced" area of the Construction tab.
- * Moved out of kanban-card-detail.tsx for the redesign (card 3/6).
+ * Execution tab body: lane, pipeline, run target, artifact gates, the card
+ * session override (its own disclosure, open when the card has an override),
+ * the fallback agent chain and run / rerun / recover. Everything sits
+ * directly in the section, as in the detail before the redesign.
  */
 
 const ROLE_OPTIONS = ["CRAFTER", "ROUTA", "GATE", "DEVELOPER"];
@@ -125,8 +126,6 @@ export interface KanbanDetailExecutionProps {
   onRetryTrigger: (taskId: string) => Promise<void>;
   onProviderChange?: (providerId: string | null) => void;
   compact?: boolean;
-  /** Handoff + GitHub blocks rendered at the end of the Advanced area. */
-  advancedExtras?: ReactNode;
 }
 
 export function KanbanDetailExecution({
@@ -142,7 +141,6 @@ export function KanbanDetailExecution({
   onRetryTrigger,
   onProviderChange,
   compact = false,
-  advancedExtras,
 }: KanbanDetailExecutionProps) {
   const { t } = useTranslation();
   const sessionCopy = getKanbanSessionCopy(specialistLanguage);
@@ -222,10 +220,10 @@ export function KanbanDetailExecution({
   return (
     <>
       <DetailSection
-        title={t.kanbanDetailRedesign.stageProgress}
-        description={compact ? undefined : t.kanbanDetailRedesign.stageProgressHint}
+        title={t.kanbanDetail.execution}
+        description={compact ? undefined : t.kanbanDetail.executionHint}
         compact={compact}
-        testId="kanban-detail-stage-progress"
+        testId="kanban-detail-execution-settings"
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -258,6 +256,72 @@ export function KanbanDetailExecution({
             />
           ) : null}
         </div>
+        <details key={overrideKey} open={hasCardOverride || undefined} className="rounded-md border border-default">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2.5 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+            <span>
+              <span className="block text-xs font-semibold text-primary">{t.kanbanDetail.cardSessionOverride}</span>
+              <span className="mt-0.5 block text-xs text-secondary">{t.kanbanDetail.keepCardSessionOverride}</span>
+            </span>
+            <span className="rounded-control border border-default px-2.5 py-1 text-[11px] text-secondary">
+              {hasCardOverride ? t.kanbanDetail.editOverride : t.kanbanDetail.overrideCard}
+            </span>
+          </summary>
+          <div className="space-y-2.5 border-t border-default px-3 py-3">
+            {hasCardOverride ? (
+              <Callout tone="attention">
+                {overrideProviderValue
+                  ? `${t.kanbanDetail.cardHasExplicitOverride} ${getProviderName(task.assignedProvider, availableProviders, defaultLabel)} · ${task.assignedRole ?? "DEVELOPER"} · ${cardSpecialist}`
+                  : t.kanbanDetail.noCardOverride}
+              </Callout>
+            ) : null}
+            <KanbanCardProviderOverrideDropdown
+              task={task}
+              hasCardOverride={hasCardOverride}
+              availableProviders={availableProviders}
+              overrideProviderValue={overrideProviderValue}
+              compact={compact}
+              onPatchTask={onPatchTask}
+              onProviderChange={onProviderChange}
+            />
+            <KanbanCardModelEffortOverride task={task} providerIds={[effectiveAutomation.providerId, selectedProvider]} compact={compact} onPatchTask={onPatchTask} />
+            {hasCardOverride ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Select
+                  value={overrideRoleValue}
+                  aria-label={t.kanbanDetail.cardSessionOverride}
+                  onChange={async (event) => {
+                    await onPatchTask(task.id, { assignedRole: event.target.value });
+                  }}
+                  className={FIELD_CLASS}
+                >
+                  {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+                </Select>
+                <Select
+                  value={overrideSpecialistValue}
+                  onChange={async (event) => {
+                    const specialist = findSpecialistById(specialists, event.target.value);
+                    await onPatchTask(task.id, {
+                      assignedSpecialistId: event.target.value || undefined,
+                      assignedSpecialistName: specialist?.name,
+                      assignedRole: specialist?.role ?? (hasCardOverride ? task.assignedRole : undefined),
+                    });
+                  }}
+                  className={FIELD_CLASS}
+                >
+                  <option value="">{KANBAN_SPECIALIST_LANGUAGE_LABELS[specialistLanguage].noSpecialist}</option>
+                  {specialists.map((specialist) => <option key={specialist.id} value={specialist.id}>{getSpecialistDisplayName(specialist)}</option>)}
+                </Select>
+              </div>
+            ) : null}
+          </div>
+        </details>
+        <FallbackAgentChainEditor
+          task={task}
+          specialists={specialists}
+          availableProviders={availableProviders}
+          specialistLanguage={specialistLanguage}
+          onPatchTask={onPatchTask}
+        />
         {canRunTask && !hasRecordedRuns ? (
           <Callout tone="info">
             {sessionCopy.emptyPaneDescription} {sessionCopy.emptyPaneHint}
@@ -326,81 +390,6 @@ export function KanbanDetailExecution({
         ) : null}
       </DetailSection>
 
-      <div className="py-4" data-testid="kanban-detail-advanced-wrapper">
-        <DetailDisclosure
-          summary={t.kanbanDetailRedesign.advancedSettings}
-          hint={compact ? undefined : t.kanbanDetailRedesign.advancedSettingsHint}
-          testId="kanban-detail-advanced"
-        >
-          <details key={overrideKey} open={hasCardOverride || undefined} className="rounded-md border border-default">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2.5 hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
-              <span>
-                <span className="block text-xs font-semibold text-primary">{t.kanbanDetail.cardSessionOverride}</span>
-                <span className="mt-0.5 block text-xs text-secondary">{t.kanbanDetail.keepCardSessionOverride}</span>
-              </span>
-              <span className="rounded-control border border-default px-2.5 py-1 text-[11px] text-secondary">
-                {hasCardOverride ? t.kanbanDetail.editOverride : t.kanbanDetail.overrideCard}
-              </span>
-            </summary>
-            <div className="space-y-2.5 border-t border-default px-3 py-3">
-              {hasCardOverride ? (
-                <Callout tone="attention">
-                  {overrideProviderValue
-                    ? `${t.kanbanDetail.cardHasExplicitOverride} ${getProviderName(task.assignedProvider, availableProviders, defaultLabel)} · ${task.assignedRole ?? "DEVELOPER"} · ${cardSpecialist}`
-                    : t.kanbanDetail.noCardOverride}
-                </Callout>
-              ) : null}
-              <KanbanCardProviderOverrideDropdown
-                task={task}
-                hasCardOverride={hasCardOverride}
-                availableProviders={availableProviders}
-                overrideProviderValue={overrideProviderValue}
-                compact={compact}
-                onPatchTask={onPatchTask}
-                onProviderChange={onProviderChange}
-              />
-              <KanbanCardModelEffortOverride task={task} providerIds={[effectiveAutomation.providerId, selectedProvider]} compact={compact} onPatchTask={onPatchTask} />
-              {hasCardOverride ? (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Select
-                    value={overrideRoleValue}
-                    aria-label={t.kanbanDetail.cardSessionOverride}
-                    onChange={async (event) => {
-                      await onPatchTask(task.id, { assignedRole: event.target.value });
-                    }}
-                    className={FIELD_CLASS}
-                  >
-                    {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
-                  </Select>
-                  <Select
-                    value={overrideSpecialistValue}
-                    onChange={async (event) => {
-                      const specialist = findSpecialistById(specialists, event.target.value);
-                      await onPatchTask(task.id, {
-                        assignedSpecialistId: event.target.value || undefined,
-                        assignedSpecialistName: specialist?.name,
-                        assignedRole: specialist?.role ?? (hasCardOverride ? task.assignedRole : undefined),
-                      });
-                    }}
-                    className={FIELD_CLASS}
-                  >
-                    <option value="">{KANBAN_SPECIALIST_LANGUAGE_LABELS[specialistLanguage].noSpecialist}</option>
-                    {specialists.map((specialist) => <option key={specialist.id} value={specialist.id}>{getSpecialistDisplayName(specialist)}</option>)}
-                  </Select>
-                </div>
-              ) : null}
-            </div>
-          </details>
-          <FallbackAgentChainEditor
-            task={task}
-            specialists={specialists}
-            availableProviders={availableProviders}
-            specialistLanguage={specialistLanguage}
-            onPatchTask={onPatchTask}
-          />
-          {advancedExtras ?? null}
-        </DetailDisclosure>
-      </div>
     </>
   );
 }
