@@ -489,6 +489,7 @@ export const enExtended: ExtendedTranslationDictionarySections = {
     done: "Done",
     rerun: "Rerun",
     run: "Run",
+    retryStarting: "Starting…",
     providerLabel: "Provider",
     useLaneDefault: "Use lane default",
     selectProviderHint: "Select a provider above only if this card needs to override the lane default.",

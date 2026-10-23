@@ -489,6 +489,7 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
     done: "完成",
     rerun: "重新运行",
     run: "运行",
+    retryStarting: "启动中…",
     providerLabel: "供应商",
     useLaneDefault: "使用泳道默认",
     selectProviderHint: "仅当此卡片需要覆盖泳道默认值时才选择上方的供应商。",

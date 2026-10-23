@@ -21,6 +21,7 @@ import {
 import { GripVertical, Trash2 } from "lucide-react";
 import { Badge, type Tone } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
+import { useRetrySubmit } from "./use-kanban-retry-feedback";
 
 
 interface SpecialistOption {
@@ -44,6 +45,8 @@ export interface KanbanCardProps {
   worktreeCache: Record<string, WorktreeInfo>;
   autoProviderId?: string;
   queuePosition?: number;
+  /** A rerun was requested and its new run is not visible yet. */
+  retryPending?: boolean;
   onOpenDetail: () => void;
   onDelete: () => void;
   onPatchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
@@ -311,6 +314,7 @@ function KanbanCardSurface({
   worktreeCache,
   autoProviderId,
   queuePosition,
+  retryPending = false,
   onOpenDetail,
   onDelete,
   onPatchTask,
@@ -342,9 +346,12 @@ function KanbanCardSurface({
     acpStatus: sessionStatus,
     session: linkedSession,
     queuePosition,
+    retryPending,
     now,
   });
   const runStatus = activity.status;
+  const retrySubmit = useRetrySubmit(onRetryTrigger);
+  const retryBusy = retrySubmit.submitting || retryPending;
   const canRetry = effectiveAutomation.canRun && (
     sessionStatus === "error"
     || (!isTerminalCard && activity.status === "failed")
@@ -523,17 +530,20 @@ function KanbanCardSurface({
             <Badge tone={getPriorityBadgeTone(task.priority)}>{prioritySizeLabel}</Badge>
           </span>
         )}
-        {(canRun || canRetry) && (
+        {(canRun || canRetry || retrySubmit.submitting) && (
           <Button
             variant={canRetry ? "secondary" : "ghost"}
             size="xs"
             className="ml-auto"
+            disabled={retryBusy}
+            aria-busy={retryBusy}
+            data-testid="kanban-card-run"
             onClick={(event) => {
               event.stopPropagation();
-              void onRetryTrigger(task.id);
+              void retrySubmit.submit(task.id);
             }}
           >
-            {canRetry ? t.kanban.rerun : t.kanban.run}
+            {retryBusy ? t.kanban.retryStarting : canRetry ? t.kanban.rerun : t.kanban.run}
           </Button>
         )}
       </div>

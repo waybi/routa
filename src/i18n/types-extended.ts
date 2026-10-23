@@ -77,6 +77,8 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     done: string;
     rerun: string;
     run: string;
+    /** Run / rerun button label while the request is in flight or the new run is not visible yet. */
+    retryStarting: string;
     providerLabel: string;
     useLaneDefault: string;
     selectProviderHint: string;

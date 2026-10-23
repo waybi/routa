@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanCardDetail, type KanbanCardDetailProps } from "../kanban-card-detail";
 import type { TaskInfo } from "../../types";
@@ -294,5 +294,45 @@ describe("card detail redesign: completion (AC8)", () => {
     const panel = screen.getByTestId("kanban-completion-report");
     expect(within(panel).queryByRole("button", { name: /edit/i })).toBeNull();
     expect(panel.querySelector("article")?.className).toContain("bg-success-subtle");
+  });
+});
+
+describe("card detail run button feedback (card 1e7dd356)", () => {
+  const devLane = [{ id: "dev", name: "Dev", position: 0, stage: "dev" as const, automation: { enabled: true, steps: [{ id: "s1", providerId: "dsh", role: "CRAFTER" }] } }];
+  const failedDevTask: Partial<TaskInfo> = {
+    columnId: "dev",
+    triggerSessionId: "session-failed",
+    laneSessions: [{ sessionId: "session-failed", columnId: "dev", columnName: "Dev", status: "failed", startedAt: "2026-10-23T13:00:00.000Z" }],
+  };
+
+  it("shows a disabled 'Starting…' at once and does not send a second request", async () => {
+    let finish: () => void = () => {};
+    const onRetryTrigger = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    renderDetail({ id: "detail-run-busy", ...failedDevTask }, { boardColumns: devLane, onRetryTrigger });
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+
+    const button = screen.getByTestId("kanban-detail-run") as HTMLButtonElement;
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(onRetryTrigger).toHaveBeenCalledTimes(1);
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe("Starting…");
+    await act(async () => finish());
+    expect((screen.getByTestId("kanban-detail-run") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("turns back into 'Rerun' and clickable when the request fails", async () => {
+    let fail: (error: Error) => void = () => {};
+    const onRetryTrigger = vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    renderDetail({ id: "detail-run-fail", ...failedDevTask }, { boardColumns: devLane, onRetryTrigger });
+    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+
+    fireEvent.click(screen.getByTestId("kanban-detail-run"));
+    await act(async () => fail(new Error("500")));
+
+    const button = screen.getByTestId("kanban-detail-run") as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe("Rerun");
   });
 });

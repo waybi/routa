@@ -3,7 +3,7 @@
  * per run status, failure reason surviving a cleaned-up session, rerun on
  * failed cards, the unmerged-base badge, and the workspace / card-id row.
  */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo } from "../../types";
 import { KanbanCard, formatLaneActivityLine } from "../kanban-card";
@@ -38,7 +38,7 @@ function session(overrides: Partial<SessionInfo>): SessionInfo {
   return { sessionId: "s1", cwd: "/tmp", workspaceId: "ws", createdAt: new Date().toISOString(), ...overrides } as SessionInfo;
 }
 
-function renderCard(props: { task: TaskInfo; linkedSession?: SessionInfo; onRetryTrigger?: (id: string) => Promise<void>; showWorkspace?: boolean; workspaceName?: string }) {
+function renderCard(props: { task: TaskInfo; linkedSession?: SessionInfo; onRetryTrigger?: (id: string) => Promise<void>; showWorkspace?: boolean; workspaceName?: string; retryPending?: boolean }) {
   return render(
     <KanbanCard
       task={props.task}
@@ -58,6 +58,7 @@ function renderCard(props: { task: TaskInfo; linkedSession?: SessionInfo; onRetr
       onRefresh={vi.fn()}
       showWorkspace={props.showWorkspace}
       workspaceName={props.workspaceName}
+      retryPending={props.retryPending}
     />,
   );
 }
@@ -177,6 +178,80 @@ describe("AC7 failure reason survives a cleaned-up run, rerun stays available", 
 
     fireEvent.click(screen.getByRole("button", { name: "Rerun" }));
     expect(onRetryTrigger).toHaveBeenCalledWith(failedTask.id);
+  });
+});
+
+describe("rerun feedback on the card face (card 1e7dd356)", () => {
+  const failedRun = { sessionId: "old-run", columnId: "dev", status: "failed" as const, startedAt: "2026-10-23T13:00:00.000Z" };
+  const failedTask = () => task({ triggerSessionId: undefined, laneSessions: [failedRun] });
+  const failedMap = () => new Map<string, SessionInfo>([
+    ["old-run", session({ sessionId: "old-run", acpStatus: "error", acpError: "process exited" })],
+  ]);
+
+  it("turns the button into a disabled 'Starting…' at once and ignores repeat clicks", async () => {
+    let finish: () => void = () => {};
+    const onRetryTrigger = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    renderCard({ task: failedTask(), linkedSession: resolveCardLinkedSession(failedTask(), failedMap()), onRetryTrigger });
+
+    const button = screen.getByTestId("kanban-card-run");
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(onRetryTrigger).toHaveBeenCalledTimes(1);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.textContent).toBe("Starting…");
+    await act(async () => finish());
+  });
+
+  it("turns the button back on with its label when the request fails", async () => {
+    let fail: (error: Error) => void = () => {};
+    const onRetryTrigger = vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    renderCard({ task: failedTask(), linkedSession: resolveCardLinkedSession(failedTask(), failedMap()), onRetryTrigger });
+
+    fireEvent.click(screen.getByTestId("kanban-card-run"));
+    await act(async () => fail(new Error("409 conflict")));
+
+    const button = screen.getByTestId("kanban-card-run") as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe("Rerun");
+    fireEvent.click(button);
+    expect(onRetryTrigger).toHaveBeenCalledTimes(2);
+  });
+
+  it("queued rerun (no trigger session yet): shows starting, not the previous failure", () => {
+    const pendingTask = failedTask();
+    renderCard({
+      task: pendingTask,
+      linkedSession: resolveCardLinkedSession(pendingTask, failedMap(), { retryPending: true }),
+      retryPending: true,
+    });
+
+    const status = screen.getByTestId("kanban-card-run-status");
+    expect(status.getAttribute("data-run-status")).toBe("starting");
+    expect(status.textContent).not.toContain("Failed");
+    expect(screen.getByTestId("kanban-card-status-dot").className).not.toContain("bg-danger");
+    expect(screen.queryByText(/process exited/)).toBeNull();
+    const button = screen.getByTestId("kanban-card-run") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe("Starting…");
+  });
+
+  it("started rerun not yet in the session list: shows starting; once listed, its real status", () => {
+    const startedTask = task({
+      triggerSessionId: "new-run",
+      laneSessions: [failedRun, { sessionId: "new-run", columnId: "dev", status: "running", startedAt: "2026-10-23T13:20:00.000Z" }],
+    });
+    const { unmount } = renderCard({
+      task: startedTask,
+      linkedSession: resolveCardLinkedSession(startedTask, failedMap(), { retryPending: true }),
+      retryPending: true,
+    });
+    expect(screen.getByTestId("kanban-card-run-status").getAttribute("data-run-status")).toBe("starting");
+    unmount();
+
+    const listed = new Map(failedMap()).set("new-run", session({ sessionId: "new-run", acpStatus: "error", acpError: "boom" }));
+    renderCard({ task: startedTask, linkedSession: resolveCardLinkedSession(startedTask, listed) });
+    expect(screen.getByTestId("kanban-card-run-status").getAttribute("data-run-status")).toBe("failed");
   });
 });
 

@@ -68,6 +68,11 @@ export interface ResolveCardRunStatusInput {
   /** Live session heartbeat; wins over the lane record when present. */
   session?: CardSessionActivity;
   queuePosition?: number;
+  /**
+   * A rerun was just requested and its new run is not visible yet: read
+   * "starting" instead of the previous run's lane record.
+   */
+  retryPending?: boolean;
   /** Injected for deterministic tests. */
   now?: number;
 }
@@ -113,6 +118,7 @@ export function describeCardActivity({
   acpStatus,
   session,
   queuePosition,
+  retryPending,
   now = Date.now(),
 }: ResolveCardRunStatusInput): CardActivityDetail {
   const laneSession = findCurrentLaneSession(task);
@@ -128,6 +134,7 @@ export function describeCardActivity({
   const base = { quietMs, runningTool, turnDone };
 
   if (queuePosition) return { ...base, status: "queued" };
+  if (retryPending && !session) return { ...base, status: "starting" };
   if (acpStatus === "error") {
     return { ...base, status: "failed", failureReason: session?.acpError ?? session?.terminalReason };
   }

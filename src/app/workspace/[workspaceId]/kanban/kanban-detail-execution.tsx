@@ -25,6 +25,7 @@ import {
 } from "./kanban-card-session-utils";
 import { DetailDisclosure, DetailSection, InlineSummary } from "./kanban-detail-section";
 import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
+import { useRetrySubmit } from "./use-kanban-retry-feedback";
 import {
   findSpecialistById,
   getLanguageSpecificSpecialistId,
@@ -211,6 +212,7 @@ export function KanbanDetailExecution({
   const transitionArtifacts = resolveKanbanTransitionArtifacts(boardColumns, task.columnId);
   const overrideKey = `${task.id}:${task.assignedProvider ?? ""}:${task.assignedRole ?? ""}:${task.assignedSpecialistId ?? ""}:${task.assignedSpecialistName ?? ""}`;
   const needsLiveRunRecovery = isExpiredEmbeddedSessionFailure(failureMessage);
+  const retrySubmit = useRetrySubmit(onRetryTrigger);
   const runActionLabel = needsLiveRunRecovery
     ? t.kanbanDetail.recoverLiveRun
     : hasRecordedRuns ? t.kanban.rerun : t.kanban.run;
@@ -311,11 +313,13 @@ export function KanbanDetailExecution({
                 size="sm"
                 className={hasCardOverride ? "ml-auto" : ""}
                 data-testid="kanban-detail-run"
-                onClick={async () => {
-                  await onRetryTrigger(task.id);
+                disabled={retrySubmit.submitting}
+                aria-busy={retrySubmit.submitting}
+                onClick={() => {
+                  void retrySubmit.submit(task.id);
                 }}
               >
-                {runActionLabel}
+                {retrySubmit.submitting ? t.kanban.retryStarting : runActionLabel}
               </Button>
             ) : null}
           </div>

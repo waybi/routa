@@ -71,8 +71,11 @@ export function mergeSessionActivity(
 export function resolveCardLinkedSession(
   task: Pick<TaskInfo, "triggerSessionId" | "columnId" | "laneSessions">,
   sessionMap: Map<string, SessionInfo>,
+  options: { retryPending?: boolean } = {},
 ): SessionInfo | undefined {
   if (task.triggerSessionId) return sessionMap.get(task.triggerSessionId);
+  // A rerun is starting: the old failed run is no longer the card's run.
+  if (options.retryPending) return undefined;
   const failed = (task.laneSessions ?? [])
     .filter((entry) => entry.columnId === task.columnId
       && (entry.status === "failed" || entry.status === "timed_out"))
