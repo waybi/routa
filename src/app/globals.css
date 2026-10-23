@@ -304,17 +304,28 @@ html.dark .role-chip-developer {
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(128, 128, 128, 0.3);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(128, 128, 128, 0.5);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* xterm.js 6 draws its own scrollbar with an inline 14px width that the
+   webkit pseudo-element rules above never reach; thin it to the same 4px. */
+.xterm .xterm-scrollable-element > .scrollbar.vertical,
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  width: 4px !important;
 }
 
 /* ─── Tiptap Editor Styles ──────────────────────────────────────────── */

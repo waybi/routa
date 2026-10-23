@@ -212,8 +212,8 @@ html.dark {
 
 /* Scrollbar */
 .cm-container ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 .cm-container ::-webkit-scrollbar-track {
@@ -222,7 +222,7 @@ html.dark {
 
 .cm-container ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .cm-container ::-webkit-scrollbar-thumb:hover {
@@ -237,6 +237,12 @@ html.dark {
   .cm-container ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
   }
+}
+
+/* Chrome ignores :hover on scrollbar pseudo-elements inside the nested
+   html.dark block above, so repeat the dark hover color as a flat rule. */
+html.dark .cm-container ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Selection */

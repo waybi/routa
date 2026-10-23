@@ -123,13 +123,13 @@ html.dark {
 }
 
 .desktop-scrollbar::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 4px;
+  height: 4px;
 }
 
 .desktop-scrollbar-thin::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 4px;
+  height: 4px;
 }
 
 .desktop-scrollbar::-webkit-scrollbar-track {
@@ -142,27 +142,27 @@ html.dark {
 
 .desktop-scrollbar::-webkit-scrollbar-thumb {
   background: var(--dt-scrollbar-thumb);
-  border-radius: 5px;
-  border: 2px solid transparent;
+  border-radius: 2px;
+  border: 0;
   background-clip: padding-box;
 }
 
 .desktop-scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--dt-scrollbar-thumb);
   border-radius: 9999px;
-  border: 1px solid transparent;
+  border: 0;
   background-clip: padding-box;
 }
 
 .desktop-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--dt-scrollbar-thumb-hover);
-  border: 2px solid transparent;
+  border: 0;
   background-clip: padding-box;
 }
 
 .desktop-scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--dt-scrollbar-thumb-hover);
-  border: 1px solid transparent;
+  border: 0;
   background-clip: padding-box;
 }
 
