@@ -90,7 +90,7 @@ describe("SessionsPageClient redesign", () => {
     const search = screen.getByRole("searchbox", { name: copy.searchSessions });
     fireEvent.change(search, { target: { value: "login" } });
     expect(rows()).toHaveLength(1);
-    expect(screen.getByText("Fix login redirect")).toBeTruthy();
+    expect(within(rows()[0]).getByText("Fix login redirect")).toBeTruthy();
 
     fireEvent.change(search, { target: { value: "DEF6" } });
     expect(rows()).toHaveLength(1);

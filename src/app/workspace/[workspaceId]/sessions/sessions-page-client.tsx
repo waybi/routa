@@ -15,6 +15,7 @@ import { useTranslation } from "@/i18n";
 import { SessionsOverview } from "../sessions-overview";
 import type { SessionInfo } from "../types";
 import { PageHeader, SearchField, focusFirstEditable, pickSessions, useListLoader } from "./sessions-redesign-parts";
+import { SessionsRecentButton, SessionsSummaryPills } from "./sessions-page-summary";
 
 const TEAM_LEAD_SPECIALIST_ID = "team-agent-lead";
 
@@ -74,6 +75,9 @@ export function SessionsPageClient() {
   }, [router, workspacesHook]);
 
   const firstLoad = list.status === "loading" && !list.loadedOnce;
+  const openSession = useCallback((targetSessionId: string) => {
+    router.push(`/workspace/${workspaceId}/sessions/${targetSessionId}`);
+  }, [router, workspaceId]);
 
   return (
     <DesktopAppShell
@@ -109,6 +113,8 @@ export function SessionsPageClient() {
             )}
           />
 
+          <SessionsSummaryPills sessions={visibleSessions} />
+
           <SearchField
             value={query}
             onChange={setQuery}
@@ -134,7 +140,7 @@ export function SessionsPageClient() {
             <SessionsOverview
               sessions={visibleSessions}
               workspaceId={workspaceId}
-              onNavigate={(targetSessionId) => router.push(`/workspace/${workspaceId}/sessions/${targetSessionId}`)}
+              onNavigate={openSession}
               onRefresh={list.reload}
               filterSession={shouldShowSession}
               searchQuery={query}
@@ -147,9 +153,12 @@ export function SessionsPageClient() {
             aria-label={t.home.modeSessionTitle}
             className="rounded-lg border border-default bg-surface p-4"
           >
-            <div className="mb-3">
-              <h2 className="m-0 text-[15px] font-semibold text-primary">{t.home.modeSessionTitle}</h2>
-              <p className="m-0 mt-1 text-xs text-secondary">{t.home.modeSessionDescription}</p>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="m-0 text-[15px] font-semibold text-primary">{t.home.modeSessionTitle}</h2>
+                <p className="m-0 mt-1 text-xs text-secondary">{t.home.modeSessionDescription}</p>
+              </div>
+              <SessionsRecentButton sessions={visibleSessions} onOpen={openSession} />
             </div>
             <HomeInput
               workspaceId={workspaceId}
