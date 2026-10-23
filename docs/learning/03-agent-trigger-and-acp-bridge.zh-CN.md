@@ -408,6 +408,25 @@ PROVIDER_MODEL_TIERS = {
 
 Specialist 可以指定 `modelTier`，系统根据 tier + provider 自动选模型。
 
+看板施工者最终用哪个模型，按下面的顺序取第一个有值的（前两层在 `agent-trigger.ts` 的 `resolveSessionModelSelection`，后面几层在 `acp-session-create.ts`）：
+
+~~~plaintext
+卡片 assignedModel
+  > 看板列步骤 model（看板设置里选「跟随默认」= 留空）
+  > 岗位自己的 model（specialist.model）
+  > 看板施工者默认模型（设置 › 岗位页顶部；只对 dsh 生效）
+  > PROVIDER_MODEL_TIERS[provider][岗位档位]（代码默认）
+  > acp profile 兜底模型（不传 DSH_ACP_MODEL）
+~~~
+
+「看板施工者默认模型」按快速 / 平衡 / 智能三档各存一个 Local 7357 模型 id，存在服务端文件
+`~/.routa/kanban-model-tiers.json`（环境变量 `ROUTA_KANBAN_MODEL_TIERS_FILE` 可改路径），
+接口 `GET/PUT /api/kanban/model-tiers`（PUT 传 `null` 或空串 = 跟随代码默认）。
+每次起施工者都重新读这个文件，所以改完不用重启；正在跑的施工者不受影响。
+正常列流转、列内下一步、PATCH retryTrigger、POST revive 和直接 POST /api/acp session/new 都经过这一层，
+`src/core/kanban/__tests__/lane-model-tier-entry-paths.test.ts` 逐条覆盖。
+看板设置里步骤的「跟随默认」选项悬停时，会显示这一步实际会用的模型和来源。
+
 ### 5c. 复合模型 ID：`provider:model`
 
 ~~~plaintext
@@ -578,3 +597,9 @@ prompt 本身就是 Agent 的行为约束边界。
 | MCP 工具集 | `mcp-config-generator.ts` + `mcp-setup.ts` | Agent 能用哪些工具、不同 mcpProfile 有什么区别 |
 | 泳道经验记忆 | `task-lane-experience.ts` | 跨任务历史怎么注入新会话——Routa 比普通看板"聪明"的地方 |
 | 进程管理 | `acp-process-manager.ts` | CLI 进程的启动/停止/重启/超时/Docker |
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交 |
+|---|---|---|---|
+| 2026-10-23 | 新增「看板施工者默认模型」全局档位设置，插在岗位 model 和 PROVIDER_MODEL_TIERS 之间 | 换施工者默认模型不用再改代码、重新构建 | （见本次提交） |

@@ -29,8 +29,7 @@ import {
 } from "@/core/acp/execution-backend";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
 import { applySessionConfig } from "@/core/acp/session-config-apply";
-import { getModelForProvider, PROVIDER_MODEL_TIERS } from "@/core/acp/provider-registry";
-import { ModelTier } from "@/core/models/agent";
+import { resolveTierModelForProvider } from "@/core/kanban/kanban-model-tiers";
 import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
 import { pendingAcpCreations } from "@/core/acp/pending-acp-creations";
 import { buildFeatureTreeSpecPromptSection } from "@/core/spec/feature-tree-spec-resource-contract";
@@ -734,17 +733,14 @@ export async function handleSessionNew({
         );
       } else {
         // Resolve tier-based model for providers that support it (e.g. dsh).
-        // If no explicit model was requested, derive one from the specialist's
-        // defaultModelTier and the provider's tier→model mapping.
+        // If no explicit model was requested (card / column step / specialist),
+        // derive one from the specialist's defaultModelTier: the global
+        // "lane agent default model" setting first (dsh only), then the
+        // provider's PROVIDER_MODEL_TIERS table. No tier: the acp default.
         let resolvedModel = model;
         let dshModelEnv: Record<string, string> | undefined;
-        if (!resolvedModel && specialist?.defaultModelTier && PROVIDER_MODEL_TIERS[provider]) {
-          const tierKey = specialist.defaultModelTier === ModelTier.FAST
-            ? "fast"
-            : specialist.defaultModelTier === ModelTier.BALANCED
-              ? "balanced"
-              : "smart";
-          resolvedModel = getModelForProvider(provider, tierKey);
+        if (!resolvedModel && specialist?.defaultModelTier) {
+          resolvedModel = resolveTierModelForProvider(provider, specialist.defaultModelTier);
         }
         // For DSH provider, pass the resolved model via environment variable
         // so the DSH ACP profile can pick it up dynamically.
