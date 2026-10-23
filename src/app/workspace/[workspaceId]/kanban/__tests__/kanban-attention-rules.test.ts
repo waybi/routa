@@ -3,6 +3,9 @@ import {
   attentionDismissKey,
   boardHasMainPusher,
   collectAttentionItems,
+  collectTaskAttentionItems,
+  findInterruptedLaneSession,
+  isTaskInterrupted,
 } from "../kanban-attention-rules";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 
@@ -16,8 +19,8 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-function session(columnId: string, startedAt: number, status: LaneSession["status"]): LaneSession {
-  return { sessionId: `${columnId}-${startedAt}`, columnId, startedAt: iso(startedAt), status };
+function session(columnId: string, startedAt: number, status: LaneSession["status"], extra: Partial<LaneSession> = {}): LaneSession {
+  return { sessionId: `${columnId}-${startedAt}`, columnId, startedAt: iso(startedAt), status, ...extra };
 }
 
 function task(id: string, overrides: Partial<TaskInfo> = {}): TaskInfo {
@@ -58,6 +61,11 @@ describe("blocked rule", () => {
 
   it("does not report cards in other lanes", () => {
     expect(kinds([task("d", { columnId: "dev" })])).toEqual([]);
+  });
+
+  it("a blocked card with a failed run still yields only blocked", () => {
+    const failed = session("dev", NOW - HOUR, "failed");
+    expect(kinds([task("b", { columnId: "blocked", triggerSessionId: failed.sessionId, laneSessions: [failed] })])).toEqual(["b:blocked:0"]);
   });
 });
 
@@ -128,5 +136,111 @@ describe("boardHasMainPusher and dismiss key", () => {
   it("keys on card + kind + ahead (0 for non-unmerged kinds)", () => {
     expect(attentionDismissKey({ taskId: "a", kind: "unmerged", ahead: 3 })).toBe("a|unmerged|3");
     expect(attentionDismissKey({ taskId: "a", kind: "blocked", ahead: 9 })).toBe("a|blocked|0");
+  });
+
+  it("keeps the four old kinds' keys byte-for-byte (keys computed on the pre-change code)", () => {
+    expect(attentionDismissKey({ taskId: "a", kind: "doneFailed", ahead: 0 })).toBe("a|doneFailed|0");
+    expect(attentionDismissKey({ taskId: "a", kind: "noReport", ahead: 4 })).toBe("a|noReport|0");
+    expect(attentionDismissKey({ taskId: "a", kind: "unmerged", ahead: 0 })).toBe("a|unmerged|0");
+    // An old-kind item that somehow carries a sessionId must not change its key.
+    expect(attentionDismissKey({ taskId: "a", kind: "blocked", ahead: 0, sessionId: "s9" })).toBe("a|blocked|0");
+    expect(attentionDismissKey({ taskId: "a", kind: "unmerged", ahead: 2, sessionId: "s9" })).toBe("a|unmerged|2");
+  });
+
+  it("keys interrupted on the failed run, so a new failure resurfaces", () => {
+    const s1 = attentionDismissKey({ taskId: "card", kind: "interrupted", ahead: 0, sessionId: "s1" });
+    const s2 = attentionDismissKey({ taskId: "card", kind: "interrupted", ahead: 0, sessionId: "s2" });
+    expect(s1).toBe("card|interrupted|s1");
+    expect(s2).toBe("card|interrupted|s2");
+    expect(s1).not.toBe(s2);
+  });
+});
+
+describe("interrupted rule", () => {
+  const OLD = NOW - 30 * DAY;
+  const failedRun = (columnId: string, startedAt: number, status: LaneSession["status"] = "failed") => session(columnId, startedAt, status);
+  const triggered = (id: string, columnId: string, run: LaneSession, extra: LaneSession[] = []) => task(id, {
+    columnId,
+    triggerSessionId: run.sessionId,
+    laneSessions: [...extra, run],
+  });
+
+  it.each([
+    ["dev trigger run failed", triggered("c1", "dev", failedRun("dev", NOW - HOUR)), "dev-" + (NOW - HOUR)],
+    ["review trigger run timed out", triggered("c2", "review", failedRun("review", NOW - HOUR, "timed_out")), "review-" + (NOW - HOUR)],
+    ["backlog trigger run failed", triggered("c3", "backlog", failedRun("backlog", NOW - HOUR)), "backlog-" + (NOW - HOUR)],
+    ["todo trigger run failed", triggered("c4", "todo", failedRun("todo", NOW - HOUR)), "todo-" + (NOW - HOUR)],
+    ["failed 30 days ago (no 7-day window)", task("c5", {
+      columnId: "dev",
+      laneSessions: [session("dev", OLD - HOUR, "failed", { completedAt: iso(OLD) })],
+    }), "dev-" + (OLD - HOUR)],
+    ["no trigger: newest of 3 current-lane runs failed", task("c6", {
+      columnId: "dev",
+      laneSessions: [session("dev", NOW - 3 * HOUR, "completed"), session("dev", NOW - HOUR, "failed"), session("dev", NOW - 2 * HOUR, "completed")],
+    }), "dev-" + (NOW - HOUR)],
+  ])("reports %s", (_name, card, sessionId) => {
+    expect(findInterruptedLaneSession(card)?.sessionId).toBe(sessionId);
+    expect(isTaskInterrupted(card)).toBe(true);
+    expect(collectTaskAttentionItems(card, { hasMainPusher: true, now: NOW })).toEqual([
+      { taskId: card.id, kind: "interrupted", ahead: 0, sessionId },
+    ]);
+  });
+
+  it.each([
+    ["trigger session not in laneSessions (retry just started)", task("n1", {
+      columnId: "dev",
+      triggerSessionId: "fresh-retry",
+      laneSessions: [session("dev", NOW - 2 * HOUR, "failed")],
+    })],
+    ["no trigger: old lane failed, current lane newest completed", task("n2", {
+      columnId: "review",
+      laneSessions: [session("dev", NOW - 3 * HOUR, "failed"), session("review", NOW - HOUR, "completed")],
+    })],
+    ["no trigger: newest current-lane run completed, older one failed", task("n3", {
+      columnId: "dev",
+      laneSessions: [session("dev", NOW - 3 * HOUR, "failed"), session("dev", NOW - HOUR, "completed"), session("dev", NOW - 2 * HOUR, "failed")],
+    })],
+    ["no trigger: only another lane's failed run", task("n4", {
+      columnId: "review",
+      laneSessions: [session("dev", NOW - HOUR, "failed")],
+    })],
+    ["current run still running", triggered("n5", "dev", failedRun("dev", NOW - HOUR, "running"))],
+    ["current run transitioned", triggered("n6", "dev", failedRun("dev", NOW - HOUR, "transitioned"))],
+    ["done lane with a failed run", task("n7", { columnId: "done", completionReport: report, laneSessions: [session("done", NOW - HOUR, "failed")] })],
+    ["blocked lane with a failed run", triggered("n8", "blocked", failedRun("dev", NOW - HOUR))],
+    ["no lane runs at all", task("n9", { columnId: "dev" })],
+  ])("does not report %s", (_name, card) => {
+    expect(findInterruptedLaneSession(card)).toBeNull();
+    expect(isTaskInterrupted(card)).toBe(false);
+    expect(collectTaskAttentionItems(card, { hasMainPusher: true, now: NOW }).some((item) => item.kind === "interrupted")).toBe(false);
+  });
+
+  it("a done card with a failed trailing run stays doneFailed, never interrupted", () => {
+    expect(kinds([task("d", { laneSessions: [session("done", NOW - HOUR, "failed")] })])).toEqual(["d:doneFailed:0"]);
+  });
+});
+
+describe("old kinds keep their exact output (F2)", () => {
+  it("non-Done lanes with completed or running runs report nothing", () => {
+    expect(kinds([
+      task("bl", { columnId: "backlog", laneSessions: [session("backlog", NOW - HOUR, "completed")] }),
+      task("to", { columnId: "todo", laneSessions: [session("todo", NOW - HOUR, "completed")] }),
+      task("dv", { columnId: "dev", laneSessions: [session("dev", NOW - HOUR, "completed")] }),
+      task("rv", { columnId: "review", laneSessions: [session("review", NOW - HOUR, "completed")] }),
+      task("run", { columnId: "dev", laneSessions: [session("dev", NOW - HOUR, "running")] }),
+    ], pusherBoard)).toEqual([]);
+  });
+
+  it("mixed board output is identical with and without a board autoProviderId", () => {
+    const tasks = [
+      task("b", { columnId: "blocked" }),
+      task("f", { laneSessions: [session("done", NOW - 2 * HOUR, "failed")] }),
+      task("n", { laneSessions: [session("done", NOW - 2 * HOUR, "completed")] }),
+      task("u", { completionReport: report, deliveryLanding: { landedOnBase: false, commitsSinceBase: 2 } }),
+      task("old", { laneSessions: [session("done", NOW - 8 * DAY, "completed")] }),
+    ];
+    const expected = ["b:blocked:0", "f:doneFailed:0", "n:noReport:0", "u:unmerged:2"];
+    expect(kinds(tasks, pusherBoard)).toEqual(expected);
+    expect(kinds(tasks, { ...pusherBoard, autoProviderId: "dsh" } as Pick<KanbanBoardInfo, "columns">)).toEqual(expected);
   });
 });

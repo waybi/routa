@@ -255,3 +255,23 @@ describe("KanbanOverview", () => {
     expect((input as HTMLInputElement).value).toBe("");
   });
 });
+
+describe("KanbanOverview interrupted badge", () => {
+  it("lists an interrupted card under needs-you with the Interrupted badge", async () => {
+    const original = DATA.w1.tasks;
+    DATA.w1.tasks = [...original, task("ti", "w1", "b1", {
+      title: "Interrupted card",
+      triggerSessionId: "run-x",
+      laneSessions: [{ sessionId: "run-x", columnId: "dev", startedAt: iso(NOW - HOUR), status: "failed" }],
+    })];
+    try {
+      await renderOverview();
+      await waitFor(() => expect(within(rowOf("w1")).getByTestId("kanban-overview-attention").querySelector("[data-kind='interrupted']")).toBeTruthy());
+      const entry = within(rowOf("w1")).getByTestId("kanban-overview-attention").querySelector("[data-kind='interrupted']")!;
+      expect(entry.textContent).toContain("Interrupted");
+      expect(entry.textContent).toContain("Interrupted card");
+    } finally {
+      DATA.w1.tasks = original;
+    }
+  });
+});
