@@ -1,9 +1,10 @@
 /**
- * Narrow columns adapt to the board width (card 92744a50, change of
- * 2026-10-23 10:40): with room the empty columns and the collapsed Done are
- * ~88px with horizontal text; without room they are ~40px rails with vertical
- * text. One mode for the whole board, from the board container width, with a
- * 16px hysteresis. The collapsed Done also shows its lane automation (AC8).
+ * Narrow columns are horizontal at every board width (card 92744a50, change of
+ * 2026-10-23 13:15: "text is never vertical, always horizontal"). Empty
+ * columns and the collapsed Done keep the ~88px EMPTY_COLUMN_RAIL_WIDTH and
+ * horizontal text whether the board container is 300px or 2000px wide; when
+ * the board does not fit, the board container scrolls sideways. The collapsed
+ * Done also shows its lane automation (pusher name).
  */
 import type { ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -14,21 +15,7 @@ import zh from "@/i18n/locales/zh";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 import { KanbanTab } from "../kanban-tab";
 import { KanbanBoardSkeleton } from "../kanban-tab-content";
-import {
-  EMPTY_COLUMN_RAIL_VERTICAL_WIDTH,
-  EMPTY_COLUMN_RAIL_WIDTH,
-  KanbanDoneCollapsedRail,
-  KanbanEmptyColumnRail,
-} from "../kanban-empty-column-rail";
-import {
-  MIN_LANE_PX,
-  RAIL_HORIZONTAL_PX,
-  RAIL_MODE_HYSTERESIS_PX,
-  RAIL_VERTICAL_PX,
-  requiredHorizontalWidth,
-  resolveRailMode,
-  type RailMode,
-} from "../kanban-rail-mode";
+import { EMPTY_COLUMN_RAIL_WIDTH, KanbanDoneCollapsedRail } from "../kanban-empty-column-rail";
 import { formatLaneAutomationRailLabel } from "../kanban-tab-helpers";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 
@@ -69,7 +56,10 @@ vi.mock("../use-runtime-fitness-status", async () => {
   return { useRuntimeFitnessStatus: mockUseRuntimeFitnessStatus };
 });
 
-/** ResizeObserver stand-in: tests set an element's width and fire the callback. */
+/**
+ * ResizeObserver stand-in that reports a chosen width for every observed
+ * element, so a width-dependent layout would show up in these tests.
+ */
 class FakeResizeObserver {
   static instances = new Set<FakeResizeObserver>();
   elements = new Set<Element>();
@@ -86,10 +76,10 @@ class FakeResizeObserver {
     this.elements.clear();
     FakeResizeObserver.instances.delete(this);
   }
-  static resize(element: Element, width: number) {
+  static resizeAll(width: number) {
     for (const observer of FakeResizeObserver.instances) {
-      if (!observer.elements.has(element)) continue;
-      observer.callback([{ target: element, contentRect: { width } as DOMRectReadOnly } as ResizeObserverEntry], observer as unknown as ResizeObserver);
+      const entries = [...observer.elements].map((target) => ({ target, contentRect: { width } as DOMRectReadOnly }) as ResizeObserverEntry);
+      if (entries.length > 0) observer.callback(entries, observer as unknown as ResizeObserver);
     }
   }
 }
@@ -109,12 +99,30 @@ function subtreeClasses(root: Element): string {
   return [root, ...Array.from(root.querySelectorAll("*"))].map((element) => element.getAttribute("class") ?? "").join(" ");
 }
 
+/** True when the element carries a width-mode attribute (data-rail-*), which the removed vertical mode used. */
+function hasRailModeAttribute(element: Element): boolean {
+  return [...element.attributes].some((attribute) => attribute.name.startsWith("data-rail"));
+}
+
 function classes(element: Element): string[] {
   return (element.getAttribute("class") ?? "").split(/\s+/);
 }
 
-/** Hide-or-truncate classes are never allowed on narrow column text. */
-const HIDING = /truncate|text-ellipsis|line-clamp|sr-only|\bhidden\b|opacity-0/;
+/** Rotated, vertical or hidden/truncated text is never allowed in a narrow column. */
+const FORBIDDEN = /vertical-rl|vertical-lr|writing-mode|rotate-|truncate|text-ellipsis|line-clamp|sr-only|\bhidden\b|opacity-0/;
+
+/** Make the board container (and window) report a given width, as a resized window would. */
+function setBoardWidth(width: number) {
+  act(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    for (const element of screen.queryAllByTestId("kanban-board-content")) {
+      Object.defineProperty(element, "clientWidth", { configurable: true, value: width });
+      (element as HTMLElement).style.width = `${width}px`;
+    }
+    FakeResizeObserver.resizeAll(width);
+    window.dispatchEvent(new Event("resize"));
+  });
+}
 
 beforeEach(() => {
   resetDesktopAwareFetchToGlobalFetch(desktopAwareFetch);
@@ -127,90 +135,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("resolveRailMode (pure decision)", () => {
-  const layout = { railCount: 4, laneWidthsPx: [288, 384], trailingPx: 16 };
-  const required = requiredHorizontalWidth(layout);
-
-  it("required width = lanes (≥210 each) + rails × 88 + gaps + trailing space", () => {
-    expect(RAIL_HORIZONTAL_PX).toBe(88);
-    expect(RAIL_VERTICAL_PX).toBe(40);
-    expect(required).toBe(288 + 384 + 4 * 88 + 5 * 12 + 16);
-    // A lane narrower than the minimum still needs 210px.
-    expect(requiredHorizontalWidth({ railCount: 1, laneWidthsPx: [100] })).toBe(MIN_LANE_PX + 88 + 12);
-  });
-
-  it("exactly fits → horizontal; 1px short → vertical", () => {
-    expect(resolveRailMode({ ...layout, containerWidth: required })).toBe("horizontal");
-    expect(resolveRailMode({ ...layout, containerWidth: required - 1 })).toBe("vertical");
-    expect(resolveRailMode({ ...layout, containerWidth: required, previousMode: "horizontal" })).toBe("horizontal");
-    expect(resolveRailMode({ ...layout, containerWidth: required - 1, previousMode: "horizontal" })).toBe("vertical");
-  });
-
-  it("from vertical it needs 16px of spare room to go back to horizontal", () => {
-    expect(RAIL_MODE_HYSTERESIS_PX).toBe(16);
-    expect(resolveRailMode({ ...layout, containerWidth: required + 15, previousMode: "vertical" })).toBe("vertical");
-    expect(resolveRailMode({ ...layout, containerWidth: required + 16, previousMode: "vertical" })).toBe("horizontal");
-  });
-
-  it("a width wobbling ±8px around the threshold does not flip the mode", () => {
-    let mode: RailMode = "horizontal";
-    const seen = new Set<RailMode>();
-    // Start just short, then wobble within ±8px of the threshold.
-    for (const delta of [-1, 8, -8, 7, -7, 8, -1, 8, 0, 8]) {
-      mode = resolveRailMode({ ...layout, containerWidth: required + delta, previousMode: mode });
-      seen.add(mode);
-    }
-    expect([...seen]).toEqual(["vertical"]);
-  });
-
-  it("decides from the board width, not from the narrow columns' current width", () => {
-    // Same container width and lanes give the same answer whatever the previous rail width was.
-    const wide = required + 100;
-    expect(resolveRailMode({ ...layout, containerWidth: wide, previousMode: "vertical" })).toBe("horizontal");
-    expect(resolveRailMode({ ...layout, containerWidth: wide, previousMode: "horizontal" })).toBe("horizontal");
-  });
-
-  it("works for any column mix, Dev included (random layouts, judged by the formula)", () => {
-    let seed = 20261023;
-    const random = () => {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed / 2147483648;
-    };
-    for (let index = 0; index < 2000; index += 1) {
-      const railCount = 1 + Math.floor(random() * 6);
-      const laneWidthsPx = Array.from({ length: Math.floor(random() * 6) }, () => [224, 288, 384][Math.floor(random() * 3)]);
-      const containerWidth = Math.floor(random() * 2600);
-      const need = laneWidthsPx.reduce((sum, width) => sum + width, 0) + railCount * 88 + (railCount + laneWidthsPx.length - 1) * 12;
-      expect(resolveRailMode({ railCount, laneWidthsPx, containerWidth })).toBe(containerWidth >= need ? "horizontal" : "vertical");
-    }
-  });
-});
-
-describe("rail components in each mode", () => {
-  it.each(["en", "zh"] as const)("%s: horizontal empty rail has no vertical text; vertical one has", (lang) => {
-    const { unmount } = render(withLang(lang, <KanbanEmptyColumnRail columnId="backlog" name="Backlog" mode="horizontal" />));
-    let rail = screen.getByTestId("kanban-empty-column-rail");
-    expect(rail.getAttribute("data-rail-mode")).toBe("horizontal");
-    expect(subtreeClasses(rail)).not.toMatch(/vertical-rl|writing-mode/);
-    expect(subtreeClasses(rail)).not.toMatch(HIDING);
-    expect(within(rail).getByTestId("kanban-rail-column-name").textContent).toBe("Backlog");
-    unmount();
-
-    render(withLang(lang, <KanbanEmptyColumnRail columnId="backlog" name="Backlog" mode="vertical" />));
-    rail = screen.getByTestId("kanban-empty-column-rail");
-    expect(rail.getAttribute("data-rail-mode")).toBe("vertical");
-    expect(classes(within(rail).getByTestId("kanban-rail-column-name"))).toContain("[writing-mode:vertical-rl]");
-    expect(subtreeClasses(rail)).not.toMatch(HIDING);
-    expect(within(rail).getByTestId("kanban-rail-column-name").textContent).toBe("Backlog");
-    expect(within(rail).getByTestId("kanban-column-count-backlog").textContent).toBe("0");
-  });
-
+describe("collapsed Done rail content", () => {
   it.each([
-    ["en", "horizontal", "12 unmerged"],
-    ["zh", "horizontal", "12 张未合入"],
-    ["en", "vertical", "12 unmerged"],
-    ["zh", "vertical", "12 张未合入"],
-  ] as const)("%s %s: Done rail keeps the button, total, badge and automation as visible text", (lang, mode, badgeText) => {
+    ["en", "12 unmerged", "Expand Done"],
+    ["zh", "12 张未合入", "展开 Done"],
+  ] as const)("%s: button, total, badge and pusher name are visible horizontal text", (lang, badgeText, expandLabel) => {
     const onExpand = vi.fn();
     render(withLang(lang, (
       <KanbanDoneCollapsedRail
@@ -219,35 +148,29 @@ describe("rail components in each mode", () => {
         total={29}
         unmergedCount={12}
         onExpand={onExpand}
-        mode={mode}
         automationLabel="Main Pusher"
         automationTitle="-> Main Pusher -> Done Reporter"
       />
     )));
     const rail = screen.getByTestId("kanban-done-collapsed-rail");
-    expect(rail.getAttribute("data-rail-mode")).toBe(mode);
-    expect(subtreeClasses(rail)).not.toMatch(HIDING);
-    const hasVertical = /vertical-rl/.test(subtreeClasses(rail));
-    expect(hasVertical).toBe(mode === "vertical");
+    expect(subtreeClasses(rail)).not.toMatch(FORBIDDEN);
 
     const toggle = within(rail).getByTestId("kanban-done-collapse-toggle");
     expect(toggle.textContent).toBe("Done");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(toggle.getAttribute("aria-label")).toBe(lang === "en" ? "Expand Done" : "展开 Done");
+    expect(toggle.getAttribute("aria-label")).toBe(expandLabel);
     expect(within(rail).getByTestId("kanban-column-count-done").textContent).toBe("29");
     expect(within(rail).getByTestId("kanban-done-unmerged-count").textContent).toBe(badgeText);
     const automation = within(rail).getByTestId("kanban-rail-automation-done");
     expect(automation.textContent).toBe("Main Pusher");
     expect(automation.getAttribute("title")).toBe("-> Main Pusher -> Done Reporter");
-    if (mode === "vertical") expect(classes(automation)).toContain("[writing-mode:vertical-rl]");
-    else expect(classes(automation)).not.toContain("[writing-mode:vertical-rl]");
 
     fireEvent.click(toggle);
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
-  it("Done rail hides the badge when 0 unmerged and the automation when the lane has none", () => {
-    render(<KanbanDoneCollapsedRail columnId="done" name="Done" total={3} unmergedCount={0} onExpand={vi.fn()} mode="vertical" />);
+  it("hides the badge when 0 unmerged and the pusher name when the lane has no automation", () => {
+    render(<KanbanDoneCollapsedRail columnId="done" name="Done" total={3} unmergedCount={0} onExpand={vi.fn()} />);
     const rail = screen.getByTestId("kanban-done-collapsed-rail");
     expect(within(rail).queryByTestId("kanban-done-unmerged-count")).toBeNull();
     expect(within(rail).queryByTestId("kanban-rail-automation-done")).toBeNull();
@@ -312,16 +235,13 @@ function makeTask(id: string, columnId: string, index: number): TaskInfo {
 }
 
 // The boss's screenshot: only Done and Blocked have cards; Done is collapsed.
-// Narrow columns: Backlog, Todo, Dev, Review, Done (5); lane: Blocked (288).
-const BOARD_REQUIRED = requiredHorizontalWidth({ railCount: 5, laneWidthsPx: [288], trailingPx: 16 });
-
-function renderBoard(lang: Lang, tasks = [makeTask("blocked-0", "blocked", 0), ...Array.from({ length: 8 }, (_, index) => makeTask(`done-${index}`, "done", index))]) {
+function renderBoard(lang: Lang) {
   window.localStorage.setItem("routa.kanban.doneCollapsed.board-1", "1");
   return render(withLang(lang, (
     <KanbanTab
       workspaceId="workspace-1"
       boards={[makeBoard()]}
-      tasks={tasks}
+      tasks={[makeTask("blocked-0", "blocked", 0), ...Array.from({ length: 8 }, (_, index) => makeTask(`done-${index}`, "done", index))]}
       sessions={[]}
       providers={[]}
       specialists={[]}
@@ -335,62 +255,60 @@ function columnsById() {
   return new Map(screen.getAllByTestId("kanban-column").map((element) => [element.getAttribute("data-column-id"), element]));
 }
 
-function resizeBoard(width: number) {
-  act(() => {
-    FakeResizeObserver.resize(screen.getByTestId("kanban-board-content"), width);
-  });
-}
-
-function expectBoardMode(mode: RailMode) {
-  const width = mode === "vertical" ? EMPTY_COLUMN_RAIL_VERTICAL_WIDTH : EMPTY_COLUMN_RAIL_WIDTH;
-  const other = mode === "vertical" ? EMPTY_COLUMN_RAIL_WIDTH : EMPTY_COLUMN_RAIL_VERTICAL_WIDTH;
-  expect(screen.getByTestId("kanban-board-content").getAttribute("data-rail-mode")).toBe(mode);
+/** Every narrow column is horizontal with the one width constant; Blocked keeps its lane width. */
+function expectHorizontalBoard() {
+  const content = screen.getByTestId("kanban-board-content");
+  // The board container scrolls sideways itself when the columns do not fit.
+  expect(classes(content)).toContain("overflow-auto");
   const columns = columnsById();
   for (const id of ["backlog", "todo", "dev", "review", "done"]) {
     const column = columns.get(id)!;
-    expect(classes(column)).toContain(width);
-    expect(classes(column)).not.toContain(other);
+    expect(classes(column)).toContain(EMPTY_COLUMN_RAIL_WIDTH);
+    expect(classes(column)).not.toContain("w-10");
     const rail = within(column).queryByTestId("kanban-empty-column-rail") ?? within(column).getByTestId("kanban-done-collapsed-rail");
-    // The whole board uses one mode.
-    expect(rail.getAttribute("data-rail-mode")).toBe(mode);
-    expect(/vertical-rl/.test(subtreeClasses(rail))).toBe(mode === "vertical");
-    expect(subtreeClasses(rail)).not.toMatch(HIDING);
+    expect(subtreeClasses(rail)).not.toMatch(FORBIDDEN);
     expect(within(rail).getByTestId("kanban-rail-column-name").textContent).toBe(makeBoard().columns.find((c) => c.id === id)!.name);
+    // No width-dependent mode switch is left on the board.
+    expect(hasRailModeAttribute(rail)).toBe(false);
   }
-  // A column with cards keeps its normal width in both modes.
+  expect(hasRailModeAttribute(content)).toBe(false);
+  // A column with cards keeps its normal width and its 210px floor.
   const blocked = columns.get("blocked")!;
   expect(classes(blocked)).toContain("w-[18rem]");
-  expect(classes(blocked)).not.toContain(width);
+  expect(classes(blocked)).toContain("min-w-[210px]");
+  expect(classes(blocked)).not.toContain(EMPTY_COLUMN_RAIL_WIDTH);
 }
 
-describe("board surface switches modes live from the container width", () => {
-  it.each(["en", "zh"] as const)("%s: wide → horizontal, narrow → vertical, wide again → horizontal, no reload", (lang) => {
+describe("board surface is horizontal at any width", () => {
+  it.each([
+    ["en", 300],
+    ["en", 2000],
+    ["zh", 300],
+    ["zh", 2000],
+  ] as const)("%s at %ipx: narrow columns stay ~88px and horizontal", (lang, width) => {
     renderBoard(lang);
-    resizeBoard(1400);
-    expectBoardMode("horizontal");
+    setBoardWidth(width);
+    expectHorizontalBoard();
 
-    resizeBoard(BOARD_REQUIRED - 1);
-    expectBoardMode("vertical");
-
-    // Inside the hysteresis band it stays vertical.
-    resizeBoard(BOARD_REQUIRED + 8);
-    expectBoardMode("vertical");
-
-    resizeBoard(BOARD_REQUIRED + RAIL_MODE_HYSTERESIS_PX);
-    expectBoardMode("horizontal");
-
-    // Collapsed Done keeps the badge and lane automation visible.
     const doneRail = within(columnsById().get("done")!).getByTestId("kanban-done-collapsed-rail");
     expect(within(doneRail).getByTestId("kanban-done-unmerged-count").textContent).toBe(lang === "en" ? "3 unmerged" : "3 张未合入");
     expect(within(doneRail).getByTestId("kanban-rail-automation-done").textContent).toBe("Main Pusher");
   });
 
-  it.each(["horizontal", "vertical"] as const)("%s: cards drop into an empty rail and into the collapsed Done rail", async (mode) => {
+  it("resizing the window wide → narrow → wide never changes the narrow columns", () => {
+    renderBoard("en");
+    for (const width of [2000, 600, 300, 1440]) {
+      setBoardWidth(width);
+      expectHorizontalBoard();
+    }
+  });
+
+  it.each([300, 2000])("at %ipx cards drop into an empty column and into the collapsed Done", async (width) => {
     const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
     vi.stubGlobal("fetch", fetchMock);
     renderBoard("en");
-    resizeBoard(mode === "horizontal" ? 1400 : 600);
-    expectBoardMode(mode);
+    setBoardWidth(width);
+    expectHorizontalBoard();
 
     await act(async () => {
       dnd.onDragEnd?.({ active: { id: "blocked-0", data: { current: { columnId: "blocked" } } }, over: { id: "column:review" } });
@@ -406,10 +324,9 @@ describe("board surface switches modes live from the container width", () => {
     });
   });
 
-  it("the Done expand button works in vertical mode", () => {
+  it("the Done expand button works on a narrow board", () => {
     renderBoard("en");
-    resizeBoard(600);
-    expectBoardMode("vertical");
+    setBoardWidth(300);
     fireEvent.click(within(columnsById().get("done")!).getByTestId("kanban-done-collapse-toggle"));
     const done = columnsById().get("done")!;
     expect(within(done).queryByTestId("kanban-done-collapsed-rail")).toBeNull();
@@ -417,21 +334,18 @@ describe("board surface switches modes live from the container width", () => {
   });
 });
 
-describe("loading skeleton follows the same decision", () => {
-  it("rail columns use the horizontal constant on a wide board and the vertical one on a narrow board", () => {
+describe("loading skeleton", () => {
+  it.each([300, 2000])("at %ipx its rail columns use EMPTY_COLUMN_RAIL_WIDTH", (width) => {
     render(<KanbanBoardSkeleton label="Loading" />);
     const skeleton = screen.getByTestId("kanban-board-skeleton");
-    const rails = () => screen.getAllByTestId("kanban-board-skeleton-column").slice(0, 2);
-
-    act(() => FakeResizeObserver.resize(skeleton, 1400));
-    expect(skeleton.getAttribute("data-rail-mode")).toBe("horizontal");
-    for (const rail of rails()) expect(classes(rail)).toContain(EMPTY_COLUMN_RAIL_WIDTH);
-
-    act(() => FakeResizeObserver.resize(skeleton, 700));
-    expect(skeleton.getAttribute("data-rail-mode")).toBe("vertical");
-    for (const rail of rails()) {
-      expect(classes(rail)).toContain(EMPTY_COLUMN_RAIL_VERTICAL_WIDTH);
-      expect(classes(rail)).not.toContain(EMPTY_COLUMN_RAIL_WIDTH);
+    act(() => {
+      Object.defineProperty(skeleton, "clientWidth", { configurable: true, value: width });
+      FakeResizeObserver.resizeAll(width);
+    });
+    for (const rail of screen.getAllByTestId("kanban-board-skeleton-column").slice(0, 2)) {
+      expect(classes(rail)).toContain(EMPTY_COLUMN_RAIL_WIDTH);
+      expect(classes(rail)).not.toContain("w-10");
     }
+    expect(hasRailModeAttribute(skeleton)).toBe(false);
   });
 });

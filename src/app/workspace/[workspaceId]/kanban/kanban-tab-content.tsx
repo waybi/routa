@@ -30,8 +30,7 @@ import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
 import { KanbanAttentionBar } from "./kanban-attention-bar";
 import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
-import { emptyColumnRailWidth } from "./kanban-empty-column-rail";
-import { useRailMode } from "./kanban-rail-mode";
+import { EMPTY_COLUMN_RAIL_WIDTH } from "./kanban-empty-column-rail";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onToggleDispatch" | "dispatchOpen">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
@@ -93,13 +92,9 @@ export interface KanbanTabContentProps {
 export function KanbanBoardSkeleton({ label }: { label: string }) {
   // Same rhythm as the real board: two rails, two lanes, a wide Done lane.
   const lanes = ["rail", "rail", "lane", "lane", "done"] as const;
-  // Same narrow column decision as the board, so the rails keep their width on load.
-  const [railMode, railModeRef] = useRailMode<HTMLDivElement>({ railCount: 2, laneWidthsPx: [288, 288, 384] });
   return (
     <div
-      ref={railModeRef}
       className="flex min-h-0 flex-1 gap-3 overflow-hidden"
-      data-rail-mode={railMode}
       data-testid="kanban-board-skeleton"
       role="status"
       aria-busy="true"
@@ -112,7 +107,7 @@ export function KanbanBoardSkeleton({ label }: { label: string }) {
           key={column}
           aria-hidden="true"
           data-testid="kanban-board-skeleton-column"
-          className={`flex shrink-0 flex-col gap-2 rounded-md bg-subtle p-2.5 ${kind === "rail" ? emptyColumnRailWidth(railMode) : kind === "done" ? "w-[24rem]" : "w-[18rem] min-w-[210px]"}`}
+          className={`flex shrink-0 flex-col gap-2 rounded-md bg-subtle p-2.5 ${kind === "rail" ? EMPTY_COLUMN_RAIL_WIDTH : kind === "done" ? "w-[24rem]" : "w-[18rem] min-w-[210px]"}`}
         >
           {kind !== "rail" && (
             <>

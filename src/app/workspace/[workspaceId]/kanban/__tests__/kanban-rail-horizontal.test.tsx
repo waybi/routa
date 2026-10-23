@@ -1,11 +1,10 @@
 /**
- * Horizontal mode of the narrow columns (card 92744a50). When the board has
- * room (the default before any measurement, as in jsdom) the empty column rail
- * and the collapsed Done rail stay narrow drop targets, but the column name,
- * the counts and the unmerged badge are not rotated, never truncated, and stay
- * visible as text (not only in title / aria-label). The loading skeleton uses
- * the same narrow width so the board does not jump. The vertical fallback and
- * the width decision are covered in kanban-rail-adaptive.test.tsx.
+ * Narrow columns write their text horizontally (card 92744a50). The empty
+ * column rail and the collapsed Done rail stay narrow drop targets, but the
+ * column name, the counts and the unmerged badge are never rotated, never
+ * truncated, and stay visible as text (not only in title / aria-label). The
+ * loading skeleton uses the same narrow width so the board does not jump.
+ * Board widths from 300px to 2000px are covered in kanban-rail-any-width.test.tsx.
  */
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";

@@ -47,8 +47,7 @@ import { resolveCardLinkedSession } from "./kanban-session-activity";
 import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-done-column-window";
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 import { KanbanDoneSegments } from "./kanban-done-segments";
-import { emptyColumnRailWidthClass, KanbanDoneCollapsedRail, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
-import { useRailMode } from "./kanban-rail-mode";
+import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanDoneCollapsedRail, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
 import { HighlightedText, matchTask, normalizeSearchQuery } from "./kanban-board-search";
 import { Badge } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
@@ -59,13 +58,6 @@ interface SpecialistOption {
   role: string;
   displayName?: string;
   defaultProvider?: string;
-}
-
-/** Rendered width in px of a column with cards (matches the width classes below). */
-function laneWidthPx(column: KanbanBoardInfo["columns"][number]): number {
-  if (column.width === "compact") return 224;
-  if (column.width === "wide" || (column.id === DONE_COLUMN_ID && !column.width)) return 384;
-  return 288;
 }
 
 function KanbanDropColumn({
@@ -211,21 +203,6 @@ export function KanbanBoardSurface({
   const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
   const [activeDragCardWidth, setActiveDragCardWidth] = useState<number | null>(null);
   const doneColumn = useDoneColumnWindow(board.id);
-  const shownColumns = board.columns
-    .slice()
-    .sort((left, right) => left.position - right.position)
-    .filter((column) => visibleColumns.includes(column.id));
-  const doneLaneCollapsed = doneColumn.collapsed && !searching;
-  const isRailColumn = (column: KanbanBoardInfo["columns"][number]) => {
-    const hasCards = boardTasks.some((task) => (task.columnId ?? "backlog") === column.id);
-    return !hasCards || (column.id === DONE_COLUMN_ID && doneLaneCollapsed);
-  };
-  // One narrow column mode for the whole board, from the board container width.
-  const [railMode, railModeRef] = useRailMode<HTMLDivElement>({
-    railCount: shownColumns.filter(isRailColumn).length,
-    laneWidthsPx: shownColumns.filter((column) => !isRailColumn(column)).map(laneWidthPx),
-    trailingPx: 16,
-  });
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 3 },
@@ -321,12 +298,7 @@ export function KanbanBoardSurface({
               />
             </div>
           )}
-          <div
-            ref={railModeRef}
-            className="flex-1 min-h-0 overflow-auto pb-2"
-            data-testid="kanban-board-content"
-            data-rail-mode={railMode}
-          >
+          <div className="flex-1 min-h-0 overflow-auto pb-2" data-testid="kanban-board-content">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCorners}
@@ -337,7 +309,10 @@ export function KanbanBoardSurface({
               onDragCancel={handleDragCancel}
             >
               <div className="flex h-full min-w-max items-stretch gap-3 pr-4">
-                {shownColumns
+                {board.columns
+                  .slice()
+                  .sort((left, right) => left.position - right.position)
+                  .filter((column) => visibleColumns.includes(column.id))
                   .map((column) => {
                     const columnTasks = boardTasks.filter((task) => (task.columnId ?? "backlog") === column.id);
                     const unmergedCount = column.id === "done"
@@ -355,7 +330,7 @@ export function KanbanBoardSurface({
                     const isEmptyColumn = columnTasks.length === 0;
                     const doneRail = isDoneColumn && doneCollapsed && !isEmptyColumn;
                     const widthClass = isEmptyColumn || doneRail
-                      ? emptyColumnRailWidthClass(railMode)
+                      ? EMPTY_COLUMN_RAIL_WIDTH_CLASS
                       : column.width === "compact" ? "w-[14rem] min-w-[210px]" : column.width === "wide" || (isDoneColumn && !column.width) ? "w-[24rem]" : "w-[18rem] min-w-[210px]";
 
                     return (
@@ -366,14 +341,13 @@ export function KanbanBoardSurface({
                         widthClass={widthClass}
                         rail={isEmptyColumn || doneRail}
                       >
-                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} mode={railMode} /> : doneRail ? (
+                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} /> : doneRail ? (
                           <KanbanDoneCollapsedRail
                             columnId={column.id}
                             name={column.name}
                             total={columnTasks.length}
                             unmergedCount={unmergedCount}
                             onExpand={doneColumn.toggleCollapsed}
-                            mode={railMode}
                             automationLabel={laneAutomation?.enabled ? formatLaneAutomationRailLabel(laneAutomation, specialists) : null}
                             automationTitle={laneAutomation?.enabled ? formatLaneAutomationSummary(laneAutomation, providers, specialists, {
                               autoProviderId: boardAutoProviderId,
