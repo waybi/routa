@@ -14,3 +14,14 @@ export function readTeamSpecialistNames(dir: string): Record<string, string> {
 }
 
 export const SPECIALISTS_ROOT = resolve(__dirname, "../../../../../../resources/specialists");
+
+export interface YamlSpecialist { id: string; name: string; role: string; description: string; defaultModelTier: string }
+
+/** Bundled team specialists as /api/specialists returns them (id, name, role, description, model tier from yaml). */
+export function readTeamSpecialists(dir = join(SPECIALISTS_ROOT, "team")): YamlSpecialist[] {
+  return readdirSync(dir).filter((name) => name.endsWith(".yaml")).sort().map((file) => {
+    const text = readFileSync(join(dir, file), "utf8");
+    const field = (key: string) => text.match(new RegExp(`^${key}:\\s*"([^"]*)"`, "m"))?.[1] ?? "";
+    return { id: field("id"), name: field("name"), role: field("role"), description: field("description"), defaultModelTier: field("model_tier") };
+  });
+}
