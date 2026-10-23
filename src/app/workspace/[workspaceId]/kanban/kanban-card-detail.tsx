@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { Button } from "@/client/components/ui/button";
@@ -10,14 +11,20 @@ import { resolveKanbanTransitionArtifacts } from "@/core/kanban/transition-artif
 import { hydrateTaskComments } from "@/core/models/task";
 import { useTranslation } from "@/i18n";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
+import { KanbanCardActivityPanel } from "./kanban-card-activity";
+import { KanbanCardArtifacts } from "./kanban-card-artifacts";
 import { KanbanCardDetailToolbar } from "./kanban-card-detail-toolbar";
 import { getOrderedSessionIds, type KanbanSpecialistOption as SpecialistOption } from "./kanban-card-session-utils";
 import { splitCompletionReports } from "./kanban-completion-report";
-import { KanbanDetailChangesTab } from "./kanban-detail-changes-tab";
 import { KanbanDetailCompletionTab } from "./kanban-detail-completion-tab";
-import { KanbanDetailConstructionTab } from "./kanban-detail-construction-tab";
+import { KanbanDetailExecution } from "./kanban-detail-execution";
+import { KanbanDetailMetaStrip } from "./kanban-detail-meta-strip";
 import { KanbanDetailOverviewTab } from "./kanban-detail-overview-tab";
-import { KanbanDetailPropertyRail } from "./kanban-detail-property-rail";
+import { JitContextPanel } from "./kanban-detail-panels";
+import { KanbanDetailRepositories } from "./kanban-detail-repositories";
+import { EvidenceBundlePanel, StoryReadinessPanel } from "./kanban-detail-review-panels";
+import { DetailSection } from "./kanban-detail-section";
+import { KanbanTaskChangesTab } from "./components/kanban-task-changes-tab";
 import {
   consumeKanbanDetailTabRequest,
   resolveKanbanDetailTab,
@@ -29,11 +36,11 @@ import type { KanbanSpecialistLanguage } from "./kanban-specialist-language";
 export { KanbanCardActivityBar } from "./kanban-card-activity";
 
 /**
- * Card detail shell (redesign card 3/6, design-spec §5/§7/§10): sticky
- * toolbar, editable title, four tabs (Overview / Construction / Changes &
- * Evidence / Completion) and the property rail, which sits to the right on
- * wide screens and moves under the detail below 1024px. Each tab lives in
- * its own kanban-detail-*-tab.tsx file.
+ * Card detail shell: sticky toolbar, editable title, a one-row meta strip
+ * under the title, the eight tabs of the detail before the redesign
+ * (Overview / Story Readiness / Execution / History Memory / Changes /
+ * Evidence Bundle / Runs / Completion) and "Delete task" at the bottom.
+ * Visuals use the redesign tokens and components.
  */
 
 export interface KanbanCardDetailLoadState {
@@ -197,50 +204,116 @@ export function KanbanCardDetail({
             onOpenCompletion={() => selectTab("completion")}
           />
         );
-      case "construction":
+      case "readiness":
         return (
-          <KanbanDetailConstructionTab
-            task={task}
-            lane={currentLane}
-            boardColumns={boardColumns ?? []}
-            availableProviders={availableProviders}
-            specialists={specialists}
-            specialistLanguage={specialistLanguage}
-            codebases={codebases}
-            allCodebaseIds={allCodebaseIds}
-            worktreeCache={worktreeCache}
-            sessionInfo={sessionInfo}
-            sessions={sessions ?? []}
-            selectedProvider={selectedProvider}
-            activeRunSessionId={activeRunSessionId}
-            sessionCwdMismatch={sessionCwdMismatch}
-            workspaceId={resolvedWorkspaceId || undefined}
-            historyRepoPath={historyRepoPath}
-            refreshSignal={detailRefreshSignal}
+          <DetailSection
+            title={t.kanbanDetail.storyReadiness}
+            description={compactMode ? undefined : t.kanbanDetail.storyReadinessHint}
             compact={compactMode}
-            onPatchTask={onPatchTask}
-            onRetryTrigger={onRetryTrigger}
-            onRefresh={onRefresh}
-            onProviderChange={onProviderChange}
-            onRepositoryChange={onRepositoryChange}
-            onSelectSession={onSelectSession}
-            jitContextSessionId={jitContextSessionId}
-            onLoadJitContextIntoSession={onLoadJitContextIntoSession}
-            onOpenJitContextHistoryAnalysis={onOpenJitContextHistoryAnalysis}
-          />
+            testId="kanban-detail-readiness"
+          >
+            <StoryReadinessPanel task={task} compact={compactMode} />
+          </DetailSection>
+        );
+      case "execution":
+        return (
+          <>
+            <KanbanDetailExecution
+              task={task}
+              lane={currentLane}
+              boardColumns={boardColumns ?? []}
+              availableProviders={availableProviders}
+              sessionInfo={sessionInfo}
+              specialists={specialists}
+              specialistLanguage={specialistLanguage}
+              selectedProvider={selectedProvider}
+              onPatchTask={onPatchTask}
+              onRetryTrigger={onRetryTrigger}
+              onProviderChange={onProviderChange}
+              compact={compactMode}
+            />
+            <KanbanDetailRepositories
+              task={task}
+              codebases={codebases}
+              allCodebaseIds={allCodebaseIds}
+              worktreeCache={worktreeCache}
+              sessionInfo={sessionInfo}
+              sessionCwdMismatch={sessionCwdMismatch}
+              onPatchTask={onPatchTask}
+              onRefresh={onRefresh}
+              onRepositoryChange={onRepositoryChange}
+              onSelectSession={onSelectSession}
+              compact={compactMode}
+            />
+          </>
+        );
+      case "jitContext":
+        return (
+          <div className="pt-3" data-testid="kanban-detail-history-memory">
+            <JitContextPanel
+              task={task}
+              workspaceId={resolvedWorkspaceId || undefined}
+              repoPath={historyRepoPath}
+              specialistLanguage={specialistLanguage}
+              activeSessionId={jitContextSessionId}
+              onPatchTask={onPatchTask}
+              onLoadIntoSession={onLoadJitContextIntoSession}
+              onOpenHistoryAnalysis={onOpenJitContextHistoryAnalysis}
+              compact={compactMode}
+            />
+          </div>
         );
       case "changes":
         return (
-          <KanbanDetailChangesTab
-            task={task}
-            codebases={codebases}
-            workspaceId={resolvedWorkspaceId}
-            refreshSignal={detailRefreshSignal}
-            requiredArtifacts={nextTransitionArtifacts.nextRequiredArtifacts}
+          <DetailSection
+            title={t.kanbanDetail.changes}
+            description={compactMode ? undefined : t.kanbanDetail.changesHint}
             compact={compactMode}
-            onRefresh={onRefresh}
-            onRunPullRequest={onRunPullRequest}
+            testId="kanban-detail-changes-section"
+          >
+            <KanbanTaskChangesTab
+              task={task}
+              codebases={codebases}
+              taskId={task.id}
+              workspaceId={resolvedWorkspaceId}
+              refreshSignal={detailRefreshSignal}
+              onRefresh={onRefresh}
+              onRunPullRequest={onRunPullRequest}
+              onSelectSession={onSelectSession}
+            />
+          </DetailSection>
+        );
+      case "evidence":
+        return (
+          <>
+            <DetailSection
+              title={t.kanbanDetail.evidenceBundle}
+              description={compactMode ? undefined : t.kanbanDetail.evidenceBundleHint}
+              compact={compactMode}
+              testId="kanban-detail-evidence-section"
+            >
+              <EvidenceBundlePanel task={task} compact={compactMode} />
+            </DetailSection>
+            <KanbanCardArtifacts
+              taskId={task.id}
+              compact={compactMode}
+              requiredArtifacts={nextTransitionArtifacts.nextRequiredArtifacts}
+              refreshSignal={detailRefreshSignal}
+            />
+          </>
+        );
+      case "runs":
+        return (
+          <KanbanCardActivityPanel
+            task={task}
+            refreshSignal={detailRefreshSignal}
+            sessions={sessions ?? []}
+            specialists={specialists}
+            specialistLanguage={specialistLanguage}
+            autoProviderId={selectedProvider ?? undefined}
+            currentSessionId={activeRunSessionId}
             onSelectSession={onSelectSession}
+            compact={compactMode}
           />
         );
       case "completion":
@@ -256,8 +329,12 @@ export function KanbanCardDetail({
 
   const tabs: Array<{ id: KanbanDetailTabId; label: string }> = [
     { id: "overview", label: t.kanbanDetail.overview },
-    { id: "construction", label: t.kanbanDetailRedesign.construction },
-    { id: "changes", label: t.kanbanDetailRedesign.changesAndEvidence },
+    { id: "readiness", label: t.kanbanDetail.storyReadiness },
+    { id: "execution", label: t.kanbanDetail.execution },
+    { id: "jitContext", label: t.kanbanDetail.jitContext },
+    { id: "changes", label: t.kanbanDetail.changes },
+    { id: "evidence", label: t.kanbanDetail.evidenceBundle },
+    { id: "runs", label: t.kanbanDetail.runs },
     { id: "completion", label: t.kanbanDetail.completionReport },
   ];
 
@@ -273,8 +350,8 @@ export function KanbanCardDetail({
         showSessionPaneLabel={canShowSessionPane && !isSessionPaneVisible && onShowSessionPane ? sessionCopy.showSessionPane : undefined}
         onShowSessionPane={onShowSessionPane}
       />
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-        <div className="min-w-0 flex-1 lg:overflow-y-auto" data-testid="kanban-detail-main">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="min-w-0 flex-1" data-testid="kanban-detail-main">
           <div className={`mx-auto max-w-5xl pb-10 ${compactMode ? "px-4 pt-4" : "px-6 pt-5"}`}>
             <textarea
               ref={titleInputRef}
@@ -314,16 +391,28 @@ export function KanbanCardDetail({
                 </Button>
               </div>
             ) : null}
+            <KanbanDetailMetaStrip
+              task={task}
+              runCount={orderedSessionIds.length}
+              priority={task.priority ?? editPriority}
+              onPriorityChange={async (value) => {
+                setEditPriority(value);
+                await onPatchTask(task.id, { priority: value });
+                onRefresh();
+              }}
+            />
 
             <Tabs
-              className="mt-4"
+              className="mt-3"
               label={t.kanbanDetail.cardDetail}
               value={activeTab}
               onChange={(id) => selectTab(id as KanbanDetailTabId)}
               panelClassName=""
+              // Eight tabs do not fit a narrow detail: scroll sideways, never wrap.
+              listClassName="gap-4 overflow-x-auto whitespace-nowrap [scrollbar-width:thin] [&>button]:shrink-0"
               items={tabs.map((tab) => ({
                 id: tab.id,
-                label: <span data-testid={`kanban-detail-tab-${tab.id}`}>{tab.label}</span>,
+                label: <span className="whitespace-nowrap" data-testid={`kanban-detail-tab-${tab.id}`}>{tab.label}</span>,
                 content: (
                   <div data-testid={`kanban-detail-panel-${tab.id}`}>
                     {loadState?.error ? (
@@ -341,20 +430,19 @@ export function KanbanCardDetail({
                 ),
               }))}
             />
+            <div className="mt-6 border-t border-default pt-4">
+              <Button
+                variant="danger"
+                size="sm"
+                className="w-full"
+                onClick={onDelete}
+                data-testid="kanban-detail-delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {t.kanbanModals.deleteTaskTitle}
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="shrink-0 border-t border-default lg:w-[170px] lg:overflow-y-auto lg:border-l lg:border-t-0 xl:w-[210px]">
-          <KanbanDetailPropertyRail
-            task={task}
-            runCount={orderedSessionIds.length}
-            priority={task.priority ?? editPriority}
-            onPriorityChange={async (value) => {
-              setEditPriority(value);
-              await onPatchTask(task.id, { priority: value });
-              onRefresh();
-            }}
-            onDelete={onDelete}
-          />
         </div>
       </div>
     </div>

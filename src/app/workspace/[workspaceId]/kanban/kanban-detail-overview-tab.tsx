@@ -7,8 +7,8 @@ import { Button } from "@/client/components/ui/button";
 import { useTranslation } from "@/i18n";
 import type { TaskInfo } from "../types";
 import { KanbanDescriptionEditor } from "./kanban-description-editor";
-import { StoryReadinessPanel, ReviewFeedbackPanel } from "./kanban-detail-review-panels";
-import { DetailDisclosure, DetailSection, formatDetailTimestamp } from "./kanban-detail-section";
+import { ReviewFeedbackPanel } from "./kanban-detail-review-panels";
+import { DetailSection, formatDetailTimestamp } from "./kanban-detail-section";
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
@@ -34,8 +34,8 @@ function formatNoteActor(entry: ProgressNote): string | null {
 
 /**
  * Overview tab: description (Markdown + canonical YAML), review feedback,
- * progress notes (with a pointer to the Completion tab), test cases and a
- * collapsed story-readiness block at the bottom.
+ * progress notes (with a pointer to the Completion tab) and test cases.
+ * Story readiness has its own tab.
  */
 export function KanbanDetailOverviewTab({
   task,
@@ -200,16 +200,6 @@ export function KanbanDetailOverviewTab({
           <p className="m-0 whitespace-pre-line text-sm text-secondary">{t.kanbanDetail.testCasesPlaceholder}</p>
         )}
       </DetailSection>
-
-      <div className="py-4">
-        <DetailDisclosure
-          summary={t.kanbanDetail.storyReadiness}
-          hint={compact ? undefined : t.kanbanDetail.storyReadinessHint}
-          testId="kanban-detail-readiness"
-        >
-          <StoryReadinessPanel task={task} compact={compact} />
-        </DetailDisclosure>
-      </div>
     </div>
   );
 }
