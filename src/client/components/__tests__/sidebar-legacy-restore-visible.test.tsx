@@ -53,12 +53,12 @@ function expectDirectlyVisible(element: HTMLElement, label: string) {
   }
 }
 
-let onSelect: ReturnType<typeof vi.fn>;
-let onCreate: ReturnType<typeof vi.fn>;
+let onSelect: ReturnType<typeof vi.fn<(workspaceId: string) => void>>;
+let onCreate: ReturnType<typeof vi.fn<(title: string) => void>>;
 
 async function renderShell() {
-  onSelect = vi.fn();
-  onCreate = vi.fn();
+  onSelect = vi.fn<(workspaceId: string) => void>();
+  onCreate = vi.fn<(title: string) => void>();
   render(
     <DesktopAppShell
       workspaceId="ws-routa"
