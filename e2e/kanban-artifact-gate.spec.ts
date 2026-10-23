@@ -120,7 +120,7 @@ test.describe("Kanban artifact gates", () => {
         status: "provided",
       });
 
-      await page.getByRole("tab", { name: "Changes & Evidence" }).click();
+      await page.getByRole("tab", { name: "Evidence Bundle" }).click();
       await expect(page.getByText("review-proof.png")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText("by agent-artifact-e2e")).toBeVisible();
       await expect(devCard.getByTestId("kanban-card-artifact-gate")).toContainText("Needs Test Results");
@@ -182,7 +182,7 @@ test.describe("Kanban artifact gates", () => {
         ]),
       });
 
-      await page.getByRole("tab", { name: "Changes & Evidence" }).click();
+      await page.getByRole("tab", { name: "Evidence Bundle" }).click();
       await expect(page.getByText("review-test-results.txt")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText(TEST_RESULTS_TEXT)).toBeVisible();
       await expect(devCard.getByTestId("kanban-card-artifact-gate")).toHaveText("Review ready");
