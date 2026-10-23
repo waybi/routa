@@ -37,7 +37,7 @@ revive 拉起的步骤结束后 lane 记 completed，列内还有步骤就自动
 
 ## Resolution
 
-`enqueueKanbanTaskSession` 新增 `adoptLaneRun` 参数：起会话（或排队）后调用编排器 `adoptLaneRun`；排队的运行在队列拉起时按 triggerSessionId 接管。revive 的这条路径传 `adoptLaneRun: true`，重新运行（resumeLane）也改走同一参数。restart-recovery.ts 里其余两条起会话的路径（Review 收敛、无下一步）都走 `processKanbanColumnTransition`，本来就有编排器登记。测试：`src/core/kanban/__tests__/restart-recovery-adopt.test.ts`。设计说明见 `docs/learning/02-kanban-automation-deep-dive.zh-CN.md` 5d 节。
+修复提交 e2b122f1。`enqueueKanbanTaskSession` 新增 `adoptLaneRun` 参数：起会话（或排队）后调用编排器 `adoptLaneRun`；排队的运行在队列拉起时按 triggerSessionId 接管。revive 的这条路径传 `adoptLaneRun: true`，重新运行（resumeLane）也改走同一参数。restart-recovery.ts 里其余两条起会话的路径（Review 收敛、无下一步）都走 `processKanbanColumnTransition`，本来就有编排器登记。测试：`src/core/kanban/__tests__/restart-recovery-adopt.test.ts`。设计说明见 `docs/learning/02-kanban-automation-deep-dive.zh-CN.md` 5d 节。
 
 已经卡住的 lane（上面 5 张卡）不会因部署自动恢复，需另行处理。
 

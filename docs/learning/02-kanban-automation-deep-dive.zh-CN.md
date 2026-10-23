@@ -537,4 +537,4 @@ code_diff     → 要有代码变更记录
 |---|---|---|---|
 | 2026-10-23 | 队列 drain 每轮读当前队首、清 queued 孤儿、空位先放行早排队的卡；下一步排队不再记失败；重新运行先存库再重读卡；重新运行按 lane 记录选步骤并由编排器接管（第 3 节、5b、5c） | 新增 8 个用例、1 个旧用例补断言，撤掉任一修复对应用例变红；卡 1e7dd356 那类「上一步完成、下一步报 ACP session did not complete successfully.」不再出现 | fix(kanban): board queue drain…、fix(kanban): a lane step queued…、fix(tasks): rerunning a card keeps…、本提交 |
 | 2026-10-23 | 看板「运行/重新运行」按钮点击即显示「启动中…」并防连点，失败弹提示并恢复；重跑成功后新运行露面前卡片显示「启动中」（5c 节末） | 新增 13 个前端用例，撤掉组件改动 7 个变红、撤掉提示和标记 2 个变红 | fix(kanban): run/rerun shows a disabled…、本提交 |
-| 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | fix(kanban): revive hands the next lane step to the orchestrator（本提交） |
+| 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | e2b122f1 fix(kanban): revive hands the next lane step to the orchestrator |
