@@ -47,6 +47,8 @@ export const enTeamRedesign: TeamRedesignTranslationDictionarySections = {
       manageLink: "Manage specialists",
       empty: "No team specialists configured",
       noDescription: "No description",
+      leadRole: "Lead",
+      defaultRole: "Specialist",
     },
     session: {
       eyebrow: "Team session",

@@ -53,6 +53,8 @@ export interface TeamRedesignTranslationDictionarySections {
       manageLink: string;
       empty: string;
       noDescription: string;
+      leadRole: string;
+      defaultRole: string;
     };
     session: {
       eyebrow: string;

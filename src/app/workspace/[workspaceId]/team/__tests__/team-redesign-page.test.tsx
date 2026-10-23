@@ -285,8 +285,10 @@ describe("AC7 team roster", () => {
   it("counts team specialists and lists them in display order", async () => {
     await renderLoaded();
     await waitFor(() => expect(screen.getByTestId("team-roster-summary").textContent).toBe("团队岗位（3 个）"));
-    const roster = screen.getByTestId("team-roster") as HTMLDetailsElement;
-    expect(roster.open).toBe(false);
+    const roster = screen.getByTestId("team-roster") as HTMLElement;
+    expect(roster.closest("details")).toBeNull();
+    expect(roster.querySelector("details")).toBeNull();
+    expect(within(roster).getAllByTestId("team-roster-item")).toHaveLength(3);
     const names = within(roster).getAllByTestId("team-roster-item").map((item) => item.firstChild?.textContent);
     expect(names).toEqual(["Agent Lead", "Researcher", "QA Specialist"]);
   });
@@ -364,7 +366,7 @@ describe("AC16 keyboard reachability", () => {
       screen.getByTestId("team-launch-toggle"),
       screen.getByTestId("team-runs-search"),
       ...enabledOpen,
-      screen.getByTestId("team-roster-summary"),
+      screen.getByTestId("team-roster-manage-link"),
       screen.getByTestId("team-run-sort"),
       ...screen.getAllByTestId("team-run-name-link"),
       ...screen.getAllByTestId("team-run-open"),

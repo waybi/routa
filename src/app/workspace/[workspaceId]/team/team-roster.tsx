@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useId, useMemo } from "react";
 import Link from "next/link";
 
+import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { filterSpecialistsByCategory } from "@/client/utils/specialist-categories";
 
@@ -45,18 +46,27 @@ export function pickSpecialists(data: unknown): SpecialistSummary[] {
 
 const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-/** Collapsible list of team specialists (AC7). A failed read keeps the last list. */
+/** Team specialists only, in display order. Shared by the roster and the page stats. */
+export function selectTeamSpecialists(items: SpecialistSummary[]): SpecialistSummary[] {
+  return filterSpecialistsByCategory(items, "team").sort(compareTeamSpecialists);
+}
+
+/** Lead shows the lead label; others show their role, or the default label when blank. */
+export function teamRoleLabel(specialist: SpecialistSummary, copy: TeamRedesignCopy): string {
+  if (specialist.id === TEAM_LEAD_SPECIALIST_ID) return copy.roster.leadRole;
+  return specialist.role?.trim() ? specialist.role : copy.roster.defaultRole;
+}
+
+/** Always-visible list of team specialists (AC7). A failed read keeps the last list. */
 export function TeamRoster({ copy, specialists }: { copy: TeamRedesignCopy; specialists: ListLoadState<SpecialistSummary> }) {
-  const teamSpecialists = useMemo(
-    () => filterSpecialistsByCategory(specialists.items, "team").sort(compareTeamSpecialists),
-    [specialists.items],
-  );
+  const headingId = useId();
+  const teamSpecialists = useMemo(() => selectTeamSpecialists(specialists.items), [specialists.items]);
 
   return (
-    <details className="group rounded-lg border border-default bg-surface" data-testid="team-roster">
-      <summary className={`cursor-pointer select-none rounded-lg px-4 py-3 text-[13px] font-semibold text-primary ${FOCUS_RING}`} data-testid="team-roster-summary">
+    <section className="rounded-lg border border-default bg-surface" data-testid="team-roster" aria-labelledby={headingId}>
+      <h2 id={headingId} className="m-0 px-4 py-3 text-[13px] font-semibold text-primary" data-testid="team-roster-summary">
         {fillTemplate(copy.roster.summary, { count: teamSpecialists.length })}
-      </summary>
+      </h2>
       <div className="border-t border-default px-4 py-3">
         {specialists.status === "error" ? (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 text-xs text-danger" data-testid="team-roster-error">
@@ -68,18 +78,28 @@ export function TeamRoster({ copy, specialists }: { copy: TeamRedesignCopy; spec
           <p className="m-0 text-xs text-secondary">{copy.roster.empty}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {teamSpecialists.map((specialist) => (
-              <li key={specialist.id} data-testid="team-roster-item" className="min-w-0">
-                <span className="break-words text-xs font-semibold text-primary">{specialist.name}</span>
-                <span className="ml-2 break-words text-xs text-secondary">{specialist.description ?? copy.roster.noDescription}</span>
-              </li>
-            ))}
+            {teamSpecialists.map((specialist) => {
+              const isLead = specialist.id === TEAM_LEAD_SPECIALIST_ID;
+              return (
+                <li key={specialist.id} data-testid="team-roster-item" className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="break-words text-xs font-semibold text-primary">{specialist.name}</span>
+                  <span data-testid="team-roster-role" className="shrink-0">
+                    <Badge tone={isLead ? "info" : "neutral"}>{teamRoleLabel(specialist, copy)}</Badge>
+                  </span>
+                  <span className="min-w-0 break-words text-xs text-secondary">{specialist.description ?? copy.roster.noDescription}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
-        <Link href="/settings/specialists" className={`mt-3 inline-block text-xs text-accent hover:underline ${FOCUS_RING}`}>
+        <Link
+          href="/settings/specialists"
+          className={`mt-3 inline-block text-xs text-accent hover:underline ${FOCUS_RING}`}
+          data-testid="team-roster-manage-link"
+        >
           {copy.roster.manageLink}
         </Link>
       </div>
-    </details>
+    </section>
   );
 }

@@ -31,9 +31,10 @@ import {
   type SortDirection,
   type TeamRunSessionInfo,
 } from "./team-page-model";
-import { pickSpecialists, TeamRoster, type SpecialistSummary } from "./team-roster";
+import { pickSpecialists, selectTeamSpecialists, TeamRoster, type SpecialistSummary } from "./team-roster";
 import { buildTeamRunName } from "./team-run-name";
 import { TeamRunRecordsTable } from "./team-run-records-table";
+import { TeamStats } from "./team-stats";
 
 const LAUNCH_PANEL_ID = "team-launch-panel";
 
@@ -87,6 +88,14 @@ export function TeamPageClient() {
     ),
     [query, sortDirection, t.team.unnamedRun, teamRuns],
   );
+
+  // Same counts as the legacy page: all team runs (search ignored), runs whose
+  // acpStatus is connecting/ready, and team specialists minus the lead.
+  const stats = useMemo(() => ({
+    runs: teamRuns.length,
+    active: teamRuns.filter((run) => run.acpStatus === "connecting" || run.acpStatus === "ready").length,
+    members: Math.max(selectTeamSpecialists(specialists.items).length - 1, 0),
+  }), [specialists.items, teamRuns]);
 
   const workspace = workspacesHook.workspaces.find((item) => item.id === workspaceId);
   const workspaceTitle = workspace?.title ?? (workspaceId === "default" ? teamCopy.page.workspaceFallback : workspaceId);
@@ -203,6 +212,13 @@ export function TeamPageClient() {
               )}
             />
           </div>
+
+          <TeamStats
+            runs={stats.runs}
+            active={stats.active}
+            members={stats.members}
+            labels={{ runs: t.team.runs, active: t.team.active, members: t.team.members }}
+          />
 
           {launchOpen ? (
             <TeamLaunchPanel

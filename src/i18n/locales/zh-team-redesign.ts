@@ -47,6 +47,8 @@ export const zhTeamRedesign: TeamRedesignTranslationDictionarySections = {
       manageLink: "管理岗位",
       empty: "还没有配置团队岗位",
       noDescription: "暂无说明",
+      leadRole: "负责人",
+      defaultRole: "专家",
     },
     session: {
       eyebrow: "团队会话",
