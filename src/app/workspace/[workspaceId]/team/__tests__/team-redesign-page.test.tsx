@@ -224,12 +224,11 @@ describe("AC5 row navigation and search", () => {
 describe("AC6 launch team run", () => {
   it("keeps the exact HomeInput props and builds team-session URLs", async () => {
     await renderLoaded();
-    expect(screen.queryByTestId("team-launch-panel")).toBeNull();
-    const toggle = screen.getByTestId("team-launch-toggle");
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // Team page v2: the launch box is always rendered; the header button only focuses it.
     const panel = screen.getByTestId("team-launch-panel");
+    const toggle = screen.getByTestId("team-launch-toggle");
+    expect(toggle.getAttribute("aria-expanded")).toBeNull();
+    fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-controls")).toBe(panel.id);
     await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("home-input-textarea")));
 
@@ -270,7 +269,7 @@ describe("AC6 launch team run", () => {
     install({ runs: () => ok({ sessions: [] }) });
     render(<TeamPageClient />);
     await waitFor(() => expect(screen.getByTestId("team-launch-panel")).toBeTruthy());
-    expect(screen.getByTestId("team-launch-toggle").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("team-launch-toggle").getAttribute("aria-expanded")).toBeNull();
   });
 
   it("buildTeamRunName keeps its data-marker format", () => {
@@ -388,7 +387,7 @@ describe("AC16 keyboard reachability", () => {
     const toggle = screen.getByTestId("team-launch-toggle");
     toggle.focus();
     await user.keyboard("{Enter}");
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByTestId("team-launch-panel")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByTestId("home-input-textarea"));
   });
 });

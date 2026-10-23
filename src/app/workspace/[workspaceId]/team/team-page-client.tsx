@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Plus, Settings2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { Plus, Settings2 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
+import type { InsertTextRequest } from "@/client/components/tiptap-input";
 import { Button, buttonClassName } from "@/client/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/client/components/ui/states";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
@@ -15,7 +16,6 @@ import { desktopAwareFetch } from "@/client/utils/diagnostics";
 
 import { matchesSessionQuery } from "../sessions-overview";
 import {
-  PageHeader,
   SearchField,
   focusFirstEditable,
   pickSessions,
@@ -34,7 +34,8 @@ import {
 import { pickSpecialists, selectTeamSpecialists, TeamRoster, type SpecialistSummary } from "./team-roster";
 import { buildTeamRunName } from "./team-run-name";
 import { TeamRunRecordsTable } from "./team-run-records-table";
-import { TeamStats } from "./team-stats";
+import { TeamPageHeaderBar, TeamStats } from "./team-stats";
+import { useTeamShortcuts } from "./use-team-shortcuts";
 
 const LAUNCH_PANEL_ID = "team-launch-panel";
 
@@ -63,23 +64,22 @@ export function TeamPageClient() {
   const teamRuns = runs.items;
   const [query, setQuery] = useState("");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [launchOpenChoice, setLaunchOpenChoice] = useState<boolean | null>(null);
-  const [focusLaunchRequest, setFocusLaunchRequest] = useState(0);
+  const [insertTextRequest, setInsertTextRequest] = useState<InsertTextRequest | null>(null);
   const launchPanelRef = useRef<HTMLElement | null>(null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
 
-  const runsEmpty = runs.loadedOnce && teamRuns.length === 0;
-  const launchOpen = launchOpenChoice ?? runsEmpty;
-
-  useEffect(() => {
-    if (focusLaunchRequest === 0) return;
+  const focusLaunch = useCallback(() => {
     focusFirstEditable(launchPanelRef.current);
-  }, [focusLaunchRequest]);
+  }, []);
+  const focusSearch = useCallback(() => {
+    pageRef.current?.querySelector<HTMLInputElement>('[data-testid="team-runs-search"]')?.focus();
+  }, []);
+  const requestInsert = useCallback((text: string, mode: InsertTextRequest["mode"]) => {
+    setInsertTextRequest((current) => ({ text, mode, nonce: (current?.nonce ?? 0) + 1 }));
+    focusLaunch();
+  }, [focusLaunch]);
 
-  const toggleLaunch = useCallback(() => {
-    const next = !launchOpen;
-    setLaunchOpenChoice(next);
-    if (next) setFocusLaunchRequest((current) => current + 1);
-  }, [launchOpen]);
+  useTeamShortcuts({ onLaunch: focusLaunch, onSearch: focusSearch, disabled: false });
 
   const visibleRuns = useMemo(
     () => sortTeamRuns(
@@ -185,55 +185,59 @@ export function TeamPageClient() {
         />
       )}
     >
-      <div className="h-full min-h-0 overflow-y-auto bg-canvas">
+      <div className="h-full min-h-0 overflow-y-auto bg-canvas" ref={pageRef}>
         <div className="mx-auto flex w-full min-w-0 max-w-[1200px] flex-col gap-5 px-4 py-6 md:px-[22px] xl:px-7" data-testid="team-page">
           <div data-testid="team-page-header">
-            <PageHeader
+            <TeamPageHeaderBar
               title={copy.teamTitle}
               description={copy.teamDescription}
-              action={(
+              stats={(
+                <TeamStats
+                  runs={stats.runs}
+                  active={stats.active}
+                  members={stats.members}
+                  ariaLabel={teamCopy.header.statsLabel}
+                  labels={{ runs: t.team.runs, active: t.team.active, members: t.team.members }}
+                />
+              )}
+              actions={(
                 <>
-                  <Link href="/settings/specialists" className={buttonClassName("primary", "md")} data-testid="team-configure-specialists">
+                  <Link href="/settings/specialists" className={buttonClassName("secondary", "md")} data-testid="team-configure-specialists">
                     <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
                     {copy.configureSpecialists}
                   </Link>
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="md"
-                    aria-expanded={launchOpen}
                     aria-controls={LAUNCH_PANEL_ID}
-                    onClick={toggleLaunch}
+                    aria-keyshortcuts="N"
+                    title={teamCopy.header.launchShortcutHint}
+                    onClick={focusLaunch}
                     data-testid="team-launch-toggle"
                   >
                     <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                     {teamCopy.page.launchRun}
+                    <kbd className="rounded border border-on-accent/40 px-1 font-mono text-[10px] leading-4">{teamCopy.header.launchShortcut}</kbd>
                   </Button>
                 </>
               )}
             />
           </div>
 
-          <TeamStats
-            runs={stats.runs}
-            active={stats.active}
-            members={stats.members}
-            labels={{ runs: t.team.runs, active: t.team.active, members: t.team.members }}
+          <TeamLaunchPanel
+            id={LAUNCH_PANEL_ID}
+            ref={launchPanelRef}
+            copy={teamCopy}
+            modeCopy={{
+              label: t.home.modeTeamTitle,
+              description: t.home.modeTeamDescription,
+              placeholder: t.home.modeTeamPlaceholder,
+            }}
+            workspaceId={workspaceId}
+            insertTextRequest={insertTextRequest}
+            onTemplate={(text) => requestInsert(text, "replace")}
+            onSessionCreated={handleTeamSessionCreated}
           />
-
-          {launchOpen ? (
-            <TeamLaunchPanel
-              id={LAUNCH_PANEL_ID}
-              ref={launchPanelRef}
-              copy={teamCopy}
-              modeCopy={{
-                label: t.home.modeTeamTitle,
-                description: t.home.modeTeamDescription,
-                placeholder: t.home.modeTeamPlaceholder,
-              }}
-              workspaceId={workspaceId}
-              onSessionCreated={handleTeamSessionCreated}
-            />
-          ) : null}
 
           <SearchField
             value={query}
