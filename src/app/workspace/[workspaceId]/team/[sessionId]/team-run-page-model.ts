@@ -31,6 +31,8 @@ export interface TeamTaskNode {
   title: string;
   status: NormalizedTaskStatus;
   details?: string;
+  /** Member session the task was handed to, when recorded. */
+  sessionId?: string;
   children: TeamTaskNode[];
 }
 
@@ -202,29 +204,28 @@ export function normalizeTaskStatus(status?: string): NormalizedTaskStatus {
   return "not-started";
 }
 
-export function statusDotClass(status: TeamMemberStatus): string {
+/** Five design-spec tones (ui/badge.tsx); colors come from tokens, never palettes. */
+export type TeamTone = "neutral" | "info" | "attention" | "danger" | "success";
+
+export function memberStatusTone(status: TeamMemberStatus): TeamTone {
   switch (status) {
     case "working":
-      return "bg-cyan-500";
+      return "info";
     case "reviewing":
-      return "bg-amber-500";
+      return "attention";
     case "blocked":
-      return "bg-rose-500";
+      return "danger";
     case "done":
-      return "bg-emerald-500";
+      return "success";
     default:
-      return "bg-slate-400";
+      return "neutral";
   }
 }
 
-export function deliverableTone(status: DeliverableItem["status"]): string {
-  if (status === "approved") {
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300";
-  }
-  if (status === "review") {
-    return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300";
-  }
-  return "bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300";
+export function deliverableStatusTone(status: DeliverableItem["status"]): TeamTone {
+  if (status === "approved") return "success";
+  if (status === "review") return "attention";
+  return "neutral";
 }
 
 export function roleTone(roleId?: string): RoleTone {
@@ -241,68 +242,29 @@ export function roleTone(roleId?: string): RoleTone {
   return "neutral";
 }
 
-export function roleChipClass(roleId?: string, emphasis: "soft" | "strong" = "soft"): string {
-  const tone = roleTone(roleId);
-  const styles: Record<RoleTone, { soft: string; strong: string }> = {
-    lead: {
-      soft: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300",
-      strong: "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200",
-    },
-    qa: {
-      soft: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
-      strong: "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/15 dark:text-amber-200",
-    },
-    research: {
-      soft: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
-      strong: "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200",
-    },
-    frontend: {
-      soft: "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-300",
-      strong: "border-cyan-300 bg-cyan-100 text-cyan-800 dark:border-cyan-400/30 dark:bg-cyan-500/15 dark:text-cyan-200",
-    },
-    backend: {
-      soft: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300",
-      strong: "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200",
-    },
-    review: {
-      soft: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500/20 dark:bg-fuchsia-500/10 dark:text-fuchsia-300",
-      strong: "border-fuchsia-300 bg-fuchsia-100 text-fuchsia-800 dark:border-fuchsia-400/30 dark:bg-fuchsia-500/15 dark:text-fuchsia-200",
-    },
-    ux: {
-      soft: "border-pink-200 bg-pink-50 text-pink-700 dark:border-pink-500/20 dark:bg-pink-500/10 dark:text-pink-300",
-      strong: "border-pink-300 bg-pink-100 text-pink-800 dark:border-pink-400/30 dark:bg-pink-500/15 dark:text-pink-200",
-    },
-    ops: {
-      soft: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300",
-      strong: "border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-400/30 dark:bg-orange-500/15 dark:text-orange-200",
-    },
-    general: {
-      soft: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
-      strong: "border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-400/30 dark:bg-slate-500/15 dark:text-slate-200",
-    },
-    neutral: {
-      soft: "border-desktop-border bg-desktop-bg-primary text-desktop-text-secondary",
-      strong: "border-desktop-border bg-desktop-bg-active text-desktop-text-primary",
-    },
-  };
-  return styles[tone][emphasis];
+/**
+ * Role chips and avatars share the token palette: the lead is accented,
+ * verifying roles use attention, builders use information, the rest neutral.
+ */
+const ROLE_TOKEN_CLASS: Record<RoleTone, string> = {
+  lead: "border-accent bg-accent-subtle text-accent",
+  qa: "border-attention bg-attention-subtle text-attention",
+  review: "border-attention bg-attention-subtle text-attention",
+  research: "border-default bg-success-subtle text-success",
+  frontend: "border-default bg-accent-subtle text-information",
+  backend: "border-default bg-accent-subtle text-information",
+  ux: "border-default bg-accent-subtle text-information",
+  ops: "border-default bg-subtle text-primary",
+  general: "border-default bg-subtle text-primary",
+  neutral: "border-default bg-subtle text-secondary",
+};
+
+export function roleChipClass(roleId?: string): string {
+  return ROLE_TOKEN_CLASS[roleTone(roleId)];
 }
 
 export function roleAvatarClass(roleId?: string): string {
-  const tone = roleTone(roleId);
-  const styles: Record<RoleTone, string> = {
-    lead: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200",
-    qa: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200",
-    research: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200",
-    frontend: "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-200",
-    backend: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200",
-    review: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-500/15 dark:text-fuchsia-200",
-    ux: "bg-pink-100 text-pink-800 dark:bg-pink-500/15 dark:text-pink-200",
-    ops: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200",
-    general: "bg-slate-100 text-slate-800 dark:bg-slate-500/15 dark:text-slate-200",
-    neutral: "bg-desktop-bg-active text-desktop-text-primary",
-  };
-  return styles[tone];
+  return ROLE_TOKEN_CLASS[roleTone(roleId)].replace(/border-\S+\s/, "");
 }
 
 export function sessionBadge(session: SessionInfo): string {
@@ -609,31 +571,25 @@ export function inferSessionDeliverableLabel(specialistId?: string): string {
   return "deliverable";
 }
 
+export type CompletionTitleKey = "blocker" | "revision" | "review" | "findings" | "ui-proposal" | "phase";
+
+/** Completion event type plus a title key; the caller renders the title through i18n. */
 export function inferCompletionEvent(
   session: SessionInfo,
-  actor: string,
   update: NonNullable<SessionHistoryEntry["update"]>,
-): Pick<TeamActivityItem, "type" | "title" | "summary"> {
+): { type: CoordinationEventType; titleKey: CompletionTitleKey; summary?: string } {
   const specialistId = session.specialistId ?? "";
   const taskStatus = normalizeTaskStatus(update.taskStatus);
   const summary = summarizeText(update.completionSummary ?? extractHistoryText(update));
 
-  if (taskStatus === "blocked") {
-    return { type: "blocked", title: `${actor} reported a blocker`, summary };
-  }
+  if (taskStatus === "blocked") return { type: "blocked", titleKey: "blocker", summary };
   if (specialistId.includes("qa") || specialistId.includes("review")) {
-    if (taskStatus === "waiting-review") {
-      return { type: "revision", title: `${actor} requested revision`, summary };
-    }
-    return { type: "complete", title: `${actor} returned review`, summary };
+    if (taskStatus === "waiting-review") return { type: "revision", titleKey: "revision", summary };
+    return { type: "complete", titleKey: "review", summary };
   }
-  if (specialistId.includes("research")) {
-    return { type: "finding", title: `${actor} returned findings`, summary };
-  }
-  if (specialistId.includes("ux")) {
-    return { type: "complete", title: `${actor} delivered UI proposal`, summary };
-  }
-  return { type: "complete", title: `${actor} marked phase complete`, summary };
+  if (specialistId.includes("research")) return { type: "finding", titleKey: "findings", summary };
+  if (specialistId.includes("ux")) return { type: "complete", titleKey: "ui-proposal", summary };
+  return { type: "complete", titleKey: "phase", summary };
 }
 
 export function laneSnippetTone(update?: SessionHistoryEntry["update"]): SessionLaneSnippet["tone"] {
@@ -654,15 +610,19 @@ export function laneSnippetKind(update?: SessionHistoryEntry["update"]): Session
   return "message";
 }
 
+/**
+ * Lane snippet label as a key (update / report-back / user / agent / runtime /
+ * tool) or a raw tool name; the UI translates keys via team-status-labels.
+ */
 export function laneSnippetLabel(update?: SessionHistoryEntry["update"]): string {
-  if (!update?.sessionUpdate) return "Update";
+  if (!update?.sessionUpdate) return "update";
   if (update.sessionUpdate === "tool_call_update") {
-    return getToolEventLabel(update as Record<string, unknown>) || "Tool";
+    return getToolEventLabel(update as Record<string, unknown>) || "tool";
   }
-  if (update.sessionUpdate === "task_completion") return "Report back";
-  if (update.sessionUpdate === "user_message") return "User";
-  if (update.sessionUpdate === "agent_message") return "Agent";
-  if (update.sessionUpdate === "acp_status" && update.status === "error") return "Runtime";
+  if (update.sessionUpdate === "task_completion") return "report-back";
+  if (update.sessionUpdate === "user_message") return "user";
+  if (update.sessionUpdate === "agent_message") return "agent";
+  if (update.sessionUpdate === "acp_status" && update.status === "error") return "runtime";
   return update.sessionUpdate.replaceAll("_", " ");
 }
 

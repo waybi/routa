@@ -4,13 +4,18 @@ import React from "react";
 import { useTranslation } from "@/i18n";
 import { useState } from "react";
 import { MessageBubble } from "@/client/components/message-bubble";
+import { Badge } from "@/client/components/ui/badge";
 import type { ChatMessage } from "@/client/components/chat-panel/types";
 import { AskUserQuestionBubble } from "@/client/components/message-bubble";
 import {
-  deliverableTone,
+  deliverableKindLabel,
+  deliverableStatusLabel,
+  memberStatusLabel,
+  taskStatusLabel,
+} from "../team-status-labels";
+import {
   roleAvatarClass,
   roleChipClass,
-  statusDotClass,
   type DeliverableItem,
   type NormalizedTaskStatus,
   type TeamMemberItem,
@@ -38,7 +43,7 @@ export function ObjectiveSidebarSection({
   const canToggleObjective = shouldClampObjective;
   const objectiveClassName = shouldClampObjective && !isObjectiveExpanded ? "line-clamp-3" : "";
   return (
-    <section className="flex min-h-0 flex-col border-r border-default bg-subtle">
+    <section className="flex min-h-0 flex-col rounded-lg border border-default bg-subtle" data-testid="team-run-evidence">
       <div className="border-b border-default px-2.5 py-1.5">
         <div className="flex items-start justify-between gap-2">
           <h2 className="text-[12px] font-semibold text-secondary">
@@ -48,7 +53,7 @@ export function ObjectiveSidebarSection({
             <button
               type="button"
               onClick={() => setIsObjectiveExpanded((current) => !current)}
-              className="text-[10px] font-medium text-accent transition hover:text-primary"
+              className="rounded-control text-[10px] font-medium text-accent transition hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               {isObjectiveExpanded ? t.team.showLessThread : t.team.expandThread}
             </button>
@@ -70,7 +75,7 @@ export function ObjectiveSidebarSection({
             <EmptyPanel message={t.team.noTaskNotesYet} />
           ) : (
             <div className="space-y-1.5">
-              {taskTree.map((node) => <TaskTreeNode key={node.id} node={node} />)}
+              {taskTree.map((node) => <TaskTreeNode key={node.id} node={node} onFocusSession={onFocusSession} />)}
             </div>
           )}
 
@@ -82,21 +87,22 @@ export function ObjectiveSidebarSection({
               <EmptyPanel message={t.team.noNotesOrDeliverablesYet} />
             ) : (
               <div className="divide-y divide-default rounded-[10px] border border-default bg-surface">
-                {deliverables.map((item) => (
+                {deliverables.map((item) => {
+                  const kind = deliverableKindLabel(t.teamRedesign, item.label);
+                  const status = deliverableStatusLabel(t.teamRedesign, item.status);
+                  return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => item.sessionId && onFocusSession(item.sessionId)}
                     disabled={!item.sessionId}
-                    className={`flex w-full items-start gap-2 px-2.5 py-2 text-left transition ${item.sessionId ? "hover:bg-hover" : "cursor-default"
+                    className={`flex w-full items-start gap-2 px-2.5 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-accent ${item.sessionId ? "hover:bg-hover" : "cursor-default"
                       }`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-[11px] font-semibold text-primary">{item.label}</div>
-                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium capitalize ${deliverableTone(item.status)}`}>
-                          {item.status}
-                        </span>
+                        <div className="break-words text-[11px] font-semibold text-primary">{kind.known ? kind.label : item.label}</div>
+                        <Badge tone={status.tone}>{status.label}</Badge>
                       </div>
                       <div className="mt-0.5 truncate text-[10px] text-secondary">{item.title}</div>
                       <div className="mt-0.5 text-[9px] text-secondary">{item.owner}</div>
@@ -105,7 +111,8 @@ export function ObjectiveSidebarSection({
                       )}
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -193,11 +200,11 @@ export function TeamMembersSection({
 }) {
   const { t } = useTranslation();
   return (
-    <aside className="min-h-0 overflow-hidden border-l border-default bg-subtle">
+    <section className="min-h-0 overflow-hidden rounded-lg border border-default bg-subtle" aria-label={t.teamRedesign.session.membersTitle}>
       <div className="border-b border-default px-2.5 py-1.5">
-        <div className="text-[11px] font-semibold text-secondary">
-          {t.team.teamMembers}
-        </div>
+        <h2 className="m-0 text-[11px] font-semibold text-secondary">
+          {t.teamRedesign.session.membersTitle}
+        </h2>
       </div>
 
       <div className="min-h-0 flex-1">
@@ -205,13 +212,15 @@ export function TeamMembersSection({
           <div className="divide-y divide-default">
             {teamMembers.map((member) => {
               const isSelected = member.sessionId === selectedSessionId;
+              const status = memberStatusLabel(t.teamRedesign, member.status);
               return (
                 <button
                   key={member.id}
                   type="button"
                   onClick={() => member.sessionId && onFocusSession(member.sessionId)}
                   disabled={!member.sessionId}
-                  className={`flex w-full items-start gap-2 px-2.5 py-1.5 text-left transition ${isSelected
+                  data-testid="team-member-item"
+                  className={`flex w-full items-start gap-2 px-2.5 py-1.5 text-left transition focus-visible:outline-2 focus-visible:outline-accent ${isSelected
                     ? "bg-accent-subtle"
                     : member.sessionId
                       ? "hover:bg-hover"
@@ -220,12 +229,11 @@ export function TeamMembersSection({
                 >
                   <div className={`relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${roleAvatarClass(member.roleId)}`}>
                     {member.avatarLabel}
-                    <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-default ${statusDotClass(member.status)}`} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="truncate text-[11px] font-semibold text-primary">{member.actor}</div>
-                      <span className="shrink-0 text-[10px] text-secondary">{member.status}</span>
+                      <div className="break-words text-[11px] font-semibold text-primary">{member.actor}</div>
+                      <Badge tone={status.tone} className="shrink-0">{status.label}</Badge>
                     </div>
                     <div className="mt-0.5 truncate text-[10px] text-secondary">
                       {member.sessionId ? member.roleLabel : `${member.roleLabel} · ${t.team.noSessionYet}`}
@@ -246,21 +254,34 @@ export function TeamMembersSection({
           </div>
         </div>
       </div>
-    </aside >
+    </section>
   );
 }
 function TaskTreeNode({
   node,
   level = 0,
+  onFocusSession,
 }: {
   node: TeamTaskNode;
   level?: number;
+  onFocusSession: (sessionId: string) => void;
 }) {
+  const clickable = Boolean(node.sessionId);
   return (
     <div>
       <div
-        className="rounded-[10px] border border-transparent px-2 py-1.5 transition-colors hover:border-default hover:bg-hover"
+        className={`rounded-[10px] border border-transparent px-2 py-1.5 transition-colors hover:border-default hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent ${clickable ? "cursor-pointer" : ""}`}
         style={{ marginLeft: level * 12 }}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        data-testid="team-task-node"
+        onClick={clickable ? () => onFocusSession(node.sessionId!) : undefined}
+        onKeyDown={clickable ? (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onFocusSession(node.sessionId!);
+          }
+        } : undefined}
       >
         <div className="flex items-start gap-3">
           <div className="pt-0.5">
@@ -282,7 +303,7 @@ function TaskTreeNode({
         </div>
       </div>
       {node.children.map((child) => (
-        <TaskTreeNode key={child.id} node={child} level={level + 1} />
+        <TaskTreeNode key={child.id} node={child} level={level + 1} onFocusSession={onFocusSession} />
       ))}
     </div>
   );
@@ -317,39 +338,15 @@ function TaskStatusGlyph({ status }: { status: NormalizedTaskStatus }) {
 }
 
 function TaskStatusPill({ status }: { status: NormalizedTaskStatus }) {
-  const tone =
-    status === "done"
-      ? "bg-success-subtle text-success"
-      : status === "in-progress"
-        ? "bg-accent-subtle text-information"
-        : status === "waiting-review"
-          ? "bg-attention-subtle text-attention"
-          : status === "blocked"
-            ? "bg-danger-subtle text-danger"
-            : "bg-subtle text-primary";
-  return (
-    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-medium ${tone}`}>
-      {status.replace("-", " ")}
-    </span>
-  );
+  const { t } = useTranslation();
+  const label = taskStatusLabel(t.teamRedesign, status);
+  return <Badge tone={label.tone} className="shrink-0">{label.label}</Badge>;
 }
 
 function SessionStatusPill({ status }: { status: TeamMemberStatus }) {
-  const tone =
-    status === "working"
-      ? "bg-accent-subtle text-information"
-      : status === "reviewing"
-        ? "bg-attention-subtle text-attention"
-        : status === "done"
-          ? "bg-success-subtle text-success"
-          : status === "blocked"
-            ? "bg-danger-subtle text-danger"
-            : "bg-subtle text-primary";
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tone}`}>
-      {status}
-    </span>
-  );
+  const { t } = useTranslation();
+  const label = memberStatusLabel(t.teamRedesign, status);
+  return <Badge tone={label.tone}>{label.label}</Badge>;
 }
 
 function LeadMessageThread({
@@ -407,7 +404,7 @@ function LeadMessageThread({
               <button
                 type="button"
                 onClick={onSelectSession}
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium transition ${roleChipClass(lane.roleId, "soft")}`}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium transition focus-visible:outline-2 focus-visible:outline-accent ${roleChipClass(lane.roleId)}`}
               >
                 {lane.actor}
               </button>
@@ -424,7 +421,7 @@ function LeadMessageThread({
                 <button
                   type="button"
                   onClick={onOpenViewer}
-                  className="text-[10px] font-medium text-secondary transition-colors hover:text-primary"
+                  className="rounded-control text-[10px] font-medium text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {t.team.openViewer}
                 </button>
