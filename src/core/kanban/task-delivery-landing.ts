@@ -11,9 +11,10 @@ import type { Worktree } from "@/core/models/worktree";
  * full probe runs `git status` and `git remote` for every task and took ~15 s
  * on a 21-card workspace. The board still needs one bit — whether a `done`
  * card's commits are reachable from the base branch — to tell "finished" from
- * "actually merged". This module answers that with read-only ref lookups
- * (`cat-file --batch-check`, `rev-list --count`, `merge-base --is-ancestor`),
- * only for cards that have a task worktree. Every git call is async
+ * "actually merged". This module answers that with read-only git commands
+ * (`cat-file --batch-check`, `merge-base --is-ancestor`, then for commits
+ * replayed under new shas `cherry`, `diff-tree --stdin`, `diff --name-only`,
+ * `log --no-merges`), only for cards that have a task worktree. Every git call is async
  * (git-landing-probe.ts), at most {@link LANDING_PROBE_CONCURRENCY} probes run
  * at once, and results are cached by HEAD + base shas, so the list stays fast
  * and never blocks the Node main thread.
@@ -22,7 +23,11 @@ import type { Worktree } from "@/core/models/worktree";
 export interface TaskDeliveryLanding {
   /** HEAD reachable from base. `null` when it could not be determined. */
   landedOnBase: boolean | null;
-  /** Commits on the task branch that are not on base (0 once landed). */
+  /**
+   * When HEAD is not reachable from base: non-merge task-branch commits that
+   * none of the three replay layers (patch-id, content, subject + paths)
+   * recognized on base. 0 once landed.
+   */
   commitsSinceBase: number;
   branch?: string;
   baseBranch?: string;
