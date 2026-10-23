@@ -24,10 +24,19 @@ import type { ArtifactType } from "@/core/models/artifact";
 import { emitColumnTransition } from "@/core/kanban/column-transition";
 import { archiveActiveTaskSession, prepareTaskForColumnChange } from "@/core/kanban/task-session-transition";
 import {
+  endKanbanTaskSessions,
   enqueueKanbanTaskSession,
+  forgetKanbanCard,
   getKanbanSessionQueue,
   processKanbanColumnTransition,
 } from "@/core/kanban/workflow-orchestrator-singleton";
+import { collectTaskSessionIds } from "@/core/kanban/done-lane-teardown";
+import {
+  collectRunningColumnSessionIds,
+  dropQueuedCardJob,
+  excludeCurrentColumnSessions,
+  markSessionsCompleted,
+} from "@/core/kanban/card-session-teardown";
 import { resolveRemainingLaneStepsMoveBlock } from "@/core/kanban/lane-automation-state";
 import {
   buildTaskEvidenceSummary,
@@ -247,6 +256,9 @@ export async function PATCH(
 
   let nextTask: Task = { ...existing, updatedAt: new Date() };
   let transitionDeliveryReadiness: TaskDeliveryReadiness | undefined;
+  // Only an explicit move ends the old column's processes; a verdict that
+  // converges the card may come from the agent that is still in its turn.
+  const explicitColumnMove = body.columnId !== undefined || body.status !== undefined;
 
   if (
     existing.columnId === "review"
@@ -555,7 +567,12 @@ export async function PATCH(
 
   Object.assign(nextTask, await ensureTaskBoardContext(system, nextTask));
 
+  // Read before prepareTaskForColumnChange finalizes and clears the trigger session.
+  const staleSessionIds = explicitColumnMove && nextTask.columnId !== existing.columnId
+    ? collectRunningColumnSessionIds(existing, existing.columnId)
+    : [];
   const columnChanged = prepareTaskForColumnChange(existing.columnId, nextTask);
+  markSessionsCompleted(nextTask, staleSessionIds);
   if (columnChanged) {
     getKanbanSessionQueue(system).removeCardJob(taskId);
     if (existing.worktreeId) {
@@ -628,6 +645,10 @@ export async function PATCH(
           resourceId: nextTask.id,
           source: "user",
         });
+        await endCardSessionsQuietly(system, staleSessionIds, "of a card the user moved to another column", {
+          cardId: taskId,
+          columnId: existing.columnId,
+        });
         return NextResponse.json({ task: await serializeTask(nextTask, system) });
       }
     }
@@ -694,7 +715,33 @@ export async function PATCH(
     }
   }
 
+  if (staleSessionIds.length > 0) {
+    // After the new column's step started: never end a session it owns.
+    const latest = (await system.taskStore.get(taskId)) ?? nextTask;
+    await endCardSessionsQuietly(
+      system,
+      excludeCurrentColumnSessions(staleSessionIds, latest),
+      "of a card the user moved to another column",
+      { cardId: taskId, columnId: existing.columnId },
+    );
+  }
+
   return NextResponse.json({ task: await serializeTask(nextTask, system) });
+}
+
+/** Ending processes must never fail the request; a leftover is reaped later. */
+async function endCardSessionsQuietly(
+  system: ReturnType<typeof getRoutaSystem>,
+  sessionIds: string[],
+  label: string,
+  forget: { cardId: string; columnId?: string },
+): Promise<void> {
+  try {
+    forgetKanbanCard(system, forget.cardId, forget.columnId !== undefined ? { columnId: forget.columnId } : undefined);
+    await endKanbanTaskSessions(system, sessionIds, label);
+  } catch (error) {
+    console.warn(`[kanban] Failed to end sessions ${label} (card ${forget.cardId}):`, error);
+  }
 }
 
 export async function DELETE(
@@ -704,10 +751,21 @@ export async function DELETE(
   const { taskId } = await params;
   const system = getRoutaSystem();
   const task = await system.taskStore.get(taskId);
+  if (task) {
+    // Nothing of a deleted card may start again: drop its queued step and its
+    // automation before the record goes away.
+    try {
+      await dropQueuedCardJob(getKanbanSessionQueue(system), task);
+      forgetKanbanCard(system, taskId);
+    } catch (error) {
+      console.warn(`[kanban] Failed to drop the queued step of deleted card ${taskId}:`, error);
+    }
+  }
   await system.taskStore.delete(taskId);
   if (!task) {
     return NextResponse.json({ deleted: true });
   }
+  await endCardSessionsQuietly(system, collectTaskSessionIds(task), "of a deleted card", { cardId: taskId });
 
   getKanbanEventBroadcaster().notify({
     workspaceId: task.workspaceId,

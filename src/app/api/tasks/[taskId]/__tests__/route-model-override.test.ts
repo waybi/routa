@@ -72,6 +72,8 @@ vi.mock("@/core/kanban/task-delivery-readiness", () => ({
 }));
 
 vi.mock("@/core/kanban/workflow-orchestrator-singleton", () => ({
+  endKanbanTaskSessions: vi.fn(async () => undefined),
+  forgetKanbanCard: vi.fn(),
   enqueueKanbanTaskSession: (...args: unknown[]) => enqueueKanbanTaskSession(...args),
   getKanbanSessionQueue: () => ({ removeCardJob }),
   processKanbanColumnTransition: vi.fn(),

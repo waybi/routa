@@ -117,6 +117,9 @@ UI 又只用一个 `lastSyncError` 字符串 + 「同步问题」标签把这些
 - 板设置并发上限 5（`board-session-limits.ts:1`），但 22 个 DSH 子进程存活（最老 11 分 40 秒，全部由当前 routa-prod 拉起），泳道状态 completed 的会话进程也没退出。
 - 每个 55–228MB，合计 3.27GB；同期 error.log 出现 3 条 `[NODE-CRON] missed execution ... Possible blocking IO or high CPU`。
 - 2026-10-23 状态：每步结束即结束该步进程、Done 失败结束全卡进程、启动失败与重复拉起不再留脱管进程，见 `2026-10-23-acp-zombie-lanes-and-leaked-agent-processes.md`。
+- 2026-10-24 状态（复盘 L145，卡 52e6530e）补齐删卡与手动移列：
+  - **删卡**：`DELETE /api/tasks/{id}` 先删掉该卡在 `kanban-session-queue` 里排队的步骤、丢掉编排器里该卡的自动化，再删记录，最后经编排器 `endTaskSessions` 结束 `collectTaskSessionIds(卡)` 的每个会话（每个会话只结束一次）。结束失败只打 warn，接口照常 200。该卡在跑的排队条目保留，进程退出时照常释放名额、放行下一张排队卡。
+  - **手动移列**：`PATCH /api/tasks/{id}` 带 `columnId` 或 `status`、且列确实变了时，先取旧列 running 的会话（lane 记录加 `triggerSessionId`），新列步骤拉起之后再结束它们，并把记录标 completed（不是 failed）；新列的会话不结束；被闸门拒绝的移列不结束任何进程。施工者自己调 MCP `move_card` 不走这条路，仍由 deea45bd 的逻辑等它回合结束再关。被结束的会话之后发来的失败事件，编排器一律当收尾处理：不写 failed、不恢复、不重跑。
 
 ### 1.8 双事件监听器竞态——orchestrator 与 queue 对同一事件独立处理
 
@@ -411,3 +414,4 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | 2026-10-16 | 两端对齐：Rust 端 `revive_missing_entry_automations` 也跳过「当前列最后一条会话是 environment_failure」的卡（`is_awaiting_environment_fix`，对应 TS `isAwaitingEnvironmentFix`），新增测试 `revive_board_post_skips_cards_awaiting_environment_fix`（同列普通 agent_failed 卡作对照会被重新触发） | 环境故障卡在桌面版（Rust 后端）上手动 POST revive 时也不会被重跑 | 本提交 |
 | 2026-10-23 | 施工者进程按步骤收尾（卡 75f3b360 第 7 条）：编排器每步结束（完成/失败/超时/改走恢复）即 `killSession` 该步会话，工具调用合成的完成等回合结束再关；Done 列失败结束该卡全部会话、保留工作副本；每个会话只结束一次；已结束的会话不再收恢复提示（以前会被 `ensurePromptSessionExists` 重新拉起） | 一张卡不再在进 Done 前攒下各步进程（10-23 实测一张卡 11 个、全机 89 个只 5 个在干活）；Done 失败不再留进程；10-23 日志里 5 次「刚结束又被拉起」不再发生 | 本提交 |
 | 2026-10-23 | 非 dev 列无活动看门狗（P1-9）：backlog/todo/review/done 的步骤 20 分钟没有 ACP 活动即记 timed_out（`recoveryReason: watchdog_inactivity`）、结束该步进程、释放看板名额；不重试、不发恢复提示，POST revive 也跳过；看板经工作区 metadata `kanbanLaneSessionWatchdog:<boardId>` 可改阈值或关闭；排队后才启动的步骤由看门狗按 `triggerSessionId` 接管 | 挂死、不回、进程没了却没报退出的非 dev 步骤不再永远占名额（10-23 三个 Done 推送员占 5 个名额里的 3 个两个多小时） | 9c78fa2e |
+| 2026-10-24 | 删卡/手动移列结束施工者进程（复盘 L145，卡 52e6530e）：`DELETE /api/tasks/{id}` 先删排队步骤和编排器自动化，再经 `endTaskSessions` 结束该卡全部会话；`PATCH` 带 `columnId`/`status` 移列时，新列步骤拉起后结束旧列 running 会话并记 completed；被结束会话后到的失败事件当收尾，不写 failed、不恢复、不重跑 | 删卡、移卡不再残留施工者进程（10-21 删卡 01c8d28b 后剩 3 个）；每个会话只 kill 一次；新增路由与编排器测试 31 条 | 本提交 |

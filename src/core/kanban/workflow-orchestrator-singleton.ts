@@ -333,6 +333,10 @@ async function startKanbanTaskSession(
   });
 
   if (triggerResult.sessionId) {
+    // Records only, no kill: this also runs when an agent moves its own card
+    // (MCP move_card) and is still inside its turn; deea45bd ends that session
+    // once its turn is over. A user move (PATCH /api/tasks/{id}) ends the old
+    // column's processes itself via endKanbanTaskSessions.
     completeRunningSessionsOutsideColumn(nextTask, nextTask.columnId, {
       excludeSessionId: triggerResult.sessionId,
     });
@@ -580,6 +584,25 @@ export async function processKanbanColumnTransition(
   startWorkflowOrchestrator(system);
   const orchestrator = getWorkflowOrchestrator(system);
   await orchestrator.processColumnTransition(data);
+}
+
+/**
+ * End the agent processes of a deleted or user-moved card's sessions through
+ * the orchestrator, which ends each session once and treats the exit as
+ * teardown. Routes must use this instead of the process manager directly.
+ */
+export async function endKanbanTaskSessions(
+  system: RoutaSystem,
+  sessionIds: string[],
+  label: string,
+): Promise<void> {
+  if (sessionIds.length === 0) return;
+  await getWorkflowOrchestrator(system).endTaskSessions(sessionIds, label);
+}
+
+/** Drop a card's automation (optionally only one of `columnId`) so late events cannot advance it. */
+export function forgetKanbanCard(system: RoutaSystem, cardId: string, options?: { columnId?: string }): void {
+  getWorkflowOrchestrator(system).forgetCard(cardId, options);
 }
 
 /**

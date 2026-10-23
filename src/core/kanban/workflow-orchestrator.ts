@@ -316,6 +316,12 @@ export class KanbanWorkflowOrchestrator {
   private deferredTeardownSessionIds = new Set<string>();
   /** Sessions whose agent process Routa already ended; each is ended once. */
   private endedSessionIds = new Set<string>();
+  /**
+   * Sessions ended because the user deleted their card or moved it out of
+   * their column. Their later lifecycle events (the failure raised by the
+   * aborted prompt) are teardown: no lane record, recovery or re-run.
+   */
+  private cardEndedSessionIds = new Set<string>();
   private doneWorktreeCleanup?: DoneWorktreeCleanup;
   /**
    * Worktree removals waiting for a deferred teardown session to end, keyed by
@@ -416,6 +422,36 @@ export class KanbanWorkflowOrchestrator {
 
   async processColumnTransition(data: ColumnTransitionData): Promise<void> {
     await this.handleColumnTransitionData(data);
+  }
+
+  /**
+   * End the agent processes of sessions whose card was deleted or moved by
+   * the user. Each session is ended at most once, also across concurrent
+   * calls and the normal end of its step: endSessionProcess records the id
+   * before it awaits the kill. Their exits are teardown, not step failures.
+   */
+  async endTaskSessions(sessionIds: string[], label: string): Promise<void> {
+    const unique = [...new Set(sessionIds.filter((id) => typeof id === "string" && id.length > 0))];
+    for (const sessionId of unique) {
+      this.teardownSessionIds.add(sessionId);
+      this.cardEndedSessionIds.add(sessionId);
+      this.deferredTeardownSessionIds.delete(sessionId);
+    }
+    for (const sessionId of unique) {
+      await this.endSessionProcess(sessionId, label);
+    }
+  }
+
+  /**
+   * Drop the card's automation so a late event cannot advance, recover or
+   * re-run it. With `columnId`, only an automation of that column is dropped
+   * (the card was moved away from it).
+   */
+  forgetCard(cardId: string, options?: { columnId?: string }): void {
+    const automation = this.activeAutomations.get(cardId);
+    if (!automation) return;
+    if (options?.columnId !== undefined && automation.columnId !== options.columnId) return;
+    this.activeAutomations.delete(cardId);
   }
 
   private async handleColumnTransition(event: AgentEvent): Promise<void> {
@@ -594,6 +630,10 @@ export class KanbanWorkflowOrchestrator {
 
   private async handleAgentCompletion(event: AgentEvent): Promise<void> {
     await this.finishDeferredTeardown(event);
+    const endedSessionId = typeof event.data?.sessionId === "string" ? event.data.sessionId : undefined;
+    if (endedSessionId && this.cardEndedSessionIds.has(endedSessionId)) {
+      return;
+    }
     for (const [cardId, automation] of this.activeAutomations.entries()) {
       if (automation.status === "completed" || automation.status === "failed") continue;
 
