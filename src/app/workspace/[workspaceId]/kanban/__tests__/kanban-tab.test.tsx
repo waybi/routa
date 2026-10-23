@@ -1957,13 +1957,13 @@ describe("KanbanTab card detail manual runs", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
 
-    expect(await screen.findByText("当前还没有启动 session")).toBeTruthy();
+    expect(await screen.findByText("当前还没有启动会话")).toBeTruthy();
     expect(screen.getByText("还没有自动化运行记录")).toBeTruthy();
-    expect(screen.getAllByText(/右侧 session pane 会先显示等待中的空态/).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "隐藏 session 面板" })).toHaveLength(1);
+    expect(screen.getAllByText(/右侧会话面板会先显示等待中的空态/).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "隐藏会话面板" })).toHaveLength(1);
     fireEvent.click(within(screen.getByTestId("kanban-detail-sticky-toolbar")).getByRole("button", { name: /Close card detail|关闭卡片详情/ }));
     await waitFor(() => expect(screen.queryByTestId("kanban-detail-sticky-toolbar")).toBeNull());
-    expect(screen.queryByText("当前还没有启动 session")).toBeNull();
+    expect(screen.queryByText("当前还没有启动会话")).toBeNull();
   });
 
   it("recovers when the trigger session appears after the detail view is already open", async () => {

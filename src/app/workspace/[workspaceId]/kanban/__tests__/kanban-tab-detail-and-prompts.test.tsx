@@ -644,8 +644,8 @@ describe("KanbanCardActivityBar", () => {
     const onCloseSession = vi.fn();
     const { rerender } = render(<KanbanCardActivityBar task={task} specialistLanguage="zh-CN" onCloseSession={onCloseSession} />);
 
-    const button = await screen.findByRole("button", { name: "隐藏 session 面板" });
-    expect(button.textContent?.trim()).toBe("隐藏 session 面板");
+    const button = await screen.findByRole("button", { name: "隐藏会话面板" });
+    expect(button.textContent?.trim()).toBe("隐藏会话面板");
     expect(button.className).toContain("rounded-control");
     expect(button.className).toContain("hover:bg-hover");
     expect(button.querySelector("svg")).toBeTruthy();
@@ -653,7 +653,7 @@ describe("KanbanCardActivityBar", () => {
     expect(onCloseSession).toHaveBeenCalledTimes(1);
 
     rerender(<KanbanCardActivityBar task={task} specialistLanguage="zh-CN" />);
-    expect(screen.queryByRole("button", { name: "隐藏 session 面板" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "隐藏会话面板" })).toBeNull();
   });
 
   it("shows exactly one hide-session-pane pill in the empty session pane", async () => {
