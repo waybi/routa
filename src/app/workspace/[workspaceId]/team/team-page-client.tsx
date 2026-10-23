@@ -3,14 +3,14 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, Settings2 } from "lucide-react";
+import { Plus, RotateCw, Settings2 } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import type { InsertTextRequest } from "@/client/components/tiptap-input";
 import { Button, buttonClassName } from "@/client/components/ui/button";
-import { EmptyState, ErrorState, Skeleton } from "@/client/components/ui/states";
+import { ErrorState, Skeleton } from "@/client/components/ui/states";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 
@@ -26,18 +26,22 @@ import { TeamLaunchPanel } from "./team-launch-panel";
 import { TeamMemberDrawer } from "./team-member-drawer";
 import {
   countActiveSessionsBySpecialist,
+  countRunFilters,
   isLiveAcpStatus,
+  matchesRunFilter,
   pickAgents,
   recentRunsForSpecialist,
   sortTeamRuns,
   TEAM_LEAD_SPECIALIST_ID,
   type CoordinatorAgent,
+  type RunFilter,
   type SortDirection,
   type TeamRunSessionInfo,
 } from "./team-page-model";
 import { memberDisplayNames, pickSpecialists, selectTeamSpecialists, type SpecialistSummary } from "./team-roster";
 import { buildTeamRunName } from "./team-run-name";
 import { TeamRunRecordsTable } from "./team-run-records-table";
+import { TeamRunsEmpty, TeamRunsFilter } from "./team-runs-filter";
 import { TeamPageHeaderBar, TeamStats } from "./team-stats";
 import { useTeamShortcuts } from "./use-team-shortcuts";
 
@@ -67,6 +71,7 @@ export function TeamPageClient() {
   const setTeamRuns = runs.setItems;
   const teamRuns = runs.items;
   const [query, setQuery] = useState("");
+  const [runFilter, setRunFilter] = useState<RunFilter>("all");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [insertTextRequest, setInsertTextRequest] = useState<InsertTextRequest | null>(null);
   const [drawerSpecialistId, setDrawerSpecialistId] = useState<string | null>(null);
@@ -87,12 +92,13 @@ export function TeamPageClient() {
 
   useTeamShortcuts({ onLaunch: focusLaunch, onSearch: focusSearch, disabled: drawerSpecialistId !== null });
 
+  const filterCounts = useMemo(() => countRunFilters(teamRuns), [teamRuns]);
   const visibleRuns = useMemo(
     () => sortTeamRuns(
-      teamRuns.filter((run) => matchesSessionQuery(run, query, t.team.unnamedRun)),
+      teamRuns.filter((run) => matchesRunFilter(run, runFilter) && matchesSessionQuery(run, query, t.team.unnamedRun)),
       sortDirection,
     ),
-    [query, sortDirection, t.team.unnamedRun, teamRuns],
+    [query, runFilter, sortDirection, t.team.unnamedRun, teamRuns],
   );
 
   // Same counts as the legacy page: all team runs (search ignored), runs whose
@@ -132,6 +138,10 @@ export function TeamPageClient() {
     setDrawerSpecialistId(null);
     requestInsert(`#${memberDisplayNames(specialist, teamCopy).primary} `, "append");
   }, [requestInsert, teamCopy]);
+  const clearFilters = useCallback(() => {
+    setRunFilter("all");
+    setQuery("");
+  }, []);
 
   const handleWorkspaceSelect = useCallback((nextWorkspaceId: string) => {
     router.push(`/workspace/${nextWorkspaceId}/team`);
@@ -280,26 +290,35 @@ export function TeamPageClient() {
             onMention={mentionMember}
           />
 
-          <section className="flex min-w-0 flex-col gap-3" aria-label={copy.teamRunsTitle} data-testid="team-runs-section">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <section className="flex min-w-0 flex-col gap-2.5" aria-label={copy.teamRunsTitle} data-testid="team-runs-section">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <h2 className="m-0 text-[15px] font-semibold text-primary">{copy.teamRunsTitle}</h2>
-              <Button variant="ghost" size="sm" onClick={reloadAll}>{t.common.refresh}</Button>
+              <span className="text-[11.5px] text-secondary" data-testid="team-runs-top-level-only">{t.team.topLevelOnly}</span>
+              <span className="flex-1" />
+              <Button variant="ghost" size="sm" onClick={reloadAll}>
+                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                {t.common.refresh}
+              </Button>
             </div>
 
-            <div className="flex min-w-0 items-center gap-1.5">
-              <SearchField
-                value={query}
-                onChange={setQuery}
-                label={teamCopy.page.runsSearchLabel}
-                placeholder={copy.searchSessionsPlaceholder}
-                testId="team-runs-search"
-              />
-              <kbd
-                title={teamCopy.runs.searchShortcutHint}
-                className="rounded border border-default px-1.5 font-mono text-[10.5px] leading-5 text-secondary"
-              >
-                {teamCopy.runs.searchShortcut}
-              </kbd>
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+              <TeamRunsFilter copy={teamCopy} value={runFilter} counts={filterCounts} onChange={setRunFilter} />
+              <span className="flex-1" />
+              <div className="flex min-w-0 flex-[1_1_260px] items-center gap-1.5 min-[900px]:flex-[0_1_360px]">
+                <SearchField
+                  value={query}
+                  onChange={setQuery}
+                  label={teamCopy.page.runsSearchLabel}
+                  placeholder={copy.searchSessionsPlaceholder}
+                  testId="team-runs-search"
+                />
+                <kbd
+                  title={teamCopy.runs.searchShortcutHint}
+                  className="rounded border border-default px-1.5 font-mono text-[10.5px] leading-5 text-secondary"
+                >
+                  {teamCopy.runs.searchShortcut}
+                </kbd>
+              </div>
             </div>
 
             {runs.status === "error" ? (
@@ -312,17 +331,31 @@ export function TeamPageClient() {
             ) : null}
 
             {firstLoad ? (
-              <div className="rounded-lg border border-default bg-surface p-4">
+              <div className="rounded-[10px] border border-default bg-surface p-4">
                 <Skeleton lines={3} label={copy.loadingSessions} />
               </div>
             ) : runs.status === "error" && !runs.loadedOnce ? null : teamRuns.length === 0 ? (
-              <EmptyState title={copy.teamRunsEmptyTitle} description={copy.teamRunsEmptyDescription} />
+              <TeamRunsEmpty
+                copy={teamCopy}
+                title={copy.teamRunsEmptyTitle}
+                description={copy.teamRunsEmptyDescription}
+                onWriteFirst={focusLaunch}
+              />
             ) : visibleRuns.length === 0 ? (
-              <EmptyState title={copy.filterEmptyTitle} description={copy.filterEmptyDescription} />
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] border border-default bg-surface px-4 py-3 text-xs" data-testid="team-runs-filter-empty">
+                <span className="font-semibold text-primary">{copy.filterEmptyTitle}</span>
+                <span className="text-secondary">{copy.filterEmptyDescription}</span>
+                <Button variant="secondary" size="xs" onClick={clearFilters} data-testid="team-runs-clear-filters">
+                  {teamCopy.runs.clearFilters}
+                </Button>
+              </div>
             ) : (
               <TeamRunRecordsTable
                 copy={teamCopy}
                 runs={visibleRuns}
+                totalCount={teamRuns.length}
+                allSessions={allSessions.items}
+                specialistsById={specialistsById}
                 workspaceId={workspaceId}
                 unnamedLabel={t.team.unnamedRun}
                 sortDirection={sortDirection}
