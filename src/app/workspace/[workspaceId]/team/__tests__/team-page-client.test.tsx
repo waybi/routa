@@ -15,9 +15,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/i18n", async () => {
   const { default: realEn } = await vi.importActual<typeof import("@/i18n/locales/en")>("@/i18n/locales/en");
+  const { enTeamRedesign } = await vi.importActual<typeof import("@/i18n/locales/en-team-redesign")>("@/i18n/locales/en-team-redesign");
   return {
   useTranslation: () => ({
     t: {
+      teamRedesign: enTeamRedesign.teamRedesign,
       sessionsRedesign: realEn.sessionsRedesign,
       uiKit: realEn.uiKit,
       common: {
