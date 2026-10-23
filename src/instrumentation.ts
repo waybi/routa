@@ -28,6 +28,9 @@ export async function register() {
     const { startBackgroundWorker } = await import(
       "./core/background-worker"
     );
+    const { startAcpOrphanReaper, resolveAcpOrphanReaperConfig } = await import(
+      "./core/acp/acp-orphan-reaper"
+    );
     const telemetry = initializeNextRuntimeTelemetry();
 
     // Lane records the previous process left "running" are ended before the
@@ -60,6 +63,16 @@ export async function register() {
       if (!skipRuntimeServices) {
         startSchedulerService();
         startBackgroundWorker();
+        // Ends `--profile acp` agents a previous Routa process left behind
+        // (parent pid 1, untracked, older than 1 hour); see acp-orphan-reaper.ts.
+        startAcpOrphanReaper({
+          ...resolveAcpOrphanReaperConfig(process.env),
+          selfPid: process.pid,
+          getTrackedPids: async () => {
+            const { getAcpProcessManager } = await import("./core/acp/processer");
+            return getAcpProcessManager().getTrackedPids();
+          },
+        });
       }
 
       servicesSpan?.setAttribute("routa.scheduler.started", !skipRuntimeServices);

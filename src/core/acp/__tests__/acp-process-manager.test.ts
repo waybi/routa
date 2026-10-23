@@ -813,4 +813,34 @@ describe("AcpProcessManager agent process lifecycle", () => {
     await expect(creating).rejects.toThrow("ended during startup");
     expect(manager.getProcess("session-starting")).toBeUndefined();
   });
+
+  it("getTrackedPids lists registered and still-starting processes (orphan reaper, C8)", async () => {
+    const pids = [9101, 9102];
+    let releaseNewSession: () => void = () => undefined;
+    acpConstructHook.current = (instance) => {
+      instance.pid = pids[acpInstances.length - 1];
+      if (instance.pid === 9102) {
+        instance.newSession = vi.fn(() => new Promise<string>((resolve) => {
+          releaseNewSession = () => resolve("acp-late");
+        }));
+      }
+    };
+    const manager = new AcpProcessManager();
+    await manager.createSession("session-registered", "/repo", vi.fn(), "dsh");
+    const starting = manager.createSession("session-booting", "/repo", vi.fn(), "dsh");
+    await vi.waitFor(() => expect(acpInstances[1]?.newSession).toHaveBeenCalled());
+
+    expect(manager.getTrackedPids()).toEqual(new Set([9101, 9102]));
+    await manager.killSession("session-registered");
+    expect(manager.getTrackedPids()).toEqual(new Set([9102]));
+    expect(manager.getProcess("session-registered")).toBeUndefined();
+    await expect(manager.killSession("session-registered")).resolves.toBeUndefined();
+    expect(acpInstances[0]?.kill).toHaveBeenCalledTimes(1);
+
+    releaseNewSession();
+    await starting;
+    expect(manager.getTrackedPids()).toEqual(new Set([9102]));
+    await manager.killSession("session-booting");
+    expect(manager.getTrackedPids()).toEqual(new Set());
+  });
 });

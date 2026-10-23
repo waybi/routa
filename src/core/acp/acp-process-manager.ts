@@ -161,6 +161,25 @@ export class AcpProcessManager {
         this.processes.set(sessionId, managed);
     }
 
+    /**
+     * Pids of the ACP agent processes this Routa process owns: registered ones
+     * and ones still starting. The orphan reaper never ends these (nor their
+     * descendants). Claude/opencode/docker transports do not run
+     * `--profile acp`, so they are not listed.
+     */
+    getTrackedPids(): Set<number> {
+        const pids = new Set<number>();
+        const add = (proc: AcpProcess) => {
+            const pid = proc.pid;
+            if (typeof pid === "number" && pid > 0) pids.add(pid);
+        };
+        for (const managed of this.processes.values()) add(managed.process);
+        for (const starting of this.startingProcesses.values()) {
+            for (const proc of starting) add(proc);
+        }
+        return pids;
+    }
+
     private killStartingProcesses(sessionId: string): void {
         const starting = this.startingProcesses.get(sessionId);
         if (!starting) return;

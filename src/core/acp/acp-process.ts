@@ -130,6 +130,11 @@ export class AcpProcess {
         return this._alive && this.process !== null && this.process.exitCode === null;
     }
 
+    /** OS pid of the agent process; undefined before spawn. Read by the orphan reaper. */
+    get pid(): number | undefined {
+        return this.process?.pid ?? undefined;
+    }
+
     get config(): AcpProcessConfig {
         return this._config;
     }
