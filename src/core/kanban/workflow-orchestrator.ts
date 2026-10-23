@@ -290,6 +290,8 @@ export class KanbanWorkflowOrchestrator {
   private teardownSessionIds = new Set<string>();
   /** Teardown sessions still inside their turn; ended on their next lifecycle event. */
   private deferredTeardownSessionIds = new Set<string>();
+  /** Sessions whose agent process Routa already ended; each is ended once. */
+  private endedSessionIds = new Set<string>();
   private doneWorktreeCleanup?: DoneWorktreeCleanup;
   /**
    * Worktree removals waiting for a deferred teardown session to end, keyed by
@@ -626,6 +628,8 @@ export class KanbanWorkflowOrchestrator {
           // "queued": the board is full; the step waits in the board queue and
           // this automation adopts its session once the queue starts it.
           automation.signaledSessionIds.add(eventSessionId);
+          // Every step runs in its own new session; nothing reuses this one.
+          await this.endFinishedStepSession(eventSessionId, event);
           return;
         }
         failedToAdvanceWithinLane = true;
@@ -662,6 +666,8 @@ export class KanbanWorkflowOrchestrator {
         });
         const recovered = await this.recoverAutomation(cardId, automation, task, recoveryReason);
         if (recovered) {
+          // Recovery runs in a new session; the abandoned one must not keep running.
+          await this.endFinishedStepSession(eventSessionId, event);
           return;
         }
       }
@@ -718,6 +724,17 @@ export class KanbanWorkflowOrchestrator {
       ) {
         await this.teardownFinishedCardSessions(task, eventSessionId, event, automation);
       }
+
+      if (task && automation.stage === "done" && automation.status === "failed") {
+        // The Done lane stopped on a failure: no step of this card is left to
+        // run, so end every process the card started. The worktree is kept.
+        await this.endCardSessionsAfterDoneFailure(task);
+      }
+
+      // The step is over whatever its outcome; a later step or a retry gets a
+      // new session, so its process is ended now instead of when the card
+      // reaches Done.
+      await this.endFinishedStepSession(eventSessionId, event);
 
       const completedAutomation = automation;
       setTimeout(() => {
@@ -805,10 +822,55 @@ export class KanbanWorkflowOrchestrator {
   }
 
   private async killTeardownSession(sessionId: string): Promise<void> {
+    await this.endSessionProcess(sessionId, "of a finished card");
+  }
+
+  /**
+   * End a session's agent process once. Kills go through the process
+   * manager, which marks the stop as intended, so the exit raises no failure
+   * event and cannot re-run a step (the 3054a54f trap).
+   */
+  private async endSessionProcess(sessionId: string, label: string): Promise<void> {
+    if (this.endedSessionIds.has(sessionId)) {
+      return;
+    }
+    this.endedSessionIds.add(sessionId);
     try {
       await this.killSession(sessionId);
     } catch (error) {
-      console.warn(`[WorkflowOrchestrator] Failed to end session ${sessionId} of a finished card:`, error);
+      console.warn(`[WorkflowOrchestrator] Failed to end session ${sessionId} ${label}:`, error);
+    }
+  }
+
+  /**
+   * End the session of a step that just finished. A completion synthesized
+   * from a tool call (or a report) arrives while the agent is still inside
+   * its turn; that session is ended on its next lifecycle event so its final
+   * writes are not cut off.
+   */
+  private async endFinishedStepSession(sessionId: string, event: AgentEvent): Promise<void> {
+    if (this.endedSessionIds.has(sessionId)) {
+      return;
+    }
+    const stillInTurn = event.type === AgentEventType.REPORT_SUBMITTED
+      || typeof event.data?.synthesizedBy === "string";
+    if (stillInTurn) {
+      this.deferredTeardownSessionIds.add(sessionId);
+      return;
+    }
+    this.deferredTeardownSessionIds.delete(sessionId);
+    await this.endSessionProcess(sessionId, "after its step ended");
+  }
+
+  /** A failed Done lane ends every session of the card; failures they cause are teardown. */
+  private async endCardSessionsAfterDoneFailure(task: Task): Promise<void> {
+    const sessionIds = collectTaskSessionIds(task);
+    for (const sessionId of sessionIds) {
+      this.teardownSessionIds.add(sessionId);
+    }
+    for (const sessionId of sessionIds) {
+      this.deferredTeardownSessionIds.delete(sessionId);
+      await this.endSessionProcess(sessionId, "of a card whose Done lane failed");
     }
   }
 
@@ -844,11 +906,8 @@ export class KanbanWorkflowOrchestrator {
   }
 
   private async killFailedSession(sessionId: string): Promise<void> {
-    try {
-      await this.killSession(sessionId);
-    } catch (error) {
-      console.warn(`[WorkflowOrchestrator] Failed to kill failed session ${sessionId}:`, error);
-    }
+    this.deferredTeardownSessionIds.delete(sessionId);
+    await this.endSessionProcess(sessionId, "after it failed");
   }
 
   private async scanForInactiveSessions(): Promise<void> {
@@ -1181,6 +1240,14 @@ export class KanbanWorkflowOrchestrator {
 
   private async notifyKanbanAgent(params: RecoveryNotificationParams): Promise<void> {
     if (!this.sendKanbanSessionPrompt) {
+      return;
+    }
+    if (this.endedSessionIds.has(params.sessionId)) {
+      // Prompting a session whose process Routa ended re-spawns an agent for
+      // it that no lane tracks.
+      console.warn(
+        `[WorkflowOrchestrator] ACP session ${params.sessionId} was already ended; skipping recovery prompt.`,
+      );
       return;
     }
     const sessionStore = getHttpSessionStore();

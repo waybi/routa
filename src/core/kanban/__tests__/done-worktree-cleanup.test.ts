@@ -355,7 +355,8 @@ describe("done worktree cleanup — orchestrator wiring", { timeout: 30_000 }, (
     emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
     await vi.waitFor(() => expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" }));
     await settle(50);
-    expect(order).toEqual([]);
+    // The pusher's step is over, so its own process is ended; the copy stays.
+    expect(order).toEqual(["kill:pusher-1"]);
     await expectKept(fx);
 
     emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });

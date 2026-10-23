@@ -116,6 +116,7 @@ UI 又只用一个 `lastSyncError` 字符串 + 「同步问题」标签把这些
 
 - 板设置并发上限 5（`board-session-limits.ts:1`），但 22 个 DSH 子进程存活（最老 11 分 40 秒，全部由当前 routa-prod 拉起），泳道状态 completed 的会话进程也没退出。
 - 每个 55–228MB，合计 3.27GB；同期 error.log 出现 3 条 `[NODE-CRON] missed execution ... Possible blocking IO or high CPU`。
+- 2026-10-23 状态：每步结束即结束该步进程、Done 失败结束全卡进程、启动失败与重复拉起不再留脱管进程，见 `2026-10-23-acp-zombie-lanes-and-leaked-agent-processes.md`。
 
 ### 1.8 双事件监听器竞态——orchestrator 与 queue 对同一事件独立处理
 
@@ -407,3 +408,4 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | 2026-10-16 | 环境故障单独计数：错误含 `Not registered in ProviderRegistry` / `Unknown provider:` 时，泳道会话记 `recoveryReason: "environment_failure"`（启动即失败也补记一条 failed 会话），`lastSyncError` 加 `[environment]` 前缀；不计入 `getNonDevAutomationRunCount` 与 dev 监督重试，不自动 recover/fallback，POST revive 也跳过，等人工修好环境后移卡 | provider 未注册不再白耗重试次数、不再反复拉起注定失败的会话（P0-1 的「秒失败标 infra_error」只做了识别规则明确的这一类） | 本提交 |
 | 2026-10-16 | 失败会话结束进程：`handleAgentCompletion` 收到 AGENT_FAILED / AGENT_TIMEOUT（看门狗发现 acpStatus=error 也走这里）时，先 `killSession(该会话 id)` 再走 fallback/recover；kill 抛错只记 warn | 启动失败或超时的施工者进程不再常驻（2026-10-12 每个约 280MB） | 本提交 |
 | 2026-10-16 | 两端对齐：Rust 端 `revive_missing_entry_automations` 也跳过「当前列最后一条会话是 environment_failure」的卡（`is_awaiting_environment_fix`，对应 TS `isAwaitingEnvironmentFix`），新增测试 `revive_board_post_skips_cards_awaiting_environment_fix`（同列普通 agent_failed 卡作对照会被重新触发） | 环境故障卡在桌面版（Rust 后端）上手动 POST revive 时也不会被重跑 | 本提交 |
+| 2026-10-23 | 施工者进程按步骤收尾（卡 75f3b360 第 7 条）：编排器每步结束（完成/失败/超时/改走恢复）即 `killSession` 该步会话，工具调用合成的完成等回合结束再关；Done 列失败结束该卡全部会话、保留工作副本；每个会话只结束一次；已结束的会话不再收恢复提示（以前会被 `ensurePromptSessionExists` 重新拉起） | 一张卡不再在进 Done 前攒下各步进程（10-23 实测一张卡 11 个、全机 89 个只 5 个在干活）；Done 失败不再留进程；10-23 日志里 5 次「刚结束又被拉起」不再发生 | 本提交 |

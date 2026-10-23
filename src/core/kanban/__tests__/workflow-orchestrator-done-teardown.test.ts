@@ -264,7 +264,7 @@ describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
     await vi.waitFor(() => {
       expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1", currentStepIndex: 1 });
     });
-    expect(killSession).toHaveBeenCalledTimes(0);
+    await vi.waitFor(() => expect(killCounts(killSession)).toEqual({ "pusher-1": 1 }));
 
     emit(eventBus, AgentEventType.AGENT_COMPLETED, "reporter-1", { success: true });
     await vi.waitFor(() => {
@@ -280,7 +280,7 @@ describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
     });
   });
 
-  it("does not end sessions when a Done step that is not the last one completes", async () => {
+  it("ends only the finished step's own session when a Done step that is not the last one completes", async () => {
     const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("not-last");
 
     emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
@@ -288,10 +288,39 @@ describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
       expect(orchestrator.getAutomationForCard(taskId)).toMatchObject({ sessionId: "reporter-1" });
     });
     await settle();
-    expect(killSession).toHaveBeenCalledTimes(0);
+    expect(killCounts(killSession)).toEqual({ "pusher-1": 1 });
   });
 
-  it("does not end sessions when the card is not COMPLETED", async () => {
+  it("ends every session of the card once when the Done lane fails, keeps the worktree and does not re-run", async () => {
+    const { eventBus, orchestrator, taskStore, taskId, createSession, killSession } = await setupDoneLane("done-fails");
+    const cleanup = vi.fn(async () => undefined);
+    orchestrator.setDoneWorktreeCleanup(cleanup);
+
+    emit(eventBus, AgentEventType.AGENT_FAILED, "pusher-1", { success: false, error: "git push rejected" });
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(taskId)?.status).toBe("failed");
+      expect(killSession).toHaveBeenCalledTimes(4);
+    });
+    expect(killCounts(killSession)).toEqual({
+      "dev-1": 1,
+      "review-1": 1,
+      "pusher-1": 1,
+      "old-only-1": 1,
+    });
+
+    for (const sessionId of ["dev-1", "review-1", "pusher-1", "old-only-1"]) {
+      emit(eventBus, AgentEventType.AGENT_FAILED, sessionId, { success: false, error: "process exited" });
+    }
+    await settle();
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(killSession).toHaveBeenCalledTimes(4);
+    expect(cleanup).not.toHaveBeenCalled();
+    const saved = await taskStore.get(taskId);
+    expect(saved?.laneSessions?.find((entry) => entry.sessionId === "pusher-1")).toMatchObject({ status: "failed" });
+    expect(saved?.laneSessions?.find((entry) => entry.sessionId === "dev-1")).toMatchObject({ status: "completed" });
+  });
+
+  it("ends only each step's own session when the card is not COMPLETED", async () => {
     const { eventBus, orchestrator, taskId, killSession } = await setupDoneLane("not-completed", TaskStatus.IN_PROGRESS);
 
     emit(eventBus, AgentEventType.AGENT_COMPLETED, "pusher-1", { success: true });
@@ -303,7 +332,7 @@ describe("KanbanWorkflowOrchestrator Done lane teardown", () => {
       expect(orchestrator.getAutomationForCard(taskId)?.status).toBe("completed");
     });
     await settle();
-    expect(killSession).toHaveBeenCalledTimes(0);
+    expect(killCounts(killSession)).toEqual({ "pusher-1": 1, "reporter-1": 1 });
   });
 
   it("does not re-run or mark failed the sessions it ended", async () => {

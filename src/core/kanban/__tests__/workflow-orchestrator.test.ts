@@ -816,12 +816,14 @@ describe("KanbanWorkflowOrchestrator", () => {
           recoveryReason: "agent_failed",
         }),
       ]));
-      expect(sendKanbanSessionPrompt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sessionId: "session-failed-1",
-        }),
-      );
     });
+    // The failed session's process was ended first; prompting it would
+    // re-spawn an agent for it that no lane tracks.
+    expect(sendKanbanSessionPrompt).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "session-failed-1",
+      }),
+    );
 
     orchestrator.stop();
   });

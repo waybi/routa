@@ -145,14 +145,53 @@ describe("workflow orchestrator kills failed session processes", () => {
     ctx.orchestrator.stop();
   });
 
-  it("does not kill the session on a successful completion", async () => {
+  it("ends the session once its step completes, without waiting for Done", async () => {
     const ctx = await setup("kill-success");
     emit(ctx.eventBus, AgentEventType.AGENT_COMPLETED, ctx.firstSessionId, { success: true });
 
     await vi.waitFor(() => {
       expect(ctx.orchestrator.getAutomationForCard(ctx.task.id)?.status).toBe("completed");
+      expect(ctx.killSession).toHaveBeenCalledTimes(1);
     });
+    expect(ctx.killSession).toHaveBeenCalledWith(ctx.firstSessionId);
+
+    // A second lifecycle event for the same session does not end it again.
+    emit(ctx.eventBus, AgentEventType.AGENT_COMPLETED, ctx.firstSessionId, { success: true });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(ctx.killSession).toHaveBeenCalledTimes(1);
+    ctx.orchestrator.stop();
+  });
+
+  it("waits for the turn to end before ending a session whose completion was synthesized", async () => {
+    const ctx = await setup("kill-synth");
+    emit(ctx.eventBus, AgentEventType.AGENT_COMPLETED, ctx.firstSessionId, { success: true, synthesizedBy: "updateTask" });
+
+    await vi.waitFor(() => {
+      expect(ctx.orchestrator.getAutomationForCard(ctx.task.id)?.status).toBe("completed");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(ctx.killSession).not.toHaveBeenCalled();
+
+    emit(ctx.eventBus, AgentEventType.AGENT_COMPLETED, ctx.firstSessionId, { success: true });
+    await vi.waitFor(() => expect(ctx.killSession).toHaveBeenCalledWith(ctx.firstSessionId));
+    expect(ctx.killSession).toHaveBeenCalledTimes(1);
+    ctx.orchestrator.stop();
+  });
+
+  it("does not prompt a failed session it ended, so no agent is re-spawned for it", async () => {
+    const ctx = await setup("kill-no-respawn", { maxRecoveryAttempts: 1 });
+    const sendPrompt = vi.fn(async () => undefined);
+    ctx.orchestrator.setSendKanbanSessionPrompt(sendPrompt);
+    emit(ctx.eventBus, AgentEventType.AGENT_FAILED, ctx.firstSessionId, { success: false, error: "boom" });
+
+    await vi.waitFor(() => {
+      expect(ctx.orchestrator.getAutomationForCard(ctx.task.id)).toMatchObject({
+        sessionId: "kill-no-respawn-session-2",
+        status: "running",
+      });
+    });
+    expect(ctx.killSession).toHaveBeenCalledWith(ctx.firstSessionId);
+    expect(sendPrompt).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: ctx.firstSessionId }));
     ctx.orchestrator.stop();
   });
 
