@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "@/i18n";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { InboxBadgeDataProvider } from "@/client/components/shell/inbox-badge-data-context";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
 import { Badge } from "@/client/components/ui/badge";
@@ -150,6 +151,8 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
   }
 
   return (
+    // The nav badge reuses this page's data instead of fetching it again.
+    <InboxBadgeDataProvider workspaces={workspaces} workspacesLoading={workspacesHook.loading} data={data}>
     <DesktopAppShell
       workspaceId={workspaceId}
       workspaceTitle={activeWorkspace?.title}
@@ -219,5 +222,6 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
         </div>
       </div>
     </DesktopAppShell>
+    </InboxBadgeDataProvider>
   );
 }

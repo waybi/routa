@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 
 import { useTranslation } from "@/i18n";
 import { buildShellNavItems, isShellNavActive } from "./shell/shell-nav-items";
+import { InboxNavBadge } from "./shell/inbox-nav-badge";
 
 interface DesktopNavRailProps {
   workspaceId: string;
@@ -38,11 +39,12 @@ export function DesktopNavRail({ workspaceId }: DesktopNavRailProps) {
               title={item.label}
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
-              className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-150 motion-reduce:transition-none ${
+              className={`relative flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-150 motion-reduce:transition-none ${
                 active ? "bg-accent-subtle text-primary" : "text-secondary hover:bg-hover hover:text-primary"
               }`}
             >
               {item.icon}
+              {item.id === "inbox" ? <InboxNavBadge workspaceId={workspaceId} variant="rail" /> : null}
             </Link>
           );
         })}

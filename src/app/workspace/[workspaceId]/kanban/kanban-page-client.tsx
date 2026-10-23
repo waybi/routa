@@ -7,6 +7,7 @@ import { useKanbanEvents, type KanbanSessionActivityPayload } from "@/client/hoo
 import { useWorkspaces, useCodebases } from "@/client/hooks/use-workspaces";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { InboxBadgeDataProvider } from "@/client/components/shell/inbox-badge-data-context";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { useTranslation } from "@/i18n";
 import { KanbanTab } from "./kanban-tab";
@@ -55,6 +56,9 @@ export function KanbanPageClient() {
 
   const [boards, setBoards] = useState<KanbanBoardInfo[]>([]);
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  // First successful board / task read; until both land the nav badge stays hidden.
+  const [boardsLoaded, setBoardsLoaded] = useState(false);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [specialists, setSpecialists] = useState<SpecialistOption[]>([]);
   const [repoChanges, setRepoChanges] = useState<KanbanRepoChanges[]>([]);
@@ -101,6 +105,7 @@ export function KanbanPageClient() {
         const data = await res.json();
         if (controller.signal.aborted) return;
         setBoards(Array.isArray(data?.boards) ? data.boards : []);
+        setBoardsLoaded(true);
         setBoardLoadError(null);
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -188,6 +193,7 @@ export function KanbanPageClient() {
       const data = await res.json();
       if (controller.signal.aborted) return;
       setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+      setTasksLoaded(true);
     } catch (error) {
       if (controller.signal.aborted) return;
       setBoardLoadError(error instanceof Error ? error.message : String(error));
@@ -529,6 +535,15 @@ export function KanbanPageClient() {
   const workspace = workspacesHook.workspaces.find((w) => w.id === workspaceId);
   const activeWorkspaceTitle = workspace?.title ?? (workspaceId === "default" ? t.workspace.defaultWorkspace : workspaceId);
 
+  const badgeWorkspaces = useMemo(() => [{ id: workspaceId, title: activeWorkspaceTitle }], [workspaceId, activeWorkspaceTitle]);
+  const badgeData = useMemo(() => ({
+    [workspaceId]: {
+      status: boardsLoaded && tasksLoaded ? "ready" as const : boardLoadError ? "error" as const : "loading" as const,
+      tasks,
+      boards,
+    },
+  }), [workspaceId, boardsLoaded, tasksLoaded, boardLoadError, tasks, boards]);
+
   const handleWorkspaceSelect = useCallback((nextWorkspaceId: string) => {
     router.push(`/workspace/${nextWorkspaceId}/kanban`);
   }, [router]);
@@ -541,6 +556,8 @@ export function KanbanPageClient() {
   }, [router, workspacesHook]);
 
   return (
+    // The nav badge counts this board's already-loaded tasks instead of fetching them again.
+    <InboxBadgeDataProvider workspaces={badgeWorkspaces} workspacesLoading={false} data={badgeData}>
     <DesktopAppShell
       workspaceId={workspaceId}
       workspaceTitle={activeWorkspaceTitle}
@@ -581,5 +598,6 @@ export function KanbanPageClient() {
         </div>
       </div>
     </DesktopAppShell>
+    </InboxBadgeDataProvider>
   );
 }

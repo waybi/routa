@@ -25,6 +25,7 @@ import { usePathname } from "next/navigation";
 import { useTranslation } from "@/i18n";
 import { buildShellNavItems, isShellNavActive } from "./shell/shell-nav-items";
 import { SidebarNavGroups } from "./shell/sidebar-nav-groups";
+import { InboxNavBadge } from "./shell/inbox-nav-badge";
 import { SidebarAllProjectsRow, SidebarProjects } from "./shell/sidebar-projects";
 
 interface DesktopSidebarProps {
@@ -126,12 +127,13 @@ export function DesktopSidebar({
                 aria-label={compact ? item.label : undefined}
                 aria-current={active ? "page" : undefined}
                 onClick={onDrawerClose}
-                className={`flex min-h-[35px] items-center rounded-md py-1.5 text-xs transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${
+                className={`relative flex min-h-[35px] items-center rounded-md py-1.5 text-xs transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${
                   compact ? "justify-center" : "gap-2.5 px-2.5"
                 } ${active ? "bg-accent-subtle text-primary" : "text-secondary hover:bg-hover hover:text-primary"}`}
               >
                 {item.icon}
                 {compact ? null : <span className="truncate">{item.label}</span>}
+                {item.id === "inbox" ? <InboxNavBadge workspaceId={workspaceId} variant={compact ? "rail" : "row"} /> : null}
               </Link>
             );
           })}

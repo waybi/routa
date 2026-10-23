@@ -33,6 +33,7 @@ import {
   loadProviderConnections,
 } from "@/client/components/settings-panel";
 import { DesktopAppShell } from "@/client/components/desktop-app-shell";
+import { InboxBadgeDataProvider } from "@/client/components/shell/inbox-badge-data-context";
 import { WorkspaceSwitcher } from "@/client/components/workspace-switcher";
 import { buttonClassName } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/states";
@@ -289,6 +290,8 @@ function HomePageContent() {
   const activeId = shownWorkspaceId ? encodeURIComponent(shownWorkspaceId) : null;
 
   return (
+    // The nav badge reuses the overview data loaded for the home cards.
+    <InboxBadgeDataProvider workspaces={workspaces} workspacesLoading={workspacesHook.loading} data={overviewData}>
     <DesktopAppShell
       // The restored workspace comes from localStorage, which the server
       // cannot see; wait for hydration so sidebar links match the SSR HTML.
@@ -437,6 +440,7 @@ function HomePageContent() {
         onResetOnboarding={handleResetOnboarding}
       />
     </DesktopAppShell>
+    </InboxBadgeDataProvider>
   );
 }
 
