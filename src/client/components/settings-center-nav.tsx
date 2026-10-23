@@ -3,11 +3,13 @@
 /**
  * Settings sub-navigation (design-spec §3: "设置采用页内左侧二级导航").
  *
- * Eleven entries: the /settings overview, nine settings sub-pages and
- * /mcp-tools, grouped as in the spec. Highlight follows the current path;
- * the legacy `activeItem` prop is still accepted so the overview page's
- * in-page tabs (providers, models, …) highlight the overview entry.
- * None of these entries appear in the global sidebar.
+ * Fifteen entries: the /settings overview, the four restored direct links
+ * to its in-page tabs (providers / registry / roles / models, as in the
+ * pre-redesign nav e4e5c162 L21-26; design-spec §12 keeps them visible on
+ * every settings page), nine settings sub-pages and /mcp-tools. Highlight
+ * follows the current path; on /settings the in-page tab passed as
+ * `activeItem` highlights its direct link. None of these entries appear in
+ * the global sidebar.
  */
 
 import Link from "next/link";
@@ -68,21 +70,43 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{ group: GroupKey; items: Readon
   },
 ];
 
-const SETTINGS_TAB_KEYS: ReadonlySet<string> = new Set(["providers", "registry", "roles", "models"]);
+export type SettingsTabLinkKey = "providers" | "registry" | "roles" | "models";
 
 /**
- * Resolves which entry is current. `/settings` itself always highlights the
- * overview (its in-page tabs pass names like "providers"); other pages may
- * pass `activeItem` (the MCP page passes "mcpTools" on its tools tab, which
- * is where /mcp-tools redirects); otherwise the path decides.
+ * Direct links to the /settings in-page tabs, rendered in the overview group
+ * after "Overview". Kept out of SETTINGS_NAV_GROUPS on purpose: the overview
+ * cards are generated from those groups and must not change.
  */
-export function resolveSettingsNavKey(pathname: string, activeItem?: SettingsNavItem): SettingsNavKey | null {
+export const SETTINGS_TAB_LINKS: ReadonlyArray<{ key: SettingsTabLinkKey; href: string }> = [
+  { key: "providers", href: "/settings?tab=providers" },
+  { key: "registry", href: "/settings?tab=registry" },
+  { key: "roles", href: "/settings?tab=roles" },
+  { key: "models", href: "/settings?tab=models" },
+];
+
+const SETTINGS_TAB_KEYS: ReadonlySet<string> = new Set(SETTINGS_TAB_LINKS.map((link) => link.key));
+
+function isTabLinkKey(value: string): value is SettingsTabLinkKey {
+  return SETTINGS_TAB_KEYS.has(value);
+}
+
+/**
+ * Resolves which entry is current. On `/settings` the in-page tab decides:
+ * one of the four direct-link tabs highlights that link, "webhooks"
+ * highlights the automation group's Webhook entry, anything else (or no tab)
+ * highlights the overview. Other pages may pass a page key as `activeItem`
+ * (the MCP page passes "mcpTools" on its tools tab, which is where
+ * /mcp-tools redirects); otherwise the path decides.
+ */
+export function resolveSettingsNavKey(pathname: string, activeItem?: SettingsNavItem): SettingsNavKey | SettingsTabLinkKey | null {
   if (pathname === "/mcp-tools") return "mcpTools";
-  if (pathname === "/settings") return "overview";
-  if (activeItem) {
-    if (SETTINGS_TAB_KEYS.has(activeItem)) return "overview";
-    return activeItem as SettingsNavKey;
+  if (pathname === "/settings") {
+    if (activeItem && isTabLinkKey(activeItem)) return activeItem;
+    if (activeItem === "webhooks") return "webhooks";
+    return "overview";
   }
+  // Elsewhere an explicit page key wins; an in-page tab name means nothing here.
+  if (activeItem && !isTabLinkKey(activeItem)) return activeItem as SettingsNavKey;
   for (const { items } of SETTINGS_NAV_GROUPS) {
     for (const item of items) {
       if (item.key !== "overview" && (pathname === item.href || pathname.startsWith(`${item.href}/`))) {
@@ -102,6 +126,12 @@ export function SettingsCenterNav({ activeItem }: SettingsCenterNavProps) {
   const pathname = usePathname() ?? "/settings";
   const current = resolveSettingsNavKey(pathname, activeItem);
   const copy = t.shell.settingsNav;
+  const tabLabels: Record<SettingsTabLinkKey, string> = {
+    providers: t.settings.providers,
+    registry: t.settings.registry,
+    roles: t.settings.roleDefaults,
+    models: t.settings.models,
+  };
 
   return (
     <nav
@@ -113,7 +143,12 @@ export function SettingsCenterNav({ activeItem }: SettingsCenterNavProps) {
         <div key={group} className="max-[800px]:flex max-[800px]:shrink-0 max-[800px]:gap-1">
           <p className="m-0 px-2.5 pb-1 text-[11px] text-secondary max-[800px]:hidden">{copy.groups[group]}</p>
           <ul className="m-0 flex list-none flex-col gap-0.5 p-0 max-[800px]:flex-row">
-            {items.map((item) => {
+            {[
+              ...items.map((item) => ({ key: item.key, href: item.href, label: copy.items[item.key] })),
+              ...(group === "overview"
+                ? SETTINGS_TAB_LINKS.map((link) => ({ key: link.key, href: link.href, label: tabLabels[link.key] }))
+                : []),
+            ].map((item) => {
               const active = current === item.key;
               return (
                 <li key={item.key}>
@@ -125,7 +160,7 @@ export function SettingsCenterNav({ activeItem }: SettingsCenterNavProps) {
                       active ? "bg-accent-subtle text-primary" : "text-secondary hover:bg-hover hover:text-primary"
                     }`}
                   >
-                    {copy.items[item.key]}
+                    {item.label}
                   </Link>
                 </li>
               );

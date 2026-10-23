@@ -11,6 +11,10 @@ import { SettingsCenterNav, resolveSettingsNavKey } from "../settings-center-nav
 
 const EXPECTED_HREFS = [
   "/settings",
+  "/settings?tab=providers",
+  "/settings?tab=registry",
+  "/settings?tab=roles",
+  "/settings?tab=models",
   "/settings/agents",
   "/settings/specialists",
   "/settings/workflows",
@@ -28,10 +32,10 @@ function links() {
 }
 
 describe("SettingsCenterNav", () => {
-  it("lists the overview, the nine settings pages and /mcp-tools (11 entries)", () => {
+  it("lists the overview, its four tab links, the nine settings pages and /mcp-tools (15 entries)", () => {
     render(<SettingsCenterNav />);
     const hrefs = links().map((link) => link.getAttribute("href"));
-    expect(hrefs).toHaveLength(11);
+    expect(hrefs).toHaveLength(15);
     expect([...hrefs].sort()).toEqual([...EXPECTED_HREFS].sort());
   });
 
@@ -42,11 +46,11 @@ describe("SettingsCenterNav", () => {
     expect(current.map((link) => link.getAttribute("href"))).toEqual(["/settings/schedules"]);
   });
 
-  it("highlights the overview for in-page tabs of /settings", () => {
+  it("highlights the direct link of the in-page tab of /settings", () => {
     pathnameState.pathname = "/settings";
     render(<SettingsCenterNav activeItem="models" />);
     const current = links().filter((link) => link.getAttribute("aria-current") === "page");
-    expect(current.map((link) => link.getAttribute("href"))).toEqual(["/settings"]);
+    expect(current.map((link) => link.getAttribute("href"))).toEqual(["/settings?tab=models"]);
   });
 
   it("resolves MCP tools from /mcp-tools or the explicit tools tab", () => {
