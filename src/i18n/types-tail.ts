@@ -408,6 +408,8 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     cardDeleting: string;
     cardDeleted: string;
     cardDeleteFailed: string;
+    // Kanban card rerun
+    retryTriggerFailed: string;
     // Kanban agent session
     agentSessionCreating: string;
     agentSessionCreateFailed: string;

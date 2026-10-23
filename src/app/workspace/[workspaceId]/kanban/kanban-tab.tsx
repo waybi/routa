@@ -42,6 +42,7 @@ import { toast } from "@/client/components/toast";
 import { useKanbanCodebaseModal } from "./use-kanban-codebase-modal";
 import { TaskPatchError, useKanbanCardMove } from "./use-kanban-card-move";
 import { useKanbanLiveTails } from "./use-kanban-live-tails";
+import { useKanbanRetryPending } from "./use-kanban-retry-feedback";
 import { useKanbanWorktreeCache } from "./use-kanban-worktree-cache";
 import { useKanbanAgentInput } from "./use-kanban-agent-input";
 import { useKanbanDetailSplit } from "./use-kanban-detail-split";
@@ -317,6 +318,7 @@ export function KanbanTab({
     [activeTask, board?.columns, boardAutoProviderId, resolveSpecialist],
   );
   const queuedPositions = boardQueue?.queuedPositions ?? {};
+  const { retryPendingTaskIds, trackRetry } = useKanbanRetryPending({ tasks: localTasks, sessionMap });
 
   const { detailSplitRatio, setIsDraggingDetailSplit, detailSplitContainerRef } = useKanbanDetailSplit();
 
@@ -1144,31 +1146,28 @@ export function KanbanTab({
   }
 
   async function retryTaskTrigger(taskId: string) {
-    await ensureBoardAutoProviderPersisted();
-    const task = localTasks.find((item) => item.id === taskId);
-    const effectiveAutomation = task
-      ? resolveEffectiveTaskAutomation(task, board?.columns ?? [], resolveSpecialist, {
-        autoProviderId: boardAutoProviderId,
-      })
-      : undefined;
-    const retryProviderId = task
-      && effectiveAutomation?.source !== "card"
-      && effectiveAutomation?.transport !== "a2a"
-      && effectiveAutomation?.providerSource === "auto"
-      && boardAutoProviderId
-      ? boardAutoProviderId
-      : undefined;
-    const updated = await patchTask(taskId, {
-      retryTrigger: true,
-      ...(retryProviderId ? { retryProviderId } : {}),
+    // trackRetry shows "starting" until the new run is visible, or toasts the error.
+    const updated = await trackRetry(taskId, async () => {
+      await ensureBoardAutoProviderPersisted();
+      const task = localTasks.find((item) => item.id === taskId);
+      const effectiveAutomation = task
+        ? resolveEffectiveTaskAutomation(task, board?.columns ?? [], resolveSpecialist, {
+          autoProviderId: boardAutoProviderId,
+        })
+        : undefined;
+      const retryProviderId = task
+        && effectiveAutomation?.source !== "card"
+        && effectiveAutomation?.transport !== "a2a"
+        && effectiveAutomation?.providerSource === "auto"
+        && boardAutoProviderId
+        ? boardAutoProviderId
+        : undefined;
+      return patchTask(taskId, { retryTrigger: true, ...(retryProviderId ? { retryProviderId } : {}) });
     });
     if (updated.triggerSessionId) {
-      // Keep the task detail open and update the session ID
+      // Keep the task detail open on the new session and select it in ACP.
       setActiveSessionId(updated.triggerSessionId);
-      // Select the new session in ACP
-      if (acp) {
-        acp.selectSession(updated.triggerSessionId);
-      }
+      acp?.selectSession(updated.triggerSessionId);
     }
     onRefresh();
   }
@@ -1368,6 +1367,7 @@ export function KanbanTab({
     allCodebaseIds,
     worktreeCache,
     queuedPositions,
+    retryPendingTaskIds,
     moveTask,
     confirmDeleteTask,
     patchTask,

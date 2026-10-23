@@ -303,6 +303,11 @@ enqueueKanbanTaskSession(resumeLane: true)
 接口从库里重读卡再返回，不用请求开头复制的旧卡覆盖新 lane 记录
 ~~~
 
+看板前端（`use-kanban-retry-feedback.ts`）：卡片和详情的「运行/重新运行」按钮一点下去就禁用并显示「启动中…」，
+请求结束前连点无效，请求失败弹看板错误提示（「重新运行失败」）并恢复按钮。请求成功后，卡片在新运行露面前
+（会话还没进会话列表，或在看板队列里排队）显示「启动中」，不退回上一次失败的 lane 记录；新会话进列表、卡离开本列
+或等满 3 分钟，就恢复按真实状态显示。
+
 这就是 Kanban 自动化能"像流水线一样自己跑"的原因：
 `autoAdvanceOnSuccess` 让卡片干完一列的活就自动进下一列，
 下一列又触发新的自动化。
@@ -505,3 +510,4 @@ code_diff     → 要有代码变更记录
 | 日期 | 改了什么 | 效果 | 提交 |
 |---|---|---|---|
 | 2026-10-23 | 队列 drain 每轮读当前队首、清 queued 孤儿、空位先放行早排队的卡；下一步排队不再记失败；重新运行先存库再重读卡；重新运行按 lane 记录选步骤并由编排器接管（第 3 节、5b、5c） | 新增 8 个用例、1 个旧用例补断言，撤掉任一修复对应用例变红；卡 1e7dd356 那类「上一步完成、下一步报 ACP session did not complete successfully.」不再出现 | fix(kanban): board queue drain…、fix(kanban): a lane step queued…、fix(tasks): rerunning a card keeps…、本提交 |
+| 2026-10-23 | 看板「运行/重新运行」按钮点击即显示「启动中…」并防连点，失败弹提示并恢复；重跑成功后新运行露面前卡片显示「启动中」（5c 节末） | 新增 13 个前端用例，撤掉组件改动 7 个变红、撤掉提示和标记 2 个变红 | fix(kanban): run/rerun shows a disabled…、本提交 |

@@ -404,6 +404,7 @@ export const enTail: TailTranslationDictionarySections = {
     cardDeleting: "Deleting…",
     cardDeleted: "Card deleted",
     cardDeleteFailed: "Failed to delete card",
+    retryTriggerFailed: "Rerun failed",
     agentSessionCreating: "Creating session…",
     agentSessionCreateFailed: "Failed to create session",
     agentPromptFailed: "Message not sent",

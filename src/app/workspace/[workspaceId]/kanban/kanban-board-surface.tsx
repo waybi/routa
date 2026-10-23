@@ -124,6 +124,7 @@ export function KanbanBoardSurface({
   allCodebaseIds,
   worktreeCache,
   queuedPositions,
+  retryPendingTaskIds,
   moveTask,
   confirmDeleteTask,
   patchTask,
@@ -168,6 +169,8 @@ export function KanbanBoardSurface({
   allCodebaseIds: string[];
   worktreeCache: Record<string, WorktreeInfo>;
   queuedPositions: Record<string, number | undefined>;
+  /** Cards whose rerun was requested and whose new run is not visible yet. */
+  retryPendingTaskIds?: ReadonlySet<string>;
   moveTask: (taskId: string, targetColumnId: string) => Promise<void>;
   confirmDeleteTask: (task: TaskInfo) => void;
   patchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
@@ -401,7 +404,7 @@ export function KanbanBoardSurface({
                               key={task.id}
                               task={task}
                               boardColumns={board.columns}
-                              linkedSession={resolveCardLinkedSession(task, sessionMap)}
+                              linkedSession={resolveCardLinkedSession(task, sessionMap, { retryPending: retryPendingTaskIds?.has(task.id) })}
                               liveMessageTail={task.triggerSessionId ? liveSessionTails[task.triggerSessionId] : undefined}
                               availableProviders={availableProviders}
                               specialists={specialists}
@@ -411,6 +414,7 @@ export function KanbanBoardSurface({
                               worktreeCache={worktreeCache}
                               autoProviderId={resolveKanbanBoardAutoProviderId(board, boardAutoProviderId)}
                               queuePosition={queuedPositions[task.id]}
+                              retryPending={retryPendingTaskIds?.has(task.id)}
                               onOpenDetail={() => openTaskDetail(task)}
                               onDelete={() => confirmDeleteTask(task)}
                               onPatchTask={patchTask}
@@ -438,7 +442,7 @@ export function KanbanBoardSurface({
                     <KanbanCardOverlay
                       task={activeDragTask}
                       boardColumns={board.columns}
-                      linkedSession={resolveCardLinkedSession(activeDragTask, sessionMap)}
+                      linkedSession={resolveCardLinkedSession(activeDragTask, sessionMap, { retryPending: retryPendingTaskIds?.has(activeDragTask.id) })}
                       liveMessageTail={activeDragTask.triggerSessionId ? liveSessionTails[activeDragTask.triggerSessionId] : undefined}
                       availableProviders={availableProviders}
                       specialists={specialists}
@@ -448,6 +452,7 @@ export function KanbanBoardSurface({
                       worktreeCache={worktreeCache}
                       autoProviderId={resolveKanbanBoardAutoProviderId(board, boardAutoProviderId)}
                       queuePosition={queuedPositions[activeDragTask.id]}
+                      retryPending={retryPendingTaskIds?.has(activeDragTask.id)}
                       onOpenDetail={() => {}}
                       onDelete={() => {}}
                       onPatchTask={patchTask}

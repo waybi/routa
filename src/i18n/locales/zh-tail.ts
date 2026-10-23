@@ -398,6 +398,7 @@ export const zhTail: TailTranslationDictionarySections = {
     cardDeleting: "正在删除…",
     cardDeleted: "卡片已删除",
     cardDeleteFailed: "删除卡片失败",
+    retryTriggerFailed: "重新运行失败",
     agentSessionCreating: "正在创建会话…",
     agentSessionCreateFailed: "创建会话失败",
     agentPromptFailed: "消息未发出",
