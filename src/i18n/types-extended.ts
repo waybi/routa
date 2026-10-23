@@ -1,7 +1,8 @@
 import type { HarnessTranslationDictionarySections } from "./types-harness";
 import type { TailTranslationDictionarySections } from "./types-tail";
+import type { TeamRedesignTranslationDictionarySections } from "./types-team-redesign";
 
-export interface ExtendedTranslationDictionarySections extends TailTranslationDictionarySections, HarnessTranslationDictionarySections {
+export interface ExtendedTranslationDictionarySections extends TailTranslationDictionarySections, HarnessTranslationDictionarySections, TeamRedesignTranslationDictionarySections {
   // Errors
   errors: {
     generic: string;

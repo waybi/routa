@@ -1,5 +1,6 @@
 import type { ExtendedTranslationDictionarySections } from "../types-extended";
 import { zhTail } from "./zh-tail";
+import { zhTeamRedesign } from "./zh-team-redesign";
 
 export const zhExtended: ExtendedTranslationDictionarySections = {
   harness: {
@@ -1573,4 +1574,5 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
   },
 
   ...zhTail,
+  ...zhTeamRedesign,
 };

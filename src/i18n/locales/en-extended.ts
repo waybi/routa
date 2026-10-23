@@ -1,5 +1,6 @@
 import type { ExtendedTranslationDictionarySections } from "../types-extended";
 import { enTail } from "./en-tail";
+import { enTeamRedesign } from "./en-team-redesign";
 
 export const enExtended: ExtendedTranslationDictionarySections = {
   harness: {
@@ -1573,4 +1574,5 @@ export const enExtended: ExtendedTranslationDictionarySections = {
   },
 
   ...enTail,
+  ...enTeamRedesign,
 };
