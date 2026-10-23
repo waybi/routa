@@ -3,7 +3,8 @@
 /**
  * Desktop App Shell — shared layout for every page (web and Tauri).
  *
- * Redesign (design-spec §3, §7): 7-entry sidebar on the left, a top bar
+ * Redesign (design-spec §3, §7): sidebar on the left (collapsible to an icon
+ * rail above 800px, remembered in localStorage), a top bar
  * with the workspace switcher, ⌘K entry and notification bell, and the page
  * content on the right. Below 800px the sidebar becomes a drawer opened from
  * the top-left button. The command palette is mounted once here so ⌘K / Ctrl+K
@@ -14,6 +15,7 @@ import React, { useCallback, useState } from "react";
 
 import { DesktopShellHeader } from "./desktop-shell-header";
 import { DesktopSidebar } from "./desktop-sidebar";
+import { useSidebarCollapsed } from "./shell/use-sidebar-collapsed";
 import { CommandPalette } from "./ui/command-palette";
 
 export interface DesktopAppShellProps {
@@ -38,13 +40,20 @@ export function DesktopAppShell({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const { collapsed, toggleCollapsed } = useSidebarCollapsed();
 
   return (
     <div
       className="desktop-theme flex h-screen overflow-hidden bg-canvas text-primary"
       data-testid="desktop-shell-root"
     >
-      <DesktopSidebar workspaceId={workspaceId} drawerOpen={drawerOpen} onDrawerClose={closeDrawer} />
+      <DesktopSidebar
+        workspaceId={workspaceId}
+        drawerOpen={drawerOpen}
+        onDrawerClose={closeDrawer}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col" data-testid="desktop-shell-body">
         <DesktopShellHeader

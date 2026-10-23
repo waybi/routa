@@ -5,11 +5,21 @@ import type { ReactNode } from "react";
 import type { TranslationDictionary } from "@/i18n";
 
 /**
- * The seven global sidebar entries from design-spec §3, in display order.
- * Workspace switching lives in the top bar; settings sub-pages live in the
- * settings sub-navigation and never appear here.
+ * The global sidebar entries, in display order: the seven from design-spec §3
+ * plus Feature explorer, Harness and Fluency, which the pre-redesign sidebar
+ * showed directly and the redesign must keep (no-removal rule, §12).
  */
-export type ShellNavId = "home" | "inbox" | "kanban" | "sessions" | "team" | "spec" | "settings";
+export type ShellNavId =
+  | "home"
+  | "inbox"
+  | "kanban"
+  | "sessions"
+  | "team"
+  | "spec"
+  | "featureExplorer"
+  | "harness"
+  | "fluency"
+  | "settings";
 
 export interface ShellNavItem {
   id: ShellNavId;
@@ -65,6 +75,24 @@ export const SHELL_NAV_ICONS: Record<ShellNavId, ReactNode> = {
       <path d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" />
     </svg>
   ),
+  featureExplorer: (
+    <svg {...svgProps}>
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path d="m15 15 5 5M8.5 10.5h4M10.5 8.5v4" />
+    </svg>
+  ),
+  harness: (
+    <svg {...svgProps}>
+      <path d="M12 3 5 6v5c0 4.4 3 8 7 10 4-2 7-5.6 7-10V6z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  ),
+  fluency: (
+    <svg {...svgProps}>
+      <path d="M4 19h16M6 16l4-5 3 3 5-7" />
+      <path d="M15 7h3v3" />
+    </svg>
+  ),
   settings: (
     <svg {...svgProps}>
       <circle cx="12" cy="12" r="3" />
@@ -80,12 +108,21 @@ export const SHELL_NAV_ORDER: readonly ShellNavId[] = [
   "sessions",
   "team",
   "spec",
+  "featureExplorer",
+  "harness",
+  "fluency",
   "settings",
 ];
 
-/** Builds the sidebar entries; workspace routes fall back to "default". */
+/**
+ * Builds the sidebar entries. Workspace routes fall back to "default";
+ * Harness, Fluency and Settings carry `?workspaceId=` only when a workspace
+ * is known, so those pages open on the current workspace.
+ */
 export function buildShellNavItems(t: TranslationDictionary, workspaceId?: string | null): ShellNavItem[] {
-  const ws = encodeURIComponent(workspaceId?.trim() || "default");
+  const known = workspaceId?.trim() || null;
+  const ws = encodeURIComponent(known || "default");
+  const knownWs = known ? encodeURIComponent(known) : null;
   const hrefs: Record<ShellNavId, string> = {
     home: "/",
     inbox: `/workspace/${ws}/overview`,
@@ -93,29 +130,52 @@ export function buildShellNavItems(t: TranslationDictionary, workspaceId?: strin
     sessions: `/workspace/${ws}/sessions`,
     team: `/workspace/${ws}/team`,
     spec: `/workspace/${ws}/spec`,
-    settings: "/settings",
+    featureExplorer: `/workspace/${ws}/feature-explorer`,
+    harness: knownWs ? `/settings/harness?workspaceId=${knownWs}` : "/settings/harness",
+    fluency: knownWs ? `/settings/fluency?workspaceId=${knownWs}` : "/settings/fluency",
+    settings: knownWs ? `/settings?workspaceId=${knownWs}` : "/settings",
+  };
+  const labels: Record<ShellNavId, string> = {
+    home: t.shell.nav.home,
+    inbox: t.shell.nav.inbox,
+    kanban: t.shell.nav.kanban,
+    sessions: t.shell.nav.sessions,
+    team: t.shell.nav.team,
+    spec: t.shell.nav.spec,
+    featureExplorer: t.pagesRedesign.sidebar.featureExplorer,
+    harness: t.shell.settingsNav.items.harness,
+    fluency: t.shell.settingsNav.items.fluency,
+    settings: t.shell.nav.settings,
   };
   return SHELL_NAV_ORDER.map((id) => ({
     id,
-    label: t.shell.nav[id],
+    label: labels[id],
     href: hrefs[id],
     icon: SHELL_NAV_ICONS[id],
   }));
 }
 
+function isUnder(pathname: string, path: string): boolean {
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
 /**
- * Which entry is current. Settings owns every /settings/* page plus
- * /mcp-tools (design-spec §3 files it under settings).
+ * Which entry is current. Harness and Fluency own their own settings pages;
+ * Settings owns every other /settings/* page plus /mcp-tools (design-spec §3
+ * files it under settings).
  */
 export function isShellNavActive(item: ShellNavItem, pathname: string): boolean {
   if (item.id === "home") return pathname === "/";
+  if (item.id === "harness") return isUnder(pathname, "/settings/harness");
+  if (item.id === "fluency") return isUnder(pathname, "/settings/fluency");
   if (item.id === "settings") {
-    return pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/mcp-tools";
+    if (isUnder(pathname, "/settings/harness") || isUnder(pathname, "/settings/fluency")) return false;
+    return isUnder(pathname, "/settings") || pathname === "/mcp-tools";
   }
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  return isUnder(pathname, item.href.split("?")[0]);
 }
 
-/** Collapsible sidebar groups below the seven global entries. */
+/** Collapsible sidebar groups below the global entries. */
 export type ShellNavGroupId = "resources" | "developer";
 
 /** localStorage keys that remember whether each group is expanded. */
@@ -172,13 +232,11 @@ export function buildShellNavGroups(
 ): ShellNavGroup[] {
   const ws = encodeURIComponent(workspaceId?.trim() || "default");
   const labels = t.pagesRedesign.sidebar;
-  const featureExplorerHref = `/workspace/${ws}/feature-explorer`;
   const matchesReposlide = (pathname: string) => REPOSLIDE_PATH.test(pathname);
   const matchesCanvas = (pathname: string) => CANVAS_PATH.test(pathname);
 
-  const resourceItems: ShellNavGroupItem[] = [
-    { id: "featureExplorer", label: labels.featureExplorer, href: featureExplorerHref, matches: prefixMatcher(featureExplorerHref) },
-  ];
+  // Feature explorer is a top-level entry; only id-dependent resources live here.
+  const resourceItems: ShellNavGroupItem[] = [];
   if (ids.codebaseId) {
     resourceItems.push({
       id: "reposlide",
@@ -213,8 +271,7 @@ export function buildShellNavGroups(
       label: labels.resources,
       storageKey: SHELL_NAV_GROUP_STORAGE_KEYS.resources,
       items: resourceItems,
-      ownsPath: (pathname) =>
-        prefixMatcher(featureExplorerHref)(pathname) || matchesReposlide(pathname) || matchesCanvas(pathname),
+      ownsPath: (pathname) => matchesReposlide(pathname) || matchesCanvas(pathname),
     },
     {
       id: "developer",

@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * Collapsible Resources and Developer groups rendered under the seven global
+ * Collapsible Resources and Developer groups rendered under the global
  * sidebar entries. Collapsed groups render no links at all, so the global
- * entry list stays exactly seven links. Expanded state is remembered in
- * localStorage; the group that owns the current page opens automatically.
+ * entry list stays exactly the top-level links. Expanded state is remembered
+ * in localStorage; the group that owns the current page opens automatically.
  *
- * The codebase and canvas ids behind two resource links are fetched only
- * after the Resources group is first opened, and cached per workspace for
- * the lifetime of the page so remounts do not refetch.
+ * Resources holds only id-dependent links (repo slides, canvas). Their ids
+ * are fetched only after the group is first opened, and cached per workspace
+ * for the lifetime of the page so remounts do not refetch. Once the lookup
+ * shows the workspace has neither, the whole group is left out.
  */
 
 import React, { useEffect, useState, useSyncExternalStore } from "react";
@@ -161,9 +162,14 @@ export function SidebarNavGroups({ t, workspaceId, pathname, onNavigate }: Sideb
     });
   };
 
+  // Resources with nothing to show (lookup finished, no ids) is left out entirely.
+  const resourcesKnownEmpty = fetchedIds?.ws === ws && !pathIds.codebaseId && !pathIds.canvasId
+    && !loadedIds.codebaseId && !loadedIds.canvasId;
+  const visibleGroups = groups.filter((group) => group.id !== "resources" || !resourcesKnownEmpty);
+
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-default pt-3">
-      {groups.map((group) => {
+      {visibleGroups.map((group) => {
         const open = isOpen(group.id, group.ownsPath(pathname));
         const listId = `routa-shell-nav-group-${group.id}`;
         return (
