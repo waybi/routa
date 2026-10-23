@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanTab } from "../kanban-tab";
+import { EMPTY_COLUMN_RAIL_WIDTH } from "../kanban-empty-column-rail";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 
@@ -155,7 +156,7 @@ describe("Kanban Done column collapsed rail", () => {
     collapseDone();
 
     const done = column("Done");
-    expect(done.className).toContain("w-10");
+    expect(done.className).toContain(EMPTY_COLUMN_RAIL_WIDTH);
     expect(done.className).not.toContain("w-[24rem]");
     expect(within(done).getByTestId("kanban-done-collapsed-rail")).toBeTruthy();
   });
@@ -215,7 +216,7 @@ describe("Kanban Done column collapsed rail", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderTab(board, [...makeTasks(board.id, "done", 5), ...makeTasks(board.id, "backlog", 1, "mover")]);
     collapseDone();
-    expect(column("Done").className).toContain("w-10");
+    expect(column("Done").className).toContain(EMPTY_COLUMN_RAIL_WIDTH);
 
     await act(async () => {
       dndKitHarness.emitDragEnd({
@@ -243,7 +244,7 @@ describe("Kanban Done column collapsed rail", () => {
 
     renderTab(board, tasks);
     await waitFor(() => {
-      expect(column("Done").className).toContain("w-10");
+      expect(column("Done").className).toContain(EMPTY_COLUMN_RAIL_WIDTH);
     });
     expect(within(column("Done")).getByTestId("kanban-done-collapsed-rail")).toBeTruthy();
   });
@@ -253,7 +254,7 @@ describe("Kanban Done column collapsed rail", () => {
     window.localStorage.setItem("routa.kanban.doneCollapsed.board-1", "1");
     renderTab(board, makeTasks(board.id, "done", 25));
     await waitFor(() => {
-      expect(column("Done").className).toContain("w-10");
+      expect(column("Done").className).toContain(EMPTY_COLUMN_RAIL_WIDTH);
     });
 
     const input = screen.getByTestId("kanban-board-search");

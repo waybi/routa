@@ -30,6 +30,7 @@ import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
 import { KanbanAttentionBar } from "./kanban-attention-bar";
 import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
+import { EMPTY_COLUMN_RAIL_WIDTH } from "./kanban-empty-column-rail";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onToggleDispatch" | "dispatchOpen">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
@@ -106,7 +107,7 @@ export function KanbanBoardSkeleton({ label }: { label: string }) {
           key={column}
           aria-hidden="true"
           data-testid="kanban-board-skeleton-column"
-          className={`flex shrink-0 flex-col gap-2 rounded-md bg-subtle p-2.5 ${kind === "rail" ? "w-10" : kind === "done" ? "w-[24rem]" : "w-[18rem] min-w-[210px]"}`}
+          className={`flex shrink-0 flex-col gap-2 rounded-md bg-subtle p-2.5 ${kind === "rail" ? EMPTY_COLUMN_RAIL_WIDTH : kind === "done" ? "w-[24rem]" : "w-[18rem] min-w-[210px]"}`}
         >
           {kind !== "rail" && (
             <>

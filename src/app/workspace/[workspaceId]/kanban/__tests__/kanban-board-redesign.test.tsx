@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanTab } from "../kanban-tab";
+import { EMPTY_COLUMN_RAIL_WIDTH } from "../kanban-empty-column-rail";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 import { toast } from "@/client/components/toast";
@@ -173,7 +174,7 @@ describe("AC3 empty column rail", () => {
 
     const review = column("review");
     expect(within(review).getByTestId("kanban-empty-column-rail")).toBeTruthy();
-    expect(review.className).toContain("w-10");
+    expect(review.className).toContain(EMPTY_COLUMN_RAIL_WIDTH);
     expect(dnd.droppables).toContain("column:review");
 
     await act(async () => {

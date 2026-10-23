@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KanbanTab } from "../kanban-tab";
+import { EMPTY_COLUMN_RAIL_WIDTH } from "../kanban-empty-column-rail";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 
@@ -323,7 +324,7 @@ describe("Kanban Done column window", () => {
     expect(rails[0].textContent).toContain("Review");
     expect(rails[0].textContent).toContain("0");
     const columns = screen.getAllByTestId("kanban-column");
-    expect(columns.map((element) => element.className.includes("w-10"))).toEqual([false, true, false]);
+    expect(columns.map((element) => element.className.includes(EMPTY_COLUMN_RAIL_WIDTH))).toEqual([false, true, false]);
     expect(columns[2].className).toContain("w-[24rem]");
 
     await act(async () => {
