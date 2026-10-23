@@ -20,7 +20,6 @@ import {
   type SessionTranscriptPayload,
 } from "@/core/session-transcript";
 import { filterSpecialistsByCategory } from "@/client/utils/specialist-categories";
-import { formatRelativeTime } from "../../ui-components";
 import type { SessionInfo } from "../../types";
 import {
   avatarInitials,
@@ -68,6 +67,7 @@ import {
 import { TeamRunPageHeader } from "./team-run-page-header";
 import { useRealTeamRunParams } from "./use-real-team-run-params";
 import { useTranslation } from "@/i18n";
+import { formatTeamRelativeTime } from "../team-relative-time";
 
 
 function buildFallbackLeadMessages(
@@ -142,7 +142,8 @@ function delegationRoleMatchesSession(targetRosterId: string, child: SessionInfo
 }
 
 export function TeamRunPageClient() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const formatRelativeTime = useCallback((dateStr: string) => formatTeamRelativeTime(dateStr, locale), [locale]);
   const router = useRouter();
   const { workspaceId, sessionId, isResolved } = useRealTeamRunParams();
 
@@ -749,7 +750,7 @@ export function TeamRunPageClient() {
         if (b.session.sessionId === sessionId) return 1;
         return b.lastUpdatedAt - a.lastUpdatedAt;
       });
-  }, [agentsById, allRunSessions, delegatedRosterIdsBySessionId, historiesBySessionId, sessionId, specialistsById]);
+  }, [agentsById, allRunSessions, delegatedRosterIdsBySessionId, formatRelativeTime, historiesBySessionId, sessionId, specialistsById]);
 
   const selectedSessionStream = useMemo(
     () => sessionStreams.find((item) => item.session.sessionId === selectedSessionId) ?? sessionStreams[0] ?? null,
@@ -767,7 +768,11 @@ export function TeamRunPageClient() {
     return map;
   }, [agentsById, delegatedRosterIdsBySessionId, sessionStreams]);
 
-  const objective = useMemo(() => findObjectiveText(session, rootHistory, notesHook.notes), [notesHook.notes, rootHistory, session]);
+  const objective = useMemo(() => {
+    const text = findObjectiveText(session, rootHistory, notesHook.notes);
+    // The model's English placeholder means "nothing captured": let the section show its i18n empty copy.
+    return text === "Team objective not captured yet." ? "" : text;
+  }, [notesHook.notes, rootHistory, session]);
 
   const createdAgents = useMemo(() => {
     if (!session) return [] as Array<{ agent: AgentSummary; update: NonNullable<SessionHistoryEntry["update"]>; createdAt: number }>;
@@ -914,7 +919,7 @@ export function TeamRunPageClient() {
         avatarLabel: avatarInitials(latest ? getActorLabel(latest.session, specialistsById, agentsById, delegatedRosterIdsBySessionId) : specialist.name),
       };
     });
-  }, [agentsById, createdAgents, delegatedRosterIdsBySessionId, historiesBySessionId, latestSessionBySpecialistId, leadName, session, sessionId, sessionStreams, sessionStreamByAgentId, specialists, specialistsById, t.teamRedesign.session.createdAgentWaiting]);
+  }, [agentsById, createdAgents, delegatedRosterIdsBySessionId, formatRelativeTime, historiesBySessionId, latestSessionBySpecialistId, leadName, session, sessionId, sessionStreams, sessionStreamByAgentId, specialists, specialistsById, t.teamRedesign.session.createdAgentWaiting]);
 
   const pendingQuestionsBySessionId = useMemo(() => {
     const result = new Map<string, PendingSessionQuestion>();
@@ -1142,7 +1147,7 @@ export function TeamRunPageClient() {
       });
 
     return [leadLane, ...childLanes];
-  }, [agentsById, completionByAgentId, delegatedRosterIdsBySessionId, historiesBySessionId, leadMessages, leadName, messagesBySessionId, pendingQuestionsBySessionId, rootHistory, selectedSessionStream, session, sessionId, sessionStreams, specialistsById, t.teamRedesign.session.memberFallback, teamMembers]);
+  }, [agentsById, completionByAgentId, delegatedRosterIdsBySessionId, formatRelativeTime, historiesBySessionId, leadMessages, leadName, messagesBySessionId, pendingQuestionsBySessionId, rootHistory, selectedSessionStream, session, sessionId, sessionStreams, specialistsById, t.teamRedesign.session.memberFallback, teamMembers]);
   const memberLaneByToolCallId = useMemo(() => {
     const toolCallMap = new Map<string, SessionLaneItem>();
     for (const entry of rootHistory) {
@@ -1188,9 +1193,10 @@ export function TeamRunPageClient() {
     [teamRuns, sessionId],
   );
   const isActiveSessionReady = session?.sessionId === sessionId;
+  // An unnamed run shows the i18n "unnamed" copy in the header instead of its raw ID.
   const selectedTeamRunName = isActiveSessionReady
-    ? (session?.name ?? sessionId)
-    : (selectedTeamRun?.name ?? sessionId);
+    ? (session?.name ?? "")
+    : (selectedTeamRun?.name ?? "");
   const showRunLoadingState = !isActiveSessionReady;
 
   const handleSwitchTeamRun = useCallback((nextSessionId: string) => {
