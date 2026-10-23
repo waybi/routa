@@ -116,6 +116,13 @@ export async function enqueueKanbanTaskSession(
      * the lane's later steps follow it.
      */
     resumeLane?: boolean;
+    /**
+     * The run of `step`/`stepIndex` is started outside a column transition
+     * (manual rerun, POST revive): hand it to the workflow orchestrator so its
+     * end is recorded and the lane's later steps follow it. A queued run is
+     * adopted when the board queue starts it.
+     */
+    adoptLaneRun?: boolean;
   },
 ): Promise<{ sessionId?: string; queued: boolean; error?: string }> {
   const task = params.task;
@@ -130,21 +137,28 @@ export async function enqueueKanbanTaskSession(
     const resumeStep = await resolveLaneResumeForTask(system, task, params.expectedColumnId ?? task.columnId);
     if (resumeStep) {
       const { resumeLane: _resumeLane, ...startParams } = params;
-      const result = await enqueueKanbanTaskSession(system, {
+      return enqueueKanbanTaskSession(system, {
         ...startParams,
         step: resumeStep.step,
         stepIndex: resumeStep.stepIndex,
+        adoptLaneRun: true,
       });
-      if (result.sessionId || result.queued) {
-        await getWorkflowOrchestrator(system).adoptLaneRun({
-          cardId: task.id,
-          columnId: resumeStep.columnId,
-          stepIndex: resumeStep.stepIndex,
-          sessionId: result.sessionId,
-        });
-      }
-      return result;
     }
+  }
+
+  if (params.adoptLaneRun) {
+    const { adoptLaneRun: _adoptLaneRun, ...startParams } = params;
+    const columnId = params.expectedColumnId ?? task.columnId;
+    const result = await enqueueKanbanTaskSession(system, startParams);
+    if (columnId && params.step && typeof params.stepIndex === "number" && (result.sessionId || result.queued)) {
+      await getWorkflowOrchestrator(system).adoptLaneRun({
+        cardId: task.id,
+        columnId,
+        stepIndex: params.stepIndex,
+        sessionId: result.sessionId,
+      });
+    }
+    return result;
   }
 
   if (params.bypassQueue) {

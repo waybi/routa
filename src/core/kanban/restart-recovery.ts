@@ -284,12 +284,16 @@ export async function reviveMissingEntryAutomations(
       && laneState.nextStep
       && typeof laneState.currentStepIndex === "number"
     ) {
+      // Started outside a column transition, so the orchestrator must adopt
+      // it: otherwise its end is never recorded (lane stays "running") and the
+      // lane's following step never starts (Done Reporter a1d9bffc, 2026-10-23).
       await enqueueKanbanTaskSession(system, {
         task,
         expectedColumnId: currentColumnId,
         ignoreExistingTrigger: true,
         step: laneState.nextStep,
         stepIndex: laneState.currentStepIndex + 1,
+        adoptLaneRun: true,
       });
       continue;
     }

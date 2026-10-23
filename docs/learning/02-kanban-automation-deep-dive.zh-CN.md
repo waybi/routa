@@ -320,6 +320,24 @@ enqueueKanbanTaskSession(resumeLane: true)
 `autoAdvanceOnSuccess` 让卡片干完一列的活就自动进下一列，
 下一列又触发新的自动化。
 
+### 5d. 重启后续跑（POST /api/kanban/boards/{id}/revive）
+
+~~~plaintext
+reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
+   │  本列 running 但进程已不在的 lane 记录 → 标 timed_out（卡上已有结论的标 transitioned）
+   │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障 / 看门狗判超时
+   ▼
+┌─ Review 收敛到别的列 → 移卡 + processKanbanColumnTransition（编排器正常路径）
+├─ 本列上一步 completed/transitioned 且还有下一步
+│     → enqueueKanbanTaskSession(step=下一步, adoptLaneRun: true)
+│     → 编排器 adoptLaneRun 接管（排队的话在队列拉起时按 triggerSessionId 接管）
+│     → 它结束后 lane 记 completed，再起列内下一步 / autoAdvance
+└─ 其他 → processKanbanColumnTransition（从本列第一步走编排器正常路径）
+~~~
+
+中间那条直接起会话、不经过列转移事件，所以必须交给编排器登记；否则步骤跑完 lane 一直是 running，
+列内再下一步也不会起（2026-10-23 重启后 4 张 Done 卡的完成汇报员、7a25276b 的 Flight Review Guard）。
+
 ## 6. 门禁：不是想过就能过
 
 在执行 `move_card` 的路径上（API route / MCP tool），还有三层独立的**转换门禁**，
@@ -519,3 +537,4 @@ code_diff     → 要有代码变更记录
 |---|---|---|---|
 | 2026-10-23 | 队列 drain 每轮读当前队首、清 queued 孤儿、空位先放行早排队的卡；下一步排队不再记失败；重新运行先存库再重读卡；重新运行按 lane 记录选步骤并由编排器接管（第 3 节、5b、5c） | 新增 8 个用例、1 个旧用例补断言，撤掉任一修复对应用例变红；卡 1e7dd356 那类「上一步完成、下一步报 ACP session did not complete successfully.」不再出现 | fix(kanban): board queue drain…、fix(kanban): a lane step queued…、fix(tasks): rerunning a card keeps…、本提交 |
 | 2026-10-23 | 看板「运行/重新运行」按钮点击即显示「启动中…」并防连点，失败弹提示并恢复；重跑成功后新运行露面前卡片显示「启动中」（5c 节末） | 新增 13 个前端用例，撤掉组件改动 7 个变红、撤掉提示和标记 2 个变红 | fix(kanban): run/rerun shows a disabled…、本提交 |
+| 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | fix(kanban): revive hands the next lane step to the orchestrator（本提交） |
