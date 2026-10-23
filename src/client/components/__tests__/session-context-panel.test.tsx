@@ -32,6 +32,9 @@ vi.mock("@/i18n", () => ({
         recentSessions: "Recent Sessions",
         showAll: "Show All",
       },
+      sessionDetailRedesign: {
+        sidebar: { parent: "Parent" },
+      },
     },
   }),
 }));

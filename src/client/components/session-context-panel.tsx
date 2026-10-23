@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { LaneHandoffInfo, LaneSessionInfo, SessionKanbanContext } from "@/client/types/kanban-context";
 import { desktopAwareFetch, shouldSuppressTeardownError } from "../utils/diagnostics";
 import { useTranslation } from "@/i18n";
+import { formatRelativeTime } from "@/app/workspace/[workspaceId]/ui-components";
 import { SquarePen, Trash2, Zap, ArrowUp, ArrowDown, FileText, GitBranch, ArrowUpDown, ScrollText, ChevronDown } from "lucide-react";
 
 
@@ -198,20 +199,6 @@ export function SessionContextPanel({
     );
   }
 
-  const formatTimeAgo = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-  };
-
   const getDefaultName = (s: SessionInfo) => {
     if (s.provider && s.role) {
       return `${s.provider}-${s.role.toLowerCase()}-${s.sessionId.slice(0, 6)}`;
@@ -345,7 +332,7 @@ export function SessionContextPanel({
               </div>
             )}
             <div className="text-[10px] text-secondary">
-              {label ? `${label} • ` : ""}{session.role}{session.role ? " • " : ""}{formatTimeAgo(session.createdAt)}
+              {label ? `${label} • ` : ""}{session.role}{session.role ? " • " : ""}{formatRelativeTime(session.createdAt)}
             </div>
           </div>
           {!isRenaming && <SessionActions sid={session.sessionId} displayName={displayName} />}
@@ -410,7 +397,7 @@ export function SessionContextPanel({
               )}
               <span className="text-accent">•</span>
               <span className="text-accent">
-                {formatTimeAgo(context.current.createdAt)}
+                {formatRelativeTime(context.current.createdAt)}
               </span>
             </div>
 
@@ -462,7 +449,7 @@ export function SessionContextPanel({
                               {displayName}
                             </div>
                             <div className="mt-0.5 text-[10px] text-secondary">
-                              {session.role}{session.role ? " • " : ""}{formatTimeAgo(session.createdAt)}
+                              {session.role}{session.role ? " • " : ""}{formatRelativeTime(session.createdAt)}
                             </div>
                           </div>
                           <Zap className="ml-2 h-3 w-3 shrink-0 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} />
@@ -584,7 +571,7 @@ export function SessionContextPanel({
                       )}
                       <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-secondary">
                         <span>
-                          {counterpartLane} • {formatTimeAgo(handoff.requestedAt)}
+                          {counterpartLane} • {formatRelativeTime(handoff.requestedAt)}
                         </span>
                         <button
                           onClick={() => onSelectSession(counterpartSessionId)}
@@ -626,7 +613,7 @@ export function SessionContextPanel({
             {context.parent && (
               <SessionRow
                 session={context.parent}
-                label="Parent"
+                label={t.sessionDetailRedesign.sidebar.parent}
                 highlighted={context.parent.sessionId === focusedSessionId}
                 icon={
                   <ArrowUp className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>

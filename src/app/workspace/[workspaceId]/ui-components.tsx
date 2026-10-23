@@ -2,6 +2,11 @@
 
 import React from "react";
 import { Check, CircleCheck, Clock, X, CircleOff, XCircle } from "lucide-react";
+import { getActiveLocale } from "@/i18n/context";
+import type { Locale } from "@/i18n/types";
+import type { SessionDetailRedesignTranslationDictionarySections } from "@/i18n/types-session-detail";
+import { enSessionDetail } from "@/i18n/locales/en-session-detail";
+import { zhSessionDetail } from "@/i18n/locales/zh-session-detail";
 
 
 // ─── Tab Button ────────────────────────────────────────────────────
@@ -12,8 +17,8 @@ export function TabButton({ active, onClick, children }: { active: boolean; onCl
       onClick={onClick}
       className={`px-3.5 py-2 text-[13px] font-medium border-b-2 transition-colors ${
         active
-          ? "text-slate-900 dark:text-slate-100 border-amber-500"
-          : "text-slate-400 dark:text-slate-500 border-transparent hover:text-slate-600 dark:hover:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600"
+          ? "text-primary border-accent"
+          : "text-secondary border-transparent hover:text-primary hover:border-default"
       }`}
     >
       {children}
@@ -37,28 +42,28 @@ export function StatCard({
   color: "blue" | "route" | "emerald" | "amber";
 }) {
   const bgMap = {
-    blue: "bg-blue-50 dark:bg-blue-900/15",
-    route: "bg-slate-100 dark:bg-slate-900/15",
-    emerald: "bg-emerald-50 dark:bg-emerald-900/15",
-    amber: "bg-amber-50 dark:bg-amber-900/15",
+    blue: "bg-accent-subtle",
+    route: "bg-subtle",
+    emerald: "bg-success-subtle",
+    amber: "bg-attention-subtle",
   };
   const textMap = {
-    blue: "text-blue-600 dark:text-blue-400",
-    route: "text-slate-600 dark:text-slate-300",
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    amber: "text-amber-600 dark:text-amber-400",
+    blue: "text-information",
+    route: "text-secondary",
+    emerald: "text-success",
+    amber: "text-attention",
   };
 
   return (
-    <div className="flex items-center gap-3 p-4 rounded-xl bg-white dark:bg-[#12141c] border border-slate-200/60 dark:border-[#1c1f2e] hover:shadow-sm transition-shadow">
+    <div className="flex items-center gap-3 p-4 rounded-xl bg-surface border border-default hover:shadow-sm transition-shadow">
       <div className={`w-9 h-9 rounded-lg ${bgMap[color]} flex items-center justify-center shrink-0 ${textMap[color]}`}>
         {icon}
       </div>
       <div>
-        <div className="text-xl font-bold text-slate-900 dark:text-slate-100 tabular-nums leading-none">{value}</div>
-        <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+        <div className="text-xl font-bold text-primary tabular-nums leading-none">{value}</div>
+        <div className="text-[11px] text-secondary mt-0.5">
           {label}
-          {sub && <span className="ml-1 text-slate-300 dark:text-slate-600">· {sub}</span>}
+          {sub && <span className="ml-1 text-secondary">· {sub}</span>}
         </div>
       </div>
     </div>
@@ -83,12 +88,12 @@ export function DashboardCard({
   const isEmpty = count === 0;
 
   return (
-    <div className="bg-white dark:bg-[#12141c] rounded-xl border border-slate-200/60 dark:border-[#1c1f2e] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-[#191c28]">
+    <div className="bg-surface rounded-xl border border-default overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-default">
         <div className="flex items-center gap-2">
-          <h3 className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
+          <h3 className="text-[13px] font-semibold text-primary">{title}</h3>
           {count !== undefined && count > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#191c28] text-[10px] font-mono text-slate-500 dark:text-slate-400">
+            <span className="px-1.5 py-0.5 rounded-full bg-subtle text-[10px] font-mono text-secondary">
               {count}
             </span>
           )}
@@ -96,9 +101,9 @@ export function DashboardCard({
         {action}
       </div>
       {isEmpty ? (
-        <div className="px-4 py-6 text-center text-[12px] text-slate-400 dark:text-slate-500">{emptyText}</div>
+        <div className="px-4 py-6 text-center text-[12px] text-secondary">{emptyText}</div>
       ) : (
-        <div className="divide-y divide-slate-50 dark:divide-[#151720]">{children}</div>
+        <div className="divide-y divide-default">{children}</div>
       )}
     </div>
   );
@@ -110,28 +115,28 @@ export function TaskStatusIcon({ status }: { status: string }) {
   const s = status.toUpperCase();
   if (s === "COMPLETED") {
     return (
-      <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
-        <Check className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}/>
+      <div className="w-7 h-7 rounded-md bg-success-subtle flex items-center justify-center shrink-0">
+        <Check className="w-3.5 h-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}/>
       </div>
     );
   }
   if (s === "IN_PROGRESS") {
     return (
-      <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-        <div className="w-3 h-3 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+      <div className="w-7 h-7 rounded-md bg-accent-subtle flex items-center justify-center shrink-0">
+        <div className="w-3 h-3 rounded-full border-2 border-information border-t-transparent animate-spin" />
       </div>
     );
   }
   if (s === "BLOCKED" || s === "CANCELLED") {
     return (
-      <div className="w-7 h-7 rounded-md bg-red-50 dark:bg-red-900/20 flex items-center justify-center shrink-0">
-        <CircleOff className="w-3.5 h-3.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+      <div className="w-7 h-7 rounded-md bg-danger-subtle flex items-center justify-center shrink-0">
+        <CircleOff className="w-3.5 h-3.5 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
       </div>
     );
   }
   return (
-    <div className="w-7 h-7 rounded-md bg-slate-100 dark:bg-[#191c28] flex items-center justify-center shrink-0">
-      <div className="w-2.5 h-2.5 rounded-full border-2 border-slate-400 dark:border-slate-500" />
+    <div className="w-7 h-7 rounded-md bg-subtle flex items-center justify-center shrink-0">
+      <div className="w-2.5 h-2.5 rounded-full border-2 border-secondary" />
     </div>
   );
 }
@@ -141,17 +146,17 @@ export function TaskStatusIcon({ status }: { status: string }) {
 export function TaskStatusBadge({ status }: { status: string }) {
   const s = status.toUpperCase();
   const map: Record<string, string> = {
-    PENDING: "bg-slate-100 dark:bg-slate-800 text-slate-500",
-    IN_PROGRESS: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-    REVIEW_REQUIRED: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
-    COMPLETED: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400",
-    NEEDS_FIX: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
-    BLOCKED: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
-    CANCELLED: "bg-slate-100 dark:bg-slate-800 text-slate-400",
+    PENDING: "bg-subtle text-secondary",
+    IN_PROGRESS: "bg-accent-subtle text-information",
+    REVIEW_REQUIRED: "bg-attention-subtle text-attention",
+    COMPLETED: "bg-success-subtle text-success",
+    NEEDS_FIX: "bg-attention-subtle text-attention",
+    BLOCKED: "bg-danger-subtle text-danger",
+    CANCELLED: "bg-subtle text-secondary",
   };
 
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${map[s] || map.PENDING}`}>
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${map[s] || map.PENDING}`}>
       {status.replace(/_/g, " ")}
     </span>
   );
@@ -162,10 +167,10 @@ export function TaskStatusBadge({ status }: { status: string }) {
 export function AgentRoleIcon({ role }: { role: string }) {
   const r = role.toUpperCase();
   const colorMap: Record<string, string> = {
-    ROUTA: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400",
-    DEVELOPER: "bg-slate-100 dark:bg-slate-900/20 text-slate-600 dark:text-slate-300",
-    CRAFTER: "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400",
-    GATE: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400",
+    ROUTA: "bg-accent-subtle text-information",
+    DEVELOPER: "bg-subtle text-secondary",
+    CRAFTER: "bg-attention-subtle text-attention",
+    GATE: "bg-success-subtle text-success",
   };
   const cls = colorMap[r] || colorMap.DEVELOPER;
 
@@ -181,17 +186,17 @@ export function AgentRoleIcon({ role }: { role: string }) {
 export function AgentStatusDot({ status }: { status: string }) {
   const s = status.toUpperCase();
   const colorMap: Record<string, string> = {
-    ACTIVE: "bg-emerald-500",
-    PENDING: "bg-amber-400",
-    COMPLETED: "bg-slate-400 dark:bg-slate-500",
-    ERROR: "bg-red-500",
-    CANCELLED: "bg-slate-300 dark:bg-slate-600",
+    ACTIVE: "bg-success",
+    PENDING: "bg-attention",
+    COMPLETED: "bg-secondary",
+    ERROR: "bg-danger",
+    CANCELLED: "bg-default",
   };
 
   return (
     <div className="flex items-center gap-1.5">
       <span className={`w-1.5 h-1.5 rounded-full ${colorMap[s] || colorMap.PENDING}`} />
-      <span className="text-[10px] text-slate-400 dark:text-slate-500 capitalize">{status.toLowerCase()}</span>
+      <span className="text-[10px] text-secondary capitalize">{status.toLowerCase()}</span>
     </div>
   );
 }
@@ -213,17 +218,17 @@ export function OverlayModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       <div
-        className="relative w-full max-w-5xl h-[80vh] bg-white dark:bg-[#12141c] border border-slate-200 dark:border-[#1c1f2e] rounded-xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-5xl h-[80vh] bg-surface border border-default rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-11 px-4 border-b border-slate-100 dark:border-[#191c28] flex items-center justify-between">
+        <div className="h-11 px-4 border-b border-default flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</span>
+            <span className="text-sm font-semibold text-primary">{title}</span>
             <a
               href="/settings/agents"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              className="text-[11px] text-secondary hover:text-primary transition-colors"
             >
               Open in new tab
             </a>
@@ -231,7 +236,7 @@ export function OverlayModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 dark:hover:bg-[#191c28] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
             title={closeLabel ?? "Close (Esc)"}
             aria-label={closeLabel ?? "Close"}
           >
@@ -248,24 +253,24 @@ export function OverlayModal({
 
 export function bgTaskStatusClass(status: string): string {
   switch (status) {
-    case "PENDING":   return "bg-slate-100 dark:bg-slate-700/40 text-slate-500 dark:text-slate-400";
-    case "RUNNING":   return "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400";
-    case "COMPLETED": return "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400";
-    case "FAILED":    return "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400";
-    case "CANCELLED": return "bg-slate-100 dark:bg-slate-700/40 text-slate-400 dark:text-slate-500";
-    default:          return "bg-slate-100 dark:bg-slate-700/40 text-slate-500 dark:text-slate-400";
+    case "PENDING":   return "bg-subtle text-secondary";
+    case "RUNNING":   return "bg-accent-subtle text-information";
+    case "COMPLETED": return "bg-success-subtle text-success";
+    case "FAILED":    return "bg-danger-subtle text-danger";
+    case "CANCELLED": return "bg-subtle text-secondary";
+    default:          return "bg-subtle text-secondary";
   }
 }
 
 export function BgTaskStatusIcon({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    PENDING: "text-slate-400",
-    RUNNING: "text-blue-500 animate-spin",
-    COMPLETED: "text-emerald-500",
-    FAILED: "text-red-500",
-    CANCELLED: "text-slate-400",
+    PENDING: "text-secondary",
+    RUNNING: "text-information animate-spin",
+    COMPLETED: "text-success",
+    FAILED: "text-danger",
+    CANCELLED: "text-secondary",
   };
-  const cls = colorMap[status] ?? "text-slate-400";
+  const cls = colorMap[status] ?? "text-secondary";
   if (status === "COMPLETED") {
     return (
       <CircleCheck className={`w-4 h-4 ${cls} shrink-0`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
@@ -283,14 +288,27 @@ export function BgTaskStatusIcon({ status }: { status: string }) {
 
 // ─── Format Relative Time ──────────────────────────────────────────
 
-export function formatRelativeTime(dateStr: string): string {
+export type RelativeTimeCopy = SessionDetailRedesignTranslationDictionarySections["sessionDetailRedesign"]["relativeTime"];
+
+const RELATIVE_TIME_COPY: Record<Locale, RelativeTimeCopy> = {
+  en: enSessionDetail.sessionDetailRedesign.relativeTime,
+  zh: zhSessionDetail.sessionDetailRedesign.relativeTime,
+};
+
+/**
+ * "8m ago" / "8 分钟前". Without `copy` the text follows the current UI
+ * locale; the locale is read from `@/i18n/context` (not the `@/i18n` entry)
+ * so tests that mock `@/i18n` keep working.
+ */
+export function formatRelativeTime(dateStr: string, copy?: RelativeTimeCopy): string {
+  const text = copy ?? RELATIVE_TIME_COPY[getActiveLocale()] ?? RELATIVE_TIME_COPY.en;
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return text.justNow;
+  if (mins < 60) return text.minutesAgo.replace("{count}", String(mins));
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return text.hoursAgo.replace("{count}", String(hrs));
   const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return `${Math.floor(days / 7)}w ago`;
+  if (days < 7) return text.daysAgo.replace("{count}", String(days));
+  return text.weeksAgo.replace("{count}", String(Math.floor(days / 7)));
 }

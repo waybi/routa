@@ -44,6 +44,11 @@ function getPreferredLocale(): Locale {
   return volatileLocaleOverride ?? loadStoredLocale() ?? detectBrowserLocale();
 }
 
+/** Current UI locale for non-React helpers (same source as I18nProvider). */
+export function getActiveLocale(): Locale {
+  return getPreferredLocale();
+}
+
 function getServerLocaleSnapshot(): Locale {
   return DEFAULT_LOCALE;
 }
