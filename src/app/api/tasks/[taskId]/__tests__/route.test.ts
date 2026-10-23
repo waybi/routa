@@ -110,7 +110,10 @@ describe("/api/tasks/[taskId]", () => {
       reason: "Task has no linked repository or worktree.",
     });
     buildTaskDeliveryTransitionErrorFromRules.mockReturnValue(null);
-    taskStore.save.mockResolvedValue();
+    // Behave like a real store: a saved card is what the next read returns.
+    taskStore.save.mockImplementation(async (task: Task) => {
+      taskStore.get.mockResolvedValue(structuredClone(task));
+    });
     system.kanbanBoardStore.get = vi.fn().mockResolvedValue(null);
     system.worktreeStore.get = vi.fn().mockResolvedValue(undefined);
     system.codebaseStore.findByRepoPath = vi.fn().mockResolvedValue(undefined);
@@ -881,6 +884,37 @@ describe("/api/tasks/[taskId]", () => {
       triggerSessionId: "session-new",
     }));
     expect(data.task.triggerSessionId).toBe("session-new");
+  });
+
+  it("keeps the lane record the new run wrote when rerunning a task trigger", async () => {
+    let stored = createTask({
+      id: "task-1", title: "Rerun", objective: "Rerun", workspaceId: "workspace-1",
+      boardId: "board-1", columnId: "todo", status: TaskStatus.PENDING, triggerSessionId: "session-old",
+    });
+    stored.laneSessions = [{ sessionId: "session-old", columnId: "todo", status: "failed", startedAt: "2026-10-23T13:00:00Z" }];
+    taskStore.get.mockImplementation(async () => structuredClone(stored));
+    taskStore.save.mockImplementation(async (task: Task) => { stored = structuredClone(task); });
+    // Like startKanbanTaskSession: re-read the card, record the new run, save.
+    enqueueKanbanTaskSession.mockImplementation(async () => {
+      const latest = structuredClone(stored);
+      latest.triggerSessionId = "session-new";
+      latest.laneSessions = [...(latest.laneSessions ?? []),
+        { sessionId: "session-new", columnId: "todo", status: "running", startedAt: "2026-10-23T13:20:00Z" }];
+      stored = latest;
+      return { sessionId: "session-new", queued: false };
+    });
+
+    const response = await PATCH(new NextRequest("http://localhost/api/tasks/task-1", {
+      method: "PATCH", body: JSON.stringify({ retryTrigger: true }), headers: { "Content-Type": "application/json" },
+    }), { params: Promise.resolve({ taskId: "task-1" }) });
+    const data = await response.json();
+
+    const newRun = expect.arrayContaining([expect.objectContaining({ sessionId: "session-new", status: "running" })]);
+    expect(response.status).toBe(200);
+    expect(stored.triggerSessionId).toBe("session-new");
+    expect(stored.laneSessions).toEqual(newRun);
+    expect(data.task.triggerSessionId).toBe("session-new");
+    expect(data.task.laneSessions).toEqual(newRun);
   });
 
   it("reuses the existing task worktree when retrying a dev trigger", async () => {

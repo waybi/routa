@@ -245,7 +245,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const nextTask: Task = { ...existing, updatedAt: new Date() };
+  let nextTask: Task = { ...existing, updatedAt: new Date() };
   let transitionDeliveryReadiness: TaskDeliveryReadiness | undefined;
 
   if (
@@ -632,12 +632,18 @@ export async function PATCH(
       }
     }
 
+    // The session start re-reads the card, records the new lane run and saves
+    // it. Persist this request's edits first, then continue from the stored
+    // card: saving the copy taken before the start would erase that new run.
+    applyTaskAdaptivePersistenceGuards(nextTask);
+    await system.taskStore.save(nextTask);
     const triggerResult = await enqueueKanbanTaskSession(system, {
       task: nextTask,
       expectedColumnId: nextTask.columnId,
       ignoreExistingTrigger: retryingTrigger,
       providerOverride: retryProviderId,
     });
+    nextTask = (await system.taskStore.get(taskId)) ?? nextTask;
     if (triggerResult.sessionId) {
       nextTask.triggerSessionId = triggerResult.sessionId;
       // Track session in history
