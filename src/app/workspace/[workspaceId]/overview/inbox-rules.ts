@@ -11,7 +11,12 @@
  */
 
 import type { KanbanBoardInfo, TaskInfo } from "../types";
-import { attentionDismissKey, type KanbanAttentionItem } from "../kanban/kanban-attention-rules";
+import {
+  attentionDismissKey,
+  findInterruptedLaneSession,
+  type KanbanAttentionItem,
+  type TaskLaneSessionInfo,
+} from "../kanban/kanban-attention-rules";
 import { DONE_LANE_ID, getDoneEnteredAt, getTrailingDoneSessions } from "../kanban/kanban-done-time";
 import { KANBAN_DETAIL_TAB_QUERY_KEY } from "../kanban/kanban-detail-tab-request";
 import {
@@ -25,7 +30,7 @@ import {
 export type InboxSeverity = 1 | 2 | 3;
 
 /** Reason a row is shown; finer than the attention kind (blocked splits in two). */
-export type InboxReason = "doneFailed" | "blockedError" | "noReport" | "unmerged" | "blockedUnknown";
+export type InboxReason = "doneFailed" | "blockedError" | "noReport" | "unmerged" | "blockedUnknown" | "interrupted";
 
 export interface InboxRow {
   /** Aggregation key: workspace + card + attention kind. */
@@ -42,6 +47,9 @@ export interface InboxRow {
   eventAt: number | null;
   /** Same key the board's "Got it" writes (card + kind + commits ahead). */
   dismissKey: string;
+  /** interrupted only: the failed / timed-out run and the lane's display name. */
+  interruptedRun?: TaskLaneSessionInfo;
+  columnName?: string;
 }
 
 export interface InboxRows {
@@ -87,6 +95,7 @@ const SEVERITY: Record<InboxReason, InboxSeverity> = {
   noReport: 2,
   unmerged: 3,
   blockedUnknown: 3,
+  interrupted: 1,
 };
 
 export function inboxSeverity(reason: InboxReason): InboxSeverity {
@@ -96,10 +105,15 @@ export function inboxSeverity(reason: InboxReason): InboxSeverity {
 /**
  * Event time per kind: blocked → updatedAt; doneFailed / noReport → the last
  * Done-lane run's completedAt, else its startedAt; unmerged → the Done entry
- * (first run of the trailing Done segment). Never a page-refresh time.
+ * (first run of the trailing Done segment); interrupted → the failed run's
+ * completedAt, else lastActivityAt, else startedAt. Never a page-refresh time.
  */
 export function inboxEventAt(item: KanbanAttentionItem, task: TaskInfo): number | null {
   if (item.kind === "blocked") return parseTime(task.updatedAt) || null;
+  if (item.kind === "interrupted") {
+    const run = findInterruptedLaneSession(task);
+    return parseTime(run?.completedAt) || parseTime(run?.lastActivityAt) || parseTime(run?.startedAt) || null;
+  }
   const trailing = getTrailingDoneSessions(task);
   if (item.kind === "unmerged") return parseTime(trailing[0]?.startedAt) || null;
   const last = trailing[trailing.length - 1];
@@ -111,6 +125,16 @@ export function lastDoneRunStatus(task: TaskInfo): "failed" | "timed_out" | null
   const trailing = getTrailingDoneSessions(task);
   const status = trailing[trailing.length - 1]?.status;
   return status === "failed" || status === "timed_out" ? status : null;
+}
+
+/** Lane name for a card: board column name → run's columnName → column id. */
+export function inboxColumnName(
+  task: Pick<TaskInfo, "columnId">,
+  board: Pick<KanbanBoardInfo, "columns"> | undefined,
+  run: Pick<TaskLaneSessionInfo, "columnName"> | null | undefined,
+): string {
+  const fromBoard = board?.columns.find((column) => column.id === task.columnId)?.name?.trim();
+  return fromBoard || run?.columnName?.trim() || task.columnId || "";
 }
 
 /** P1 → P3, then newest event first (unknown times last), then title. */
@@ -151,6 +175,11 @@ export function buildWorkspaceInbox(
       eventAt: inboxEventAt(entry.item, entry.task),
       dismissKey,
     };
+    if (entry.item.kind === "interrupted") {
+      const interruptedRun = findInterruptedLaneSession(entry.task) ?? undefined;
+      row.interruptedRun = interruptedRun;
+      row.columnName = inboxColumnName(entry.task, boards.find((board) => board.id === entry.boardId), interruptedRun);
+    }
     (dismissedByBoard(entry.boardId).includes(dismissKey) ? dismissed : active).push(row);
   }
   return { active: active.sort(compareInboxRows), dismissed: dismissed.sort(compareInboxRows) };

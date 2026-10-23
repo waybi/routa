@@ -15,6 +15,12 @@ import { formatRelativeTime } from "@/client/components/home/relative-time";
 import { inboxRowHref, lastDoneRunStatus, type InboxRow, type InboxSeverity } from "./inbox-rules";
 
 const SEVERITY_TONE: Record<InboxSeverity, Tone> = { 1: "danger", 2: "attention", 3: "attention" };
+/** Longest lastSyncError shown inline; the full text is in the title. */
+export const INBOX_SOURCE_MAX_CHARS = 160;
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
 
 export function useInboxRowCopy() {
   const { t } = useTranslation();
@@ -29,9 +35,17 @@ export function useInboxRowCopy() {
       case "blockedError": return page.reasonBlockedError.replace("{error}", row.task.lastSyncError?.trim() ?? "");
       case "noReport": return page.reasonNoReport;
       case "unmerged": return page.reasonUnmerged.replace("{count}", String(row.item.ahead));
+      case "interrupted":
+        return page.reasonInterrupted
+          .replace("{column}", row.columnName ?? row.task.columnId ?? "")
+          .replace("{status}", row.interruptedRun?.status === "timed_out" ? page.runTimedOut : page.runFailed);
       default: return page.reasonBlockedUnknown;
     }
   };
+  /** Full source text (title attribute); equals source() unless truncated. */
+  const sourceFull = (row: InboxRow) => (row.reason === "interrupted"
+    ? row.task.lastSyncError?.trim() || page.sourceInterruptedNone
+    : source(row));
   const source = (row: InboxRow) => {
     switch (row.reason) {
       case "doneFailed":
@@ -39,6 +53,10 @@ export function useInboxRowCopy() {
       case "blockedError": return page.sourceBlockedError;
       case "noReport": return page.sourceNoReport;
       case "unmerged": return page.sourceUnmerged.replace("{count}", String(row.item.ahead));
+      case "interrupted": {
+        const error = row.task.lastSyncError?.trim();
+        return error ? truncate(error, INBOX_SOURCE_MAX_CHARS) : page.sourceInterruptedNone;
+      }
       default: return page.sourceBlockedUnknown;
     }
   };
@@ -48,8 +66,9 @@ export function useInboxRowCopy() {
     noReport: page.nextNoReport,
     unmerged: page.nextUnmerged,
     blockedUnknown: page.nextBlockedUnknown,
+    interrupted: page.nextInterrupted,
   })[row.reason];
-  return { t, severityLabel, kindLabel, reason, source, next };
+  return { t, severityLabel, kindLabel, reason, source, sourceFull, next };
 }
 
 export function InboxRowItem({
@@ -67,10 +86,10 @@ export function InboxRowItem({
 }) {
   const copy = useInboxRowCopy();
   const page = copy.t.inboxPage;
-  const meta = (label: string, value: string, testId?: string) => (
+  const meta = (label: string, value: string, testId?: string, title?: string) => (
     <div className="flex min-w-0 gap-2 text-xs leading-relaxed" data-testid={testId}>
       <dt className="shrink-0 text-secondary">{label}</dt>
-      <dd className="m-0 min-w-0 break-words text-primary">{value}</dd>
+      <dd className="m-0 min-w-0 break-words text-primary" title={title}>{value}</dd>
     </div>
   );
   return (
@@ -90,9 +109,9 @@ export function InboxRowItem({
         <dl className="m-0 grid gap-0.5">
           {showWorkspace && meta(page.labelWorkspace, row.workspaceTitle)}
           {meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
-          {meta(page.labelSource, copy.source(row))}
+          {meta(page.labelSource, copy.source(row), "inbox-row-source", row.reason === "interrupted" ? copy.sourceFull(row) : undefined)}
           {meta(page.labelTime, formatRelativeTime(row.eventAt, now, copy.t.homeRedesign))}
-          {meta(page.labelNext, copy.next(row))}
+          {meta(page.labelNext, copy.next(row), "inbox-row-next")}
         </dl>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">

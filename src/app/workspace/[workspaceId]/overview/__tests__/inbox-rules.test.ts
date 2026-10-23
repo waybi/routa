@@ -5,12 +5,13 @@ import {
   buildInboxRows,
   buildWorkspaceInbox,
   completionReportHref,
+  inboxColumnName,
   inboxRowHref,
   latestCompletionResult,
   summarizeWorkspace,
   taskAuthoritativeAt,
 } from "../inbox-rules";
-import { DAY, HOUR, NOW, card, doneCard, iso, makeBoard, report, run, unmergedCard } from "./inbox-fixtures";
+import { DAY, HOUR, NOW, card, doneCard, interruptedCard, iso, makeBoard, report, run, unmergedCard } from "./inbox-fixtures";
 
 const WS = { id: "w1", title: "Workspace One" };
 const none = () => [] as const;
@@ -177,5 +178,59 @@ describe("cross-workspace rows and links", () => {
 
   it("returns null when no Done card has a report", () => {
     expect(latestCompletionResult([WS], { w1: { tasks: [doneCard("n", "completed")], boards: [makeBoard("b1", true)] } })).toBeNull();
+  });
+});
+
+describe("interrupted rows", () => {
+  const boards = [makeBoard("b1", true)];
+
+  it("is P1, counted with clear failures, sorted with the other P1 rows", () => {
+    const rows = buildWorkspaceInbox(WS, [
+      unmergedCard("p3", 2),
+      interruptedCard("i", "dev", "timed_out"),
+      doneCard("p1", "failed", {}, NOW - 5 * HOUR),
+    ], boards, NOW, none).active;
+    expect(rows.map((row) => `${row.task.id}:${row.reason}:P${row.severity}`)).toEqual(["i:interrupted:P1", "p1:doneFailed:P1", "p3:unmerged:P3"]);
+  });
+
+  it("event time falls back completedAt → lastActivityAt → startedAt", () => {
+    const at = (overrides: Parameters<typeof interruptedCard>[4]) => buildWorkspaceInbox(WS, [interruptedCard("i", "dev", "failed", {}, overrides)], boards, NOW, none).active[0].eventAt;
+    expect(at({ completedAt: iso(NOW - HOUR), lastActivityAt: iso(NOW - 2 * HOUR), startedAt: iso(NOW - 3 * HOUR) })).toBe(NOW - HOUR);
+    expect(at({ completedAt: undefined, lastActivityAt: iso(NOW - 2 * HOUR), startedAt: iso(NOW - 3 * HOUR) })).toBe(NOW - 2 * HOUR);
+    expect(at({ completedAt: undefined, lastActivityAt: undefined, startedAt: iso(NOW - 3 * HOUR) })).toBe(NOW - 3 * HOUR);
+  });
+
+  it("carries the failed run and the lane name; the dismiss key holds the run id", () => {
+    const [row] = buildWorkspaceInbox(WS, [interruptedCard("i", "dev")], boards, NOW, none).active;
+    expect(row.interruptedRun?.sessionId).toBe("i-run");
+    expect(row.columnName).toBe("Dev");
+    expect(row.dismissKey).toBe("i|interrupted|i-run");
+  });
+
+  it("hidden for one failed run, shown again after a new failed run", () => {
+    const hidden = () => ["i|interrupted|i-run"];
+    expect(buildWorkspaceInbox(WS, [interruptedCard("i", "dev")], boards, NOW, hidden).dismissed).toHaveLength(1);
+    const again = buildWorkspaceInbox(WS, [interruptedCard("i", "dev", "failed", {}, { sessionId: "i-run-2" })], boards, NOW, hidden);
+    expect(again.active.map((row) => row.dismissKey)).toEqual(["i|interrupted|i-run-2"]);
+  });
+
+  it("lane name falls back board column → run columnName → column id", () => {
+    expect(inboxColumnName({ columnId: "dev" }, boards[0], { columnName: "Run lane" })).toBe("Dev");
+    expect(inboxColumnName({ columnId: "review" }, boards[0], { columnName: "Run lane" })).toBe("Run lane");
+    expect(inboxColumnName({ columnId: "review" }, undefined, null)).toBe("review");
+  });
+
+  it("links to the card (no completion tab)", () => {
+    const [row] = buildWorkspaceInbox(WS, [interruptedCard("i", "dev")], boards, NOW, none).active;
+    expect(inboxRowHref(row)).toBe("/workspace/w1/kanban?boardId=b1&taskId=i");
+  });
+
+  it("the home banner count grows by one and still equals the all-projects overview", () => {
+    const base = [doneCard("f", "failed"), card("b", { columnId: "blocked" })];
+    const before = summarizeWorkspace(WS, base, boards, NOW, none).needsYou;
+    const withInterrupted = [...base, interruptedCard("i", "review", "timed_out")];
+    const after = summarizeWorkspace(WS, withInterrupted, boards, NOW, none);
+    expect(after.needsYou).toBe(before + 1);
+    expect(after.needsYou).toBe(buildWorkspaceRow(WS, withInterrupted, boards, NOW, "", none).attention.length);
   });
 });

@@ -68,3 +68,34 @@ export function unmergedCard(id: string, ahead: number, overrides: Partial<TaskI
     ...overrides,
   });
 }
+
+/**
+ * Non-Done card whose trigger run in `columnId` ended with `status`
+ * (failed / timed_out → interrupted). The run id is `${id}-run`.
+ */
+export function interruptedCard(
+  id: string,
+  columnId: string,
+  status: LaneSession["status"] = "failed",
+  overrides: Partial<TaskInfo> = {},
+  run: Partial<LaneSession> = {},
+): TaskInfo {
+  const sessionId = run.sessionId ?? `${id}-run`;
+  return card(id, {
+    status: "PENDING",
+    columnId,
+    triggerSessionId: sessionId,
+    laneSessions: [
+      {
+        sessionId,
+        columnId,
+        startedAt: iso(NOW - 3 * HOUR),
+        lastActivityAt: iso(NOW - 2 * HOUR - 30 * 60_000),
+        completedAt: iso(NOW - 2 * HOUR),
+        status,
+        ...run,
+      },
+    ],
+    ...overrides,
+  });
+}
