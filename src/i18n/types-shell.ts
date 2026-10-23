@@ -94,6 +94,12 @@ export interface ShellTranslationDictionarySections extends RedesignSettingsTran
         fluency: string;
       };
     };
+    /** Sidebar "Projects" group (every workspace) and the all-projects link. */
+    projects: {
+      title: string;
+      allProjects: string;
+      regionLabel: string;
+    };
   };
   uiKit: {
     tone: {

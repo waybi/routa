@@ -87,6 +87,11 @@ export const enShell: ShellTranslationDictionarySections = {
         fluency: "Fluency",
       },
     },
+    projects: {
+      title: "Projects",
+      allProjects: "All projects",
+      regionLabel: "Project list",
+    },
   },
   uiKit: {
     tone: {

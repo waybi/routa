@@ -87,6 +87,11 @@ export const zhShell: ShellTranslationDictionarySections = {
         fluency: "可执行性",
       },
     },
+    projects: {
+      title: "项目",
+      allProjects: "全部项目",
+      regionLabel: "项目列表",
+    },
   },
   uiKit: {
     tone: {
