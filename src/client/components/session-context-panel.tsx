@@ -37,6 +37,8 @@ interface SessionContextPanelProps {
   onSelectSession: (sessionId: string) => void;
   focusedSessionId?: string | null;
   refreshTrigger?: number;
+  /** Optional: called with the context once it has been read (lets siblings reuse it instead of re-fetching). */
+  onContextLoaded?: (context: { kanbanContext?: SessionKanbanContext | null }) => void;
 }
 
 interface FloatingMenuPosition {
@@ -51,6 +53,7 @@ export function SessionContextPanel({
   onSelectSession,
   focusedSessionId,
   refreshTrigger = 0,
+  onContextLoaded,
 }: SessionContextPanelProps) {
   const [context, setContext] = useState<SessionContext | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,10 @@ export function SessionContextPanel({
   const recentSessionsPortalRef = useRef<HTMLDivElement>(null);
   const tearingDownRef = useRef(false);
   const { t } = useTranslation();
+  const onContextLoadedRef = useRef(onContextLoaded);
+  useEffect(() => {
+    onContextLoadedRef.current = onContextLoaded;
+  }, [onContextLoaded]);
 
   useEffect(() => {
     tearingDownRef.current = false;
@@ -88,6 +95,7 @@ export function SessionContextPanel({
       const data = await res.json();
       if (tearingDownRef.current) return;
       setContext(data);
+      onContextLoadedRef.current?.(data);
     } catch (e) {
       if (tearingDownRef.current || shouldSuppressTeardownError(e)) {
         return;

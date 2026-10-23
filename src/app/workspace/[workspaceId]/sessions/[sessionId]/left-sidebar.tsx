@@ -9,6 +9,7 @@ import {MarkdownViewer} from "@/client/components/markdown/markdown-viewer";
 import type {ParsedTask} from "@/client/utils/task-block-parser";
 import type {RepoSelection} from "@/client/components/repo-picker";
 import type {NoteData} from "@/client/hooks/use-notes";
+import type {SessionKanbanContext} from "@/client/types/kanban-context";
 import { FileText, Folder, Plus, X, MessageSquareMore, ClipboardCheck, ChevronsRight, ChevronsLeft, Play } from "lucide-react";
 
 
@@ -62,6 +63,11 @@ interface LeftSidebarProps {
   onExecuteSelectedNoteTasks: (noteIds: string[], concurrency: number) => Promise<void>;
   crafterAgents: CrafterAgent[];
   onSelectNoteTask: (noteId: string) => void;
+
+  /** Optional block rendered at the top of the expanded sidebar (session context + related links). */
+  summary?: React.ReactNode;
+  /** Optional: receive the session context once SessionContextPanel has read it. */
+  onContextLoaded?: (context: { kanbanContext?: SessionKanbanContext | null }) => void;
 }
 
 /* ─── Spec Viewer (inline in sidebar) ──────────────────────────────── */
@@ -130,7 +136,7 @@ function TaskSnapshotSummary({
       <div className="px-3 py-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold text-secondary">
-            Quick Access
+            {t.sessionDetailRedesign.sidebar.quickAccess}
           </p>
           <p className="mt-1 text-[12px] text-secondary">
             {taskCount > 0
@@ -154,7 +160,7 @@ function TaskSnapshotSummary({
               onClick={onOpenTasks}
               className="px-2 py-1 rounded-md text-[10px] font-medium text-success bg-success-subtle hover:bg-success-subtle transition-colors"
             >
-              Open Tasks
+              {t.sessionDetailRedesign.sidebar.openTasks}
             </button>
           )}
         </div>
@@ -167,7 +173,7 @@ function TaskSnapshotSummary({
           className="mx-3 mb-3 flex w-[calc(100%-1.5rem)] flex-col gap-1 rounded-lg border border-accent bg-surface px-3 py-2 text-left transition-colors hover:border-accent hover:bg-surface"
         >
           <span className="text-[10px] font-semibold text-accent">
-            Spec Preview
+            {t.sessionDetailRedesign.sidebar.specPreview}
           </span>
           {specPreviewLines.map((line, index) => (
             <span
@@ -199,6 +205,7 @@ function SessionsSplitPane({
   onExecuteQuickAccessNoteTask,
   onExecuteTask,
   hasSpec,
+  onContextLoaded,
 }: {
   sessionId: string;
   focusedSessionId?: string | null;
@@ -214,6 +221,7 @@ function SessionsSplitPane({
   onExecuteQuickAccessNoteTask: (noteId: string) => Promise<CrafterAgent | null>;
   onExecuteTask: (taskId: string) => Promise<CrafterAgent | null>;
   hasSpec: boolean;
+  onContextLoaded?: (context: { kanbanContext?: SessionKanbanContext | null }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [splitRatio, setSplitRatio] = useState(0.46);
@@ -294,6 +302,7 @@ function SessionsSplitPane({
           onSelectSession={onSelectSession}
           focusedSessionId={focusedSessionId}
           refreshTrigger={refreshKey}
+          onContextLoaded={onContextLoaded}
         />
       </div>
       {(hasTasks || hasSpec) && (
@@ -367,6 +376,7 @@ function MiniTaskList({
   onExecuteNoteTask: (noteId: string) => Promise<CrafterAgent | null>;
   onExecuteTask: (taskId: string) => Promise<CrafterAgent | null>;
 }) {
+  const { t } = useTranslation();
   const [executingId, setExecutingId] = useState<string | null>(null);
   const items = useMemo(() => {
     if (hasCollabNotes) {
@@ -401,7 +411,7 @@ function MiniTaskList({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] font-semibold text-secondary">
-            Task Snapshot
+            {t.sessionDetailRedesign.sidebar.taskSnapshot}
           </span>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-subtle text-secondary">
             {items.length} total
@@ -536,6 +546,8 @@ export function LeftSidebar({
   onExecuteSelectedNoteTasks,
   crafterAgents,
   onSelectNoteTask,
+  summary,
+  onContextLoaded,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
   const canCreateSession = hasProviders && hasSelectedProvider;
@@ -559,10 +571,14 @@ export function LeftSidebar({
   return (
     <>
       <aside
-        className={`shrink-0 border-r border-default bg-surface flex flex-col relative transition-[width] duration-200
-          ${showMobileSidebar ? "fixed inset-y-13 left-0 z-40 shadow-overlay overflow-hidden rounded-r-lg" : "hidden lg:flex overflow-hidden"}
+        data-testid="session-context-sidebar"
+        data-placement="right"
+        data-drawer={showMobileSidebar ? "open" : undefined}
+        aria-label={t.sessionDetailRedesign.context.sidebarLabel}
+        className={`shrink-0 border-l border-default bg-surface flex flex-col relative transition-[width] duration-200
+          ${showMobileSidebar ? "fixed inset-y-13 right-0 z-40 w-[min(360px,calc(100vw-16px))] shadow-overlay overflow-hidden rounded-l-lg" : "hidden lg:flex overflow-hidden"}
         `}
-        style={{ width: isDesktopCollapsed ? "44px" : showMobileSidebar ? "min(360px, calc(100vw - 16px))" : `${width}px` }}
+        style={showMobileSidebar ? undefined : { width: isDesktopCollapsed ? "44px" : `${width}px` }}
       >
         {isDesktopCollapsed ? (
           /* ─── Collapsed: icon strip ──────────────────────────── */
@@ -571,8 +587,10 @@ export function LeftSidebar({
               onClick={onToggleCollapse}
               className="p-1.5 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors"
               title={t.common.expandSidebar}
+              aria-label={t.common.expandSidebar}
+              data-testid="session-context-expand"
             >
-              <ChevronsRight className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+              <ChevronsLeft className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
             </button>
 
             {/* New session */}
@@ -634,8 +652,10 @@ export function LeftSidebar({
                   }}
                   className="p-1 rounded-md hover:bg-hover text-secondary hover:text-primary transition-colors shrink-0"
                   title={showMobileSidebar ? t.nav.closeSidebar : t.common.collapseSidebar}
+                  aria-label={showMobileSidebar ? t.nav.closeSidebar : t.common.collapseSidebar}
+                  data-testid="session-context-collapse"
                 >
-                  <ChevronsLeft className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
+                  <ChevronsRight className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                 </button>
                 {codebases.length > 0 && repoSelection && (
                   <>
@@ -692,6 +712,8 @@ export function LeftSidebar({
               />
             </div>
 
+            {summary ? <div className="shrink-0 border-b border-default">{summary}</div> : null}
+
             {/* Tab content — full remaining height */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {activeTab === "sessions" && (
@@ -713,6 +735,7 @@ export function LeftSidebar({
                   onExecuteQuickAccessNoteTask={onExecuteQuickAccessNoteTask}
                   onExecuteTask={onExecuteTask}
                   hasSpec={Boolean(specNote)}
+                  onContextLoaded={onContextLoaded}
                 />
               )}
 
@@ -756,9 +779,13 @@ export function LeftSidebar({
           </>
         )}
 
-        {/* Left sidebar resize handle */}
-        <div className="left-resize-handle hidden lg:block" onMouseDown={onResizeStart}>
-          <div className="resize-indicator" />
+        {/* Resize handle on the left edge: dragging left widens the sidebar */}
+        <div
+          className="group absolute inset-y-0 -left-0.5 z-20 hidden w-1.5 cursor-col-resize lg:block hover:bg-accent-subtle"
+          onMouseDown={onResizeStart}
+          data-testid="session-context-resize-handle"
+        >
+          <div className="absolute left-px top-1/2 h-10 w-[3px] -translate-y-1/2 rounded-full bg-default opacity-0 transition-opacity group-hover:opacity-100 group-hover:bg-accent" />
         </div>
       </aside>
     </>
