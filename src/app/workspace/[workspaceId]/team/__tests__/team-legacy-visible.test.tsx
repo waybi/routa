@@ -1,9 +1,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TeamPageClient } from "../team-page-client";
+import { readTeamSpecialistNames, SPECIALISTS_ROOT } from "./team-yaml-names";
+
+/** Team page v2 shows the zh-CN yaml name for bundled specialists, else the API name. */
+const ZH_NAMES = readTeamSpecialistNames(join(SPECIALISTS_ROOT, "locales/zh-CN/team"));
+const shownName = (id: string, apiName: string) => ZH_NAMES[id] ?? apiName;
+const nameOf = (item: HTMLElement) => within(item).getByTestId("team-roster-name").textContent;
 
 /**
  * Legacy team-page features that must stay directly visible after the redesign
@@ -235,9 +241,9 @@ describe("AC3 role badges", () => {
     await renderLoaded();
     await waitFor(() => expect(screen.getAllByTestId("team-roster-item")).toHaveLength(5));
     const byName = Object.fromEntries(
-      screen.getAllByTestId("team-roster-item").map((item) => [item.firstChild?.textContent, roleOf(item)]),
+      screen.getAllByTestId("team-roster-item").map((item) => [nameOf(item), roleOf(item)]),
     );
-    expect(byName).toEqual({ "Agent Lead": "负责人", Researcher: "研究员", QA: "专家", Frontend: "专家", Backend: "专家" });
+    expect(byName).toEqual(Object.fromEntries(ROLE_SPECIALISTS.map((s, i) => [shownName(s.id, s.name), ["负责人", "研究员", "专家", "专家", "专家"][i]])));
   });
 
   it("dictionaries carry the two labels and the component has no hardcoded literals", async () => {
@@ -317,7 +323,7 @@ function judgeRoster(list: RandSpecialist[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const s of list) {
     if (!s.id.startsWith("team-")) continue;
-    out[s.name] = s.id === "team-agent-lead" ? "负责人" : (s.role && (PLANT_BUG || s.role.trim() !== "") ? s.role : "专家");
+    out[shownName(s.id, s.name)] = s.id === "team-agent-lead" ? "负责人" : (s.role && (PLANT_BUG || s.role.trim() !== "") ? s.role : "专家");
   }
   return out;
 }
@@ -341,7 +347,7 @@ describe(`F3 random cross-check (seed ${F3_SEED})`, () => {
       const want = Object.keys(expected).length;
       await waitFor(() => expect(screen.getByTestId("team-roster-summary").textContent).toBe(`团队岗位（${want} 个）`));
       const actual = Object.fromEntries(
-        screen.queryAllByTestId("team-roster-item").map((item) => [item.firstChild?.textContent, roleOf(item)]),
+        screen.queryAllByTestId("team-roster-item").map((item) => [nameOf(item), roleOf(item)]),
       );
       expect({ round, actual }).toEqual({ round, actual: expected });
       checked += list.length;

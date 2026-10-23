@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ArrowRight } from "lucide-react";
 
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
@@ -18,6 +19,11 @@ import {
 import { formatFullTime, useTeamRelativeTime } from "./team-relative-time";
 import { agentStatusLabel, type TeamRedesignCopy } from "./team-status-labels";
 
+/**
+ * "On duty" rows inside the lead card (team page v2): one row per ROUTA
+ * coordinator with every field and button of the former coordinator cards.
+ * Loading, error and empty states are independent of the rest of the page.
+ */
 export function TeamCoordinatorCards({
   copy,
   agents,
@@ -37,7 +43,7 @@ export function TeamCoordinatorCards({
   const failed = agents.status === "error";
 
   return (
-    <section aria-label={copy.coordinators.sectionLabel} data-testid="team-coordinators" className="flex flex-col gap-3">
+    <section aria-label={copy.coordinators.sectionLabel} data-testid="team-coordinators" className="flex min-w-0 flex-col gap-2">
       {failed ? (
         <ErrorState
           title={copy.coordinators.loadErrorTitle}
@@ -48,13 +54,11 @@ export function TeamCoordinatorCards({
       ) : null}
 
       {firstLoad ? (
-        <div className="rounded-lg border border-default bg-surface p-4">
-          <Skeleton lines={3} label={copy.coordinators.loading} />
-        </div>
+        <Skeleton lines={2} label={copy.coordinators.loading} />
       ) : failed && !agents.loadedOnce ? null : coordinators.length === 0 ? (
         <EmptyState title={copy.coordinators.emptyTitle} description={copy.coordinators.emptyDescription} />
       ) : (
-        <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 lg:grid-cols-2 xl:grid-cols-3">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {coordinators.map((agent) => {
             const linked = findCoordinatorSession(agent.id, teamRuns, allSessions);
             const status = agentStatusLabel(copy, agent.status);
@@ -63,47 +67,31 @@ export function TeamCoordinatorCards({
               <li
                 key={agent.id}
                 data-testid="team-coordinator-card"
-                className="flex min-w-0 flex-col gap-3 rounded-lg border border-default bg-surface p-4"
+                className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs"
               >
-                <p className="m-0 text-xs font-semibold text-secondary">{copy.coordinators.cardTitle}</p>
-                <div className="flex min-w-0 items-start gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-control bg-accent-subtle text-[13px] font-semibold text-accent"
-                  >
-                    {avatarLetter(agent.name)}
+                <span
+                  aria-hidden="true"
+                  className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-md bg-accent-subtle text-[11px] font-semibold text-accent"
+                >
+                  {avatarLetter(agent.name)}
+                </span>
+                <h3 className="m-0 min-w-0 break-words text-[13px] font-semibold text-primary [overflow-wrap:anywhere]">{agent.name}</h3>
+                <Badge>{copy.coordinators.cardTitle}</Badge>
+                <span className="text-secondary">{agent.role}</span>
+                <Badge tone={status.tone}>
+                  <span title={status.known ? undefined : status.raw} data-testid="team-coordinator-status">{status.label}</span>
+                </Badge>
+                {displayLabel ? (
+                  <span className="min-w-0 break-words text-primary">
+                    <span className="text-secondary">{copy.coordinators.displayLabel}：</span>
+                    {displayLabel}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="m-0 break-words text-[13px] font-semibold text-primary [overflow-wrap:anywhere]">{agent.name}</h3>
-                    <p className="m-0 mt-1 flex flex-wrap items-center gap-1.5 text-xs text-secondary">
-                      <span>{agent.role}</span>
-                      <span aria-hidden="true">·</span>
-                      <Badge tone={status.tone}>
-                        <span title={status.known ? undefined : status.raw} data-testid="team-coordinator-status">{status.label}</span>
-                      </Badge>
-                    </p>
-                    {displayLabel ? (
-                      <p className="m-0 mt-1 break-words text-xs text-primary">
-                        <span className="text-secondary">{copy.coordinators.displayLabel}：</span>
-                        {displayLabel}
-                      </p>
-                    ) : null}
-                    <p className="m-0 mt-1 text-[11px] text-secondary">
-                      {copy.coordinators.createdLabel}{" "}
-                      <time dateTime={agent.createdAt} title={formatFullTime(agent.createdAt)}>{relativeTime(agent.createdAt)}</time>
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!linked}
-                    onClick={() => linked && onOpen(linked.sessionId)}
-                    data-testid="team-coordinator-open"
-                  >
-                    {copy.coordinators.openTeamSession}
-                  </Button>
+                ) : null}
+                <span className="text-[11px] text-secondary">
+                  {copy.coordinators.createdLabel}{" "}
+                  <time dateTime={agent.createdAt} title={formatFullTime(agent.createdAt)}>{relativeTime(agent.createdAt)}</time>
+                </span>
+                <span className="ml-auto flex flex-wrap items-center gap-2">
                   {linked ? (
                     <code className="font-mono text-[11px] text-secondary" title={linked.sessionId} data-testid="team-coordinator-session-id">
                       <span className="sr-only">{copy.coordinators.linkedSessionLabel} </span>
@@ -112,7 +100,17 @@ export function TeamCoordinatorCards({
                   ) : (
                     <span className="text-[11px] text-secondary">{copy.coordinators.notLinked}</span>
                   )}
-                </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!linked}
+                    onClick={() => linked && onOpen(linked.sessionId)}
+                    data-testid="team-coordinator-open"
+                  >
+                    {copy.coordinators.openTeamSession}
+                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                  </Button>
+                </span>
               </li>
             );
           })}

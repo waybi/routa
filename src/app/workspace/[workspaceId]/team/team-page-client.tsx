@@ -21,17 +21,21 @@ import {
   pickSessions,
   useListLoader,
 } from "../sessions/sessions-redesign-parts";
-import { TeamCoordinatorCards } from "./team-coordinator-cards";
+import { TeamFormation } from "./team-formation";
 import { TeamLaunchPanel } from "./team-launch-panel";
+import { TeamMemberDrawer } from "./team-member-drawer";
 import {
+  countActiveSessionsBySpecialist,
+  isLiveAcpStatus,
   pickAgents,
+  recentRunsForSpecialist,
   sortTeamRuns,
   TEAM_LEAD_SPECIALIST_ID,
   type CoordinatorAgent,
   type SortDirection,
   type TeamRunSessionInfo,
 } from "./team-page-model";
-import { pickSpecialists, selectTeamSpecialists, TeamRoster, type SpecialistSummary } from "./team-roster";
+import { memberDisplayNames, pickSpecialists, selectTeamSpecialists, type SpecialistSummary } from "./team-roster";
 import { buildTeamRunName } from "./team-run-name";
 import { TeamRunRecordsTable } from "./team-run-records-table";
 import { TeamPageHeaderBar, TeamStats } from "./team-stats";
@@ -65,6 +69,8 @@ export function TeamPageClient() {
   const [query, setQuery] = useState("");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [insertTextRequest, setInsertTextRequest] = useState<InsertTextRequest | null>(null);
+  const [drawerSpecialistId, setDrawerSpecialistId] = useState<string | null>(null);
+  const drawerTriggerRef = useRef<HTMLElement | null>(null);
   const launchPanelRef = useRef<HTMLElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
 
@@ -79,7 +85,7 @@ export function TeamPageClient() {
     focusLaunch();
   }, [focusLaunch]);
 
-  useTeamShortcuts({ onLaunch: focusLaunch, onSearch: focusSearch, disabled: false });
+  useTeamShortcuts({ onLaunch: focusLaunch, onSearch: focusSearch, disabled: drawerSpecialistId !== null });
 
   const visibleRuns = useMemo(
     () => sortTeamRuns(
@@ -93,9 +99,19 @@ export function TeamPageClient() {
   // acpStatus is connecting/ready, and team specialists minus the lead.
   const stats = useMemo(() => ({
     runs: teamRuns.length,
-    active: teamRuns.filter((run) => run.acpStatus === "connecting" || run.acpStatus === "ready").length,
+    active: teamRuns.filter((run) => isLiveAcpStatus(run.acpStatus)).length,
     members: Math.max(selectTeamSpecialists(specialists.items).length - 1, 0),
   }), [specialists.items, teamRuns]);
+
+  const activeCounts = useMemo(() => countActiveSessionsBySpecialist(allSessions.items), [allSessions.items]);
+  const specialistsById = useMemo(() => new Map(specialists.items.map((item) => [item.id, item])), [specialists.items]);
+  const drawerSpecialist = drawerSpecialistId ? specialistsById.get(drawerSpecialistId) : undefined;
+  const drawerRuns = useMemo(() => {
+    if (!drawerSpecialistId) return [];
+    const runsById = new Map(teamRuns.map((run) => [run.sessionId, run]));
+    return recentRunsForSpecialist(allSessions.items, drawerSpecialistId)
+      .map(({ targetId, session }) => ({ targetId, session: runsById.get(targetId) ?? session }));
+  }, [allSessions.items, drawerSpecialistId, teamRuns]);
 
   const workspace = workspacesHook.workspaces.find((item) => item.id === workspaceId);
   const workspaceTitle = workspace?.title ?? (workspaceId === "default" ? teamCopy.page.workspaceFallback : workspaceId);
@@ -103,6 +119,19 @@ export function TeamPageClient() {
   const openTeamSession = useCallback((sessionId: string) => {
     router.push(`/workspace/${workspaceId}/team/${sessionId}`);
   }, [router, workspaceId]);
+
+  const openMember = useCallback((specialist: SpecialistSummary, trigger: HTMLElement) => {
+    drawerTriggerRef.current = trigger;
+    setDrawerSpecialistId(specialist.id);
+  }, []);
+  const closeDrawer = useCallback(() => {
+    setDrawerSpecialistId(null);
+    drawerTriggerRef.current?.focus();
+  }, []);
+  const mentionMember = useCallback((specialist: SpecialistSummary) => {
+    setDrawerSpecialistId(null);
+    requestInsert(`#${memberDisplayNames(specialist, teamCopy).primary} `, "append");
+  }, [requestInsert, teamCopy]);
 
   const handleWorkspaceSelect = useCallback((nextWorkspaceId: string) => {
     router.push(`/workspace/${nextWorkspaceId}/team`);
@@ -186,7 +215,7 @@ export function TeamPageClient() {
       )}
     >
       <div className="h-full min-h-0 overflow-y-auto bg-canvas" ref={pageRef}>
-        <div className="mx-auto flex w-full min-w-0 max-w-[1200px] flex-col gap-5 px-4 py-6 md:px-[22px] xl:px-7" data-testid="team-page">
+        <div className="mx-auto flex w-full min-w-0 max-w-[1240px] flex-col gap-[22px] px-4 py-6 md:px-[22px] xl:px-7" data-testid="team-page">
           <div data-testid="team-page-header">
             <TeamPageHeaderBar
               title={copy.teamTitle}
@@ -239,28 +268,38 @@ export function TeamPageClient() {
             onSessionCreated={handleTeamSessionCreated}
           />
 
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            label={teamCopy.page.runsSearchLabel}
-            placeholder={copy.searchSessionsPlaceholder}
-            testId="team-runs-search"
-          />
-
-          <TeamCoordinatorCards
+          <TeamFormation
             copy={teamCopy}
+            specialists={specialists}
             agents={agents}
             teamRuns={teamRuns}
             allSessions={allSessions.items}
-            onOpen={openTeamSession}
+            activeCounts={activeCounts}
+            onOpenSession={openTeamSession}
+            onOpenMember={openMember}
+            onMention={mentionMember}
           />
-
-          <TeamRoster copy={teamCopy} specialists={specialists} />
 
           <section className="flex min-w-0 flex-col gap-3" aria-label={copy.teamRunsTitle} data-testid="team-runs-section">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="m-0 text-[15px] font-semibold text-primary">{copy.teamRunsTitle}</h2>
               <Button variant="ghost" size="sm" onClick={reloadAll}>{t.common.refresh}</Button>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-1.5">
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                label={teamCopy.page.runsSearchLabel}
+                placeholder={copy.searchSessionsPlaceholder}
+                testId="team-runs-search"
+              />
+              <kbd
+                title={teamCopy.runs.searchShortcutHint}
+                className="rounded border border-default px-1.5 font-mono text-[10.5px] leading-5 text-secondary"
+              >
+                {teamCopy.runs.searchShortcut}
+              </kbd>
             </div>
 
             {runs.status === "error" ? (
@@ -294,6 +333,19 @@ export function TeamPageClient() {
           </section>
         </div>
       </div>
+
+      {drawerSpecialist ? (
+        <TeamMemberDrawer
+          copy={teamCopy}
+          specialist={drawerSpecialist}
+          activeCount={activeCounts.get(drawerSpecialist.id) ?? 0}
+          recentRuns={drawerRuns}
+          unnamedLabel={t.team.unnamedRun}
+          onClose={closeDrawer}
+          onMention={mentionMember}
+          onOpenRun={openTeamSession}
+        />
+      ) : null}
     </DesktopAppShell>
   );
 }

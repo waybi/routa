@@ -2,8 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { join } from "node:path";
+
 import { TeamPageClient } from "../team-page-client";
 import { buildTeamRunName } from "../team-run-name";
+import { readTeamSpecialistNames, SPECIALISTS_ROOT } from "./team-yaml-names";
+
+/** Team page v2 shows the zh-CN yaml name for bundled specialists, else the API name. */
+const ZH_NAMES = readTeamSpecialistNames(join(SPECIALISTS_ROOT, "locales/zh-CN/team"));
 
 const { mockPush, mockFetch, homeInputProps } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -100,14 +106,17 @@ beforeEach(() => {
 });
 
 describe("AC1 team page structure", () => {
-  it("renders header, search, coordinators, roster, run section and table in order", async () => {
+  it("renders header, launch box, roster with coordinators, run section, search and table in order", async () => {
     await renderLoaded();
+    // Team page v2 order (card 14 AC1): the search moved into the run records toolbar,
+    // coordinators sit inside the lead card of the roster.
     const order = [
       screen.getByTestId("team-page-header"),
-      screen.getByTestId("team-runs-search"),
-      screen.getByTestId("team-coordinators"),
+      screen.getByTestId("team-launch-panel"),
       screen.getByTestId("team-roster"),
+      screen.getByTestId("team-coordinators"),
       screen.getByText("团队运行记录"),
+      screen.getByTestId("team-runs-search"),
       screen.getByTestId("team-run-records"),
     ];
     for (let i = 0; i < order.length - 1; i += 1) {
@@ -288,8 +297,8 @@ describe("AC7 team roster", () => {
     expect(roster.closest("details")).toBeNull();
     expect(roster.querySelector("details")).toBeNull();
     expect(within(roster).getAllByTestId("team-roster-item")).toHaveLength(3);
-    const names = within(roster).getAllByTestId("team-roster-item").map((item) => item.firstChild?.textContent);
-    expect(names).toEqual(["Agent Lead", "Researcher", "QA Specialist"]);
+    const names = within(roster).getAllByTestId("team-roster-item").map((item) => within(item).getByTestId("team-roster-name").textContent);
+    expect(names).toEqual([ZH_NAMES["team-agent-lead"], ZH_NAMES["team-researcher"], ZH_NAMES["team-qa"]]);
   });
 
   it("a failed reread keeps the list and offers reload", async () => {
