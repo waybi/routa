@@ -24,6 +24,7 @@ interface QueueEntry extends KanbanSessionQueueJob {
   status: "queued" | "running";
   enqueuedAt: Date;
   sessionId?: string;
+  startError?: string;
 }
 
 export class KanbanSessionQueue {
@@ -90,7 +91,11 @@ export class KanbanSessionQueue {
       }
     }
     if (existing?.status === "queued") {
-      return { queued: true };
+      if (this.isInBoardQueue(existing)) {
+        return { queued: true };
+      }
+      // A queued job that no board queue holds would never be drained; replace it.
+      this.jobsByCardId.delete(job.cardId);
     }
 
     const limit = await this.getConcurrencyLimit(job.workspaceId, job.boardId);
@@ -105,6 +110,19 @@ export class KanbanSessionQueue {
     if (runningCount >= limit) {
       this.pushQueuedEntry(entry);
       return { queued: true };
+    }
+
+    if ((this.queuedByBoard.get(job.boardId)?.length ?? 0) > 0) {
+      // Cards that queued earlier get the free slot first; the newcomer waits its turn.
+      this.pushQueuedEntry(entry);
+      await this.drainQueue(job.boardId, job.workspaceId);
+      if (this.jobsByCardId.get(job.cardId) === entry && entry.status === "running" && entry.sessionId) {
+        return { sessionId: entry.sessionId, queued: false };
+      }
+      if (this.jobsByCardId.get(job.cardId) === entry) {
+        return { queued: true };
+      }
+      return { queued: false, error: entry.startError ?? "Failed to start ACP session." };
     }
 
     return this.startEntry(entry);
@@ -158,6 +176,8 @@ export class KanbanSessionQueue {
   }
 
   private async reconcileQueuedEntries(boardId: string): Promise<void> {
+    this.dropQueuedOrphans(boardId);
+
     const queuedEntries = this.queuedByBoard.get(boardId);
     if (!queuedEntries || queuedEntries.length === 0) {
       return;
@@ -191,6 +211,23 @@ export class KanbanSessionQueue {
     }
 
     this.queuedByBoard.set(boardId, nextEntries);
+  }
+
+  private isInBoardQueue(entry: QueueEntry): boolean {
+    return (this.queuedByBoard.get(entry.boardId) ?? []).includes(entry);
+  }
+
+  /**
+   * A queued job outside its board queue is never drained, and enqueue used to
+   * answer "already queued" for it forever. Drop such orphans so the card can
+   * be enqueued again; their start closures may carry an outdated step.
+   */
+  private dropQueuedOrphans(boardId: string): void {
+    for (const [cardId, entry] of Array.from(this.jobsByCardId.entries())) {
+      if (entry.boardId === boardId && entry.status === "queued" && !this.isInBoardQueue(entry)) {
+        this.jobsByCardId.delete(cardId);
+      }
+    }
   }
 
   private countRunning(boardId: string): number {
@@ -232,18 +269,20 @@ export class KanbanSessionQueue {
         return { sessionId: result.sessionId, queued: false };
       }
 
+      entry.startError = result.error ?? "Failed to start ACP session.";
       this.jobsByCardId.delete(entry.cardId);
       void this.drainQueue(entry.boardId, entry.workspaceId);
       return {
         queued: false,
-        error: result.error ?? "Failed to start ACP session.",
+        error: entry.startError,
       };
     } catch (error) {
+      entry.startError = error instanceof Error ? error.message : String(error);
       this.jobsByCardId.delete(entry.cardId);
       void this.drainQueue(entry.boardId, entry.workspaceId);
       return {
         queued: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: entry.startError,
       };
     }
   }
@@ -264,32 +303,38 @@ export class KanbanSessionQueue {
     await this.reconcileBoardEntries(boardId);
 
     const limit = await this.getConcurrencyLimit(workspaceId, boardId);
-    let runningCount = this.countRunning(boardId);
-    if (runningCount >= limit) return;
 
-    const queue = this.queuedByBoard.get(boardId);
-    if (!queue || queue.length === 0) return;
-
-    while (queue.length > 0 && runningCount < limit) {
-      const nextEntry = queue.shift();
-      if (!nextEntry) break;
+    // Always read the live queue: enqueue may add entries while start() is
+    // awaited, and a copy taken before the loop would drop them on write-back.
+    while (this.countRunning(boardId) < limit) {
+      const nextEntry = this.queuedByBoard.get(boardId)?.[0];
+      if (!nextEntry) return;
 
       const task = await this.taskStore.get(nextEntry.cardId);
+      if (this.jobsByCardId.get(nextEntry.cardId) !== nextEntry || nextEntry.status !== "queued") {
+        // Replaced or already started by a concurrent drain; just unlink it.
+        this.removeQueuedEntryInstance(boardId, nextEntry);
+        continue;
+      }
       if (!task || task.boardId !== boardId || (nextEntry.columnId && task.columnId !== nextEntry.columnId)) {
+        this.removeQueuedEntryInstance(boardId, nextEntry);
         this.jobsByCardId.delete(nextEntry.cardId);
         continue;
       }
+      if (this.countRunning(boardId) >= limit) return;
 
-      const result = await this.startEntry(nextEntry);
-      if (result.sessionId) {
-        runningCount += 1;
-      }
+      await this.startEntry(nextEntry);
     }
+  }
 
-    if (queue.length === 0) {
+  private removeQueuedEntryInstance(boardId: string, entry: QueueEntry): void {
+    const queue = this.queuedByBoard.get(boardId);
+    if (!queue) return;
+    const nextQueue = queue.filter((queued) => queued !== entry);
+    if (nextQueue.length === 0) {
       this.queuedByBoard.delete(boardId);
-    } else {
-      this.queuedByBoard.set(boardId, queue);
+      return;
     }
+    this.queuedByBoard.set(boardId, nextQueue);
   }
 }
