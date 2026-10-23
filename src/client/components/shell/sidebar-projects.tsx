@@ -4,8 +4,13 @@
  * Sidebar "Projects" group: every active workspace, one row each, current one
  * first and highlighted. A row links to the same kind of page in that
  * workspace (see workspace-switch-href.ts) and remembers it as the last
- * workspace, exactly like the top-bar switcher does. The list scrolls on its
- * own so the entries above it never leave the viewport.
+ * workspace, exactly like the top-bar switcher does. The heading folds the
+ * list away like the Resources / Developer groups; the choice is remembered
+ * under localStorage "routa.shell.nav.projects" and defaults to expanded
+ * (also during server render). The icon rail ignores it and always shows one
+ * square per workspace. The group takes only the height it needs; when space
+ * runs out only the list scrolls, so the entries above and the groups below
+ * stay in view.
  *
  * Also exports the "Workspaces / All projects" row shown under the logo.
  */
@@ -15,7 +20,10 @@ import Link from "next/link";
 
 import type { TranslationDictionary } from "@/i18n";
 import { DESKTOP_LAST_WORKSPACE_ID_STORAGE_KEY } from "../workspace-switcher";
+import { SHELL_PROJECTS_STORAGE_KEY } from "./shell-nav-items";
+import { SIDEBAR_FOLD_BUTTON_CLASS, SidebarChevron } from "./sidebar-chevron";
 import { useSidebarWorkspaces, type SidebarWorkspace } from "./use-sidebar-workspaces";
+import { useStoredOpen, writeStored } from "./use-stored-open";
 import { buildWorkspaceSwitchHref } from "./workspace-switch-href";
 
 /** Same event the board's "This board / All projects" toggle listens to (kanban-overview.tsx). */
@@ -65,6 +73,14 @@ export function SidebarProjects({ t, workspaceId, pathname, compact = false, onN
   // Query-only soft navigations fire no event; hovering or focusing re-reads the URL.
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   const headingId = useId();
+  const listId = useId();
+  const open = useStoredOpen(SHELL_PROJECTS_STORAGE_KEY, true);
+  // The icon rail has no heading to unfold the list with, so it always shows the squares.
+  const showList = compact || open;
+  // Rows are 30px with a 2px gap: when the column is short the list shrinks and scrolls, but
+  // keeps at least two rows (border + pt-3 + heading + gap + 2 rows = 107px). A collapsed or
+  // one-row group never shrinks, so its heading cannot be squeezed under the groups below.
+  const sizing = compact ? "min-h-0 shrink" : open && workspaces.length >= 2 ? "min-h-[107px] shrink" : "shrink-0";
 
   const renderRow = (workspace: SidebarWorkspace) => {
     const target = buildWorkspaceSwitchHref(pathname, search, workspace.id);
@@ -102,27 +118,45 @@ export function SidebarProjects({ t, workspaceId, pathname, compact = false, onN
     <section
       data-testid="shell-sidebar-projects"
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-1 border-t border-default pt-3"
+      className={`flex flex-col gap-1 border-t border-default pt-3 ${sizing}`}
       onPointerEnter={refresh}
       onFocus={refresh}
     >
       {/* In the icon rail the section's top border is the divider; the heading stays for screen readers. */}
-      <h2 id={headingId} className={compact ? "sr-only" : "px-2.5 text-[11px] font-semibold text-secondary"}>
-        {t.shell.projects.title}
-      </h2>
-      <ul
-        aria-label={t.shell.projects.regionLabel}
-        data-testid="shell-sidebar-projects-list"
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
-      >
-        {workspaces.length === 0 ? (
-          <li className={`px-2.5 py-1 text-xs text-secondary ${compact ? "text-center" : ""}`} title={t.workspace.noWorkspacesYet}>
-            {compact ? "–" : t.workspace.noWorkspacesYet}
-          </li>
-        ) : (
-          workspaces.map(renderRow)
-        )}
-      </ul>
+      {compact ? (
+        <h2 id={headingId} className="sr-only">
+          {t.shell.projects.title}
+        </h2>
+      ) : (
+        <h2 id={headingId} className="shrink-0">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={open ? listId : undefined}
+            onClick={() => writeStored(SHELL_PROJECTS_STORAGE_KEY, !open)}
+            className={`${SIDEBAR_FOLD_BUTTON_CLASS} w-full`}
+          >
+            <SidebarChevron expanded={open} />
+            <span className="truncate">{t.shell.projects.title}</span>
+          </button>
+        </h2>
+      )}
+      {showList ? (
+        <ul
+          id={listId}
+          aria-label={t.shell.projects.regionLabel}
+          data-testid="shell-sidebar-projects-list"
+          className="flex min-h-0 flex-col gap-0.5 overflow-y-auto"
+        >
+          {workspaces.length === 0 ? (
+            <li className={`px-2.5 py-1 text-xs text-secondary ${compact ? "text-center" : ""}`} title={t.workspace.noWorkspacesYet}>
+              {compact ? "–" : t.workspace.noWorkspacesYet}
+            </li>
+          ) : (
+            workspaces.map(renderRow)
+          )}
+        </ul>
+      ) : null}
     </section>
   );
 }

@@ -6,9 +6,14 @@
  * Top to bottom: the Routa logo with the collapse button, the "Workspaces /
  * All projects" row, ten top-level entries (Home, Needs you, Board, Sessions,
  * Team, Spec, Feature explorer, Harness, Fluency, Settings), the collapsible
- * Resources and Developer groups (shell/sidebar-nav-groups.tsx), and the
- * Projects group listing every workspace (shell/sidebar-projects.tsx), which
- * scrolls on its own so nothing above it leaves the viewport.
+ * Projects group listing every workspace (shell/sidebar-projects.tsx; its
+ * list scrolls on its own), then the collapsible Resources and Developer
+ * groups (shell/sidebar-nav-groups.tsx). Only the ten entries sit inside the
+ * navigation landmark. Projects takes only the height it needs, so Resources
+ * follows right under it; when space runs out only the project list scrolls
+ * and the entries above and the group headings below stay in view. If the
+ * column is too short even for two project rows plus the expanded groups,
+ * the Projects + groups area scrolls as a whole instead of clipping links.
  *
  * Widths follow §7 and the prototype breakpoints: 216px above 1100px,
  * 184px from 801 to 1100px, and an off-canvas drawer at ≤800px opened
@@ -137,12 +142,17 @@ export function DesktopSidebar({
               </Link>
             );
           })}
+        </nav>
+
+        {/* The project list absorbs a short column first (down to two rows); only past
+            that does this area scroll, so expanded groups are never cut off. */}
+        <div className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto">
+          <SidebarProjects t={t} workspaceId={workspaceId} pathname={pathname} compact={compact} onNavigate={onDrawerClose} />
+
           {compact ? null : (
             <SidebarNavGroups t={t} workspaceId={workspaceId} pathname={pathname} onNavigate={onDrawerClose} />
           )}
-        </nav>
-
-        <SidebarProjects t={t} workspaceId={workspaceId} pathname={pathname} compact={compact} onNavigate={onDrawerClose} />
+        </div>
       </aside>
     </>
   );

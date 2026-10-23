@@ -184,6 +184,9 @@ export const SHELL_NAV_GROUP_STORAGE_KEYS: Record<ShellNavGroupId, string> = {
   developer: "routa.shell.nav.developer",
 };
 
+/** localStorage key that remembers whether the sidebar Projects group is expanded (default: expanded). */
+export const SHELL_PROJECTS_STORAGE_KEY = "routa.shell.nav.projects";
+
 export interface ShellNavGroupItem {
   id: string;
   label: string;

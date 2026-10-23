@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Collapsible Resources and Developer groups rendered under the global
- * sidebar entries. Collapsed groups render no links at all, so the global
+ * Collapsible Resources and Developer groups rendered under the sidebar's
+ * Projects group. Collapsed groups render no links at all, so the global
  * entry list stays exactly the top-level links. Expanded state is remembered
  * in localStorage; the group that owns the current page opens automatically.
  *
@@ -12,7 +12,7 @@
  * shows the workspace has neither, the whole group is left out.
  */
 
-import React, { useEffect, useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 import type { TranslationDictionary } from "@/i18n";
@@ -25,7 +25,8 @@ import {
   type ShellNavGroupId,
   type ShellNavGroupIds,
 } from "./shell-nav-items";
-
+import { SIDEBAR_FOLD_BUTTON_CLASS, SidebarChevron } from "./sidebar-chevron";
+import { useStoredOpen, writeStored } from "./use-stored-open";
 
 const resourceIdCache = new Map<string, Promise<ShellNavGroupIds>>();
 
@@ -60,58 +61,6 @@ function loadResourceIds(workspaceId: string): Promise<ShellNavGroupIds> {
   }
   return pending;
 }
-
-const storageListeners = new Set<() => void>();
-
-function subscribeStored(listener: () => void): () => void {
-  storageListeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    storageListeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-
-function readStored(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function writeStored(key: string, value: boolean): void {
-  try {
-    window.localStorage.setItem(key, value ? "true" : "false");
-  } catch {
-    // Storage can be unavailable (private mode); the toggle then only lasts until reload.
-  }
-  storageListeners.forEach((listener) => listener());
-}
-
-/** Remembered open state; collapsed during server render and hydration. */
-function useStoredOpen(key: string): boolean {
-  return useSyncExternalStore(
-    subscribeStored,
-    () => readStored(key),
-    () => false,
-  );
-}
-
-const chevron = (expanded: boolean) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.6}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-    className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${expanded ? "rotate-90" : ""}`}
-  >
-    <path d="m9 6 6 6-6 6" />
-  </svg>
-);
 
 interface SidebarNavGroupsProps {
   t: TranslationDictionary;
@@ -168,7 +117,7 @@ export function SidebarNavGroups({ t, workspaceId, pathname, onNavigate }: Sideb
   const visibleGroups = groups.filter((group) => group.id !== "resources" || !resourcesKnownEmpty);
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-default pt-3">
+    <div className="flex shrink-0 flex-col gap-2 border-t border-default pt-3">
       {visibleGroups.map((group) => {
         const open = isOpen(group.id, group.ownsPath(pathname));
         const listId = `routa-shell-nav-group-${group.id}`;
@@ -179,9 +128,9 @@ export function SidebarNavGroups({ t, workspaceId, pathname, onNavigate }: Sideb
               aria-expanded={open}
               aria-controls={open ? listId : undefined}
               onClick={() => toggle(group.id, open)}
-              className="flex min-h-[28px] items-center gap-1.5 rounded-md px-2.5 py-1 text-left text-[11px] font-semibold text-secondary transition-colors duration-150 motion-reduce:transition-none hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
+              className={SIDEBAR_FOLD_BUTTON_CLASS}
             >
-              {chevron(open)}
+              <SidebarChevron expanded={open} />
               <span className="truncate">{group.label}</span>
             </button>
             {open ? (
