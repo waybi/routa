@@ -33,6 +33,9 @@ const workspaceConnectMock = vi.hoisted(() => vi.fn());
 const workspaceCreateSessionMock = vi.hoisted(() => vi.fn());
 
 const acpInstances: Array<Record<string, unknown>> = [];
+const acpConstructHook = vi.hoisted(() => ({
+  current: undefined as undefined | ((instance: Record<string, unknown>) => void),
+}));
 const claudeInstances: Array<Record<string, unknown>> = [];
 const opencodeInstances: Array<Record<string, unknown>> = [];
 const directInstances: Array<Record<string, unknown>> = [];
@@ -68,6 +71,7 @@ vi.mock("@/core/acp/acp-process", () => ({
       this.config = config;
       this.onNotification = onNotification;
       acpInstances.push(this as unknown as Record<string, unknown>);
+      acpConstructHook.current?.(this as unknown as Record<string, unknown>);
     }
   },
 }));
@@ -237,6 +241,7 @@ describe("AcpProcessManager", () => {
     directInstances.length = 0;
     claudeSdkInstances.length = 0;
     workspaceInstances.length = 0;
+    acpConstructHook.current = undefined;
     providerSupportsMcpMock.mockReturnValue(true);
     ensureMcpForProviderMock.mockResolvedValue({
       mcpConfigs: ["mcp-config"],
@@ -726,5 +731,86 @@ describe("AcpProcessManager", () => {
 
     expect(() => manager.getConfigOptions("missing")).toThrow(SessionProcessNotFoundError);
     await expect(manager.setConfigOption("missing", "model", "x")).rejects.toBeInstanceOf(SessionProcessNotFoundError);
+  });
+});
+
+describe("AcpProcessManager agent process lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    acpInstances.length = 0;
+    acpConstructHook.current = undefined;
+    providerSupportsMcpMock.mockReturnValue(true);
+    buildConfigFromPresetMock.mockResolvedValue({ command: "dsh" });
+    getDefaultRoutaMcpConfigMock.mockReturnValue({ type: "http" });
+    buildAcpHttpMcpServersMock.mockReturnValue([]);
+    cleanupMcpForProviderMock.mockResolvedValue("cleanup-ok");
+    shouldUseOpencodeAdapterMock.mockReturnValue(false);
+  });
+
+  it("kills the spawned agent when session/new times out during startup", async () => {
+    acpConstructHook.current = (instance) => {
+      instance.newSession = vi.fn(async () => {
+        throw new Error("Timeout waiting for session/new (id=2)");
+      });
+    };
+    const manager = new AcpProcessManager();
+
+    await expect(manager.createSession("session-slow", "/repo", vi.fn(), "dsh")).rejects.toThrow(
+      "Timeout waiting for session/new",
+    );
+
+    expect(acpInstances).toHaveLength(1);
+    expect(acpInstances[0]?.kill).toHaveBeenCalledTimes(1);
+    expect(manager.getProcess("session-slow")).toBeUndefined();
+  });
+
+  it("kills the spawned agent when initialize times out during startup", async () => {
+    acpConstructHook.current = (instance) => {
+      instance.initialize = vi.fn(async () => {
+        throw new Error("Timeout waiting for initialize (id=1)");
+      });
+    };
+    const manager = new AcpProcessManager();
+
+    await expect(manager.loadSession("session-load", "/repo", vi.fn(), "codex")).rejects.toThrow(
+      "Timeout waiting for initialize",
+    );
+
+    expect(acpInstances[0]?.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the earlier process when the same session gets a second one", async () => {
+    const manager = new AcpProcessManager();
+
+    await manager.createSession("session-twice", "/repo", vi.fn(), "dsh");
+    await manager.createSession("session-twice", "/repo", vi.fn(), "dsh");
+
+    expect(acpInstances).toHaveLength(2);
+    expect(acpInstances[0]?.kill).toHaveBeenCalledTimes(1);
+    expect(acpInstances[1]?.kill).not.toHaveBeenCalled();
+    expect(manager.getProcess("session-twice")).toBe(acpInstances[1]);
+
+    await manager.killSession("session-twice");
+    expect(acpInstances[1]?.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("killSession reaches a process that is still starting, which then never registers", async () => {
+    let releaseNewSession: () => void = () => undefined;
+    acpConstructHook.current = (instance) => {
+      instance.newSession = vi.fn(() => new Promise<string>((resolve) => {
+        releaseNewSession = () => resolve("acp-late");
+      }));
+    };
+    const manager = new AcpProcessManager();
+
+    const creating = manager.createSession("session-starting", "/repo", vi.fn(), "dsh");
+    await vi.waitFor(() => expect(acpInstances[0]?.newSession).toHaveBeenCalled());
+
+    await manager.killSession("session-starting");
+    expect(acpInstances[0]?.kill).toHaveBeenCalledTimes(1);
+
+    releaseNewSession();
+    await expect(creating).rejects.toThrow("ended during startup");
+    expect(manager.getProcess("session-starting")).toBeUndefined();
   });
 });

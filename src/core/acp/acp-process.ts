@@ -63,10 +63,39 @@ export class AcpError extends Error {
     }
 }
 
+/** Default wait for initialize / session/new / session/load on a locally installed agent. */
+export const DEFAULT_ACP_STARTUP_TIMEOUT_MS = 60_000;
+/** npx/uvx agents may download their package on first run. */
+export const NPX_ACP_STARTUP_TIMEOUT_MS = 120_000;
+/** Overrides the startup wait for every agent, in milliseconds. */
+export const ACP_STARTUP_TIMEOUT_ENV = "ROUTA_ACP_STARTUP_TIMEOUT_MS";
+
+/**
+ * How long to wait for an agent's startup requests. A loaded machine can take
+ * well over 15s to boot dsh; a timeout there used to leave the agent running
+ * while Routa recorded a failure.
+ */
+export function resolveAcpStartupTimeoutMs(
+    config: Pick<AcpProcessConfig, "command">,
+    env: Record<string, string | undefined> = process.env,
+): number {
+    const override = Number.parseInt(env[ACP_STARTUP_TIMEOUT_ENV] ?? "", 10);
+    if (Number.isFinite(override) && override > 0) {
+        return override;
+    }
+    const isNpxOrUvx = config.command === "npx" || config.command === "uvx";
+    return isNpxOrUvx ? NPX_ACP_STARTUP_TIMEOUT_MS : DEFAULT_ACP_STARTUP_TIMEOUT_MS;
+}
+
 export class AcpProcess {
     private process: IProcessHandle | null = null;
     private buffer = "";
     private pendingRequests = new Map<number | string, PendingRequest>();
+    /**
+     * session/prompt requests Routa stopped waiting for. The agent keeps
+     * working and answers later; that answer is the turn's real end.
+     */
+    private timedOutPromptIds = new Set<number | string>();
     private pendingInteractiveRequests = new Map<string, {
         requestId: number | string;
         method: string;
@@ -471,17 +500,12 @@ export class AcpProcess {
             const id = ++this.requestId;
 
             // Determine timeout based on method and distribution type
-            // npx/uvx agents may need longer timeout for first-time package download
-            const isNpxOrUvx = this._config.command === "npx" || this._config.command === "uvx";
             const isInitRequest = method === "initialize" || method === "session/new" || method === "session/load";
             const isPromptRequest = method === "session/prompt";
 
             let defaultTimeout: number;
             if (isInitRequest) {
-                // npx/uvx may need to download packages on first run
-                // OpenCode may need longer on Windows due to shell initialization overhead
-                const isOpencode = this._config.displayName?.toLowerCase().includes("opencode");
-                defaultTimeout = isNpxOrUvx ? 120000 : (isOpencode ? 30000 : 15000); // 30s for opencode, 15s for others
+                defaultTimeout = resolveAcpStartupTimeoutMs(this._config);
             } else if (isPromptRequest) {
                 // session/prompt can take a long time for complex tasks
                 // Match Rust implementation: 5 minutes for prompt requests
@@ -492,6 +516,9 @@ export class AcpProcess {
 
             const timeout = setTimeout(() => {
                 this.pendingRequests.delete(id);
+                if (isPromptRequest) {
+                    this.timedOutPromptIds.add(id);
+                }
                 reject(new Error(`Timeout waiting for ${method} (id=${id})`));
             }, timeoutMs ?? defaultTimeout);
 
@@ -665,6 +692,10 @@ export class AcpProcess {
                 return;
             }
 
+            if (this.handleTimedOutPromptResponse(msg)) {
+                return;
+            }
+
             if (this.handleLateTurnCompleteResult(msg.result)) {
                 return;
             }
@@ -697,6 +728,61 @@ export class AcpProcess {
             `[AcpProcess:${this._config.displayName}] Unhandled message:`,
             JSON.stringify(msg)
         );
+    }
+
+    /**
+     * The answer to a session/prompt Routa gave up waiting for. Before this,
+     * an error answer (for example a rate-limit turn failure) was logged as
+     * "Unhandled message" and the lane stayed running forever. Both outcomes
+     * now reach the session store as the turn's end.
+     */
+    private handleTimedOutPromptResponse(msg: JsonRpcMessage): boolean {
+        if (msg.id === undefined || !this.timedOutPromptIds.has(msg.id)) {
+            return false;
+        }
+        this.timedOutPromptIds.delete(msg.id);
+        const sessionId = this._sessionId ?? "pending";
+
+        if (msg.error) {
+            const message = `${this._config.displayName} turn ended with an error after Routa stopped waiting for it: ${msg.error.message}`;
+            console.warn(`[AcpProcess:${this._config.displayName}] ${message}`);
+            this.onNotification({
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                    sessionId,
+                    update: {
+                        sessionUpdate: "error",
+                        error: {
+                            code: "prompt_failed_after_timeout",
+                            message,
+                        },
+                    },
+                },
+            });
+            return true;
+        }
+
+        const payload = msg.result && typeof msg.result === "object"
+            ? msg.result as Record<string, unknown>
+            : {};
+        const stopReason = typeof payload.stopReason === "string" ? payload.stopReason : "end_turn";
+        console.warn(
+            `[AcpProcess:${this._config.displayName}] Turn ended after Routa stopped waiting for it (stopReason=${stopReason})`
+        );
+        this.lastSyntheticTurnStopReason = stopReason;
+        this.onNotification({
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+                sessionId,
+                update: {
+                    sessionUpdate: "turn_complete",
+                    stopReason,
+                },
+            },
+        });
+        return true;
     }
 
     private handleLateTurnCompleteResult(result: unknown): boolean {

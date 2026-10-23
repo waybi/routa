@@ -18,7 +18,11 @@ vi.mock("@/core/platform", () => ({
   }),
 }));
 
-import { AcpProcess } from "../acp-process";
+import {
+  ACP_STARTUP_TIMEOUT_ENV,
+  AcpProcess,
+  resolveAcpStartupTimeoutMs,
+} from "../acp-process";
 
 class FakeWritable implements WritableStreamLike {
   writable = true;
@@ -643,5 +647,125 @@ describe("AcpProcess configOptions cache", () => {
     });
     expect(result).toEqual(after);
     expect(proc.getConfigOptions()).toEqual(after);
+  });
+});
+
+describe("AcpProcess turn end after a session/prompt timeout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isAvailableMock.mockReturnValue(true);
+    spawnMock.mockReset();
+  });
+
+  async function startDsh(onNotification = vi.fn()) {
+    vi.useFakeTimers();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+    const proc = new AcpProcess({ command: "dsh", args: [], cwd: "/tmp", displayName: "DeepSeek Harness" }, onNotification);
+    const started = proc.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await started;
+    (proc as any)._sessionId = "agent-session-1";
+    return { proc, fakeProcess, onNotification };
+  }
+
+  function lastRequestId(fakeProcess: FakeProcess): number {
+    const writes = (fakeProcess.stdin as FakeWritable).writes.map((w) => JSON.parse(String(w)));
+    return writes.filter((msg) => msg.method === "session/prompt").at(-1).id;
+  }
+
+  function updatesOf(onNotification: ReturnType<typeof vi.fn>, kind: string) {
+    return onNotification.mock.calls
+      .map(([msg]) => msg as { params?: { update?: Record<string, unknown> } })
+      .filter((msg) => msg.params?.update?.sessionUpdate === kind);
+  }
+
+  it("turns an error answer that arrives after the 5 minute wait into an error update", async () => {
+    const { proc, fakeProcess, onNotification } = await startDsh();
+    const prompt = proc.prompt("agent-session-1", "run the full test suite");
+    const rejected = expect(prompt).rejects.toThrow("Timeout waiting for session/prompt");
+    await vi.advanceTimersByTimeAsync(300_000);
+    await rejected;
+    const id = lastRequestId(fakeProcess);
+
+    // What dsh sent at 11:38 on 2026-10-23 when the RunAI account hit its rate limit.
+    fakeProcess.stdout.emit("data", Buffer.from(JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32603, message: "Internal error: turn failed: usage_limit_reached trial_rate_limited" },
+    }) + "\n"));
+
+    const errors = updatesOf(onNotification, "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      method: "session/update",
+      params: {
+        sessionId: "agent-session-1",
+        update: {
+          sessionUpdate: "error",
+          error: {
+            code: "prompt_failed_after_timeout",
+            message: expect.stringContaining("usage_limit_reached"),
+          },
+        },
+      },
+    });
+    vi.useRealTimers();
+  });
+
+  it("reports every late turn end, even two in a row with the same stopReason", async () => {
+    const { proc, fakeProcess, onNotification } = await startDsh();
+    for (let turn = 0; turn < 2; turn += 1) {
+      const prompt = proc.prompt("agent-session-1", `turn ${turn}`);
+      const rejected = expect(prompt).rejects.toThrow("Timeout waiting for session/prompt");
+      await vi.advanceTimersByTimeAsync(300_000);
+      await rejected;
+      fakeProcess.stdout.emit("data", Buffer.from(JSON.stringify({
+        jsonrpc: "2.0",
+        id: lastRequestId(fakeProcess),
+        result: { stopReason: "end_turn" },
+      }) + "\n"));
+    }
+
+    expect(updatesOf(onNotification, "turn_complete")).toHaveLength(2);
+    vi.useRealTimers();
+  });
+});
+
+describe("AcpProcess startup timeout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isAvailableMock.mockReturnValue(true);
+    spawnMock.mockReset();
+  });
+
+  it("gives a dsh agent 60 seconds, not 15, to answer session/new", async () => {
+    vi.useFakeTimers();
+    const fakeProcess = new FakeProcess();
+    spawnMock.mockReturnValue(fakeProcess);
+    const proc = new AcpProcess({ command: "/path/dsh-acp-launch.sh", args: ["--profile", "acp"], cwd: "/tmp", displayName: "DeepSeek Harness" }, vi.fn());
+    const started = proc.start();
+    await vi.advanceTimersByTimeAsync(500);
+    await started;
+
+    let settled = false;
+    const request = proc.sendRequest("session/new", { cwd: "/tmp", mcpServers: [] });
+    request.catch(() => undefined).finally(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(settled).toBe(false);
+
+    const rejected = expect(request).rejects.toThrow("Timeout waiting for session/new");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await rejected;
+    vi.useRealTimers();
+  });
+
+  it("reads the startup wait from ROUTA_ACP_STARTUP_TIMEOUT_MS", () => {
+    expect(resolveAcpStartupTimeoutMs({ command: "dsh" }, {})).toBe(60_000);
+    expect(resolveAcpStartupTimeoutMs({ command: "npx" }, {})).toBe(120_000);
+    expect(resolveAcpStartupTimeoutMs({ command: "dsh" }, { [ACP_STARTUP_TIMEOUT_ENV]: "90000" })).toBe(90_000);
+    expect(resolveAcpStartupTimeoutMs({ command: "dsh" }, { [ACP_STARTUP_TIMEOUT_ENV]: "nope" })).toBe(60_000);
   });
 });

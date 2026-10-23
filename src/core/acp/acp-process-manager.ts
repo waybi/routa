@@ -111,6 +111,63 @@ export class AcpProcessManager {
     private claudeCodeSdkAdapters = new Map<string, ManagedClaudeCodeSdkAdapter>();
     private workspaceAgents = new Map<string, ManagedWorkspaceAgent>();
     private mcpSessionCleanups = new Map<string, McpSetupCleanup>();
+    /** ACP processes spawned for a session whose startup has not finished yet. */
+    private startingProcesses = new Map<string, Set<AcpProcess>>();
+
+    /**
+     * Run an ACP process's startup (spawn, initialize, session/new|load). Any
+     * failure kills the spawned process: before this, a startup timeout left
+     * the agent running unseen while Routa recorded a failure and started a
+     * second process for the same session. killSession reaches a process that
+     * is still starting, and one that was killed meanwhile is never registered.
+     */
+    private async bootAcpProcess<T>(
+        sessionId: string,
+        proc: AcpProcess,
+        boot: () => Promise<T>,
+    ): Promise<T> {
+        let starting = this.startingProcesses.get(sessionId);
+        if (!starting) {
+            starting = new Set();
+            this.startingProcesses.set(sessionId, starting);
+        }
+        starting.add(proc);
+        try {
+            const result = await boot();
+            if (!proc.alive) {
+                throw new Error(`ACP process for session ${sessionId} ended during startup`);
+            }
+            return result;
+        } catch (error) {
+            proc.kill();
+            throw error;
+        } finally {
+            starting.delete(proc);
+            if (starting.size === 0 && this.startingProcesses.get(sessionId) === starting) {
+                this.startingProcesses.delete(sessionId);
+            }
+        }
+    }
+
+    /** Register a session's process, ending any other process registered for it. */
+    private registerProcess(sessionId: string, managed: ManagedProcess): void {
+        const previous = this.processes.get(sessionId);
+        if (previous && previous.process !== managed.process) {
+            console.warn(
+                `[AcpProcessManager] Session ${sessionId} got a new agent process; ending the previous one.`,
+            );
+            previous.process.kill();
+        }
+        this.processes.set(sessionId, managed);
+    }
+
+    private killStartingProcesses(sessionId: string): void {
+        const starting = this.startingProcesses.get(sessionId);
+        if (!starting) return;
+        for (const proc of starting) {
+            proc.kill();
+        }
+    }
 
     private combineProviderArgs(
         providerArgs?: string[],
@@ -273,30 +330,33 @@ export class AcpProcessManager {
             const proc = new AcpProcess(config, onNotification);
             this.watchConfigOptions(proc, sessionId);
 
-            await proc.start();
-            await proc.initialize();
-            const acpSessionId = await proc.newSession(
-                cwd,
-                this.combineAcpMcpServers(mcpSetup?.acpMcpServers, requestedAcpMcpServers),
-            );
-            proc.setSessionContext({
-                sessionId,
-                provider: sessionContext?.provider ?? presetId,
-                role: sessionContext?.role,
-                autoApprovePermissions: sessionContext?.autoApprovePermissions,
-            });
-            if (initialModeId) {
-                try {
-                    await proc.sendRequest("session/set_mode", {
-                        sessionId: acpSessionId,
-                        modeId: initialModeId,
-                    });
-                } catch {
-                    // Some providers do not support set_mode; ignore.
+            const acpSessionId = await this.bootAcpProcess(sessionId, proc, async () => {
+                await proc.start();
+                await proc.initialize();
+                const newAcpSessionId = await proc.newSession(
+                    cwd,
+                    this.combineAcpMcpServers(mcpSetup?.acpMcpServers, requestedAcpMcpServers),
+                );
+                proc.setSessionContext({
+                    sessionId,
+                    provider: sessionContext?.provider ?? presetId,
+                    role: sessionContext?.role,
+                    autoApprovePermissions: sessionContext?.autoApprovePermissions,
+                });
+                if (initialModeId) {
+                    try {
+                        await proc.sendRequest("session/set_mode", {
+                            sessionId: newAcpSessionId,
+                            modeId: initialModeId,
+                        });
+                    } catch {
+                        // Some providers do not support set_mode; ignore.
+                    }
                 }
-            }
+                return newAcpSessionId;
+            });
 
-            this.processes.set(sessionId, {
+            this.registerProcess(sessionId, {
                 process: proc,
                 acpSessionId,
                 presetId,
@@ -348,23 +408,25 @@ export class AcpProcessManager {
             const proc = new AcpProcess(config, onNotification);
             this.watchConfigOptions(proc, sessionId);
 
-            await proc.start();
-            await proc.initialize();
             const resolvedProviderSessionId = providerSessionId ?? sessionId;
-            await proc.loadSession(
-                resolvedProviderSessionId,
-                cwd,
-                this.combineAcpMcpServers(mcpSetup?.acpMcpServers, requestedAcpMcpServers),
-            );
-            proc.setSessionContext({
-                sessionId,
-                provider: sessionContext?.provider ?? presetId,
-                role: sessionContext?.role,
-                autoApprovePermissions: sessionContext?.autoApprovePermissions,
+            await this.bootAcpProcess(sessionId, proc, async () => {
+                await proc.start();
+                await proc.initialize();
+                await proc.loadSession(
+                    resolvedProviderSessionId,
+                    cwd,
+                    this.combineAcpMcpServers(mcpSetup?.acpMcpServers, requestedAcpMcpServers),
+                );
+                proc.setSessionContext({
+                    sessionId,
+                    provider: sessionContext?.provider ?? presetId,
+                    role: sessionContext?.role,
+                    autoApprovePermissions: sessionContext?.autoApprovePermissions,
+                });
             });
 
             const acpSessionId = proc.sessionId ?? resolvedProviderSessionId;
-            this.processes.set(sessionId, {
+            this.registerProcess(sessionId, {
                 process: proc,
                 acpSessionId,
                 presetId,
@@ -403,17 +465,20 @@ export class AcpProcessManager {
         const proc = new AcpProcess(config, onNotification);
         this.watchConfigOptions(proc, sessionId);
 
-        await proc.start();
-        await proc.initialize();
-        const acpSessionId = await proc.newSession(cwd);
-        proc.setSessionContext({
-            sessionId,
-            provider: sessionContext?.provider ?? displayName,
-            role: sessionContext?.role,
-            autoApprovePermissions: sessionContext?.autoApprovePermissions,
+        const acpSessionId = await this.bootAcpProcess(sessionId, proc, async () => {
+            await proc.start();
+            await proc.initialize();
+            const newAcpSessionId = await proc.newSession(cwd);
+            proc.setSessionContext({
+                sessionId,
+                provider: sessionContext?.provider ?? displayName,
+                role: sessionContext?.role,
+                autoApprovePermissions: sessionContext?.autoApprovePermissions,
+            });
+            return newAcpSessionId;
         });
 
-        this.processes.set(sessionId, {
+        this.registerProcess(sessionId, {
             process: proc,
             acpSessionId,
             presetId: `custom:${command}`,
@@ -1211,6 +1276,7 @@ export class AcpProcessManager {
      * Kill a session's agent process or adapter.
      */
     async killSession(sessionId: string): Promise<void> {
+        this.killStartingProcesses(sessionId);
         const managed = this.processes.get(sessionId);
         if (managed) {
             managed.process.kill();
@@ -1264,6 +1330,9 @@ export class AcpProcessManager {
      * Kill all processes and adapters.
      */
     async killAll(): Promise<void> {
+        for (const sessionId of this.startingProcesses.keys()) {
+            this.killStartingProcesses(sessionId);
+        }
         for (const [, managed] of this.processes) {
             managed.process.kill();
         }
