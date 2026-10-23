@@ -157,12 +157,13 @@ describe("AC1 header and toolbar", () => {
     expect(screen.getByTestId("kanban-create-submit")).toBeTruthy();
   });
 
-  it("Add request reveals the board dispatch input", () => {
-    renderTab([card("backlog-1", "backlog", 0)], { onAgentPrompt: vi.fn() });
-    expect(screen.queryByTestId("kanban-dispatch-bar")).toBeNull();
+  it("the dispatch input is always on screen; Add request puts the cursor into it", () => {
+    const providers = [{ id: "claude", name: "Claude Code", description: "", command: "claude", status: "available" as const }];
+    renderTab([card("backlog-1", "backlog", 0)], { onAgentPrompt: vi.fn(), providers, acp: { connected: true, loading: false, selectedProvider: "claude", providers, setProvider: vi.fn() } as unknown as UseAcpState & UseAcpActions });
+    expect(screen.getByTestId("kanban-dispatch-bar")).toBeTruthy();
     fireEvent.click(screen.getByTestId("kanban-open-dispatch"));
     expect(screen.getByTestId("kanban-dispatch-bar")).toBeTruthy();
-    expect(screen.getByTestId("kanban-agent-input")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByTestId("kanban-agent-input"));
   });
 });
 

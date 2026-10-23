@@ -18,9 +18,8 @@ interface KanbanTabHeaderProps {
   onOpenSettings?: () => void;
   /** Opens the create-card modal ("New card", primary). */
   onCreateCard?: () => void;
-  /** Toggles the board-input dispatch bar ("Add request"). */
-  onToggleDispatch?: () => void;
-  dispatchOpen?: boolean;
+  /** Puts the cursor into the always-visible dispatch input ("Add request"). */
+  onFocusDispatch?: () => void;
   /** Last load failure; rendered by the content layer, unused here. */
   loadError?: string | null;
   /** Toolbar row under the title (view toggle, search, hit count). */
@@ -46,8 +45,7 @@ export function KanbanTabHeader({
   onRefresh,
   onOpenSettings,
   onCreateCard,
-  onToggleDispatch,
-  dispatchOpen = false,
+  onFocusDispatch,
   loadError: _loadError,
   toolbarSlot,
   actionSlot,
@@ -125,12 +123,11 @@ export function KanbanTabHeader({
               {copy.boardSettings}
             </Button>
           )}
-          {onToggleDispatch && (
+          {onFocusDispatch && (
             <Button
               variant="secondary"
               size="md"
-              onClick={onToggleDispatch}
-              aria-expanded={dispatchOpen}
+              onClick={onFocusDispatch}
               data-testid="kanban-open-dispatch"
             >
               <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />

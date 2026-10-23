@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
-import { ArrowRight, Loader2, X } from "lucide-react";
+import { useRef, type ComponentProps, type RefObject } from "react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { Button, buttonClassName } from "@/client/components/ui/button";
 import { EmptyState, ErrorState } from "@/client/components/ui/states";
 import { useTranslation } from "@/i18n";
@@ -31,7 +31,7 @@ import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-sea
 import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
 import { EMPTY_COLUMN_RAIL_WIDTH } from "./kanban-empty-column-rail";
 
-type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onToggleDispatch" | "dispatchOpen">;
+type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onFocusDispatch">;
 type BoardSurfaceProps = ComponentProps<typeof KanbanBoardSurface>;
 type CreateTaskModalProps = ComponentProps<typeof KanbanCreateTaskModal>;
 type GitHubImportModalProps = ComponentProps<typeof KanbanGitHubImportModal>;
@@ -141,8 +141,8 @@ function KanbanTabHeaderActionSlot({
   agentError = null,
   agentSessionId,
   openAgentPanel,
-  onClose,
-}: KanbanTabHeaderActionProps & { onClose?: () => void }) {
+  inputRef,
+}: KanbanTabHeaderActionProps & { inputRef?: RefObject<HTMLInputElement | null> }) {
   const { t } = useTranslation();
 
   if (!board) {
@@ -169,6 +169,7 @@ function KanbanTabHeaderActionSlot({
             />
           </div>
           <input
+            ref={inputRef}
             type="text"
             value={agentInput}
             onChange={(event) => onAgentInputChange(event.target.value)}
@@ -218,18 +219,6 @@ function KanbanTabHeaderActionSlot({
           {kanbanTaskAgentCopy.view}
         </button>
       )}
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
-          aria-label={t.kanbanBoardPage.closeDispatch}
-          title={t.kanbanBoardPage.closeDispatch}
-          data-testid="kanban-dispatch-close"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      )}
       {agentError && (
         <p role="alert" className="m-0 w-full px-2 pb-1 text-[12px] text-danger" data-testid="kanban-agent-error">
           {agentError}
@@ -261,13 +250,9 @@ export function KanbanTabContent({
   const copy = t.kanbanBoardPage;
   const search = useKanbanBoardSearch();
   const { view, setView } = useKanbanViewMode();
-  // The dispatch bar starts open while a planning run is in flight or has
-  // unsent text, so a failure never hides the typed request.
-  const [dispatchOpen, setDispatchOpen] = useState(false);
-  const dispatchVisible = dispatchOpen
-    || headerActionProps.agentLoading
-    || Boolean(headerActionProps.agentError)
-    || (headerActionProps.agentInput ?? "").trim().length > 0;
+  // The dispatch bar is always on screen (as before the redesign); "Add
+  // request" in the header only puts the cursor into its input.
+  const dispatchInputRef = useRef<HTMLInputElement | null>(null);
   const overview = view === "all" ? <KanbanOverview onShowBoard={() => setView("board")}/> : null;
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
@@ -299,7 +284,7 @@ export function KanbanTabContent({
     </div>
   );
 
-  const dispatchBar = dispatchVisible ? (
+  const dispatchBar = (
     <KanbanTabHeaderActionSlot
       board={headerProps.board}
       onAgentPrompt={headerActionProps.onAgentPrompt}
@@ -316,15 +301,14 @@ export function KanbanTabContent({
       agentError={headerActionProps.agentError}
       agentSessionId={headerActionProps.agentSessionId}
       openAgentPanel={headerActionProps.openAgentPanel}
-      onClose={() => setDispatchOpen(false)}
+      inputRef={dispatchInputRef}
     />
-  ) : null;
+  );
 
   const header = (
     <KanbanTabHeader
       {...headerProps}
-      onToggleDispatch={headerProps.board ? () => setDispatchOpen((open) => !open) : undefined}
-      dispatchOpen={dispatchVisible}
+      onFocusDispatch={headerProps.board ? () => dispatchInputRef.current?.focus() : undefined}
       toolbarSlot={toolbar}
       actionSlot={dispatchBar}
     />

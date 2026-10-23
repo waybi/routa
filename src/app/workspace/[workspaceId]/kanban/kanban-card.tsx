@@ -579,7 +579,7 @@ function KanbanCardSurface({
         </div>
       )}
 
-      <p className="line-clamp-2 text-[11px] leading-[1.45] text-secondary">{objectiveText}</p>
+      <p className="line-clamp-3 text-[11px] leading-[1.45] text-secondary">{objectiveText}</p>
       {hasReviewFeedback && (
         <div
           className={`rounded border px-2 py-1.5 ${reviewFeedbackTone}`}
