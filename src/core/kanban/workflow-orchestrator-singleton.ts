@@ -8,6 +8,7 @@
 import {
   KanbanWorkflowOrchestrator,
   type AutomationSessionSupervisionContext,
+  type CreateAutomationSessionResult,
 } from "./workflow-orchestrator";
 import { v4 as uuidv4 } from "uuid";
 import type { RoutaSystem } from "../routa-system";
@@ -82,7 +83,7 @@ async function createAutomationSession(
     stepIndex: number;
     supervision?: AutomationSessionSupervisionContext;
   },
-): Promise<string | null> {
+): Promise<CreateAutomationSessionResult | null> {
   const task = await system.taskStore.get(params.cardId);
   if (!task?.boardId) return null;
   const result = await enqueueKanbanTaskSession(system, {
@@ -92,7 +93,8 @@ async function createAutomationSession(
     stepIndex: params.stepIndex,
     supervision: params.supervision,
   });
-  return result.sessionId ?? null;
+  // Pass "queued" through: a full board must not read as a failed step.
+  return { sessionId: result.sessionId ?? null, queued: result.queued };
 }
 
 export async function enqueueKanbanTaskSession(

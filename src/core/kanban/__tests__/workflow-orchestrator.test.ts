@@ -1078,4 +1078,102 @@ describe("KanbanWorkflowOrchestrator", () => {
 
     orchestrator.stop();
   });
+  it("keeps a queued next lane step queued instead of failing the card, then follows it", async () => {
+    const eventBus = new EventBus();
+    const boardStore = new InMemoryKanbanBoardStore();
+    const taskStore = new InMemoryTaskStore();
+    const createSession = vi
+      .fn()
+      .mockResolvedValueOnce("session-step-1")
+      .mockResolvedValueOnce({ sessionId: null, queued: true });
+
+    const board = createKanbanBoard({
+      id: "board-queued-step",
+      workspaceId: "default",
+      name: "Main Board",
+      isDefault: true,
+      columns: [
+        { id: "backlog", name: "Backlog", stage: "backlog", position: 0 },
+        {
+          id: "todo",
+          name: "Todo",
+          stage: "todo",
+          position: 1,
+          automation: {
+            enabled: true,
+            steps: [
+              { id: "orchestrate", providerId: "claude", role: "ROUTA", specialistId: "todo-orchestrator" },
+              { id: "contract", providerId: "claude", role: "ROUTA", specialistId: "contract-setter" },
+            ],
+            transitionType: "entry",
+            autoAdvanceOnSuccess: false,
+          },
+        },
+      ],
+    });
+    await boardStore.save(board);
+    const task = createTask({
+      id: "task-queued-step",
+      title: "Queued second step",
+      objective: "Board is full when step 2 wants to start",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "todo",
+    });
+    await taskStore.save(task);
+
+    const orchestrator = new KanbanWorkflowOrchestrator(eventBus, boardStore, taskStore, createSession);
+    orchestrator.start();
+    await orchestrator.processColumnTransition({
+      cardId: task.id,
+      cardTitle: task.title,
+      boardId: board.id,
+      workspaceId: "default",
+      fromColumnId: "backlog",
+      toColumnId: "todo",
+    });
+    const running = await taskStore.get(task.id);
+    running!.triggerSessionId = "session-step-1";
+    await taskStore.save(running!);
+
+    eventBus.emit({
+      type: AgentEventType.AGENT_COMPLETED,
+      agentId: "session-step-1",
+      workspaceId: "default",
+      data: { sessionId: "session-step-1", success: true },
+      timestamp: new Date(),
+    });
+
+    await vi.waitFor(() => {
+      expect(createSession).toHaveBeenCalledTimes(2);
+      expect(orchestrator.getAutomationForCard(task.id)).toMatchObject({
+        status: "queued",
+        currentStepIndex: 1,
+        sessionId: undefined,
+      });
+    });
+    const queuedTask = await taskStore.get(task.id);
+    expect(queuedTask?.lastSyncError).toBeUndefined();
+
+    // The board queue starts step 2 later and records it on the card.
+    queuedTask!.triggerSessionId = "session-step-2";
+    await taskStore.save(queuedTask!);
+    eventBus.emit({
+      type: AgentEventType.AGENT_COMPLETED,
+      agentId: "session-step-2",
+      workspaceId: "default",
+      data: { sessionId: "session-step-2", success: true },
+      timestamp: new Date(),
+    });
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getAutomationForCard(task.id)).toMatchObject({
+        status: "completed",
+        currentStepIndex: 1,
+        sessionId: "session-step-2",
+      });
+    });
+    expect((await taskStore.get(task.id))?.lastSyncError).toBeUndefined();
+    orchestrator.stop();
+  });
 });

@@ -193,7 +193,31 @@ export type CreateAutomationSession = (params: {
   step: KanbanAutomationStep;
   stepIndex: number;
   supervision?: AutomationSessionSupervisionContext;
-}) => Promise<string | null>;
+}) => Promise<string | CreateAutomationSessionResult | null>;
+
+/**
+ * `queued` means the board is at its session limit: the step waits in the
+ * board queue and starts when a slot frees. It is not a failure.
+ */
+export interface CreateAutomationSessionResult {
+  sessionId?: string | null;
+  queued?: boolean;
+}
+
+type AutomationStepStart = "started" | "queued" | "failed";
+
+
+function readCreatedSession(
+  result: string | CreateAutomationSessionResult | null | undefined,
+): { sessionId?: string; queued: boolean } {
+  if (typeof result === "string") {
+    return { sessionId: result || undefined, queued: false };
+  }
+  return {
+    sessionId: result?.sessionId ?? undefined,
+    queued: !result?.sessionId && result?.queued === true,
+  };
+}
 
 /** Ends the process behind an ACP session. Must tolerate unknown or already-exited sessions. */
 export type KillAutomationSession = (sessionId: string) => Promise<void>;
@@ -432,7 +456,7 @@ export class KanbanWorkflowOrchestrator {
     // Trigger agent session if callback is available
     if (this.createSession) {
       try {
-        const sessionId = await this.createSession({
+        const { sessionId } = readCreatedSession(await this.createSession({
           workspaceId: data.workspaceId,
           cardId: data.cardId,
           cardTitle: data.cardTitle,
@@ -442,7 +466,7 @@ export class KanbanWorkflowOrchestrator {
           step: steps[0],
           stepIndex: 0,
           supervision: this.buildSupervisionContext(automationEntry, laneObjective),
-        });
+        }));
         if (sessionId) {
           automationEntry.status = "running";
           automationEntry.sessionId = sessionId;
@@ -539,8 +563,10 @@ export class KanbanWorkflowOrchestrator {
       let failedToAdvanceWithinLane = false;
 
       if (task && hasNextStep) {
-        const startedNextStep = await this.startNextAutomationStep(cardId, automation, task, nextStepIndex);
-        if (startedNextStep) {
+        const nextStepStart = await this.startNextAutomationStep(cardId, automation, task, nextStepIndex);
+        if (nextStepStart !== "failed") {
+          // "queued": the board is full; the step waits in the board queue and
+          // this automation adopts its session once the queue starts it.
           automation.signaledSessionIds.add(eventSessionId);
           return;
         }
@@ -556,8 +582,8 @@ export class KanbanWorkflowOrchestrator {
         const maxAttempts = task.maxFallbackAttempts ?? automation.steps.length;
         const fallbackAttemptCount = automation.currentStepIndex;
         if (fallbackAttemptCount < maxAttempts) {
-          const startedFallback = await this.startNextAutomationStep(cardId, automation, task, nextStepIndex);
-          if (startedFallback) {
+          const fallbackStart = await this.startNextAutomationStep(cardId, automation, task, nextStepIndex);
+          if (fallbackStart !== "failed") {
             automation.signaledSessionIds.add(eventSessionId);
             return;
           }
@@ -903,14 +929,14 @@ export class KanbanWorkflowOrchestrator {
     automation: ActiveAutomation,
     task: Task,
     nextStepIndex: number,
-  ): Promise<boolean> {
+  ): Promise<AutomationStepStart> {
     if (!this.createSession) {
-      return false;
+      return "failed";
     }
 
     const nextStep = automation.steps[nextStepIndex];
     if (!nextStep) {
-      return false;
+      return "failed";
     }
 
     const previousSessionId = automation.sessionId;
@@ -938,7 +964,7 @@ export class KanbanWorkflowOrchestrator {
     automation.signaledSessionIds.clear();
 
     try {
-      const sessionId = await this.createSession({
+      const { sessionId, queued } = readCreatedSession(await this.createSession({
         workspaceId: automation.workspaceId,
         cardId,
         cardTitle: automation.cardTitle,
@@ -948,22 +974,26 @@ export class KanbanWorkflowOrchestrator {
         step: nextStep,
         stepIndex: nextStepIndex,
         supervision: this.buildSupervisionContext(automation, task.objective || automation.cardTitle),
-      });
+      }));
 
+      if (queued) {
+        automation.status = "queued";
+        return "queued";
+      }
       if (!sessionId) {
         automation.status = "failed";
-        return false;
+        return "failed";
       }
 
       automation.status = "running";
       automation.sessionId = sessionId;
-      return true;
+      return "started";
     } catch (error) {
       automation.status = "failed";
       task.lastSyncError = error instanceof Error ? error.message : String(error);
       task.updatedAt = new Date();
       await this.taskStore.save(task);
-      return false;
+      return "failed";
     }
   }
 
@@ -1002,7 +1032,7 @@ export class KanbanWorkflowOrchestrator {
 
     try {
       const currentStep = automation.steps[automation.currentStepIndex];
-      const sessionId = await this.createSession({
+      const { sessionId, queued } = readCreatedSession(await this.createSession({
         workspaceId: automation.workspaceId,
         cardId,
         cardTitle: automation.cardTitle,
@@ -1015,8 +1045,12 @@ export class KanbanWorkflowOrchestrator {
           recoveredFromSessionId: previousSessionId,
           recoveryReason: reason,
         }),
-      });
+      }));
 
+      if (queued) {
+        automation.status = "queued";
+        return true;
+      }
       if (!sessionId) {
         automation.status = "failed";
         return false;

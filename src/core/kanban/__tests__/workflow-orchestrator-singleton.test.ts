@@ -33,9 +33,13 @@ import { getHttpSessionStore } from "../../acp/http-session-store";
 import { createCodebase } from "../../models/codebase";
 import { createKanbanBoard } from "../../models/kanban";
 import { createTask, TaskStatus } from "../../models/task";
+import { AgentEventType } from "../../events/event-bus";
+import { createWorkspace } from "../../models/workspace";
 import {
   enqueueKanbanTaskSession,
+  getKanbanSessionQueue,
   getWorkflowOrchestrator,
+  processKanbanColumnTransition,
   resetWorkflowOrchestrator,
   startWorkflowOrchestrator,
 } from "../workflow-orchestrator-singleton";
@@ -389,4 +393,114 @@ describe("workflow orchestrator singleton prompt path", () => {
     expect(updatedTask?.lastSyncError).toBe("Failed to create ACP session.");
     expect(updatedTask?.laneSessions ?? []).toHaveLength(0);
   });
+
+  it("keeps a lane's next step queued (not failed) while the board is full, then runs it and advances", async () => {
+    const system = createInMemorySystem();
+    const limitKey = "kanbanSessionConcurrencyLimit:board-queue";
+    await system.workspaceStore.save(createWorkspace({ id: "default", title: "Default", metadata: { [limitKey]: "2" } }));
+    const board = createKanbanBoard({
+      id: "board-queue",
+      workspaceId: "default",
+      name: "Board",
+      isDefault: true,
+      columns: [
+        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
+        {
+          id: "todo",
+          name: "Todo",
+          position: 1,
+          stage: "todo",
+          automation: {
+            enabled: true,
+            transitionType: "entry",
+            autoAdvanceOnSuccess: true,
+            steps: [
+              { id: "orchestrate", providerId: "claude", role: "ROUTA", specialistId: "todo-orchestrator" },
+              { id: "contract", providerId: "claude", role: "ROUTA", specialistId: "contract-setter" },
+            ],
+          },
+        },
+        { id: "dev", name: "Dev", position: 2, stage: "dev" },
+      ],
+    });
+    await system.kanbanBoardStore.save(board);
+    const blocker = createTask({
+      id: "card-blocker",
+      title: "Blocker",
+      objective: "Holds a board slot",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "backlog",
+      status: TaskStatus.PENDING,
+    });
+    const card = createTask({
+      id: "card-x",
+      title: "Card X",
+      objective: "Two-step todo lane",
+      workspaceId: "default",
+      boardId: board.id,
+      columnId: "todo",
+      status: TaskStatus.PENDING,
+    });
+    await system.taskStore.save(blocker);
+    await system.taskStore.save(card);
+
+    triggerAssignedTaskAgentMock.mockImplementation(async (params: { task: { id: string }; stepIndex?: number }) => ({
+      sessionId: `${params.task.id}:${params.stepIndex ?? "x"}`,
+      transport: "acp",
+    }));
+    const emitCompleted = (sessionId: string) => system.eventBus.emit({
+      type: AgentEventType.AGENT_COMPLETED,
+      agentId: sessionId,
+      workspaceId: "default",
+      data: { sessionId, success: true },
+      timestamp: new Date(),
+    });
+
+    startWorkflowOrchestrator(system);
+    const blockerRun = await enqueueKanbanTaskSession(system, { task: blocker, expectedColumnId: "backlog" });
+    expect(blockerRun.sessionId).toBeTruthy();
+    await processKanbanColumnTransition(system, {
+      cardId: card.id,
+      cardTitle: card.title,
+      boardId: board.id,
+      workspaceId: "default",
+      fromColumnId: "backlog",
+      toColumnId: "todo",
+    });
+    expect((await system.taskStore.get(card.id))?.triggerSessionId).toBe("card-x:0");
+
+    // The board fills up before step 1 of card X finishes.
+    await system.workspaceStore.updateMetadata("default", { [limitKey]: "1" });
+    emitCompleted("card-x:0");
+
+    const orchestrator = getWorkflowOrchestrator(system);
+    const queue = getKanbanSessionQueue(system);
+    await vi.waitFor(async () => {
+      expect((await queue.getBoardSnapshot(board.id)).queuedCardIds).toEqual([card.id]);
+    });
+    expect(orchestrator.getAutomationForCard(card.id)).toMatchObject({ status: "queued", currentStepIndex: 1 });
+    const queuedTask = await system.taskStore.get(card.id);
+    expect(queuedTask?.lastSyncError).toBeUndefined();
+    expect(queuedTask?.laneSessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: "card-x:0", status: "completed" }),
+    ]));
+
+    // The slot frees up: the queued step starts and the orchestrator follows it.
+    emitCompleted(blockerRun.sessionId!);
+    await vi.waitFor(async () => {
+      expect((await system.taskStore.get(card.id))?.triggerSessionId).toBe("card-x:1");
+    });
+
+    emitCompleted("card-x:1");
+    await vi.waitFor(async () => {
+      expect((await system.taskStore.get(card.id))?.columnId).toBe("dev");
+    });
+    const advancedTask = await system.taskStore.get(card.id);
+    expect(advancedTask?.lastSyncError).toBeUndefined();
+    expect(advancedTask?.laneSessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: "card-x:1", status: "completed", stepIndex: 1 }),
+    ]));
+  });
+
 });
