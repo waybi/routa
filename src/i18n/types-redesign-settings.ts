@@ -115,4 +115,30 @@ export interface RedesignSettingsTranslationDictionarySections {
       loadFailedDescription: string;
     };
   };
+  kanbanModelTiers: {
+    title: string;
+    description: string;
+    order: string;
+    tiers: { fast: string; balanced: string; smart: string };
+    /** First dropdown option; {model} = code tier default. */
+    followCodeDefault: string;
+    effective: string;
+    sourceGlobal: string;
+    sourceCode: string;
+    /** Native hover text per tier row: which specialists use it. */
+    tierTooltip: string;
+    tierTooltipOthers: string;
+    tierTooltipNone: string;
+    noModels: string;
+    saving: string;
+    saved: string;
+    saveFailed: string;
+    loadFailed: string;
+    /** Hover text on the Kanban step "follow default" option. */
+    followDefaultHint: string;
+    followDefaultHintNoTier: string;
+    hintSourceSpecialist: string;
+    hintSourceGlobal: string;
+    hintSourceCode: string;
+  };
 }

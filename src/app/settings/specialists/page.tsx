@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 
+import { KanbanModelTiersCard } from "@/client/components/kanban-model-tiers-card";
 import { SettingsRouteShell } from "@/client/components/settings-route-shell";
 import { SpecialistsTab } from "@/client/components/settings-panel-specialists-tab";
 import { loadModelDefinitions } from "@/client/components/settings-panel-shared";
@@ -23,6 +24,7 @@ export default function SpecialistsSettingsPage() {
       description={copy.description}
       contentClassName="flex min-h-0 flex-1 flex-col"
     >
+      <KanbanModelTiersCard />
       <SpecialistsTab modelDefs={modelDefs} />
     </SettingsRouteShell>
   );
