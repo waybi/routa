@@ -542,14 +542,14 @@ export default function HarnessConsolePage() {
         <div className="grid gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
           <div className="min-w-0 border-r border-desktop-border bg-desktop-bg-secondary/40 p-3">
             <div className="mb-2 flex items-center justify-between gap-2 text-[11px]">
-              <div className="font-semibold text-desktop-text-primary">Sources</div>
+              <div className="font-semibold text-desktop-text-primary">{t.sessionDetailRedesign.harness.sources}</div>
               <div className="text-desktop-text-secondary">{specFiles.length}</div>
             </div>
             <div className="space-y-1.5">
-              {specsState.loading ? <div className="text-[10px] text-desktop-text-secondary">Loading fitness files...</div> : null}
+              {specsState.loading ? <div className="text-[10px] text-desktop-text-secondary">{t.sessionDetailRedesign.harness.loadingFiles}</div> : null}
               {unsupportedRepoMessage ? <HarnessUnsupportedState className="rounded-md border border-attention bg-attention-subtle px-3 py-2 text-[10px] text-attention" /> : null}
               {specsState.error && !unsupportedRepoMessage ? <div className="text-[10px] text-danger">{specsState.error}</div> : null}
-              {!specsState.loading && !specsState.error && !unsupportedRepoMessage && specFiles.length === 0 ? <div className="text-[10px] text-desktop-text-secondary">No fitness files found.</div> : null}
+              {!specsState.loading && !specsState.error && !unsupportedRepoMessage && specFiles.length === 0 ? <div className="text-[10px] text-desktop-text-secondary">{t.sessionDetailRedesign.harness.noFiles}</div> : null}
               {!unsupportedRepoMessage ? primaryFiles.map((file) => (
                 <button
                   key={file.name}
@@ -659,7 +659,7 @@ export default function HarnessConsolePage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-[11px] text-desktop-text-secondary">No command blocks found in this markdown file.</div>
+                    <div className="text-[11px] text-desktop-text-secondary">{t.sessionDetailRedesign.harness.noCommandBlocks}</div>
                   )
                 ) : null}
 
@@ -689,7 +689,7 @@ export default function HarnessConsolePage() {
                 ) : null}
               </div>
             ) : (
-              <div className="mt-3 text-[11px] text-desktop-text-secondary">Select a fitness file to inspect.</div>
+              <div className="mt-3 text-[11px] text-desktop-text-secondary">{t.sessionDetailRedesign.harness.selectFile}</div>
             )}
           </div>
         </div>
@@ -769,7 +769,7 @@ export default function HarnessConsolePage() {
         {inlineOverviewPanel ? null : (
           <div
             role="separator"
-            aria-label="Resize bottom panel"
+            aria-label={t.sessionDetailRedesign.harness.resizeBottomPanel}
             data-testid="harness-console-bottom-resizer"
             className="h-1 shrink-0 cursor-row-resize bg-desktop-border/60 transition-colors hover:bg-desktop-accent"
             onMouseDown={handleBottomPanelResizeStart}
@@ -806,7 +806,7 @@ export default function HarnessConsolePage() {
                   className="desktop-btn desktop-btn-secondary"
                   onClick={() => openSection(selectedGovernanceSection)}
                 >
-                  Open full view
+                  {t.sessionDetailRedesign.harness.openFullView}
                 </button>
               ) : null}
               <button
@@ -1043,7 +1043,7 @@ export default function HarnessConsolePage() {
 
         <div
           role="separator"
-          aria-label="Resize explorer"
+          aria-label={t.sessionDetailRedesign.harness.resizeExplorer}
           data-testid="harness-console-explorer-resizer"
           className="w-1 shrink-0 cursor-col-resize bg-desktop-border/60 transition-colors hover:bg-desktop-accent"
           onMouseDown={handleExplorerResizeStart}

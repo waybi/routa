@@ -76,6 +76,17 @@ vi.mock("@/i18n", () => ({
         saveFailed: "Save failed",
         deleteFailed: "Delete failed",
       },
+      sessionDetailRedesign: {
+        settings: {
+          explorer: "Explorer",
+          inspector: "Inspector",
+          duplicate: "Duplicate",
+          specialistPromptPlaceholder: "Define the specialist contract",
+          source: "Source",
+          category: "Category",
+          writable: "Writable",
+        },
+      },
     },
   }),
 }));

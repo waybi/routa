@@ -263,7 +263,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-desktop-border px-3 py-2.5">
             <div className="min-w-0">
-              <p className={sectionTitleCls}>Explorer</p>
+              <p className={sectionTitleCls}>{t.sessionDetailRedesign.settings.explorer}</p>
               <p className="mt-0.5 text-[11px] text-desktop-text-secondary">{totalSpecialistsLabel}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                   {selectedSpecialist ? (
                     <button onClick={duplicateSelected} className={secondaryButtonCls}>
                       <Copy className="h-3.5 w-3.5" />
-                      <span>Duplicate</span>
+                      <span>{t.sessionDetailRedesign.settings.duplicate}</span>
                     </button>
                   ) : null}
                   {editingId ? (
@@ -501,7 +501,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                     onChange={(event) => setForm({ ...form, systemPrompt: event.target.value })}
                     disabled={readOnlySelection}
                     rows={14}
-                    placeholder="Define the specialist contract"
+                    placeholder={t.sessionDetailRedesign.settings.specialistPromptPlaceholder}
                     className={`${desktopInputCls} min-h-[280px] font-mono text-[12px] leading-5 disabled:opacity-60`}
                   />
                 </Field>
@@ -523,14 +523,14 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
 
             <aside className="hidden w-[240px] shrink-0 border-l border-desktop-border bg-desktop-bg-secondary xl:flex xl:flex-col">
               <div className="border-b border-desktop-border px-3 py-3">
-                <p className={sectionTitleCls}>Inspector</p>
+                <p className={sectionTitleCls}>{t.sessionDetailRedesign.settings.inspector}</p>
                 <div className="mt-1 text-[11px] text-desktop-text-secondary">{t.settings.specialistsTab.catalog}</div>
               </div>
 
               <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 desktop-scrollbar-thin">
-                <InspectorCard label="Source" value={selectedSpecialist ? sourceLabels[selectedSpecialist.source] : t.common.new} />
-                <InspectorCard label="Category" value={selectedSpecialist ? getSpecialistCategory(selectedSpecialist.id) : "custom"} />
-                <InspectorCard label="Writable" value={readOnlySelection ? t.common.disabled : t.common.enabled} />
+                <InspectorCard label={t.sessionDetailRedesign.settings.source} value={selectedSpecialist ? sourceLabels[selectedSpecialist.source] : t.common.new} />
+                <InspectorCard label={t.sessionDetailRedesign.settings.category} value={selectedSpecialist ? getSpecialistCategory(selectedSpecialist.id) : "custom"} />
+                <InspectorCard label={t.sessionDetailRedesign.settings.writable} value={readOnlySelection ? t.common.disabled : t.common.enabled} />
                 <InspectorCard label={t.specialists.role} value={roleLabels[form.role]} badgeClass={ROLE_CHIP[form.role]} />
                 <InspectorCard label={t.specialists.tier} value={TIER_LABELS[form.defaultModelTier]} />
                 <InspectorCard label={t.specialists.model} value={statusModelLabel} />

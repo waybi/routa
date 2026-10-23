@@ -200,14 +200,14 @@ function RolesTab({
   return (
     <div className="px-4 py-4 space-y-4 overflow-y-auto h-full">
       <div className={settingsCardCls}>
-        <p className={sectionHeadCls}>Role Defaults</p>
+        <p className={sectionHeadCls}>{t.settings.roleDefaults}</p>
         <p className="mt-1 text-[10px] text-secondary">
-          Configure default provider and model override per Routa role. ROUTA-specific settings live here instead of the Providers tab.
+          {t.settings.roleDefaultsDesc}
         </p>
         <div className="mt-4 flex items-center gap-3 mb-2">
           <div className="w-[90px]" />
-          <div className="w-[180px] text-[10px] font-semibold text-secondary">Provider</div>
-          <div className="flex-1 text-[10px] font-semibold text-secondary">Model Override</div>
+          <div className="w-[180px] text-[10px] font-semibold text-secondary">{t.settings.provider}</div>
+          <div className="flex-1 text-[10px] font-semibold text-secondary">{t.settings.modelOverride}</div>
         </div>
         <div className="space-y-2.5">
           {AGENT_ROLES.map((role) => (
@@ -221,9 +221,9 @@ function RolesTab({
                 onChange={(event) => onChange(role, "provider", event.target.value)}
                 className="w-[180px] shrink-0 text-xs px-2 py-1.5 rounded-md border border-default bg-surface text-primary focus:ring-1 focus:ring-accent focus:outline-none"
               >
-                <option value="">Auto</option>
+                <option value="">{t.common.auto}</option>
                 {builtinProviders.length > 0 && (
-                  <optgroup label="Built-in">
+                  <optgroup label={t.settings.builtIn}>
                     {builtinProviders.map((provider) => (
                       <option
                         key={provider.id}
@@ -279,9 +279,9 @@ function RolesTab({
           ))}
         </datalist>
         <p className="mt-4 text-[10px] text-secondary">
-          Leave model blank to use the provider default. Type a model alias from the{" "}
-          <button onClick={onOpenModelsTab} className="text-accent hover:underline">Models tab</button>
-          {" "}to use custom connection details.
+          {t.sessionDetailRedesign.settings.modelBlankHintBefore}{" "}
+          <button onClick={onOpenModelsTab} className="text-accent hover:underline">{t.sessionDetailRedesign.settings.modelsTabLink}</button>
+          {" "}{t.sessionDetailRedesign.settings.modelBlankHintAfter}
         </p>
       </div>
     </div>
@@ -363,7 +363,7 @@ function CustomAcpProvidersSection() {
   return (
     <div className={settingsCardCls}>
       <div className="flex items-center justify-between mb-2">
-        <p className={sectionHeadCls}>Custom Providers</p>
+        <p className={sectionHeadCls}>{t.sessionDetailRedesign.settings.customProvidersTitle}</p>
         {!showForm && (
           <button
             onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_CUSTOM_PROVIDER_FORM); }}
@@ -374,7 +374,7 @@ function CustomAcpProvidersSection() {
         )}
       </div>
       <p className="text-[10px] text-secondary mb-3">
-        Define your own ACP-compliant agent with a custom command and args.
+        {t.sessionDetailRedesign.settings.customProvidersDescription}
       </p>
 
       {error && (
@@ -438,7 +438,7 @@ function CustomAcpProvidersSection() {
       )}
 
       {providers.length === 0 && !showForm ? (
-        <p className="text-xs text-secondary italic">No custom providers yet.</p>
+        <p className="text-xs text-secondary italic">{t.sessionDetailRedesign.settings.noCustomProviders}</p>
       ) : (
         <div className="space-y-2">
           {providers.map((p) => (
@@ -474,7 +474,7 @@ function CustomAcpProvidersSection() {
   );
 }
 
-// ─── Provider Catalog Section ────────────────────────────────────────────────
+// ─── Provider catalog section ────────────────────────────────────────────────
 
 interface ProviderCatalogSectionProps {
   allProviders: ProviderOption[];
@@ -500,14 +500,14 @@ function ProviderCatalogSection({ allProviders }: ProviderCatalogSectionProps) {
   return (
     <div className={settingsCardCls}>
       <div>
-        <p className={sectionHeadCls}>Provider Catalog</p>
+        <p className={sectionHeadCls}>{t.sessionDetailRedesign.settings.providerCatalogTitle}</p>
         <p className="text-[10px] text-secondary mb-3">
           Built-in, Agent 注册中心（ACP）, and custom providers are listed together here. Hide a provider to remove it from app pickers without deleting its configuration.
         </p>
       </div>
 
       {allProviders.length === 0 ? (
-        <p className="text-xs text-secondary italic">No providers available.</p>
+        <p className="text-xs text-secondary italic">{t.sessionDetailRedesign.settings.noProviders}</p>
       ) : (
         <div className="space-y-2">
           {allProviders.map((provider) => {
@@ -622,7 +622,7 @@ function WebhooksTab() {
             </code>
           </p>
           <p className="text-xs text-accent mt-1">
-            Point your GitHub repository webhook at this URL to start receiving events.
+            {t.sessionDetailRedesign.settings.webhookUrlHint}
           </p>
         </div>
         {isTauriEnv ? (
@@ -633,7 +633,7 @@ function WebhooksTab() {
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
             </svg>
-            Manage Webhook Triggers
+            {t.sessionDetailRedesign.settings.manageWebhookTriggers}
           </button>
         ) : (
           <a
@@ -645,7 +645,7 @@ function WebhooksTab() {
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
             </svg>
-            Manage Webhook Triggers
+            {t.sessionDetailRedesign.settings.manageWebhookTriggers}
           </a>
         )}
       </div>
@@ -707,7 +707,7 @@ function DockerOpenCodeSection({ embedded = false }: { embedded?: boolean }) {
       )}
       <p className="text-[11px] text-secondary">
         Paste your <code className="bg-subtle px-1 rounded">~/.local/share/opencode/auth.json</code> here.
-        This config will be mounted into the Docker container.
+        {t.sessionDetailRedesign.settings.dockerMountHint}
       </p>
       <textarea
         value={authJson}
@@ -868,9 +868,9 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
       {activeTab === "providers" && (
         <div className="px-4 py-4 space-y-4 overflow-y-auto h-full">
           <div className={settingsCardCls}>
-            <p className={sectionHeadCls}>Providers</p>
-            <p className="mt-1 text-[10px] text-secondary">
-              Manage detected ACP providers, install additional agents, hide noisy entries, and configure provider-specific credentials.
+            <p className={sectionHeadCls}>{t.settings.providers}</p>
+            <p className="mt-1 text-[10px] text-secondary" data-testid="settings-providers-description">
+              {t.sessionDetailRedesign.settings.providersDescription}
             </p>
           </div>
 
@@ -879,7 +879,7 @@ function SettingsPanelContent({ onClose, providers, initialTab, onResetOnboardin
           <ProviderCatalogSection allProviders={providers} />
 
           <div className={settingsCardCls}>
-            <p className="text-[10px] font-semibold text-secondary mb-2">Provider Credentials</p>
+            <p className="text-[10px] font-semibold text-secondary mb-2">{t.sessionDetailRedesign.settings.providerCredentials}</p>
             <DockerOpenCodeSection embedded={true} />
           </div>
 
