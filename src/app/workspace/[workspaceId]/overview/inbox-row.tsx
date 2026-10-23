@@ -131,35 +131,37 @@ export function InboxRowItem({
       data-severity={row.severity}
       data-reason={row.reason}
     >
-      {retry && (
-        <input
-          type="checkbox"
-          className="mt-1 shrink-0 self-start"
-          checked={retry.selected}
-          disabled={retry.disabled}
-          onChange={retry.onToggleSelect}
-          aria-label={page.selectRow.replace("{title}", row.task.title)}
-          data-testid="inbox-row-select"
-        />
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone={SEVERITY_TONE[row.severity]}>{copy.severityLabel(row.severity)}</Badge>
-          <Badge tone={row.reason === "interrupted" ? "danger" : "neutral"}>{copy.kindLabel(row)}</Badge>
-          {retry?.state && (
-            <span data-testid="inbox-row-retry-state" data-phase={retry.state.phase}>
-              <Badge tone={RETRY_TONE[retry.state.phase]}>{copy.retryLabel(retry.state)}</Badge>
-            </span>
-          )}
+      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+        {retry && (
+          <input
+            type="checkbox"
+            className="mt-1 shrink-0 self-start"
+            checked={retry.selected}
+            disabled={retry.disabled}
+            onChange={retry.onToggleSelect}
+            aria-label={page.selectRow.replace("{title}", row.task.title)}
+            data-testid="inbox-row-select"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge tone={SEVERITY_TONE[row.severity]}>{copy.severityLabel(row.severity)}</Badge>
+            <Badge tone={row.reason === "interrupted" ? "danger" : "neutral"}>{copy.kindLabel(row)}</Badge>
+            {retry?.state && (
+              <span data-testid="inbox-row-retry-state" data-phase={retry.state.phase}>
+                <Badge tone={RETRY_TONE[retry.state.phase]}>{copy.retryLabel(retry.state)}</Badge>
+              </span>
+            )}
+          </div>
+          <h3 className="mb-2 mt-1.5 break-words text-sm font-semibold leading-snug text-primary">{row.task.title}</h3>
+          <dl className="m-0 grid gap-0.5">
+            {showWorkspace && meta(page.labelWorkspace, row.workspaceTitle)}
+            {meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
+            {meta(page.labelSource, copy.source(row), "inbox-row-source", row.reason === "interrupted" ? copy.sourceFull(row) : undefined)}
+            {meta(page.labelTime, formatRelativeTime(row.eventAt, now, copy.t.homeRedesign))}
+            {meta(page.labelNext, copy.next(row), "inbox-row-next")}
+          </dl>
         </div>
-        <h3 className="mb-2 mt-1.5 break-words text-sm font-semibold leading-snug text-primary">{row.task.title}</h3>
-        <dl className="m-0 grid gap-0.5">
-          {showWorkspace && meta(page.labelWorkspace, row.workspaceTitle)}
-          {meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
-          {meta(page.labelSource, copy.source(row), "inbox-row-source", row.reason === "interrupted" ? copy.sourceFull(row) : undefined)}
-          {meta(page.labelTime, formatRelativeTime(row.eventAt, now, copy.t.homeRedesign))}
-          {meta(page.labelNext, copy.next(row), "inbox-row-next")}
-        </dl>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {retry && (
