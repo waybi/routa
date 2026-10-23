@@ -20,6 +20,8 @@ export interface ShellTranslationDictionarySections extends RedesignSettingsTran
       settings: string;
       openMenu: string;
       closeMenu: string;
+      /** aria-label of the count badge on the inbox entry; "{count}" = unhidden items. */
+      inboxBadge: string;
     };
     topbar: {
       label: string;

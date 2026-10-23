@@ -14,6 +14,7 @@ export const enShell: ShellTranslationDictionarySections = {
       settings: "Settings",
       openMenu: "Open navigation",
       closeMenu: "Close navigation",
+      inboxBadge: "Needs you, {count} items",
     },
     topbar: {
       label: "Top bar",

@@ -14,6 +14,7 @@ export const zhShell: ShellTranslationDictionarySections = {
       settings: "设置",
       openMenu: "打开导航",
       closeMenu: "关闭导航",
+      inboxBadge: "需要你处理，{count} 项",
     },
     topbar: {
       label: "顶栏",

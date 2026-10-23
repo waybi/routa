@@ -7,6 +7,8 @@
  * kanban-done-column-window.ts.
  */
 
+import { useSyncExternalStore } from "react";
+
 const STORAGE_PREFIX = "routa.kanban.attentionDismissed.";
 
 export function attentionDismissalsStorageKey(boardId: string): string {
@@ -15,9 +17,12 @@ export function attentionDismissalsStorageKey(boardId: string): string {
 
 /** Only holds boards whose last localStorage write failed. */
 const memoryDismissals = new Map<string, string[]>();
-/** Stable snapshots per raw value so repeated reads return the same array. */
+const listeners = new Set<() => void>();
+/** Stable snapshots per raw value so useSyncExternalStore does not loop. */
 const snapshotCache = new Map<string, { raw: string; keys: readonly string[] }>();
 const EMPTY: readonly string[] = [];
+/** Bumped on every local write and every cross-tab `storage` event. */
+let version = 0;
 
 function parse(raw: string | null): string[] {
   if (!raw) return [];
@@ -59,6 +64,33 @@ function writeDismissed(boardId: string, keys: string[]): void {
   } catch {
     memoryDismissals.set(key, keys);
   }
+  version += 1;
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void): () => void {
+  // Another tab wrote localStorage: bump first so the snapshot changes.
+  const onStorage = () => {
+    version += 1;
+    listener();
+  };
+  listeners.add(listener);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+const readVersion = () => version;
+const getServerVersion = () => 0;
+
+/**
+ * Changes whenever any board's dismissals change (this tab or another), so
+ * callers that read via readAttentionDismissals re-render and recount.
+ */
+export function useAttentionDismissalsVersion(): number {
+  return useSyncExternalStore(subscribe, readVersion, getServerVersion);
 }
 
 /** Non-hook read of a board's dismissed keys (e.g. the all-projects overview). */
