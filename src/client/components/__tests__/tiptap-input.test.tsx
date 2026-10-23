@@ -26,6 +26,9 @@ vi.mock("@/i18n", () => ({
         send: "Send",
         stop: "Stop",
       },
+      sessionDetailRedesign: {
+        composer: { placeholder: "Dictionary placeholder" },
+      },
     },
   }),
 }));
@@ -149,5 +152,29 @@ describe("TiptapInput beforeProviderSlot", () => {
     // The provider capsule wrapper directly follows the repo picker wrapper, as before.
     expect(providerWrapper?.previousElementSibling?.querySelector("[data-testid=\"repo-picker\"]")).toBeTruthy();
     expect(toolbarTestIds(container).slice(0, 2)).toEqual(["repo-picker", "provider-dropdown"]);
+  });
+});
+
+describe("TiptapInput placeholder follows prop and locale changes", () => {
+  function placeholderOf(container: HTMLElement): string | null {
+    return container.querySelector(".is-editor-empty")?.getAttribute("data-placeholder") ?? null;
+  }
+
+  it("updates the editor's data-placeholder after the editor is built", async () => {
+    const { container, rerender } = render(
+      <TiptapInput onSend={vi.fn()} selectedProvider="dsh" placeholder="Describe the problem to solve" onRepoChange={vi.fn()} repoSelection={null} />,
+    );
+    await waitFor(() => expect(placeholderOf(container)).toContain("Describe the problem to solve"));
+
+    rerender(<TiptapInput onSend={vi.fn()} selectedProvider="dsh" placeholder="描述要解决的问题" onRepoChange={vi.fn()} repoSelection={null} />);
+    await waitFor(() => expect(placeholderOf(container)).toContain("描述要解决的问题"));
+    expect(placeholderOf(container)).not.toContain("Describe the problem");
+    expect(screen.getByTestId("tiptap-editor").getAttribute("aria-label")).toContain("描述要解决的问题");
+  });
+
+  it("falls back to the dictionary placeholder instead of hard-coded English", async () => {
+    const { container } = render(<TiptapInput onSend={vi.fn()} selectedProvider="dsh" onRepoChange={vi.fn()} repoSelection={null} />);
+    await waitFor(() => expect(placeholderOf(container)).toContain("Dictionary placeholder"));
+    expect(placeholderOf(container)).not.toContain("Type a message...");
   });
 });

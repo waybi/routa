@@ -586,7 +586,7 @@ export function HomeInput({
                       type="button"
                       onClick={() => setSelectedSpecialistId(null)}
                       className="ml-0.5 text-attention transition-colors hover:text-attention"
-                      title="Switch to built-in role"
+                      title={t.sessionDetailRedesign.composer.switchToBuiltInRole}
                       aria-label={t.common.clearSpecialist}
                     >
                       ×
@@ -599,7 +599,7 @@ export function HomeInput({
                       type="button"
                       onClick={() => setShowSpecialistDropdown((v) => !v)}
                       className="flex items-center gap-1 rounded-lg border border-transparent px-1.5 py-1 text-xs text-secondary transition-all hover:border-default hover:bg-hover"
-                      title="Switch specialist"
+                      title={t.sessionDetailRedesign.composer.switchSpecialist}
                     >
                       <ChevronDown className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>
                     </button>
@@ -632,7 +632,7 @@ export function HomeInput({
               <>
                 <div className="flex items-center gap-0.5 rounded-[18px] border border-accent bg-surface p-1 shadow-[0_10px_28px_-22px_rgba(37,99,235,0.42)]" role="group" aria-label={t.common.agentMode}>
                   <button type="button" onClick={() => setSelectedRole("ROUTA")}
-                    title="Multi-agent orchestration — spawns specialized agents for complex multi-step tasks (Routa)"
+                    title={t.sessionDetailRedesign.composer.multiAgentHint}
                     className={`flex items-center gap-1.5 rounded-[14px] px-3 py-1.5 text-xs font-medium transition-all ${
                       selectedRole === "ROUTA"
                         ? "bg-accent text-on-accent shadow-[0_14px_26px_-18px_rgba(37,99,235,0.68)]"
@@ -642,7 +642,7 @@ export function HomeInput({
                     {t.home.multiAgent}
                   </button>
                   <button type="button" onClick={() => setSelectedRole("CRAFTER")}
-                    title="Single-agent implementation — best for focused coding tasks (Crafter)"
+                    title={t.sessionDetailRedesign.composer.crafterHint}
                     className={`flex items-center gap-1.5 rounded-[14px] px-3 py-1.5 text-xs font-medium transition-all ${
                       selectedRole === "CRAFTER"
                         ? "bg-attention text-on-accent shadow-[0_14px_26px_-18px_rgba(245,158,11,0.65)]"
@@ -660,7 +660,7 @@ export function HomeInput({
                     <div className="relative" ref={specialistDropdownRef}>
                       <button type="button" onClick={() => setShowSpecialistDropdown((v) => !v)}
                         className="flex items-center gap-1.5 rounded-lg border border-dashed border-default px-2 py-1 text-xs text-secondary transition-all hover:border-attention hover:bg-hover hover:text-attention"
-                        title="Use a custom specialist instead">
+                        title={t.sessionDetailRedesign.composer.customSpecialistHint}>
                         <CircleUser className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}/>
                         Custom
                         <ChevronDown className="w-2.5 h-2.5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}/>

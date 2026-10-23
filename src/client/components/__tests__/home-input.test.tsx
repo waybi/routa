@@ -165,6 +165,15 @@ vi.mock("@/i18n", () => ({
       settings: {
         specialists: "Specialists",
       },
+      sessionDetailRedesign: {
+        composer: {
+          switchToBuiltInRole: "Switch to built-in role",
+          switchSpecialist: "Switch specialist",
+          multiAgentHint: "Multi-agent orchestration hint",
+          crafterHint: "Single-agent implementation hint",
+          customSpecialistHint: "Use a custom specialist instead",
+        },
+      },
     },
   }),
 }));

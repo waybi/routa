@@ -531,7 +531,7 @@ interface TiptapInputProps {
 export function TiptapInput({
   onSend,
   onStop,
-  placeholder = "Type a message...",
+  placeholder: placeholderProp,
   disabled = false,
   loading = false,
   skills = [],
@@ -566,10 +566,14 @@ export function TiptapInput({
     () => `@ ${t.chatPanel.fileHint}, # ${t.chatPanel.agentHint}, / ${t.chatPanel.skillHint}`,
     [t],
   );
+  const placeholder = placeholderProp ?? t.sessionDetailRedesign.composer.placeholder;
   const composerPlaceholder = useMemo(() => {
     if (/[#@/]/.test(placeholder)) return placeholder;
     return `${placeholder} ${commandHintsPlaceholder}`;
   }, [commandHintsPlaceholder, placeholder]);
+  // The editor is built once; Placeholder reads this ref so a later prop or
+  // locale change (SSR renders English first) still reaches the editor.
+  const composerPlaceholderRef = useRef(composerPlaceholder);
 
   // Model selector state
   const [selectedModel, setSelectedModel] = useState<string>("");
@@ -720,8 +724,9 @@ export function TiptapInput({
             "bg-subtle rounded-lg p-3 text-xs font-mono overflow-x-auto my-1 border border-default",
         },
       }),
+      // eslint-disable-next-line react-hooks/refs -- Placeholder calls this lazily when decorating, never during render
       Placeholder.configure({
-        placeholder: composerPlaceholder,
+        placeholder: () => composerPlaceholderRef.current,
         emptyEditorClass: "is-editor-empty",
         showOnlyWhenEditable: true,
         showOnlyCurrent: true,
@@ -792,6 +797,16 @@ export function TiptapInput({
     },
     immediatelyRender: false,
   });
+
+  // Push placeholder changes into the already-built editor: update the ref the
+  // Placeholder extension reads, then dispatch an empty transaction so its
+  // decorations (data-placeholder) are recomputed. aria-label follows too.
+  useEffect(() => {
+    composerPlaceholderRef.current = composerPlaceholder;
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dom.setAttribute("aria-label", composerPlaceholder);
+    editor.view.dispatch(editor.state.tr.setMeta("routa:placeholder", composerPlaceholder));
+  }, [composerPlaceholder, editor]);
 
   // Define handleSend AFTER editor is available, using the editor ref pattern
 
