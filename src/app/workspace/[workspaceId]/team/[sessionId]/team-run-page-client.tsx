@@ -27,28 +27,23 @@ import {
   buildLaneSnippets,
   extractAskUserQuestionPayload,
   extractDelegationSessionId,
-  extractGoalFromPrompt,
   extractHistoryText,
   findObjectiveText,
   getActorLabel,
-  inferCompletionEvent,
   inferDeliverableLabel,
   inferSessionDeliverableLabel,
   isLowSignalLeadMessage,
   mapAgentStatus,
   normalizeTaskStatus,
   resolveDelegationRosterSpecialistId,
-  resolveDelegationTarget,
   resolveRosterSpecialistId,
   sessionBadge,
   summarizeText,
   TEAM_LEAD_SPECIALIST_ID,
-  toMemberSessionSummary,
   type AgentSummary,
   type DeliverableItem,
   type PendingSessionQuestion,
   type SessionHistoryEntry,
-  type TeamActivityItem,
   type TeamMemberStatus,
   type SessionLaneItem,
   type SessionStreamSummary,
@@ -62,6 +57,14 @@ import {
   TeamMembersSection,
 } from "./team-run-page-sections";
 import { TeamRunSessionModal } from "./team-run-session-modal";
+import { buildCoordinationEvents } from "./team-run-events";
+import {
+  TeamRunContextPanel,
+  TeamRunEventsPanel,
+  TeamRunLinksPanel,
+  TeamRunPageLayout,
+  type TeamRunTabId,
+} from "./team-run-page-layout";
 import { TeamRunPageHeader } from "./team-run-page-header";
 import { useRealTeamRunParams } from "./use-real-team-run-params";
 import { useTranslation } from "@/i18n";
@@ -178,6 +181,9 @@ export function TeamRunPageClient() {
   const [timelineInputKey, setTimelineInputKey] = useState(0);
   const [repoSelection, setRepoSelection] = useState<RepoSelection | null>(null);
   const [isSwitchingTeamRun, setIsSwitchingTeamRun] = useState(false);
+  const [metadataError, setMetadataError] = useState(false);
+  const [activeTab, setActiveTab] = useState<TeamRunTabId>("conversation");
+  const pendingFocusRef = useRef<string | null>(null);
   const sessionBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastUpdateIndexRef = useRef(0);
   const pendingPromptSentRef = useRef<Set<string>>(new Set());
@@ -286,19 +292,29 @@ export function TeamRunPageClient() {
 
   const fetchRunMetadata = useCallback(async () => {
     const contextKey = `${workspaceId}:${sessionId}`;
-    const [sessionRes, sessionsRes, teamRunsRes, agentsRes] = await Promise.all([
-      desktopAwareFetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { cache: "no-store" }),
-      desktopAwareFetch(`/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}`, { cache: "no-store" }),
-      desktopAwareFetch(`/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}&surface=team`, { cache: "no-store" }),
-      desktopAwareFetch(`/api/agents?workspaceId=${encodeURIComponent(workspaceId)}`, { cache: "no-store" }),
+    // Each read fails on its own: only the current-session read drives the page error state.
+    const readJson = async (url: string): Promise<{ ok: boolean; data: Record<string, unknown> }> => {
+      try {
+        const res = await desktopAwareFetch(url, { cache: "no-store" });
+        if (!res.ok) return { ok: false, data: {} };
+        return { ok: true, data: await res.json().catch(() => ({})) };
+      } catch {
+        return { ok: false, data: {} };
+      }
+    };
+    const [sessionResult, sessionsResult, teamRunsResult, agentsResult] = await Promise.all([
+      readJson(`/api/sessions/${encodeURIComponent(sessionId)}`),
+      readJson(`/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}`),
+      readJson(`/api/sessions?workspaceId=${encodeURIComponent(workspaceId)}&surface=team`),
+      readJson(`/api/agents?workspaceId=${encodeURIComponent(workspaceId)}`),
     ]);
-
-    const sessionData = await sessionRes.json().catch(() => ({}));
-    const sessionsData = await sessionsRes.json().catch(() => ({}));
-    const teamRunsData = await teamRunsRes.json().catch(() => ({}));
-    const agentsData = await agentsRes.json().catch(() => ({}));
+    const sessionData = sessionResult.data as { session?: SessionInfo };
+    const sessionsData = sessionsResult.data as { sessions?: SessionInfo[] };
+    const teamRunsData = teamRunsResult.data as { sessions?: SessionInfo[] };
+    const agentsData = agentsResult.data as { agents?: AgentSummary[] };
 
     if (contextKeyRef.current !== contextKey) return;
+    setMetadataError(!sessionResult.ok || !sessionData?.session);
     if (sessionData?.session) {
       setSession(sessionData.session as SessionInfo);
     }
@@ -439,12 +455,23 @@ export function TeamRunPageClient() {
     }, delayMs);
   }, [flushTranscriptRefresh]);
 
+  // Tabs only render the selected panel, so a lane node exists only on the
+  // conversation tab: switch first, then scroll once the panel has mounted.
   const focusSessionBlock = useCallback((targetSessionId: string) => {
     setSelectedSessionId(targetSessionId);
-    const node = sessionBlockRefs.current[targetSessionId];
-    if (!node) return;
-    node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    pendingFocusRef.current = targetSessionId;
+    setActiveTab("conversation");
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "conversation" || !pendingFocusRef.current) return;
+    const targetSessionId = pendingFocusRef.current;
+    const frame = requestAnimationFrame(() => {
+      pendingFocusRef.current = null;
+      sessionBlockRefs.current[targetSessionId]?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, selectedSessionId]);
 
   const handleTimelinePrompt = useCallback((text: string) => {
     if (!sessionId) return;
@@ -628,6 +655,7 @@ export function TeamRunPageClient() {
         title: note.title,
         status: normalizeTaskStatus(note.metadata.taskStatus),
         details: note.content.trim() || undefined,
+        sessionId: note.metadata.childSessionId || undefined,
         children,
       };
     };
@@ -728,11 +756,6 @@ export function TeamRunPageClient() {
     [selectedSessionId, sessionStreams],
   );
 
-  const sessionStreamsBySessionId = useMemo(
-    () => new Map(sessionStreams.map((stream) => [stream.session.sessionId, stream])),
-    [sessionStreams],
-  );
-
   const latestChildSessionByRosterId = useMemo(() => {
     const map = new Map<string, SessionStreamSummary>();
     for (const stream of sessionStreams) {
@@ -781,180 +804,19 @@ export function TeamRunPageClient() {
     });
   }, [agents, rootHistory, session]);
 
-  const _coordinationItems = useMemo<TeamActivityItem[]>(() => {
-    const items: Array<TeamActivityItem & { sortKey: number }> = [];
-    const leadName = specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? "Agent Lead";
+  const leadName = specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? t.teamRedesign.session.leadFallbackName;
 
-    const requestEntry = rootHistory.find((entry) => entry.update?.sessionUpdate === "user_message");
-    if (requestEntry && session) {
-      items.push({
-        id: `${session.sessionId}-objective`,
-        type: "plan",
-        title: "Objective set",
-        actor: "User",
-        actorRoleId: "user",
-        target: leadName,
-        targetRoleId: TEAM_LEAD_SPECIALIST_ID,
-        timestamp: formatRelativeTime(session.createdAt),
-        summary: extractGoalFromPrompt(extractHistoryText(requestEntry.update)) ?? extractHistoryText(requestEntry.update),
-        sessionId: session.sessionId,
-        sortKey: new Date(session.createdAt).getTime(),
-      });
-    }
-
-    const latestSpec = notesHook.notes
-      .filter((note) => note.metadata.type === "spec")
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-    if (latestSpec) {
-      items.push({
-        id: `spec-${latestSpec.id}`,
-        type: "plan",
-        title: "Lead created plan",
-        actor: leadName,
-        actorRoleId: TEAM_LEAD_SPECIALIST_ID,
-        timestamp: formatRelativeTime(latestSpec.updatedAt),
-        summary: extractGoalFromPrompt(latestSpec.content) ?? summarizeText(latestSpec.content),
-        sessionId: latestSpec.sessionId ?? sessionId,
-        sortKey: new Date(latestSpec.updatedAt).getTime(),
-      });
-    }
-
-    rootHistory.forEach((entry, index) => {
-      const update = entry.update;
-      const updateType = update?.sessionUpdate;
-      if (!updateType || !session) return;
-      const sortKey = new Date(session.createdAt).getTime() + index / 1000;
-
-      if (updateType === "tool_call_update" && getToolEventLabel(update as Record<string, unknown>).includes("delegate_task")) {
-        const target = resolveDelegationTarget(update) ?? "team member";
-        const targetRosterId = resolveDelegationRosterSpecialistId(update);
-        const linkedStream: SessionStreamSummary | undefined = targetRosterId
-          ? latestChildSessionByRosterId.get(targetRosterId)
-          : undefined;
-        items.push({
-          id: `${sessionId}-delegate-${index}`,
-          type: update.status === "failed" ? "blocked" : "assign",
-          title: update.status === "failed" ? `Dispatch failed for ${target}` : `Task assigned to ${target}`,
-          actor: leadName,
-          actorRoleId: TEAM_LEAD_SPECIALIST_ID,
-          target,
-          targetRoleId: targetRosterId,
-          timestamp: formatRelativeTime(session.createdAt),
-          summary: summarizeText(
-            typeof update.rawInput?.additionalInstructions === "string"
-              ? update.rawInput.additionalInstructions
-              : update.rawOutput?.output,
-          ),
-          sessionId: linkedStream?.session.sessionId ?? session.sessionId,
-          memberSession: toMemberSessionSummary(
-            linkedStream,
-            linkedStream?.session ?? session,
-            linkedStream?.actor ?? target,
-            targetRosterId ?? resolveRosterSpecialistId(linkedStream?.session ?? session, agentsById, delegatedRosterIdsBySessionId),
-          ),
-          sortKey,
-        });
-      }
-
-      if (updateType === "tool_call_update" && getToolEventLabel(update as Record<string, unknown>).includes("create_agent")) {
-        const target = typeof update.rawInput?.name === "string" ? update.rawInput.name : "teammate";
-        const targetRole = typeof update.rawInput?.role === "string" ? update.rawInput.role : undefined;
-        items.push({
-          id: `${sessionId}-create-agent-${index}`,
-          type: "assign",
-          title: `Created teammate ${target}`,
-          actor: leadName,
-          actorRoleId: TEAM_LEAD_SPECIALIST_ID,
-          target,
-          targetRoleId: targetRole,
-          timestamp: formatRelativeTime(session.createdAt),
-          summary: summarizeText(targetRole ? `${target} joined as ${targetRole}` : undefined),
-          sortKey,
-        });
-      }
-    });
-
-    for (const child of descendantSessions) {
-      const actor = getActorLabel(child, specialistsById, agentsById, delegatedRosterIdsBySessionId);
-      const childRoleId = resolveRosterSpecialistId(child, agentsById, delegatedRosterIdsBySessionId) ?? child.specialistId;
-      const childCreatedAt = new Date(child.createdAt).getTime();
-
-      items.push({
-        id: `${child.sessionId}-opened`,
-        type: "assign",
-        title: `Opened session for ${actor}`,
-        actor: leadName,
-        actorRoleId: TEAM_LEAD_SPECIALIST_ID,
-        target: actor,
-        targetRoleId: childRoleId,
-        timestamp: formatRelativeTime(child.createdAt),
-        summary: summarizeText(child.name ?? child.specialistId ?? child.role ?? child.provider),
-        sessionId: child.sessionId,
-        memberSession: toMemberSessionSummary(
-          sessionStreamsBySessionId.get(child.sessionId),
-          child,
-          actor,
-          childRoleId,
-        ),
-        sortKey: childCreatedAt,
-      });
-
-      const history = historiesBySessionId[child.sessionId] ?? [];
-      history.forEach((entry, index) => {
-        const update = entry.update;
-        const updateType = update?.sessionUpdate;
-        if (!updateType || !update) return;
-        const sortKey = childCreatedAt + index / 1000;
-
-        if (updateType === "task_completion") {
-          const completion = inferCompletionEvent(child, actor, update);
-          items.push({
-            id: `${child.sessionId}-completion-${index}`,
-            type: completion.type,
-            title: completion.title,
-            actor,
-            actorRoleId: childRoleId,
-            timestamp: formatRelativeTime(child.createdAt),
-            summary: completion.summary,
-            sessionId: child.sessionId,
-            memberSession: toMemberSessionSummary(
-              sessionStreamsBySessionId.get(child.sessionId),
-              child,
-              actor,
-              childRoleId,
-            ),
-            sortKey,
-          });
-          return;
-        }
-
-        if (updateType === "acp_status" && update.status === "error") {
-          items.push({
-            id: `${child.sessionId}-error-${index}`,
-            type: "blocked",
-            title: `${actor} hit a runtime error`,
-            actor,
-            actorRoleId: childRoleId,
-            timestamp: formatRelativeTime(child.createdAt),
-            summary: summarizeText(update.error),
-            sessionId: child.sessionId,
-            memberSession: toMemberSessionSummary(
-              sessionStreamsBySessionId.get(child.sessionId),
-              child,
-              actor,
-              childRoleId,
-            ),
-            sortKey,
-          });
-        }
-      });
-    }
-
-    return items
-      .sort((a, b) => b.sortKey - a.sortKey)
-      .slice(0, 24)
-      .map(({ sortKey: _sortKey, ...item }) => item);
-  }, [agentsById, delegatedRosterIdsBySessionId, descendantSessions, historiesBySessionId, latestChildSessionByRosterId, notesHook.notes, rootHistory, session, sessionId, sessionStreamsBySessionId, specialistsById]);
+  const coordinationEvents = useMemo(() => buildCoordinationEvents({
+    session,
+    sessionId,
+    rootHistory,
+    notes: notesHook.notes,
+    descendantSessions,
+    historiesBySessionId,
+    leadName,
+    actorOf: (child) => getActorLabel(child, specialistsById, agentsById, delegatedRosterIdsBySessionId),
+    linkedSessionIdForRoster: (rosterId) => latestChildSessionByRosterId.get(rosterId)?.session.sessionId,
+  }, t.teamRedesign), [agentsById, delegatedRosterIdsBySessionId, descendantSessions, historiesBySessionId, latestChildSessionByRosterId, leadName, notesHook.notes, rootHistory, session, sessionId, specialistsById, t.teamRedesign]);
 
   const latestSessionBySpecialistId = useMemo(() => {
     const map = new Map<string, SessionStreamSummary>();
@@ -981,14 +843,14 @@ export function TeamRunPageClient() {
     const leadStream = sessionStreams.find((stream) => stream.session.sessionId === sessionId);
     const leadItem: TeamMemberItem = {
       id: TEAM_LEAD_SPECIALIST_ID,
-      actor: specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? "Agent Lead",
+      actor: leadName,
       roleId: TEAM_LEAD_SPECIALIST_ID,
       roleLabel: TEAM_LEAD_SPECIALIST_ID,
       status: session?.acpStatus === "error" ? "blocked" : "working",
       lastUpdatedLabel: leadStream?.lastUpdatedLabel ?? formatRelativeTime(session?.createdAt ?? new Date().toISOString()),
       sessionId,
       preview: leadStream?.preview,
-      avatarLabel: avatarInitials(specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? "Agent Lead"),
+      avatarLabel: avatarInitials(leadName),
     };
 
     if (createdAgents.length > 0) {
@@ -1006,7 +868,7 @@ export function TeamRunPageClient() {
             status: linkedStream ? mapAgentStatus(linkedStream.session.acpStatus === "error" ? "ERROR" : agent.status) : mapAgentStatus(agent.status),
             lastUpdatedLabel: linkedStream?.lastUpdatedLabel ?? formatRelativeTime(agent.updatedAt ?? agent.createdAt),
             sessionId: linkedStream?.session.sessionId,
-            preview: linkedStream?.preview ?? "Created and waiting for task dispatch",
+            preview: linkedStream?.preview ?? t.teamRedesign.session.createdAgentWaiting,
             avatarLabel: avatarInitials(displayLabel),
           } satisfies TeamMemberItem;
         }),
@@ -1052,7 +914,7 @@ export function TeamRunPageClient() {
         avatarLabel: avatarInitials(latest ? getActorLabel(latest.session, specialistsById, agentsById, delegatedRosterIdsBySessionId) : specialist.name),
       };
     });
-  }, [agentsById, createdAgents, delegatedRosterIdsBySessionId, historiesBySessionId, latestSessionBySpecialistId, session, sessionId, sessionStreams, sessionStreamByAgentId, specialists, specialistsById]);
+  }, [agentsById, createdAgents, delegatedRosterIdsBySessionId, historiesBySessionId, latestSessionBySpecialistId, leadName, session, sessionId, sessionStreams, sessionStreamByAgentId, specialists, specialistsById, t.teamRedesign.session.createdAgentWaiting]);
 
   const pendingQuestionsBySessionId = useMemo(() => {
     const result = new Map<string, PendingSessionQuestion>();
@@ -1140,7 +1002,7 @@ export function TeamRunPageClient() {
         id: `note-${note.id}`,
         label: inferDeliverableLabel(note, ownerId),
         title: note.title,
-        owner: sourceSession ? getActorLabel(sourceSession, specialistsById, agentsById, delegatedRosterIdsBySessionId) : "Agent Lead",
+        owner: sourceSession ? getActorLabel(sourceSession, specialistsById, agentsById, delegatedRosterIdsBySessionId) : leadName,
         status:
           note.metadata.type === "spec"
             ? "approved"
@@ -1180,7 +1042,7 @@ export function TeamRunPageClient() {
     return [...noteDeliverables, ...sessionDeliverables]
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 8);
-  }, [agentsById, allRunSessions, delegatedRosterIdsBySessionId, descendantSessions, historiesBySessionId, notesHook.notes, specialistsById]);
+  }, [agentsById, allRunSessions, delegatedRosterIdsBySessionId, descendantSessions, historiesBySessionId, leadName, notesHook.notes, specialistsById]);
 
   const completionByAgentId = useMemo(() => {
     const map = new Map<string, NonNullable<SessionHistoryEntry["update"]>>();
@@ -1215,9 +1077,9 @@ export function TeamRunPageClient() {
     const leadLane: SessionLaneItem = {
       id: `lane-${sessionId}`,
       sessionId,
-      actor: specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? "Agent Lead",
+      actor: leadName,
       roleId: TEAM_LEAD_SPECIALIST_ID,
-      roleLabel: specialistsById.get(TEAM_LEAD_SPECIALIST_ID)?.name ?? "Agent Lead",
+      roleLabel: leadName,
       badge: "lead",
       sessionName: session?.name ?? sessionId,
       status: leadStatus,
@@ -1243,7 +1105,7 @@ export function TeamRunPageClient() {
         if (completion?.completionSummary && !isLowSignalLeadMessage(completion.completionSummary)) {
           snippets.push({
             id: `${stream.session.sessionId}-report-back`,
-            label: "Report back",
+            label: "report-back",
             text: completion.completionSummary,
             kind: "report",
             tone: normalizeTaskStatus(completion.taskStatus) === "blocked" ? "blocked" : "complete",
@@ -1258,7 +1120,7 @@ export function TeamRunPageClient() {
             ?? specialistsById.get(roleId ?? "")?.name
             ?? stream.session.role
             ?? stream.session.specialistId
-            ?? "Member",
+            ?? t.teamRedesign.session.memberFallback,
           badge: stream.badge,
           sessionName: stream.session.name ?? stream.session.sessionId,
           status: member?.status ?? "working",
@@ -1280,7 +1142,7 @@ export function TeamRunPageClient() {
       });
 
     return [leadLane, ...childLanes];
-  }, [agentsById, completionByAgentId, delegatedRosterIdsBySessionId, historiesBySessionId, leadMessages, messagesBySessionId, pendingQuestionsBySessionId, rootHistory, selectedSessionStream, session, sessionId, sessionStreams, specialistsById, teamMembers]);
+  }, [agentsById, completionByAgentId, delegatedRosterIdsBySessionId, historiesBySessionId, leadMessages, leadName, messagesBySessionId, pendingQuestionsBySessionId, rootHistory, selectedSessionStream, session, sessionId, sessionStreams, specialistsById, t.teamRedesign.session.memberFallback, teamMembers]);
   const memberLaneByToolCallId = useMemo(() => {
     const toolCallMap = new Map<string, SessionLaneItem>();
     for (const entry of rootHistory) {
@@ -1373,9 +1235,10 @@ export function TeamRunPageClient() {
           selectedSessionId={sessionId}
           selectedSessionName={selectedTeamRunName}
           teamRuns={teamRuns}
+          session={session}
           isSwitchingTeamRun={isSwitchingTeamRun}
           backLabel={t.common.back}
-          refreshLabel={t.common.refresh || "Refresh"}
+          refreshLabel={t.common.refresh}
           openLabel={t.team.openSession}
           activeLabel={t.team.active}
           waitingLabel={t.team.waitingForDelegation}
@@ -1383,15 +1246,14 @@ export function TeamRunPageClient() {
           onSwitchTeamRun={handleSwitchTeamRun}
         />
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[248px_minmax(0,1fr)_280px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-          <ObjectiveSidebarSection
-            objective={objective}
-            taskTree={taskTree}
-            deliverables={deliverables}
-            onFocusSession={focusSessionBlock}
-          />
-
-          <div className="flex min-h-0 flex-col">
+        <TeamRunPageLayout
+          copy={t.teamRedesign}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          loading={!session && !metadataError}
+          error={metadataError}
+          onRetry={handleRefreshTeamRun}
+          conversation={(
             <SessionTimelineSection
               leadMessages={displayedLeadMessages}
               memberLaneByToolCallId={displayedMemberLaneByToolCallId}
@@ -1404,40 +1266,57 @@ export function TeamRunPageClient() {
                 sessionBlockRefs.current[nextSessionId] = node;
               }}
             />
-
-            <div className="shrink-0 border-t border-default bg-surface px-3 py-2">
-              <TiptapInput
-                key={timelineInputKey}
-                onSend={(text) => handleTimelinePrompt(text)}
-                disabled={!acpConnected || showRunLoadingState}
-                loading={acpLoading}
-                skills={[]}
-                repoSkills={[]}
-                providers={acpProviders}
-                selectedProvider={acpSelectedProvider}
-                onProviderChange={acpSetProvider}
-                sessions={[]}
-                activeSessionMode={session?.modeId}
-                repoSelection={repoSelection}
-                onRepoChange={setRepoSelection}
-                additionalRepos={codebases.map((codebase) => ({
-                  name: codebase.label ?? codebase.repoPath.split("/").pop() ?? codebase.repoPath,
-                  path: codebase.repoPath,
-                  branch: codebase.branch,
-                }))}
-                onFetchModels={acp.listProviderModels}
-                agentRole={session?.role}
-                placeholder={showRunLoadingState ? t.team.loadingTeamRun : undefined}
-              />
-            </div>
-          </div>
-
-          <TeamMembersSection
-            teamMembers={teamMembers}
-            selectedSessionId={selectedSessionStream?.session.sessionId}
-            onFocusSession={focusSessionBlock}
-          />
-        </div>
+          )}
+          events={(
+            <TeamRunEventsPanel
+              copy={t.teamRedesign}
+              events={coordinationEvents}
+              onOpenMemberSession={(nextSessionId) => setSelectedSessionForModal(nextSessionId)}
+            />
+          )}
+          evidence={(
+            <ObjectiveSidebarSection
+              objective={objective}
+              taskTree={taskTree}
+              deliverables={deliverables}
+              onFocusSession={focusSessionBlock}
+            />
+          )}
+          composer={(
+            <TiptapInput
+              key={timelineInputKey}
+              onSend={(text) => handleTimelinePrompt(text)}
+              disabled={!acpConnected || showRunLoadingState}
+              loading={acpLoading}
+              skills={[]}
+              repoSkills={[]}
+              providers={acpProviders}
+              selectedProvider={acpSelectedProvider}
+              onProviderChange={acpSetProvider}
+              sessions={[]}
+              activeSessionMode={session?.modeId}
+              repoSelection={repoSelection}
+              onRepoChange={setRepoSelection}
+              additionalRepos={codebases.map((codebase) => ({
+                name: codebase.label ?? codebase.repoPath.split("/").pop() ?? codebase.repoPath,
+                path: codebase.repoPath,
+                branch: codebase.branch,
+              }))}
+              onFetchModels={acp.listProviderModels}
+              agentRole={session?.role}
+              placeholder={showRunLoadingState ? t.team.loadingTeamRun : undefined}
+            />
+          )}
+          context={<TeamRunContextPanel copy={t.teamRedesign} session={session} workspaceTitle={workspace?.title ?? workspaceId} />}
+          members={(
+            <TeamMembersSection
+              teamMembers={teamMembers}
+              selectedSessionId={selectedSessionStream?.session.sessionId}
+              onFocusSession={focusSessionBlock}
+            />
+          )}
+          links={<TeamRunLinksPanel copy={t.teamRedesign} sessionId={sessionId} workspaceId={workspaceId} />}
+        />
       </div>
 
       {selectedSessionForModal && selectedSessionStream && (

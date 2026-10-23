@@ -19,9 +19,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-vi.mock("@/i18n", () => ({
+vi.mock("@/i18n", async () => {
+  const { enTeamRedesign } = await vi.importActual<typeof import("@/i18n/locales/en-team-redesign")>("@/i18n/locales/en-team-redesign");
+  return {
   useTranslation: () => ({
     t: {
+      teamRedesign: enTeamRedesign.teamRedesign,
       common: {
         back: "Back",
         refresh: "Refresh",
@@ -35,7 +38,8 @@ vi.mock("@/i18n", () => ({
       },
     },
   }),
-}));
+  };
+});
 
 vi.mock("../use-real-team-run-params", () => ({
   useRealTeamRunParams: () => ({
