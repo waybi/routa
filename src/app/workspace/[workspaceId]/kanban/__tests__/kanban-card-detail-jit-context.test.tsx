@@ -28,8 +28,8 @@ vi.mock("../use-runtime-fitness-status", async () => {
   };
 });
 
-// The Construction tab also shows run records; keep the run ledger off the
-// network here so these tests only see history-memory requests.
+// Keep the run ledger off the network (the Runs tab reads it), so
+// these tests only see history-memory requests.
 vi.mock("../use-task-runs", () => ({ useTaskRuns: () => ({ runs: [], error: null }) }));
 
 const board = detailBoard;
@@ -185,7 +185,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
     );
 
     expect(desktopAwareFetch).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
 
     expect(await screen.findByText("Historical issues")).toBeTruthy();
@@ -373,7 +373,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
     await screen.findByText("History Summary");
 
@@ -470,7 +470,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
 
     expect(screen.getByText("Saved History Memory")).toBeTruthy();
     expect(screen.getByText("Start from the Kanban API and blocked interval reconstruction before touching the dashboard.")).toBeTruthy();
@@ -527,15 +527,15 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
 
     const firstRender = render(<KanbanCardDetail {...props} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
-    expect(screen.getByRole("tab", { name: "Construction" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
+    expect(screen.getByRole("tab", { name: "History Memory" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Saved History Memory")).toBeTruthy();
 
     firstRender.unmount();
 
     render(<KanbanCardDetail {...props} />);
 
-    expect(screen.getByRole("tab", { name: "Construction" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "History Memory" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Saved History Memory")).toBeTruthy();
     expect(screen.queryByText("Review Feedback")).toBeNull();
   });
@@ -591,7 +591,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
 
     expect(screen.getByText("History memory becomes available after backlog refinement confirms feature or file hints for this card.")).toBeTruthy();
@@ -685,7 +685,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
 
     await waitFor(() => {
@@ -781,7 +781,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
 
     await waitFor(() => {
@@ -877,7 +877,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
     await waitFor(() => {
       expect(onPatchTask).toHaveBeenCalledWith(
@@ -904,7 +904,7 @@ describe("KanbanCardDetail JIT context (history memory)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History Memory" }));
     fireEvent.click(screen.getByRole("button", { name: "Show History Memory" }));
     await waitFor(() => {
       expect(onPatchTask).toHaveBeenCalledWith(

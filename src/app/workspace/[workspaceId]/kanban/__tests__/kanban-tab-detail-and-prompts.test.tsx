@@ -99,7 +99,7 @@ describe("KanbanCardDetail repository health", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     fireEvent.click(screen.getByText("Repo").closest("summary")!);
 
     expect(await screen.findByText("Repo Health")).toBeTruthy();
@@ -158,7 +158,7 @@ describe("KanbanCardDetail repository health", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     expect(screen.getByText(/Current run failed on Auggie:/i)).toBeTruthy();
     expect(screen.getByText(/403 Forbidden/i)).toBeTruthy();
   });
@@ -218,7 +218,7 @@ describe("KanbanCardDetail repository health", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     expect(screen.getByText(/Current run failed on Claude Code:/i)).toBeTruthy();
     expect(screen.queryByText(/Current run failed on Codex:/i)).toBeNull();
   });
@@ -283,7 +283,7 @@ describe("KanbanCardDetail repository health", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     expect(screen.getAllByText(/Workspace default · GATE · Remote Review/i).length).toBeGreaterThan(0);
   });
 
@@ -419,14 +419,14 @@ describe("KanbanCardDetail repository health", () => {
 
     expect(screen.getAllByRole("tab").slice(0, 3).map((tab) => tab.textContent)).toEqual([
       "Overview",
-      "Construction",
-      "Changes & Evidence",
+      "Story Readiness",
+      "Execution",
     ]);
     expect(screen.getByRole("tab", { name: "Overview" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
     expect(screen.getAllByText("Blocked for Dev").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("tab", { name: "Changes & Evidence" }));
-    expect(screen.getByRole("tab", { name: "Changes & Evidence" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Evidence Bundle" }));
+    expect(screen.getByRole("tab", { name: "Evidence Bundle" })).toBeTruthy();
     expect(screen.getAllByText("Evidence incomplete").length).toBeGreaterThan(0);
     expect(screen.getByText(/test_results/i)).toBeTruthy();
     expect(screen.queryByText("Latest Run")).toBeNull();
@@ -524,7 +524,7 @@ describe("KanbanCardDetail repository health", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: "Construction" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Runs" })).toBeTruthy();
   });
 
   it("shows full review feedback in the description tab after review sends the card back", () => {
@@ -642,7 +642,7 @@ describe("KanbanCardActivityBar", () => {
     expect(screen.getByTitle(runOneTitle, keepLineBreaks).getAttribute("title")?.split("\n")).toHaveLength(4);
     expect(screen.getByLabelText("Backlog")).toBeTruthy();
     expect(screen.getByLabelText("Backlog").getAttribute("title")).toBeNull();
-    expect(screen.getByTitle(runOneTitle, keepLineBreaks).parentElement?.className).toContain("flex-wrap");
+    expect(screen.getByTitle(runOneTitle, keepLineBreaks).parentElement?.className).not.toContain("flex-wrap");
   });
 
   it("renders a labelled hide-session-pane pill next to the run tabs only when onCloseSession is provided", async () => {

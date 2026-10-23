@@ -6,8 +6,10 @@ import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 import { createDetailTask, detailBoard } from "./kanban-detail-fixtures";
 
 /**
- * Card detail redesign (card 3/6): four tabs, toolbar, property rail,
- * load states and keyboard. Kept out of kanban-tab.test.tsx (frozen size).
+ * Card detail with the eight tabs of the detail before the redesign: tab
+ * order and contents, toolbar, the meta strip under the title, delete at
+ * the bottom, load states and keyboard. Kept out of kanban-tab.test.tsx
+ * (frozen size).
  */
 
 const { desktopAwareFetch } = vi.hoisted(() => ({ desktopAwareFetch: vi.fn() }));
@@ -58,31 +60,38 @@ function activeTabName(): string | null {
   return screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent ?? null;
 }
 
-describe("card detail redesign: tabs (AC4/AC14)", () => {
-  it("shows exactly the four tabs in order", () => {
-    renderDetail({ id: "four-tabs" });
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Overview",
-      "Construction",
-      "Changes & Evidence",
-      "Completion",
-    ]);
-    expect(screen.queryByRole("tab", { name: /Plain Language|人话版/ })).toBeNull();
+const EN_TABS = ["Overview", "Story Readiness", "Execution", "History Memory", "Changes", "Evidence Bundle", "Runs", "Completion"];
+
+describe("card detail: eight tabs (AC2)", () => {
+  it("shows exactly the eight tabs in order", () => {
+    renderDetail({ id: "eight-tabs" });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(EN_TABS);
+    expect(screen.queryByRole("tab", { name: /Plain Language|人话版|Construction|Changes & Evidence/ })).toBeNull();
   });
 
-  it("moves between the four tabs with the arrow keys", () => {
+  it("the tab row scrolls sideways and never wraps", () => {
+    renderDetail({ id: "tab-scroll" }, { fullWidth: false });
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).toContain("overflow-x-auto");
+    expect(tablist.className).toContain("whitespace-nowrap");
+    expect(tablist.className).not.toContain("flex-wrap");
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab.querySelector("span")?.className).toContain("whitespace-nowrap");
+    }
+  });
+
+  it("moves between the tabs with the arrow keys", () => {
     renderDetail({ id: "arrow-tabs" });
-    const overview = screen.getByRole("tab", { name: "Overview" });
-    fireEvent.keyDown(overview, { key: "ArrowRight" });
-    expect(activeTabName()).toBe("Construction");
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Construction" }), { key: "ArrowRight" });
-    expect(activeTabName()).toBe("Changes & Evidence");
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Changes & Evidence" }), { key: "ArrowLeft" });
-    expect(activeTabName()).toBe("Construction");
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Overview" }), { key: "ArrowRight" });
+    expect(activeTabName()).toBe("Story Readiness");
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Story Readiness" }), { key: "ArrowRight" });
+    expect(activeTabName()).toBe("Execution");
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Execution" }), { key: "ArrowLeft" });
+    expect(activeTabName()).toBe("Story Readiness");
   });
 });
 
-describe("card detail redesign: toolbar and title (AC2)", () => {
+describe("card detail: toolbar and title (AC2)", () => {
   it("has one close button, at the end of the sticky toolbar", () => {
     const { onClose } = renderDetail({ id: "one-close" });
     const closeButtons = screen.getAllByRole("button", { name: /close card detail/i });
@@ -120,7 +129,7 @@ describe("card detail redesign: toolbar and title (AC2)", () => {
   });
 });
 
-describe("card detail redesign: overview (AC5)", () => {
+describe("card detail: overview and story readiness (AC3)", () => {
   it("renders the five overview blocks and lets description and test cases enter edit mode", () => {
     renderDetail({
       id: "overview-blocks",
@@ -144,7 +153,9 @@ describe("card detail redesign: overview (AC5)", () => {
     expect(within(notes).getByText("agent-1")).toBeTruthy();
     expect(screen.getByTestId("kanban-completion-report-pointer")).toBeTruthy();
     expect(screen.getByText("- Opens on overview")).toBeTruthy();
-    expect(screen.getByTestId("kanban-detail-readiness")).toBeTruthy();
+    // Story readiness has its own tab again.
+    expect(screen.queryByTestId("kanban-detail-readiness")).toBeNull();
+    expect(screen.queryByTestId("kanban-story-readiness")).toBeNull();
 
     fireEvent.click(within(screen.getByTestId("kanban-detail-description")).getByRole("button", { name: "Edit" }));
     expect(within(screen.getByTestId("kanban-detail-description")).getByRole("button", { name: "Save" })).toBeTruthy();
@@ -152,36 +163,36 @@ describe("card detail redesign: overview (AC5)", () => {
     expect(screen.getByRole("textbox", { name: "Test Cases" })).toBeTruthy();
   });
 
-  it("story readiness shows 'Pending evaluation' instead of passing fields it has no verdict for", () => {
+  it("story readiness tab shows 'Pending evaluation' instead of passing fields it has no verdict for", () => {
     renderDetail({ id: "readiness-pending" });
-    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
-    fireEvent.click(within(screen.getByTestId("kanban-detail-readiness")).getByText("Story Readiness").closest("summary")!);
+    fireEvent.click(screen.getByRole("tab", { name: "Story Readiness" }));
+    expect(within(screen.getByTestId("kanban-detail-readiness")).getByText("Story Readiness")).toBeTruthy();
     const readiness = screen.getByTestId("kanban-story-readiness");
     expect(within(readiness).getAllByText("Pending evaluation").length).toBeGreaterThanOrEqual(13);
     expect(within(readiness).queryByText("Present")).toBeNull();
   });
 });
 
-describe("card detail redesign: construction (AC6)", () => {
-  it("keeps the advanced area collapsed until opened, then shows the merged model picker with Follow default", async () => {
-    renderDetail({ id: "advanced-closed" });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+describe("card detail: execution (AC3/AC17)", () => {
+  it("execution shows the card session override and fallback chain directly, with no Advanced area", async () => {
+    renderDetail({ id: "no-advanced" });
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
 
-    const advanced = screen.getByTestId("kanban-detail-advanced");
-    expect(advanced.hasAttribute("open")).toBe(false);
-    expect(screen.queryByText("Card session override")).toBeNull();
-    expect(screen.queryByTestId("kanban-detail-model-effort-override")).toBeNull();
+    const panel = screen.getByTestId("kanban-detail-panel-execution");
+    expect(within(panel).queryByText("Advanced")).toBeNull();
+    expect(within(panel).queryByText("高级")).toBeNull();
+    expect(within(panel).getByText("Execution")).toBeTruthy();
+    expect(within(panel).getByText("Card session override")).toBeTruthy();
+    expect(within(panel).getByTestId("kanban-detail-fallback-chain")).toBeTruthy();
+    // Handoffs and GitHub live in the Runs tab now.
+    expect(within(panel).queryByTestId("kanban-detail-handoffs")).toBeNull();
+    expect(within(panel).queryByTestId("kanban-detail-github")).toBeNull();
 
-    fireEvent.click(within(advanced).getByText("Advanced").closest("summary")!);
-    expect(advanced.hasAttribute("open")).toBe(true);
     fireEvent.click(screen.getByText("Card session override").closest("summary")!);
     expect(screen.getByTestId("kanban-detail-model-effort-override")).toBeTruthy();
     fireEvent.click(screen.getByTestId("kanban-detail-override-model-effort"));
-    const panel = await screen.findByTestId("kanban-detail-override-model-effort-panel");
-    expect(within(panel).getAllByRole("option")[0]?.textContent).toBe("Follow default");
-    expect(within(advanced).getByTestId("kanban-detail-fallback-chain")).toBeTruthy();
-    expect(within(advanced).getByTestId("kanban-detail-handoffs")).toBeTruthy();
-    expect(within(advanced).getByTestId("kanban-detail-github")).toBeTruthy();
+    const picker = await screen.findByTestId("kanban-detail-override-model-effort-panel");
+    expect(within(picker).getAllByRole("option")[0]?.textContent).toBe("Follow default");
   });
 
   it("does not offer Recover for a session that ended normally", () => {
@@ -193,11 +204,13 @@ describe("card detail redesign: construction (AC6)", () => {
     }, {
       boardColumns: [{ id: "dev", name: "Dev", position: 0, stage: "dev", automation: { enabled: true, steps: [{ id: "s1", providerId: "dsh", role: "CRAFTER" }] } }],
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     expect(screen.getByTestId("kanban-detail-run").textContent).toBe("Rerun");
     expect(screen.queryByRole("button", { name: /Recover Live Run/i })).toBeNull();
     expect(screen.queryByText(/Current run failed/i)).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
     expect(screen.getAllByText("Ended").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Recover|Resume/i })).toBeNull();
   });
 
   it("offers Recover only for an expired embedded session failure", () => {
@@ -210,7 +223,7 @@ describe("card detail redesign: construction (AC6)", () => {
     }, {
       boardColumns: [{ id: "dev", name: "Dev", position: 0, stage: "dev", automation: { enabled: true, steps: [{ id: "s1", providerId: "dsh", role: "CRAFTER" }] } }],
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
     expect(screen.getByRole("button", { name: /Recover Live Run/i })).toBeTruthy();
   });
 
@@ -219,58 +232,97 @@ describe("card detail redesign: construction (AC6)", () => {
       id: "run-model",
       laneSessions: [{ sessionId: "session-a", columnId: "dev", provider: "dsh", status: "completed", startedAt: "2026-10-22T00:00:00.000Z" }],
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Runs" }));
     expect(screen.getByTestId("kanban-run-model-chip").textContent).toBe("Model not recorded");
     expect(screen.getByTestId("kanban-run-effort-chip").textContent).toBe("Effort not recorded");
   });
 });
 
-describe("card detail redesign: property rail (AC9)", () => {
+describe("card detail: meta strip under the title (AC5)", () => {
   const unmergedTask: Partial<TaskInfo> = {
     columnId: "done",
     deliveryLanding: { landedOnBase: false, commitsSinceBase: 3 } as TaskInfo["deliveryLanding"],
   };
 
+  it("sits after the title and before the tab list; no property rail", () => {
+    renderDetail({ id: "strip-order" });
+    const strip = screen.getByTestId("kanban-detail-meta-strip");
+    const title = screen.getByRole("textbox", { name: "Card title" });
+    const tablist = screen.getByRole("tablist");
+    expect(title.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(strip.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("kanban-detail-property-rail")).toBeNull();
+  });
+
+  it("a bare card shows only priority and column (no 'Pending evaluation')", () => {
+    renderDetail({ id: "strip-bare" });
+    const strip = screen.getByTestId("kanban-detail-meta-strip");
+    expect(within(strip).getByTestId("kanban-detail-meta-priority")).toBeTruthy();
+    expect(within(strip).getByTestId("kanban-detail-meta-column").textContent).toBe("Columnbacklog");
+    expect(strip.querySelectorAll("[data-testid^='kanban-detail-meta-']")).toHaveLength(2);
+    expect(within(strip).queryByText("Pending evaluation")).toBeNull();
+    expect(within(strip).queryByTestId("kanban-detail-unmerged-badge")).toBeNull();
+  });
+
   it("shows the amber 'Not merged to base' badge when landing says unmerged", () => {
-    renderDetail({ id: "rail-unmerged", ...unmergedTask });
-    const rail = screen.getByTestId("kanban-detail-property-rail");
-    expect(within(rail).getByTestId("kanban-detail-unmerged-badge").textContent).toBe("Not merged to base");
-    expect(within(rail).getByTestId("kanban-detail-unmerged-badge").closest("[data-tone]")?.getAttribute("data-tone")).toBe("attention");
+    renderDetail({ id: "strip-unmerged", ...unmergedTask });
+    const strip = screen.getByTestId("kanban-detail-meta-strip");
+    expect(within(strip).getByTestId("kanban-detail-unmerged-badge").textContent).toBe("Not merged to base");
+    expect(within(strip).getByTestId("kanban-detail-unmerged-badge").closest("[data-tone]")?.getAttribute("data-tone")).toBe("attention");
   });
 
-  it("hides the badge without clear landing evidence", () => {
-    renderDetail({ id: "rail-unknown", columnId: "done" });
+  it("hides the badge without clear landing evidence and shows plain text when merged", () => {
+    renderDetail({ id: "strip-unknown", columnId: "done" });
     expect(screen.queryByTestId("kanban-detail-unmerged-badge")).toBeNull();
-    renderDetail({ id: "rail-landed", columnId: "done", deliveryLanding: { landedOnBase: true, commitsSinceBase: 2 } as TaskInfo["deliveryLanding"] });
+    expect(screen.queryByTestId("kanban-detail-meta-merged")).toBeNull();
+    renderDetail({ id: "strip-landed", columnId: "done", deliveryLanding: { landedOnBase: true, commitsSinceBase: 2 } as TaskInfo["deliveryLanding"] });
     expect(screen.queryByTestId("kanban-detail-unmerged-badge")).toBeNull();
+    expect(screen.getByTestId("kanban-detail-meta-merged").textContent).toContain("Merged to base");
   });
 
-  it("shows GitHub only when linked and lists the labels", () => {
-    renderDetail({ id: "rail-labels", labels: ["req:routa-redesign", "dsh-origin:session-1"] });
-    const rail = screen.getByTestId("kanban-detail-property-rail");
-    expect(within(rail).queryByText("GitHub")).toBeNull();
-    expect(within(rail).getByText("req:routa-redesign")).toBeTruthy();
-    expect(within(rail).getByText("dsh-origin:session-1")).toBeTruthy();
+  it("shows GitHub only when linked (a link when there is a URL) and one chip per label", () => {
+    const { unmount } = renderDetail({ id: "strip-labels", labels: ["req:routa-redesign", "dsh-origin:session-1"] });
+    const strip = screen.getByTestId("kanban-detail-meta-strip");
+    expect(within(strip).queryByText("GitHub")).toBeNull();
+    expect(within(strip).getAllByTestId("kanban-detail-meta-label").map((chip) => chip.textContent)).toEqual(["req:routa-redesign", "dsh-origin:session-1"]);
+    unmount();
+    renderDetail({ id: "strip-github", githubNumber: 42, githubUrl: "https://github.com/o/r/issues/42" });
+    const link = within(screen.getByTestId("kanban-detail-meta-github")).getByRole("link", { name: "#42" });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/issues/42");
   });
 
-  it("delete asks the board for its in-app confirm dialog instead of window.confirm", () => {
+  it("changing the priority patches the card", async () => {
+    const { onPatchTask, onRefresh } = renderDetail({ id: "strip-priority" });
+    fireEvent.change(screen.getByTestId("kanban-detail-meta-priority"), { target: { value: "urgent" } });
+    await waitFor(() => expect(onPatchTask).toHaveBeenCalledWith("strip-priority", { priority: "urgent" }));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+  });
+});
+
+describe("card detail: delete at the bottom (AC6)", () => {
+  it.each(EN_TABS)("is below the %s panel and asks for the in-app confirm dialog", (tabName) => {
     const confirmSpy = vi.spyOn(window, "confirm");
-    const { onDelete } = renderDetail({ id: "rail-delete" });
-    fireEvent.click(screen.getByTestId("kanban-detail-delete"));
+    const { onDelete } = renderDetail({ id: `delete-${tabName}` });
+    fireEvent.click(screen.getByRole("tab", { name: tabName }));
+    const del = screen.getByTestId("kanban-detail-delete");
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.compareDocumentPosition(del) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(panel.contains(del)).toBe(false);
+    fireEvent.click(del);
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 });
 
-describe("card detail redesign: load states (AC11)", () => {
+describe("card detail: load states (AC11)", () => {
   it("shows a skeleton while the full record loads", () => {
     renderDetail({ id: "loading" }, { loadState: { loading: true, error: null, onRetry: vi.fn() } });
     expect(screen.getByTestId("kanban-detail-loading")).toBeTruthy();
     expect(screen.getByTestId("ui-skeleton")).toBeTruthy();
     // Title and properties from the summary stay visible.
     expect(screen.getByDisplayValue("Redesign card")).toBeTruthy();
-    expect(screen.getByTestId("kanban-detail-property-rail")).toBeTruthy();
+    expect(screen.getByTestId("kanban-detail-meta-strip")).toBeTruthy();
   });
 
   it("shows the error state with a working Read again and keeps the summary", () => {
@@ -284,7 +336,7 @@ describe("card detail redesign: load states (AC11)", () => {
   });
 });
 
-describe("card detail redesign: completion (AC8)", () => {
+describe("card detail: completion (AC8)", () => {
   it("is read-only: no edit buttons on the completion tab", () => {
     renderDetail({
       id: "completion-readonly",
@@ -309,7 +361,7 @@ describe("card detail run button feedback (card 1e7dd356)", () => {
     let finish: () => void = () => {};
     const onRetryTrigger = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
     renderDetail({ id: "detail-run-busy", ...failedDevTask }, { boardColumns: devLane, onRetryTrigger });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
 
     const button = screen.getByTestId("kanban-detail-run") as HTMLButtonElement;
     fireEvent.click(button);
@@ -326,7 +378,7 @@ describe("card detail run button feedback (card 1e7dd356)", () => {
     let fail: (error: Error) => void = () => {};
     const onRetryTrigger = vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
     renderDetail({ id: "detail-run-fail", ...failedDevTask }, { boardColumns: devLane, onRetryTrigger });
-    fireEvent.click(screen.getByRole("tab", { name: "Construction" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Execution" }));
 
     fireEvent.click(screen.getByTestId("kanban-detail-run"));
     await act(async () => fail(new Error("500")));

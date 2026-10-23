@@ -7,8 +7,8 @@ import { resetDesktopAwareFetchToGlobalFetch } from "./test-utils";
 import { createDetailTask, detailBoard } from "./kanban-detail-fixtures";
 
 /**
- * Card detail redesign (card 3/6) wired into the board: three columns,
- * session pane hide/show, Esc close, and the open-time hydration states.
+ * Card detail wired into the board: detail + session pane (no property
+ * rail column), session pane hide/show, Esc close, and the open-time hydration states.
  */
 
 const { desktopAwareFetch } = vi.hoisted(() => ({ desktopAwareFetch: vi.fn() }));
@@ -63,25 +63,22 @@ function renderBoard(tasks: TaskInfo[]) {
 }
 
 describe("card detail shell", () => {
-  it("lays out detail + property rail + session pane, and the rail moves under the detail on narrow screens", async () => {
+  it("lays out detail + session pane without a property rail column; session column defaults to 42%", async () => {
+    window.localStorage.removeItem("routa:kanban-detail-split-ratio:v3");
     renderBoard([a2aTask]);
     fireEvent.click(screen.getByRole("button", { name: "Open Story One" }));
 
     const detail = await screen.findByTestId("kanban-card-detail");
-    const rail = within(detail).getByTestId("kanban-detail-property-rail");
-    const railColumn = rail.parentElement as HTMLElement;
-    // Wide: the rail is a fixed-width side column (~210px at xl, 170px at lg).
-    expect(railColumn.className).toContain("xl:w-[210px]");
-    expect(railColumn.className).toContain("lg:w-[170px]");
-    // Narrow: the body stacks (flex-col) and only switches to a row at lg.
-    expect(railColumn.parentElement?.className).toContain("flex-col");
-    expect(railColumn.parentElement?.className).toContain("lg:flex-row");
-    // Main column and session pane scroll on their own.
-    expect(within(detail).getByTestId("kanban-detail-main").className).toContain("lg:overflow-y-auto");
+    expect(within(detail).queryByTestId("kanban-detail-property-rail")).toBeNull();
+    expect(detail.querySelector("[class*='w-[210px]'], [class*='w-[170px]']")).toBeNull();
+    // The meta strip sits under the title instead.
+    expect(within(detail).getByTestId("kanban-detail-meta-strip")).toBeTruthy();
     expect(screen.getByTestId("kanban-detail-split-handle")).toBeTruthy();
     const sessionColumn = screen.getByTestId("kanban-detail-split-handle").nextElementSibling as HTMLElement;
     expect(sessionColumn.contains(screen.getByTestId("kanban-session-pane-top-row"))).toBe(true);
+    // jsdom normalizes "42.00%" to "42%".
     expect(sessionColumn.style.width).toMatch(/%$/);
+    expect(Number.parseFloat(sessionColumn.style.width)).toBeCloseTo(42, 2);
     expect(sessionColumn.className).toContain("min-w-[260px]");
     expect(sessionColumn.className).toContain("max-w-[60%]");
   });
