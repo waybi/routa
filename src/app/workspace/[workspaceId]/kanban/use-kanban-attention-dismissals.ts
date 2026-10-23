@@ -7,8 +7,6 @@
  * kanban-done-column-window.ts.
  */
 
-import { useCallback, useSyncExternalStore } from "react";
-
 const STORAGE_PREFIX = "routa.kanban.attentionDismissed.";
 
 export function attentionDismissalsStorageKey(boardId: string): string {
@@ -17,8 +15,7 @@ export function attentionDismissalsStorageKey(boardId: string): string {
 
 /** Only holds boards whose last localStorage write failed. */
 const memoryDismissals = new Map<string, string[]>();
-const listeners = new Set<() => void>();
-/** Stable snapshots per raw value so useSyncExternalStore does not loop. */
+/** Stable snapshots per raw value so repeated reads return the same array. */
 const snapshotCache = new Map<string, { raw: string; keys: readonly string[] }>();
 const EMPTY: readonly string[] = [];
 
@@ -62,19 +59,7 @@ function writeDismissed(boardId: string, keys: string[]): void {
   } catch {
     memoryDismissals.set(key, keys);
   }
-  listeners.forEach((listener) => listener());
 }
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-
-const getServerSnapshot = () => EMPTY;
 
 /** Non-hook read of a board's dismissed keys (e.g. the all-projects overview). */
 export function readAttentionDismissals(boardId: string): readonly string[] {
@@ -100,14 +85,4 @@ export function restoreAttentionItem(boardId: string, dismissKey: string): void 
 export function resetAttentionDismissalsForTests(): void {
   memoryDismissals.clear();
   snapshotCache.clear();
-}
-
-export function useKanbanAttentionDismissals(boardId: string) {
-  const dismissed = useSyncExternalStore(subscribe, () => readDismissed(boardId), getServerSnapshot);
-  const dismiss = useCallback((dismissKey: string) => {
-    const current = readDismissed(boardId);
-    if (current.includes(dismissKey)) return;
-    writeDismissed(boardId, [...current, dismissKey]);
-  }, [boardId]);
-  return { dismissed, dismiss };
 }

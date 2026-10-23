@@ -497,15 +497,13 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     /** Column count while searching; "{hits}" / "{total}". */
     matchCount: string;
   };
-  /** "Needs your attention" strip under the kanban toolbar. */
+  /** Attention-kind labels shared by the Needs-you page and the all-projects overview. */
   kanbanAttention: {
-    title: string;
     blocked: string;
     doneFailed: string;
     noReport: string;
     /** "{count}" = commits ahead of base. */
     unmerged: string;
-    dismiss: string;
   };
   /** "All projects" overview: one row per workspace. */
   kanbanOverview: {

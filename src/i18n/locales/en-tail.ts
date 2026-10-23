@@ -469,12 +469,10 @@ export const enTail: TailTranslationDictionarySections = {
     matchCount: "{hits} / {total}",
   },
   kanbanAttention: {
-    title: "Needs your attention",
     blocked: "Blocked",
     doneFailed: "Done lane failed",
     noReport: "Finished without report",
     unmerged: "Unmerged +{count}",
-    dismiss: "Got it",
   },
   kanbanOverview: {
     viewBoard: "This board",

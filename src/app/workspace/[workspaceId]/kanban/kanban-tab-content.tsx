@@ -28,7 +28,6 @@ import type { KanbanCodebaseModalProps } from "./kanban-tab-modals";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
-import { KanbanAttentionBar } from "./kanban-attention-bar";
 import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
 import { EMPTY_COLUMN_RAIL_WIDTH } from "./kanban-empty-column-rail";
 
@@ -367,11 +366,6 @@ export function KanbanTabContent({
       {loadErrorBanner}
       {overview ?? (
         <>
-          <KanbanAttentionBar
-            board={boardSurfaceProps.board}
-            tasks={boardSurfaceProps.boardTasks}
-            onOpenTask={(task) => void boardSurfaceProps.openTaskDetail(task)}
-          />
           {boardEmpty && !headerProps.loadError ? (
             <EmptyState
               className="mb-3"

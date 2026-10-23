@@ -463,12 +463,10 @@ export const zhTail: TailTranslationDictionarySections = {
     matchCount: "{hits} / {total}",
   },
   kanbanAttention: {
-    title: "需要你处理",
     blocked: "被阻塞",
     doneFailed: "Done 岗位失败",
     noReport: "跑完没汇报",
     unmerged: "未合入 +{count}",
-    dismiss: "知道了",
   },
   kanbanOverview: {
     viewBoard: "本看板",
