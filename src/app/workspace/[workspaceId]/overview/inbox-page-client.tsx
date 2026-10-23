@@ -2,10 +2,15 @@
 
 /**
  * "Needs you" page (design-spec §4): every card that needs the owner, sorted
- * clear failure → missing evidence → waiting for you. Read-only: it only
- * issues the GETs of useWorkspaces / useKanbanOverviewData plus their SSE
- * stream. "Hide locally" writes the same localStorage key as the board's
- * "Got it", so hiding in either place hides in both.
+ * clear failure → missing evidence → waiting for you. Opening, switching
+ * scope and hiding only issue the GETs of useWorkspaces /
+ * useKanbanOverviewData plus their SSE stream. The one write is "Rerun" on
+ * interrupted cards (single or selected, after an in-page confirmation):
+ * one card at a time, GET /api/tasks/<id> to recheck it is still
+ * interrupted, then PATCH /api/tasks/<id> { retryTrigger: true } — the same
+ * request the board's "Rerun" sends. "Hide locally" writes the same
+ * localStorage key as the board's "Got it", so hiding in either place hides
+ * in both.
  */
 
 import { useCallback, useState } from "react";
@@ -27,8 +32,10 @@ import {
   restoreAttentionItem,
 } from "../kanban/use-kanban-attention-dismissals";
 import { buildInboxRows, type InboxRow } from "./inbox-rules";
-import { InboxRowItem } from "./inbox-row";
+import { InboxRowItem, type InboxRowRetry } from "./inbox-row";
 import { useInboxScope, type InboxScope } from "./inbox-view-mode";
+import { InboxBulkBar, InboxRetrySummary } from "./inbox-bulk-bar";
+import { isRetryLocked, useInboxRetry, type InboxRetryTarget } from "./use-inbox-retry";
 
 const LOADING: OverviewWorkspaceData = { status: "loading", tasks: [], boards: [] };
 
@@ -91,6 +98,29 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
   const allRows = scope === "all" ? rows : buildInboxRows(workspaces, data, now, readAttentionDismissals);
   const counts = [1, 2, 3].map((severity) => rows.active.filter((row) => row.severity === severity).length);
 
+  const reloadAfterRetry = useCallback((ids: string[]) => {
+    for (const id of ids) retry(id);
+  }, [retry]);
+  const retries = useInboxRetry(reloadAfterRetry);
+  const boardOf = (row: InboxRow) => data[row.workspaceId]?.boards.find((board) => board.id === row.boardId);
+  const targetOf = (row: InboxRow): InboxRetryTarget => ({ row, board: boardOf(row) });
+  // Only active (not locally hidden) interrupted rows can be selected.
+  const interruptedRows = rows.active.filter((row) => row.reason === "interrupted");
+  const selectableRows = interruptedRows.filter((row) => !isRetryLocked(retries.rowStates.get(row.task.id)));
+  const selectedRows = selectableRows.filter((row) => retries.selected.has(row.task.id));
+
+  const retryFor = (row: InboxRow, dismissed: boolean): InboxRowRetry | undefined => {
+    if (dismissed || row.reason !== "interrupted") return undefined;
+    const state = retries.rowStates.get(row.task.id);
+    return {
+      selected: retries.selected.has(row.task.id),
+      disabled: retries.running || isRetryLocked(state),
+      state,
+      onToggleSelect: () => retries.toggle(row.task.id),
+      onRerun: () => void retries.run([targetOf(row)]),
+    };
+  };
+
   const toggleDismiss = useCallback((row: InboxRow) => {
     const isDismissed = readAttentionDismissals(row.boardId).includes(row.dismissKey);
     if (isDismissed) restoreAttentionItem(row.boardId, row.dismissKey);
@@ -101,7 +131,7 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
   const renderRows = (list: InboxRow[], dismissed: boolean) => {
     if (scope !== "all") {
       return list.map((row) => (
-        <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} />
+        <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} retry={retryFor(row, dismissed)} />
       ));
     }
     return scoped
@@ -115,7 +145,7 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
             {statusOf(workspace.id) === "error" && <Badge tone="attention">{page.stale}</Badge>}
           </h3>
           {items.map((row) => (
-            <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} />
+            <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} retry={retryFor(row, dismissed)} />
           ))}
         </section>
       ));
@@ -208,6 +238,20 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
               {page.listTitle}
               {failed.length > 0 && <Badge tone="attention">{page.stale}</Badge>}
             </h2>
+            {!loading && interruptedRows.length > 0 && (
+              <InboxBulkBar
+                interruptedCount={interruptedRows.length}
+                selectableCount={selectableRows.length}
+                selectedCount={selectedRows.length}
+                running={retries.running}
+                confirming={retries.confirming}
+                onSelectAll={(on) => retries.setAll(selectableRows.map((row) => row.task.id), on)}
+                onAskConfirm={() => retries.setConfirming(true)}
+                onConfirm={() => void retries.run(selectedRows.map(targetOf))}
+                onCancel={() => retries.setConfirming(false)}
+              />
+            )}
+            {retries.summary && <InboxRetrySummary summary={retries.summary} />}
             {listBody}
           </section>
 

@@ -4,7 +4,8 @@
  * One "Needs you" row (design-spec §5 "提醒行"): level badge with text,
  * attention kind, full card title, workspace, reason, source, event time and
  * next step, plus two actions — open the card and hide locally. Below 801px
- * the actions move under the body.
+ * the actions move under the body. Interrupted rows on the active list also
+ * get a selection checkbox, a visible "Rerun" button and their rerun result.
  */
 
 import Link from "next/link";
@@ -13,6 +14,25 @@ import { Badge, type Tone } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
 import { formatRelativeTime } from "@/client/components/home/relative-time";
 import { inboxRowHref, lastDoneRunStatus, type InboxRow, type InboxSeverity } from "./inbox-rules";
+import type { RetryRowState } from "./inbox-retry";
+
+/** Rerun controls; only passed for interrupted rows on the active list. */
+export interface InboxRowRetry {
+  selected: boolean;
+  /** True while any rerun runs, or when this row's rerun was accepted. */
+  disabled: boolean;
+  state: RetryRowState | undefined;
+  onToggleSelect: () => void;
+  onRerun: () => void;
+}
+
+const RETRY_TONE: Record<RetryRowState["phase"], Tone> = {
+  starting: "info",
+  started: "success",
+  queued: "info",
+  skipped: "neutral",
+  failed: "danger",
+};
 
 const SEVERITY_TONE: Record<InboxSeverity, Tone> = { 1: "danger", 2: "attention", 3: "attention" };
 /** Longest lastSyncError shown inline; the full text is in the title. */
@@ -68,7 +88,16 @@ export function useInboxRowCopy() {
     blockedUnknown: page.nextBlockedUnknown,
     interrupted: page.nextInterrupted,
   })[row.reason];
-  return { t, severityLabel, kindLabel, reason, source, sourceFull, next };
+  const retryLabel = (state: RetryRowState) => {
+    switch (state.phase) {
+      case "starting": return page.rerunStarting;
+      case "started": return page.rerunStarted;
+      case "queued": return page.rerunQueued;
+      case "skipped": return page.rerunSkipped;
+      default: return page.rerunFailed.replace("{error}", state.error);
+    }
+  };
+  return { t, severityLabel, kindLabel, reason, source, sourceFull, next, retryLabel };
 }
 
 export function InboxRowItem({
@@ -77,12 +106,14 @@ export function InboxRowItem({
   dismissed,
   showWorkspace,
   onToggleDismiss,
+  retry,
 }: {
   row: InboxRow;
   now: number;
   dismissed: boolean;
   showWorkspace: boolean;
   onToggleDismiss: (row: InboxRow) => void;
+  retry?: InboxRowRetry;
 }) {
   const copy = useInboxRowCopy();
   const page = copy.t.inboxPage;
@@ -100,10 +131,26 @@ export function InboxRowItem({
       data-severity={row.severity}
       data-reason={row.reason}
     >
+      {retry && (
+        <input
+          type="checkbox"
+          className="mt-1 shrink-0 self-start"
+          checked={retry.selected}
+          disabled={retry.disabled}
+          onChange={retry.onToggleSelect}
+          aria-label={page.selectRow.replace("{title}", row.task.title)}
+          data-testid="inbox-row-select"
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={SEVERITY_TONE[row.severity]}>{copy.severityLabel(row.severity)}</Badge>
-          <Badge tone="neutral">{copy.kindLabel(row)}</Badge>
+          <Badge tone={row.reason === "interrupted" ? "danger" : "neutral"}>{copy.kindLabel(row)}</Badge>
+          {retry?.state && (
+            <span data-testid="inbox-row-retry-state" data-phase={retry.state.phase}>
+              <Badge tone={RETRY_TONE[retry.state.phase]}>{copy.retryLabel(retry.state)}</Badge>
+            </span>
+          )}
         </div>
         <h3 className="mb-2 mt-1.5 break-words text-sm font-semibold leading-snug text-primary">{row.task.title}</h3>
         <dl className="m-0 grid gap-0.5">
@@ -115,6 +162,17 @@ export function InboxRowItem({
         </dl>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {retry && (
+          <button
+            type="button"
+            onClick={retry.onRerun}
+            disabled={retry.disabled}
+            className={buttonClassName("danger", "sm")}
+            data-testid="inbox-row-rerun"
+          >
+            {page.rerun}
+          </button>
+        )}
         <Link href={inboxRowHref(row)} className={buttonClassName("primary", "sm")} data-testid="inbox-row-open">
           {page.openCard}
         </Link>

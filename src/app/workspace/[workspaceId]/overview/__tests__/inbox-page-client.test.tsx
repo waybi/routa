@@ -236,7 +236,7 @@ describe("loading, error and empty states", () => {
   });
 });
 
-describe("read-only", () => {
+describe("no writes unless Rerun is clicked", () => {
   it("opening, switching scope, hiding and reading again only issue GETs", async () => {
     await renderReady();
     fireEvent.click(screen.getByTestId("inbox-scope-all"));
