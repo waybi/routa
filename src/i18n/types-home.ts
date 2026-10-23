@@ -81,6 +81,8 @@ export interface HomeTranslationDictionarySections {
     /** "{count}" = commits ahead of base. */
     reasonUnmerged: string;
     reasonBlockedUnknown: string;
+    /** "{column}" = lane name, "{status}" = runFailed / runTimedOut. */
+    reasonInterrupted: string;
     /** "{status}" = runFailed / runTimedOut. */
     sourceDoneFailed: string;
     runFailed: string;
@@ -90,11 +92,14 @@ export interface HomeTranslationDictionarySections {
     /** "{count}" = commits ahead of base. */
     sourceUnmerged: string;
     sourceBlockedUnknown: string;
+    /** Shown when an interrupted card has no lastSyncError. */
+    sourceInterruptedNone: string;
     nextDoneFailed: string;
     nextBlockedError: string;
     nextNoReport: string;
     nextUnmerged: string;
     nextBlockedUnknown: string;
+    nextInterrupted: string;
     openCard: string;
     dismiss: string;
     restore: string;
@@ -114,5 +119,25 @@ export interface HomeTranslationDictionarySections {
     loading: string;
     /** "{count}" = rows in the group. */
     groupCount: string;
+    rerun: string;
+    /** Checkbox label; "{title}" = card title. */
+    selectRow: string;
+    /** "{count}" = active interrupted rows. */
+    bulkInterrupted: string;
+    selectAll: string;
+    /** "{count}" = selected rows. */
+    bulkRerun: string;
+    /** "{count}" = selected rows. */
+    bulkConfirm: string;
+    bulkConfirmYes: string;
+    bulkConfirmNo: string;
+    rerunStarting: string;
+    rerunStarted: string;
+    rerunQueued: string;
+    /** "{error}" = server error, verbatim. */
+    rerunFailed: string;
+    rerunSkipped: string;
+    /** "{started}" / "{queued}" / "{skipped}" / "{failed}" = row counts. */
+    bulkSummary: string;
   };
 }

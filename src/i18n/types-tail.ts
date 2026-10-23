@@ -504,6 +504,8 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     noReport: string;
     /** "{count}" = commits ahead of base. */
     unmerged: string;
+    /** Non-Done card whose current lane run failed or timed out. */
+    interrupted: string;
   };
   /** "All projects" overview: one row per workspace. */
   kanbanOverview: {

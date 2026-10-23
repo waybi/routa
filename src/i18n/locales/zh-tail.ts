@@ -467,6 +467,7 @@ export const zhTail: TailTranslationDictionarySections = {
     doneFailed: "Done 岗位失败",
     noReport: "跑完没汇报",
     unmerged: "未合入 +{count}",
+    interrupted: "已中断",
   },
   kanbanOverview: {
     viewBoard: "本看板",

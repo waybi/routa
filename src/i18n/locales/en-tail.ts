@@ -473,6 +473,7 @@ export const enTail: TailTranslationDictionarySections = {
     doneFailed: "Done lane failed",
     noReport: "Finished without report",
     unmerged: "Unmerged +{count}",
+    interrupted: "Interrupted",
   },
   kanbanOverview: {
     viewBoard: "This board",
