@@ -31,7 +31,7 @@ import {
 import { buildKanbanWorktreeNaming } from "./worktree-naming";
 import { KanbanSessionQueue } from "./kanban-session-queue";
 import { getKanbanSessionConcurrencyLimit as getBoardSessionConcurrencyLimit } from "./board-session-limits";
-import { getKanbanDevSessionSupervision } from "./board-session-supervision";
+import { getKanbanDevSessionSupervision, getKanbanLaneSessionWatchdog } from "./board-session-supervision";
 import { getKanbanAutoProvider } from "./board-auto-provider";
 import { upsertTaskLaneSession } from "./task-lane-history";
 import { formatEnvironmentFailureError, isEnvironmentFailureMessage } from "./environment-failure";
@@ -523,6 +523,10 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
   orchestrator.setResolveDevSessionSupervision(({ workspaceId, boardId, stage }) =>
     resolveDevSessionSupervision(system, workspaceId, boardId, stage)
   );
+  orchestrator.setResolveLaneSessionWatchdog(async ({ workspaceId, boardId }) => {
+    const workspace = await system.workspaceStore.get(workspaceId);
+    return getKanbanLaneSessionWatchdog(workspace?.metadata, boardId);
+  });
   orchestrator.setSendKanbanSessionPrompt((params) => sendPromptToKanbanSession(system, {
     workspaceId: params.workspaceId,
     sessionId: params.sessionId,

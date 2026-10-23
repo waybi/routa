@@ -57,6 +57,18 @@ function isSessionActivelyRunning(
   return isExecutionLeaseActive(session.leaseExpiresAt);
 }
 
+/** The card's latest run is in this column and was ended by the inactivity watchdog. */
+function isAwaitingRerunAfterLaneWatchdog(
+  task: Pick<Task, "laneSessions">,
+  columnId: string,
+): boolean {
+  const laneSessions = task.laneSessions ?? [];
+  const latest = laneSessions[laneSessions.length - 1];
+  return latest?.columnId === columnId
+    && latest.status === "timed_out"
+    && latest.recoveryReason === "watchdog_inactivity";
+}
+
 function resolveStaleLaneSessionTerminalStatus(
   task: Pick<Task, "verificationVerdict" | "verificationReport" | "completionSummary">,
 ): TaskLaneSessionStatus {
@@ -254,6 +266,13 @@ export async function reviveMissingEntryAutomations(
     // example an unregistered provider). Re-running cannot succeed until a
     // human fixes it, so revive leaves the card alone.
     if (isAwaitingEnvironmentFix(task, currentColumnId)) {
+      continue;
+    }
+
+    // The lane watchdog ended a silent step outside Dev. Those steps are not
+    // re-run automatically (a Done-lane pusher could push twice); the card
+    // waits for a manual rerun.
+    if (column.stage !== "dev" && isAwaitingRerunAfterLaneWatchdog(task, currentColumnId)) {
       continue;
     }
 

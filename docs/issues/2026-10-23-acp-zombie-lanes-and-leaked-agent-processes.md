@@ -55,3 +55,38 @@ github_url: null
 没有后续步骤复用上一步的会话：同列下一步和恢复都新建会话（`startNextAutomationStep` / `recoverAutomation` 都调 `createSession`），换列时 `prepareTaskForColumnChange` 清掉 `triggerSessionId`。结束进程走 `AcpProcess.kill()`，先清 `_alive` 再发信号，退出不产生 `process_exited` 错误，不会触发 3054a54f 修过的「进程一退就记 failed 并重跑 Done 末步」。
 
 部署前已经脱管的进程（不在新 Routa 进程的 Map 里）不会被新逻辑接管，部署重启时要手动清一次。
+
+## 非 Dev 列无活动看门狗（2026-10-23 补）
+
+上面的修复让「迟到的回复」能结束步骤；如果施工者根本不再回复（进程挂住、回复丢在半路、进程没了却没报退出），非 Dev 列的步骤照样永远 `running`：`shouldSuperviseStage` 只认 `dev`，看门狗只扫 Dev 列。
+
+改法：
+
+- Backlog / Todo / Review / Done 列的步骤挂上只超时、不重试的看门狗（`ActiveAutomation.laneWatchdog`）。N 分钟没有任何 ACP 活动，就发 `AGENT_TIMEOUT`：lane 记 `timed_out`（`recoveryReason: watchdog_inactivity`），按 deea45bd 的路径结束该步进程（Done 列失败时结束全卡进程），看板队列释放名额，卡片显示失败，等人「重新运行」。
+- 非 Dev 列不重试、不发恢复提示、也不交给卡上配置的兜底施工者（`enableAutomaticFallback`）：Done 列推送员重跑可能重复推送；Review / Todo / Backlog 的步骤由人看过原因再重跑。POST revive 也跳过「最后一次运行是在本列被看门狗判超时」的非 Dev 卡（Dev 列照旧）。
+- 看板队列满时，步骤排队，队列启动后会话号只写在卡的 `triggerSessionId` 上，编排器要等这一步结束才知道它；看门狗现在会按 `triggerSessionId` 接管已启动的排队步骤（Dev 列同样受益）。
+- 阈值：默认 20 分钟；看板可在工作区 metadata `kanbanLaneSessionWatchdog:<boardId>` 写 `{"enabled":true,"inactivityTimeoutMinutes":30}` 覆盖（1–240 分钟，`enabled:false` 关闭），写法同 `kanbanDevSessionSupervision:<boardId>`。
+
+阈值依据（`routa.db` 只读，`session_messages.created_at` 是每条 ACP 通知入库的时间，按会话求相邻两条的最大间隔，算到第一条 `turn_complete` 为止）：
+
+| 列 | 已完成步骤数 | 最长空档中位 | 最长空档 p99 | 最长空档 |
+|---|---|---|---|---|
+| backlog | 144 | 0.7 分 | 2.2 分 | 2.3 分 |
+| todo | 168 | 1.4 分 | 3.3 分 | 6.2 分 |
+| review | 292 | 0.4 分 | 10.0 分 | 10.0 分（600.3 秒） |
+| done | 269 | 0.3 分 | 5.6 分 | 6.8 分 |
+| 列没有 stage 的旧看板 | 16 | 0.6 分 | 10.0 分 | 10.0 分 |
+
+超过 8 分钟的空档都出在一次工具调用里（`tool_call` → `tool_call_update`）：`job_output wait` 或长测试命令，最长 600.0–600.5 秒，因为 DSH 单次工具等待到 10 分钟就返回。所以正常步骤两次事件间最多空 10 分钟，阈值取它的两倍。同一批数据里，三个挂住的 Done 步骤空了 2.2 / 3.1 / 7.0 小时，20 分钟能在半小时内放出名额。Dev 列默认 10 分钟正好卡在这个上限上：13 个被判 `timed_out` 的 Dev 会话里，6 个超时前只安静了 608–628 秒，其中有没有误杀本次没查，Dev 阈值也没改。pm2 日志行没有时间戳，算不出间隔，只用 routa.db。
+
+测试：`workflow-orchestrator-lane-watchdog.test.ts`（四列各一条超时用例、19 分钟安静不误杀、看板覆盖、看板关闭、排队后启动的步骤、不交给兜底施工者）、`restart-recovery.test.ts`「revive of a … step the inactivity watchdog ended」、`board-session-supervision.test.ts`「defaults the lane watchdog outside Dev」。撤掉修复后其中 11 条变红。
+
+剩余：Routa 重启后内存里的 `activeAutomations` 清空，重启前已在跑的步骤不归看门狗管（Dev 列同样如此）；Rust 桌面后端没有对应看门狗，本次只改了 Web（Next.js）后端。
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果 | 提交 |
+|---|---|---|---|
+| 2026-10-23 | 迟到的回合结束能结束步骤；启动超时放宽到 60 秒；启动失败、重复拉起不留进程 | 迟到报错不再让 lane 永远 running | 8949946d |
+| 2026-10-23 | 每步结束即结束该步进程；Done 失败结束全卡进程 | 进 Done 前不再攒各步进程 | deea45bd |
+| 2026-10-23 | 非 Dev 列无活动看门狗：默认 20 分钟记 timed_out、结束进程、释放名额，不重试，revive 跳过；排队后启动的步骤也接管 | 不回复的非 Dev 步骤最多占名额 20 分钟（以前无限期） | 本提交 |

@@ -375,4 +375,44 @@ describe("kanban restart recovery", () => {
     expect(processKanbanColumnTransition).not.toHaveBeenCalled();
     expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { stage: "done", revived: false },
+    { stage: "review", revived: false },
+    { stage: "dev", revived: true },
+  ])("revive of a $stage step the inactivity watchdog ended: revived=$revived", async ({ stage, revived }) => {
+    kanbanBoardStore.get.mockResolvedValue({
+      id: "board-1",
+      columns: [{
+        id: stage,
+        name: stage,
+        position: 0,
+        stage,
+        automation: {
+          enabled: true,
+          transitionType: "entry",
+          steps: [{ id: `${stage}-step`, role: "CRAFTER" }],
+        },
+      }],
+    });
+    taskStore.listByWorkspace.mockResolvedValue([createTaskWithRunningSession({
+      columnId: stage,
+      triggerSessionId: undefined,
+      laneSessions: [{
+        sessionId: "silent-1",
+        columnId: stage,
+        status: "timed_out",
+        recoveryReason: "watchdog_inactivity",
+        startedAt: "2025-01-01T00:00:00.000Z",
+        completedAt: "2025-01-01T00:20:00.000Z",
+      }],
+    })]);
+
+    await reviveMissingEntryAutomations(system as never, "workspace-1", "board-1", {
+      sessionStore: sessionStore as never,
+      processManager: processManager as never,
+    });
+
+    expect(processKanbanColumnTransition).toHaveBeenCalledTimes(revived ? 1 : 0);
+  });
 });

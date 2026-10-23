@@ -68,6 +68,16 @@ export interface KanbanDevSessionSupervision {
   completionRequirement: KanbanDevSessionCompletionRequirement;
 }
 
+/**
+ * Inactivity watchdog for lane steps outside Dev (Backlog, Todo, Review,
+ * Done). It only ends a silent step as timed_out; it never re-runs it.
+ */
+export interface KanbanLaneSessionWatchdog {
+  enabled: boolean;
+  /** Minutes without any ACP activity before the step is ended. */
+  inactivityTimeoutMinutes: number;
+}
+
 export interface KanbanHistoryMemoryPolicy {
   /** Whether cross-task history memory should be injected automatically into new sessions. */
   mode: KanbanHistoryMemoryPolicyMode;

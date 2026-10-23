@@ -15,6 +15,7 @@ import type {
   KanbanDevSessionCompletionRequirement,
   KanbanDevSessionSupervision,
   KanbanDevSessionSupervisionMode,
+  KanbanLaneSessionWatchdog,
 } from "../models/kanban";
 import { getKanbanAutomationSteps, resolveTaskStatusForBoardColumn } from "../models/kanban";
 import { TaskStatus, type Task, type TaskLaneSessionRecoveryReason } from "../models/task";
@@ -22,7 +23,10 @@ import type { KanbanBoardStore } from "../store/kanban-board-store";
 import type { TaskStore } from "../store/task-store";
 import type { ColumnTransitionData } from "./column-transition";
 import { resolveTransitionAutomation } from "./column-transition";
-import { getDefaultKanbanDevSessionSupervision } from "./board-session-supervision";
+import {
+  getDefaultKanbanDevSessionSupervision,
+  getDefaultKanbanLaneSessionWatchdog,
+} from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import {
@@ -60,6 +64,13 @@ function getDisabledSupervisionConfig(): KanbanDevSessionSupervision {
 
 function shouldSuperviseStage(stage: KanbanColumnStage): boolean {
   return stage === "dev";
+}
+
+/** Minutes of silence that end a step: the Dev policy, or the lane watchdog elsewhere. */
+function getInactivityTimeoutMinutes(automation: ActiveAutomation): number {
+  return isRecoveryMode(automation.supervision.mode) || !automation.laneWatchdog
+    ? automation.supervision.inactivityTimeoutMinutes
+    : automation.laneWatchdog.inactivityTimeoutMinutes;
 }
 
 function isRecoveryMode(mode: KanbanDevSessionSupervisionMode): mode is "watchdog_retry" | "ralph_loop" {
@@ -175,6 +186,11 @@ export interface ActiveAutomation {
   startedAt: Date;
   status: "queued" | "running" | "completed" | "failed";
   supervision: KanbanDevSessionSupervision;
+  /**
+   * Set for lanes outside Dev: a step silent this long is ended as timed_out
+   * and never re-run automatically (a Done-lane pusher must not push twice).
+   */
+  laneWatchdog?: KanbanLaneSessionWatchdog;
   attempt: number;
   recoveryAttempts: number;
   signaledSessionIds: Set<string>;
@@ -269,6 +285,13 @@ export type ResolveDevSessionSupervision = (params: {
   stage: KanbanColumnStage;
 }) => Promise<KanbanDevSessionSupervision>;
 
+export type ResolveLaneSessionWatchdog = (params: {
+  workspaceId: string;
+  boardId: string;
+  columnId: string;
+  stage: KanbanColumnStage;
+}) => Promise<KanbanLaneSessionWatchdog>;
+
 export type EnsureCompletionFallbackArtifact = (params: {
   task: Task;
   sessionId: string;
@@ -283,6 +306,7 @@ export class KanbanWorkflowOrchestrator {
   private started = false;
   private cleanupCardSession?: CleanupCardSession;
   private resolveDevSessionSupervision?: ResolveDevSessionSupervision;
+  private resolveLaneSessionWatchdog?: ResolveLaneSessionWatchdog;
   private sendKanbanSessionPrompt?: SendKanbanSessionPrompt;
   private ensureCompletionFallbackArtifact?: EnsureCompletionFallbackArtifact;
   private watchdogTimer?: ReturnType<typeof setInterval>;
@@ -359,6 +383,11 @@ export class KanbanWorkflowOrchestrator {
   /** Set the resolver for board-level dev session supervision config */
   setResolveDevSessionSupervision(fn: ResolveDevSessionSupervision): void {
     this.resolveDevSessionSupervision = fn;
+  }
+
+  /** Set the resolver for the board's inactivity watchdog on lanes outside Dev */
+  setResolveLaneSessionWatchdog(fn: ResolveLaneSessionWatchdog): void {
+    this.resolveLaneSessionWatchdog = fn;
   }
 
   /** Set the callback used to send a prompt message into a live ACP session */
@@ -446,6 +475,7 @@ export class KanbanWorkflowOrchestrator {
       startedAt: new Date(),
       status: "queued",
       supervision,
+      laneWatchdog: await this.resolveLaneWatchdog(data.workspaceId, data.boardId, targetColumn),
       attempt: 1,
       recoveryAttempts: 0,
       signaledSessionIds: new Set(),
@@ -515,6 +545,7 @@ export class KanbanWorkflowOrchestrator {
       startedAt: new Date(),
       status: params.sessionId ? "running" : "queued",
       supervision: await this.resolveLaneSupervision(task.workspaceId, task.boardId, column),
+      laneWatchdog: await this.resolveLaneWatchdog(task.workspaceId, task.boardId, column),
       attempt: 1,
       recoveryAttempts: 0,
       signaledSessionIds: new Set(),
@@ -536,6 +567,29 @@ export class KanbanWorkflowOrchestrator {
         stage: column.stage,
       })) ?? getDefaultKanbanDevSessionSupervision()
       : getDisabledSupervisionConfig();
+  }
+
+  /** Dev keeps its own supervision; every other lane gets the timeout-only watchdog. */
+  private async resolveLaneWatchdog(
+    workspaceId: string,
+    boardId: string,
+    column: { id: string; stage: KanbanColumnStage },
+  ): Promise<KanbanLaneSessionWatchdog | undefined> {
+    if (shouldSuperviseStage(column.stage)) {
+      return undefined;
+    }
+    let watchdog = getDefaultKanbanLaneSessionWatchdog();
+    try {
+      watchdog = (await this.resolveLaneSessionWatchdog?.({
+        workspaceId,
+        boardId,
+        columnId: column.id,
+        stage: column.stage,
+      })) ?? watchdog;
+    } catch (error) {
+      console.warn("[WorkflowOrchestrator] Failed to read the lane watchdog config; using the default:", error);
+    }
+    return watchdog.enabled ? watchdog : undefined;
   }
 
   private async handleAgentCompletion(event: AgentEvent): Promise<void> {
@@ -636,8 +690,12 @@ export class KanbanWorkflowOrchestrator {
       }
 
       // Automatic fallback: on failure, try next fallback agent step instead of retrying
+      // A step the lane watchdog ended outside Dev is not handed to a fallback
+      // agent either: that would re-run it (a Done pusher could push twice).
+      const laneWatchdogTimeout = event.type === AgentEventType.AGENT_TIMEOUT && Boolean(automation.laneWatchdog);
       const canFallback = !successEvent
         && !environmentFailure
+        && !laneWatchdogTimeout
         && automation.enableAutomaticFallback
         && nextStepIndex < automation.steps.length;
       if (task && canFallback) {
@@ -915,14 +973,24 @@ export class KanbanWorkflowOrchestrator {
     const now = Date.now();
 
     for (const automation of this.activeAutomations.values()) {
+      const recovery = isRecoveryMode(automation.supervision.mode);
+      // Dev lanes use their supervision policy (with recovery); other lanes
+      // only get the timeout-only lane watchdog.
+      if (!recovery && !automation.laneWatchdog) continue;
+      try {
+        await this.adoptQueuedStepSession(automation);
+      } catch (error) {
+        // One unreadable card must not stop the scan for the others.
+        console.warn(`[WorkflowOrchestrator] Watchdog could not read card ${automation.cardId}:`, error);
+        continue;
+      }
       if (automation.status !== "running" || !automation.sessionId) continue;
-      if (!isRecoveryMode(automation.supervision.mode)) continue;
 
       const sessionId = automation.sessionId;
       if (automation.signaledSessionIds.has(sessionId)) continue;
 
       const sessionRecord = sessionStore.getSession(sessionId);
-      if (sessionRecord?.acpStatus === "error") {
+      if (recovery && sessionRecord?.acpStatus === "error") {
         automation.signaledSessionIds.add(sessionId);
         void this.notifyKanbanAgent({
           workspaceId: automation.workspaceId,
@@ -957,25 +1025,28 @@ export class KanbanWorkflowOrchestrator {
       const lastActivityMs = Date.parse(lastActivityAt);
       if (!Number.isFinite(lastActivityMs)) continue;
 
+      const timeoutMinutes = getInactivityTimeoutMinutes(automation);
       const idleMs = now - lastActivityMs;
-      const thresholdMs = automation.supervision.inactivityTimeoutMinutes * 60_000;
-      if (idleMs < thresholdMs) continue;
+      if (idleMs < timeoutMinutes * 60_000) continue;
 
-      sessionStore.markSessionTimedOut(
-        sessionId,
-        `No ACP activity for ${automation.supervision.inactivityTimeoutMinutes} minutes.`,
-      );
+      const reason = `No ACP activity for ${timeoutMinutes} minutes.`;
+      sessionStore.markSessionTimedOut(sessionId, reason);
       automation.signaledSessionIds.add(sessionId);
-      void this.notifyKanbanAgent({
-        workspaceId: automation.workspaceId,
-        sessionId,
-        cardId: automation.cardId,
-        cardTitle: automation.cardTitle,
-        boardId: automation.boardId,
-        columnId: automation.columnId,
-        reason: `No ACP activity for ${automation.supervision.inactivityTimeoutMinutes} minutes.`,
-        mode: automation.supervision.mode,
-      });
+      if (recovery) {
+        // Outside Dev nothing is retried, so the silent agent is not asked to continue.
+        void this.notifyKanbanAgent({
+          workspaceId: automation.workspaceId,
+          sessionId,
+          cardId: automation.cardId,
+          cardTitle: automation.cardTitle,
+          boardId: automation.boardId,
+          columnId: automation.columnId,
+          reason,
+          mode: automation.supervision.mode,
+        });
+      }
+      // handleAgentCompletion records the step as timed_out, ends its process
+      // and the board queue frees its slot on this event.
       this.eventBus.emit({
         type: AgentEventType.AGENT_TIMEOUT,
         agentId: sessionId,
@@ -983,7 +1054,7 @@ export class KanbanWorkflowOrchestrator {
         data: {
           sessionId,
           success: false,
-          error: `No ACP activity for ${automation.supervision.inactivityTimeoutMinutes} minutes.`,
+          error: reason,
           inactivityMs: idleMs,
           lastActivityAt,
           watchdog: true,
@@ -991,6 +1062,31 @@ export class KanbanWorkflowOrchestrator {
         timestamp: new Date(),
       });
     }
+  }
+
+  /**
+   * A step that waited in the board queue has no session id here until it
+   * ends; the queue records the session it started as the card's trigger
+   * session. Adopt it so the watchdog can see a step that never ends.
+   */
+  private async adoptQueuedStepSession(automation: ActiveAutomation): Promise<void> {
+    if (automation.status !== "queued" || automation.sessionId) return;
+    const task = await this.taskStore.get(automation.cardId);
+    const sessionId = task?.triggerSessionId;
+    if (!task || !sessionId || task.columnId !== automation.columnId) return;
+    const laneSession = getTaskLaneSession(task, sessionId);
+    if (
+      !laneSession
+      || laneSession.columnId !== automation.columnId
+      || laneSession.status !== "running"
+      || (typeof laneSession.stepIndex === "number" && laneSession.stepIndex !== automation.currentStepIndex)
+    ) {
+      return;
+    }
+    automation.sessionId = sessionId;
+    automation.status = "running";
+    const startedAtMs = Date.parse(laneSession.startedAt ?? "");
+    automation.startedAt = Number.isFinite(startedAtMs) ? new Date(startedAtMs) : new Date();
   }
 
   private async isCompletionSatisfied(
@@ -1226,7 +1322,7 @@ export class KanbanWorkflowOrchestrator {
   ): string {
     const stepLabel = getAutomationStepLabel(automation.steps[automation.currentStepIndex], automation.currentStepIndex);
     if (event.type === AgentEventType.AGENT_TIMEOUT) {
-      return `${stepLabel} timed out after ${automation.supervision.inactivityTimeoutMinutes} minutes without activity.`;
+      return `${stepLabel} timed out after ${getInactivityTimeoutMinutes(automation)} minutes without activity.`;
     }
     if (event.type === AgentEventType.AGENT_FAILED) {
       const error = typeof event.data?.error === "string" ? event.data.error : "ACP session failed.";
