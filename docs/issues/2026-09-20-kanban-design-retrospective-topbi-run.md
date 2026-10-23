@@ -129,6 +129,7 @@ UI 又只用一个 `lastSyncError` 字符串 + 「同步问题」标签把这些
 - `agent-trigger.ts:719-752`：ACP session prompt 以 fire-and-forget 发射，函数在 prompt dispatch 前就已返回 `{ localSessionId }`。
 - `agent-trigger.ts:736-741`：timeout 时仅打 `console.warn`，**不发射 `AGENT_FAILED` 事件** → orchestrator 永不知会话启动失败。
 - 非 dev 列无 supervision（`workflow-orchestrator.ts:55-57` 硬编码 `stage === "dev"`），挂死的 review/todo agent 永远不会被 watchdog 发现。
+- 2026-10-23 状态：非 dev 列已加只超时不重试的看门狗（默认 20 分钟），见 `2026-10-23-acp-zombie-lanes-and-leaked-agent-processes.md`「非 Dev 列无活动看门狗」。
 - 对应 pm2 日志中 8+ 次 `session/prompt timed out`。
 
 ### 1.10 A2A Transport 死代码
@@ -353,7 +354,7 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | P1-6 | 收敛时校验一致性：`verificationVerdict=APPROVED` 但 `artifactSummary.requiredSatisfied=false` → 判 `NOT_APPROVED` 并写明原因 | `review-lane-convergence.ts` |
 | P1-7 | 统一事件处理：queue 作为 orchestrator 内部组件而非独立监听 EventBus，消除双监听竞态 | `workflow-orchestrator.ts`, `kanban-session-queue.ts` |
 | P1-8 | 修复 `getStepTransport` A2A bug：返回 `step.transport` 本身 | `agent-trigger.ts:644-649` |
-| P1-9 | 为 review/todo/backlog 加轻量 inactivity watchdog | `workflow-orchestrator.ts:55-57` |
+| P1-9 | 为 review/todo/backlog 加轻量 inactivity watchdog。**状态（2026-10-23）：已完成**——backlog/todo/review/done 都有，默认 20 分钟、只超时不重试 | `workflow-orchestrator.ts` `scanForInactiveSessions` |
 
 ### P2 展示、交互与架构重构（1–2 周）
 
@@ -409,3 +410,4 @@ setLocalTasks(tasks);      // ← 用 tasks prop 回滚，可能已过期！
 | 2026-10-16 | 失败会话结束进程：`handleAgentCompletion` 收到 AGENT_FAILED / AGENT_TIMEOUT（看门狗发现 acpStatus=error 也走这里）时，先 `killSession(该会话 id)` 再走 fallback/recover；kill 抛错只记 warn | 启动失败或超时的施工者进程不再常驻（2026-10-12 每个约 280MB） | 本提交 |
 | 2026-10-16 | 两端对齐：Rust 端 `revive_missing_entry_automations` 也跳过「当前列最后一条会话是 environment_failure」的卡（`is_awaiting_environment_fix`，对应 TS `isAwaitingEnvironmentFix`），新增测试 `revive_board_post_skips_cards_awaiting_environment_fix`（同列普通 agent_failed 卡作对照会被重新触发） | 环境故障卡在桌面版（Rust 后端）上手动 POST revive 时也不会被重跑 | 本提交 |
 | 2026-10-23 | 施工者进程按步骤收尾（卡 75f3b360 第 7 条）：编排器每步结束（完成/失败/超时/改走恢复）即 `killSession` 该步会话，工具调用合成的完成等回合结束再关；Done 列失败结束该卡全部会话、保留工作副本；每个会话只结束一次；已结束的会话不再收恢复提示（以前会被 `ensurePromptSessionExists` 重新拉起） | 一张卡不再在进 Done 前攒下各步进程（10-23 实测一张卡 11 个、全机 89 个只 5 个在干活）；Done 失败不再留进程；10-23 日志里 5 次「刚结束又被拉起」不再发生 | 本提交 |
+| 2026-10-23 | 非 dev 列无活动看门狗（P1-9）：backlog/todo/review/done 的步骤 20 分钟没有 ACP 活动即记 timed_out（`recoveryReason: watchdog_inactivity`）、结束该步进程、释放看板名额；不重试、不发恢复提示，POST revive 也跳过；看板经工作区 metadata `kanbanLaneSessionWatchdog:<boardId>` 可改阈值或关闭；排队后才启动的步骤由看门狗按 `triggerSessionId` 接管 | 挂死、不回、进程没了却没报退出的非 dev 步骤不再永远占名额（10-23 三个 Done 推送员占 5 个名额里的 3 个两个多小时） | 9c78fa2e |

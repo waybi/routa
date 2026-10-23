@@ -91,7 +91,8 @@ eventBus.on(…):
    │
    ▼
 ⑤ 如果是 dev 列 → 加载 supervision 配置（watchdog / ralph_loop）
-   否则 → supervision = disabled
+   否则 → supervision = disabled，另挂「只超时不重试」的列看门狗
+          （laneWatchdog，默认 20 分钟，2026-10-23 起）
    │
    ▼
 ⑥ 注册 ActiveAutomation，状态=queued，交给 createSession 去跑
@@ -221,17 +222,24 @@ setInterval(() => scanForInactiveSessions(), 30_000)
 逻辑：
 
 ~~~plaintext
-对每个 status=running 的 ActiveAutomation：
+对每个 ActiveAutomation（dev 列看 supervision；其他列看 laneWatchdog，关掉的跳过）：
    │
-   ├─ session 状态 = error？
+   ├─ status=queued 且看板队列已替它启动会话（task.triggerSessionId）？
+   │     → 接管这个会话，按 running 继续往下看
+   │
+   ├─ （仅 dev）session 状态 = error？
    │     → 立刻发 AGENT_FAILED 事件
    │
    └─ 算 idleMs = 当前时间 − 最后有意义活动时间
-      └─ idleMs > supervision.inactivityTimeoutMinutes？
+      └─ idleMs > 阈值？（dev：supervision.inactivityTimeoutMinutes，默认 10；
+                         其他列：laneWatchdog.inactivityTimeoutMinutes，默认 20）
          → 标记 session timed out
-         → 发 AGENT_TIMEOUT 事件
-         → 通知 Agent"你很久没动了，怎么回事？"
+         → 发 AGENT_TIMEOUT 事件（lane 记 timed_out、结束该步进程、队列释放名额）
+         → 仅 dev：通知 Agent"你很久没动了，怎么回事？"并按 maxRecoveryAttempts 重试
 ~~~
+
+非 dev 列的步骤超时后不自动重跑，POST revive 也跳过它（Done 列推送员重跑可能重复推送），卡片显示失败，等人点「重新运行」。
+看板可覆盖阈值：工作区 metadata 的 `kanbanLaneSessionWatchdog:<boardId>` 写 JSON，如 `{"enabled":true,"inactivityTimeoutMinutes":30}`（1–240 分钟，`enabled:false` 关闭）。
 
 ### 5b. 完成后处理（handleAgentCompletion）——Agent 干完了怎么办
 
