@@ -20,6 +20,7 @@ const {
   loadProviderConnectionConfigMock,
   getModelDefinitionByAliasMock,
   acpState,
+  tiptapProps,
 } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   createSessionMock: vi.fn(),
@@ -37,6 +38,7 @@ const {
   loadProviderConnectionConfigMock: vi.fn(),
   getModelDefinitionByAliasMock: vi.fn(),
   acpState: { selectedProvider: "provider-default" },
+  tiptapProps: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -54,7 +56,7 @@ vi.mock("../tiptap-input", () => ({
     skills?: Array<{ name: string }>;
     repoSkills?: Array<{ name: string }>;
     beforeProviderSlot?: React.ReactNode;
-  }) => (
+  }) => (tiptapProps.push(props as Record<string, unknown>), (
     <div>
       <div data-testid="pending-skill">{props.pendingSkill ?? ""}</div>
       <div data-testid="repo-selection">{props.repoSelection?.path ?? ""}</div>
@@ -81,7 +83,7 @@ vi.mock("../tiptap-input", () => ({
         Send
       </button>
     </div>
-  ),
+  )),
 }));
 
 vi.mock("../settings-panel", () => ({
@@ -181,6 +183,7 @@ vi.mock("@/i18n", () => ({
 describe("HomeInput", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tiptapProps.length = 0;
     resetModelEffortChoicesCache();
     acpState.selectedProvider = "provider-default";
 
@@ -327,6 +330,36 @@ describe("HomeInput", () => {
       { cwd: "/repo/main", branch: "main", repoName: "Main Repo" },
     );
     expect(pushMock).toHaveBeenCalledWith("/workspace/ws-1/sessions/session-1");
+  });
+
+  it("insertTextRequest is optional: omitted it reaches TiptapInput as undefined and submission is unchanged", async () => {
+    const onSessionCreated = vi.fn();
+    render(<HomeInput workspaceId="ws-1" onSessionCreated={onSessionCreated} />);
+    await waitFor(() => expect(screen.getByTestId("repo-selection").textContent).toBe("/repo/main"));
+    expect(tiptapProps.length).toBeGreaterThan(0);
+    expect(tiptapProps.every((props) => props.insertTextRequest === undefined)).toBe(true);
+    expect(screen.getByTestId("pending-skill").textContent).toBe("");
+    expect(screen.getByTestId("disabled-state").textContent).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
+    const args = createSessionMock.mock.calls[0];
+    expect([args[0], args[1], args[2], args[3], args[4], args[5], args[11]]).toEqual(
+      ["/repo/main", "provider-x", "mode-fast", "ROUTA", "ws-1", "resolved-model", "main"],
+    );
+    await waitFor(() => expect(onSessionCreated).toHaveBeenCalledWith(
+      "session-1",
+      "Ship it",
+      { cwd: "/repo/main", branch: "main", repoName: "Main Repo" },
+    ));
+    expect(pushMock).toHaveBeenCalledWith("/workspace/ws-1/sessions/session-1");
+  });
+
+  it("passes insertTextRequest through to TiptapInput unchanged", async () => {
+    const request = { text: "#前端开发 ", nonce: 3, mode: "append" as const };
+    render(<HomeInput workspaceId="ws-1" insertTextRequest={request} />);
+    await waitFor(() => expect(screen.getByTestId("repo-selection").textContent).toBe("/repo/main"));
+    expect(tiptapProps.at(-1)?.insertTextRequest).toBe(request);
   });
 
   it("uses direct prompt dispatch when launch mode requests it", async () => {

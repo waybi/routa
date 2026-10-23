@@ -483,6 +483,14 @@ interface SessionItem {
   modeId?: string;
 }
 
+export interface InsertTextRequest {
+  text: string;
+  /** A new nonce triggers one insertion; re-renders with the same nonce do nothing. */
+  nonce: number;
+  /** replace = set the whole input to `text`; append = add `text` at the end. */
+  mode: "replace" | "append";
+}
+
 interface TiptapInputProps {
   onSend: (text: string, context: InputContext) => void;
   /** Called when user clicks stop button during loading */
@@ -522,6 +530,8 @@ interface TiptapInputProps {
   prefillText?: string | null;
   /** Called after prefillText has been consumed so the parent can clear it */
   onPrefillConsumed?: () => void;
+  /** Host-requested plain-text insertion (never a mention node); applied once per nonce. */
+  insertTextRequest?: InsertTextRequest | null;
   /** Larger presentation used by landing/team launch surfaces */
   variant?: "default" | "hero";
   /** Optional toolbar control rendered right before the provider capsule (e.g. model / effort picker). */
@@ -553,6 +563,7 @@ export function TiptapInput({
   onSkillInserted,
   prefillText,
   onPrefillConsumed,
+  insertTextRequest,
   variant = "default",
   beforeProviderSlot,
 }: TiptapInputProps) {
@@ -832,6 +843,23 @@ export function TiptapInput({
     editor.commands.focus("end");
     onPrefillConsumed?.();
   }, [prefillText, editor, onPrefillConsumed]);
+
+  // Host-requested plain text (team templates, "#name " mentions): text nodes only, once per nonce.
+  const appliedInsertNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!insertTextRequest || !editor || editor.isDestroyed) return;
+    if (appliedInsertNonceRef.current === insertTextRequest.nonce) return;
+    appliedInsertNonceRef.current = insertTextRequest.nonce;
+    const { text, mode } = insertTextRequest;
+    if (mode === "replace") {
+      editor.commands.setContent({ type: "doc", content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }] });
+      editor.commands.focus("end");
+      return;
+    }
+    const current = editor.getText();
+    const piece = current && !/\s$/.test(current) ? ` ${text}` : text;
+    if (piece) editor.chain().focus("end").insertContent({ type: "text", text: piece }).run();
+  }, [insertTextRequest, editor]);
   const handleSend = useCallback(() => {
     if (!editor || disabled || loading) return;
 

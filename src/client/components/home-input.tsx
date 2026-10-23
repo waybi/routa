@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { TiptapInput, type InputContext } from "./tiptap-input";
+import { TiptapInput, type InputContext, type InsertTextRequest } from "./tiptap-input";
 import { ModelEffortPicker } from "./model-effort-picker";
 import { useModelEffortChoices } from "../model-effort/use-model-effort-choices";
 import { useAcp } from "../hooks/use-acp";
@@ -105,6 +105,8 @@ interface HomeInputProps {
   externalPendingSkill?: string | null;
   /** Called after the external skill has been consumed */
   onExternalSkillConsumed?: () => void;
+  /** Host-requested plain-text insertion (e.g. team templates, "#name " mentions); passed through to TiptapInput */
+  insertTextRequest?: InsertTextRequest | null;
   /** Skills to display as subtle suggestion pills below the input */
   displaySkills?: Array<{ name: string; description: string }>;
   /** Called when a skill pill is clicked */
@@ -128,6 +130,7 @@ export function HomeInput({
   requireRepoSelection = false,
   externalPendingSkill,
   onExternalSkillConsumed,
+  insertTextRequest,
   displaySkills,
   onSkillPillClick: _onSkillPillClick,
   extraSessionParams,
@@ -557,6 +560,7 @@ export function HomeInput({
             onFetchModels={acp.listProviderModels}
             pendingSkill={pendingSkill}
             onSkillInserted={() => setPendingSkill(null)}
+            insertTextRequest={insertTextRequest}
             variant={variant}
             beforeProviderSlot={showModelEffortPicker ? (
               <ModelEffortPicker
