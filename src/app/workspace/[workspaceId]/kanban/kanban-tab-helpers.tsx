@@ -238,6 +238,21 @@ export function formatLaneAutomationCompactLabel(
   return [options.autoLabel, provider, firstStep.role ?? "DEVELOPER"].filter(Boolean).join(" · ");
 }
 
+/**
+ * Short lane automation label for a narrow column (collapsed Done): the first
+ * step's specialist name (e.g. "Main Pusher"), else its role. Null when the
+ * lane has no automation.
+ */
+export function formatLaneAutomationRailLabel(
+  automation: ColumnAutomationConfig | undefined,
+  specialists: SpecialistOption[],
+): string | null {
+  const step = getKanbanAutomationSteps(automation)[0];
+  if (!step) return null;
+  const specialist = findSpecialistById(specialists, step.specialistId);
+  return getSpecialistDisplayName(specialist) || step.specialistName?.trim() || step.role?.trim() || null;
+}
+
 function formatAgentCardTarget(agentCardUrl?: string): string | null {
   const trimmed = agentCardUrl?.trim();
   if (!trimmed) return null;
