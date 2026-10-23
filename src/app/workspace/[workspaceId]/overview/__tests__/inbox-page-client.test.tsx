@@ -19,6 +19,7 @@ import {
   readAttentionDismissals,
   resetAttentionDismissalsForTests,
 } from "../../kanban/use-kanban-attention-dismissals";
+import { __resetKanbanOverviewCacheForTests } from "../../kanban/use-kanban-overview-data";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -56,6 +57,7 @@ function respond(url: string): Response {
 }
 
 beforeEach(() => {
+  __resetKanbanOverviewCacheForTests();
   DATA = {
     w1: {
       tasks: [

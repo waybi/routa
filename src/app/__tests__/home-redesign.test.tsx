@@ -67,6 +67,7 @@ import {
   resetAttentionDismissalsForTests,
 } from "../workspace/[workspaceId]/kanban/use-kanban-attention-dismissals";
 import { buildWorkspaceRow } from "../workspace/[workspaceId]/kanban/kanban-overview-rules";
+import { __resetKanbanOverviewCacheForTests } from "../workspace/[workspaceId]/kanban/use-kanban-overview-data";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -120,6 +121,7 @@ function respond(url: string): Response {
 }
 
 beforeEach(() => {
+  __resetKanbanOverviewCacheForTests();
   workspaceState.workspaces = [ws("alpha", "Alpha"), ws("beta", "Beta")];
   workspaceState.codebases = [{ id: "c1", repoPath: "/repo" }];
   DATA = {
