@@ -35,9 +35,12 @@ import { useSessionCrafters } from "./use-session-crafters";
 import { useSessionCanvasArtifacts } from "./use-session-canvas-artifacts";
 import { RepoSlideSessionPanel } from "./repo-slide-session-panel";
 import { SessionDetailHeader } from "./session-detail-header";
+import { SessionDetailTabs } from "./session-detail-tabs";
+import { SessionContextSummary, resolveSessionRunStatus } from "./session-context-summary";
+import type { KnownSessionContext } from "./session-evidence-pane";
 import { Select } from "@/client/components/select";
 import { useTranslation } from "@/i18n";
-import { ChevronDown, Columns2, PanelLeft, ScrollText, X } from "lucide-react";
+import { ChevronDown, Columns2, PanelRight, ScrollText, X } from "lucide-react";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { buildLiveCanvasAgentPrompt } from "@/core/canvas/session-canvas-prompt";
 
@@ -172,6 +175,8 @@ export function SessionPageClient() {
   const [repoSelection, setRepoSelection] = useState<RepoSelection | null>(null);
   const [activeSessionRecord, setActiveSessionRecord] = useState<SessionRecord | null>(null);
   const [isResumingSession, setIsResumingSession] = useState(false);
+  const [chatRunning, setChatRunning] = useState<boolean | null>(null);
+  const [knownContext, setKnownContext] = useState<KnownSessionContext | null>(null);
 
   // ── Workspace state ───────────────────────────────────────────────────
   const workspacesHook = useWorkspaces();
@@ -287,6 +292,21 @@ export function SessionPageClient() {
     };
   }, [showAgentInstallPopup]);
 
+  // Context drawer (narrow screens): Esc closes it and focus returns to the toggle.
+  const contextToggleRef = useRef<HTMLButtonElement>(null);
+  const closeContextDrawer = useCallback(() => {
+    setShowMobileSidebar(false);
+    contextToggleRef.current?.focus({ preventScroll: true });
+  }, []);
+  useEffect(() => {
+    if (!showMobileSidebar || showAgentInstallPopup) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeContextDrawer();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [closeContextDrawer, showAgentInstallPopup, showMobileSidebar]);
+
   // Agent Install popup: focus close button when open, restore focus when close
   const prevAgentPopupRef = useRef(false);
   useEffect(() => {
@@ -347,7 +367,8 @@ export function SessionPageClient() {
     if (!isLeftResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientX - leftResizeStartXRef.current;
+      // The context sidebar sits on the right: dragging its left edge leftwards widens it.
+      const delta = leftResizeStartXRef.current - e.clientX;
       const newWidth = Math.max(200, Math.min(450, leftResizeStartWidthRef.current + delta));
       setLeftSidebarWidth(newWidth);
     };
@@ -777,6 +798,19 @@ export function SessionPageClient() {
     repoPath: repoSelection?.path,
   });
 
+  // When the canvas / CRAFTERs column opens, fold the context sidebar to its
+  // icon strip so the chat column keeps its width; the user can expand it again.
+  const extraColumnOpen = !isEmbedMode && Boolean(
+    crafterAgents.length > 0 || sessionCanvas.activeCanvas || sessionCanvas.isMaterializing || sessionCanvas.error,
+  );
+  const prevExtraColumnOpenRef = useRef(extraColumnOpen);
+  useEffect(() => {
+    if (extraColumnOpen && !prevExtraColumnOpenRef.current) {
+      setIsLeftSidebarCollapsed(true);
+    }
+    prevExtraColumnOpenRef.current = extraColumnOpen;
+  }, [extraColumnOpen]);
+
   // Notes are now pre-filtered by useNotes(workspaceId, sessionId)
   // - Task notes: only those with matching sessionId
   // - Spec/general notes: workspace-wide (no sessionId) or matching sessionId
@@ -874,6 +908,10 @@ export function SessionPageClient() {
     sessionCanvas.activeCanvas || sessionCanvas.isMaterializing || sessionCanvas.error,
   );
   const showRightSidebar = !isEmbedMode && (hasSessionCanvasPanel || crafterAgents.length > 0);
+  const handleContextLoaded = (context: { kanbanContext?: KnownSessionContext["kanbanContext"] }) => {
+    setKnownContext({ sessionId, kanbanContext: context.kanbanContext ?? null });
+  };
+  const runStatus = resolveSessionRunStatus(chatRunning, activeSessionRecord?.acpStatus);
   const agentSelector = (
     <div className="relative">
       <Select
@@ -914,6 +952,36 @@ export function SessionPageClient() {
     </>
   );
 
+  // Built once: rendered inside the Chat tab (kept mounted) or directly in embed mode.
+  const chatPanel = (
+    <ChatPanel
+      acp={acp}
+      activeSessionId={displaySessionId}
+      traceSessionId={displaySessionId}
+      onEnsureSession={ensureSessionForChat}
+      onSelectSession={handleSelectSession}
+      repoSelection={repoSelection}
+      onRepoChange={setRepoSelection}
+      onTasksDetected={handleTasksDetected}
+      agentRole={selectedAgent}
+      onAgentRoleChange={(role) => handleAgentChange(role as AgentRole)}
+      onCreateSession={handleCreateSession}
+      workspaces={workspacesHook.workspaces}
+      activeWorkspaceId={workspaceId}
+      onWorkspaceChange={handleWorkspaceSelect}
+      codebases={codebases}
+      inputPrefill={chatInputPrefill}
+      onInputPrefillConsumed={handleInputPrefillConsumed}
+      onPrepareCanvasPrompt={handlePrepareCanvasPrompt}
+      canvasPromptActive={canvasPromptEnabled}
+      canvasPromptLabel={t.canvas.liveEntryLabel}
+      canvasPromptShortLabel={t.canvas.liveEntryShortLabel}
+      onDecoratePrompt={canvasPromptEnabled ? decorateCanvasPrompt : undefined}
+      onDecoratedPromptSent={handleCanvasPromptSent}
+      onRunStateChange={setChatRunning}
+    />
+  );
+
   const sessionPageContent = (
     <div className={`flex min-w-0 flex-col bg-surface ${isEmbedMode ? "h-screen embed-mode" : "h-full"}`}>
 
@@ -952,13 +1020,14 @@ export function SessionPageClient() {
           provider={activeSessionRecord?.provider}
           actions={(
             <button
+              ref={contextToggleRef}
               type="button"
               onClick={() => setShowMobileSidebar((open) => !open)}
               aria-expanded={showMobileSidebar}
               data-testid="session-context-toggle"
               className="inline-flex min-h-7 items-center gap-1.5 rounded-control border border-default bg-surface px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
             >
-              <PanelLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              <PanelRight className="h-3.5 w-3.5" aria-hidden="true" />
               {showMobileSidebar ? t.sessionsRedesign.hideContext : t.sessionsRedesign.showContext}
             </button>
           )}
@@ -971,52 +1040,13 @@ export function SessionPageClient() {
         {showMobileSidebar && (
           <div
             className="fixed inset-0 z-30 bg-black/40 lg:hidden"
-            onClick={() => setShowMobileSidebar(false)}
-          />
-        )}
-
-        {/* ─── Left Sidebar ──────────────────────────────────────── */}
-        {!isEmbedMode && (
-          <LeftSidebar
-            isCollapsed={isLeftSidebarCollapsed}
-            onToggleCollapse={() => setIsLeftSidebarCollapsed((v) => !v)}
-            width={leftSidebarWidth}
-            showMobileSidebar={showMobileSidebar}
-            onResizeStart={handleLeftResizeStart}
-            sessionId={sessionId}
-            focusedSessionId={focusedSessionId}
-            workspaceId={workspaceId}
-            refreshKey={refreshKey}
-            onSelectSession={handleSelectSession}
-            onCreateSession={handleCreateSession}
-            codebases={codebases}
-            repoSelection={repoSelection}
-            hasProviders={acp.providers.length > 0}
-            hasSelectedProvider={!!acp.selectedProvider}
-            routaTasks={routaTasks}
-            onConfirmAllTasks={handleConfirmAllTasks}
-            onExecuteAllTasks={handleExecuteAllTasks}
-            onConfirmTask={handleConfirmTask}
-            onEditTask={handleEditTask}
-            onExecuteTask={handleExecuteTask}
-            concurrency={concurrency}
-            onConcurrencyChange={handleConcurrencyChange}
-            hasCollabNotes={hasCollabNotes}
-            sessionNotes={sessionNotes}
-            notesConnected={notesHook.connected}
-            onUpdateNote={notesHook.updateNote}
-            onDeleteNote={notesHook.deleteNote}
-            onExecuteNoteTask={handleExecuteProviderNoteTask}
-            onExecuteQuickAccessNoteTask={handleOpenOrExecuteNoteTask}
-            onExecuteAllNoteTasks={handleExecuteAllNoteTasks}
-            onExecuteSelectedNoteTasks={handleExecuteSelectedNoteTasks}
-            crafterAgents={crafterAgents}
-            onSelectNoteTask={handleSelectNoteTask}
+            data-testid="session-context-overlay"
+            onClick={closeContextDrawer}
           />
         )}
 
         {/* ─── Chat Area ──────────────────────────────────────────── */}
-        <div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden">
+        <div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden" data-testid="session-chat-column">
           {repoSlideSource && (
             <RepoSlideSessionPanel
               workspaceId={workspaceId}
@@ -1024,31 +1054,14 @@ export function SessionPageClient() {
               codebaseId={repoSlideCodebaseId}
             />
           )}
-          <ChatPanel
-            acp={acp}
-            activeSessionId={displaySessionId}
-            traceSessionId={displaySessionId}
-            onEnsureSession={ensureSessionForChat}
-            onSelectSession={handleSelectSession}
-            repoSelection={repoSelection}
-            onRepoChange={setRepoSelection}
-            onTasksDetected={handleTasksDetected}
-            agentRole={selectedAgent}
-            onAgentRoleChange={(role) => handleAgentChange(role as AgentRole)}
-            onCreateSession={handleCreateSession}
-            workspaces={workspacesHook.workspaces}
-            activeWorkspaceId={workspaceId}
-            onWorkspaceChange={handleWorkspaceSelect}
-            codebases={codebases}
-            inputPrefill={chatInputPrefill}
-            onInputPrefillConsumed={handleInputPrefillConsumed}
-            onPrepareCanvasPrompt={handlePrepareCanvasPrompt}
-            canvasPromptActive={canvasPromptEnabled}
-            canvasPromptLabel={t.canvas.liveEntryLabel}
-            canvasPromptShortLabel={t.canvas.liveEntryShortLabel}
-            onDecoratePrompt={canvasPromptEnabled ? decorateCanvasPrompt : undefined}
-            onDecoratedPromptSent={handleCanvasPromptSent}
-          />
+          {isEmbedMode ? chatPanel : (
+            <SessionDetailTabs
+              sessionId={displaySessionId}
+              workspaceId={workspaceId}
+              knownContext={knownContext}
+              chat={chatPanel}
+            />
+          )}
         </div>
 
         {/* ─── Right Sidebar: live Canvas or CRAFTERs running status ─────────────── */}
@@ -1117,6 +1130,57 @@ export function SessionPageClient() {
               )}
             </aside>
           </>
+        )}
+
+        {/* ─── Context Sidebar (right, prototype .chat-aside) ───────── */}
+        {!isEmbedMode && (
+          <LeftSidebar
+            isCollapsed={isLeftSidebarCollapsed}
+            onToggleCollapse={() => setIsLeftSidebarCollapsed((v) => !v)}
+            width={leftSidebarWidth}
+            showMobileSidebar={showMobileSidebar}
+            onResizeStart={handleLeftResizeStart}
+            sessionId={sessionId}
+            focusedSessionId={focusedSessionId}
+            workspaceId={workspaceId}
+            refreshKey={refreshKey}
+            onSelectSession={handleSelectSession}
+            onCreateSession={handleCreateSession}
+            codebases={codebases}
+            repoSelection={repoSelection}
+            hasProviders={acp.providers.length > 0}
+            hasSelectedProvider={!!acp.selectedProvider}
+            routaTasks={routaTasks}
+            onConfirmAllTasks={handleConfirmAllTasks}
+            onExecuteAllTasks={handleExecuteAllTasks}
+            onConfirmTask={handleConfirmTask}
+            onEditTask={handleEditTask}
+            onExecuteTask={handleExecuteTask}
+            concurrency={concurrency}
+            onConcurrencyChange={handleConcurrencyChange}
+            hasCollabNotes={hasCollabNotes}
+            sessionNotes={sessionNotes}
+            notesConnected={notesHook.connected}
+            onUpdateNote={notesHook.updateNote}
+            onDeleteNote={notesHook.deleteNote}
+            onExecuteNoteTask={handleExecuteProviderNoteTask}
+            onExecuteQuickAccessNoteTask={handleOpenOrExecuteNoteTask}
+            onExecuteAllNoteTasks={handleExecuteAllNoteTasks}
+            onExecuteSelectedNoteTasks={handleExecuteSelectedNoteTasks}
+            crafterAgents={crafterAgents}
+            onSelectNoteTask={handleSelectNoteTask}
+            onCloseMobileSidebar={closeContextDrawer}
+            onContextLoaded={handleContextLoaded}
+            summary={(
+              <SessionContextSummary
+                workspaceId={workspaceId}
+                workspaceName={workspace?.title ?? null}
+                provider={activeSessionRecord?.provider ?? acp.selectedProvider ?? null}
+                branch={activeSessionRecord?.branch ?? null}
+                status={runStatus}
+              />
+            )}
+          />
         )}
       </div>
 

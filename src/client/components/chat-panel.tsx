@@ -148,6 +148,8 @@ interface ChatPanelProps {
    * unless the user tried to send a message here, which really did fail.
    */
   sessionFinished?: boolean;
+  /** Optional: told whenever the working state (prompt in flight / stream running) changes. */
+  onRunStateChange?: (running: boolean) => void;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────
@@ -182,6 +184,7 @@ export function ChatPanel({
   onDecoratedPromptSent,
   onResumeActiveSession,
   sessionFinished = false,
+  onRunStateChange,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { connected, loading, error, authError, updates, promptSession, clearAuthError } = acp;
@@ -329,6 +332,10 @@ export function ChatPanel({
   // streaming updates still arriving). Drives the working indicator below the
   // message stream so users can tell the agent is busy rather than stuck.
   const isWorking = loading || isSessionRunning;
+
+  useEffect(() => {
+    onRunStateChange?.(isWorking);
+  }, [isWorking, onRunStateChange]);
 
   // Auto-scroll
   useEffect(() => {
