@@ -10,6 +10,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { KanbanOverview } from "../kanban-overview";
+import { __resetKanbanOverviewCacheForTests } from "../use-kanban-overview-data";
+import en from "@/i18n/locales/en";
 import { KanbanTabContent } from "../kanban-tab-content";
 
 class MockEventSource {
@@ -95,6 +97,7 @@ function respond(url: string): Response {
 }
 
 beforeEach(() => {
+  __resetKanbanOverviewCacheForTests();
   failTasksFor = null;
   routerPush.mockReset();
   MockEventSource.instances = [];
@@ -159,6 +162,28 @@ describe("view toggle (AC1)", () => {
     expect(window.location.search).toBe("?boardId=b1&taskId=t9");
     expect(screen.queryByTestId("kanban-overview")).toBeNull();
     await waitFor(() => expect(MockEventSource.instances.every((source) => source.close.mock.calls.length > 0)).toBe(true));
+  });
+});
+
+describe("view toggle cache", () => {
+  it("switching back to all projects shows the last data at once, then refreshes in the background", async () => {
+    window.history.replaceState(null, "", "/workspace/w1/kanban");
+    renderTabContent();
+    fireEvent.click(screen.getByTestId("kanban-view-toggle-all"));
+    await waitFor(() => expect(within(rowOf("w2")).getAllByTestId("kanban-overview-card").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByTestId("kanban-view-toggle-board"));
+    expect(screen.queryByTestId("kanban-overview")).toBeNull();
+
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const before = fetchMock.mock.calls.length;
+    fireEvent.click(screen.getByTestId("kanban-view-toggle-all"));
+    // Same render as the click: cards are back and no row says "loading".
+    expect(within(rowOf("w2")).getAllByTestId("kanban-overview-card").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("kanban-overview-row").map((row) => row.getAttribute("data-workspace-id"))).toEqual(["w2", "w1", "w3"]);
+    expect(screen.queryByText(en.kanbanOverview.loading)).toBeNull();
+    await waitFor(() => expect(fetchMock.mock.calls.slice(before).map((call) => String(call[0]))).toEqual(
+      expect.arrayContaining(["/api/tasks?workspaceId=w2", "/api/kanban/boards?workspaceId=w2"]),
+    ));
   });
 });
 

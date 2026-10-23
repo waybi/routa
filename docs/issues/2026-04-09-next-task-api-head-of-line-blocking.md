@@ -134,6 +134,46 @@ Requests slower than `ROUTA_SLOW_API_THRESHOLD_MS` are recorded to:
 
 The default threshold is `1000ms`. Set `ROUTA_API_TIMING_LOG_ALL=1` while dogfooding to record every monitored task API request.
 
+## 2026-10-23 Landing Probe Off the Main Thread
+
+The 2026-09-22 `deliveryLanding` list probe (`src/core/kanban/task-delivery-landing.ts`, see
+`docs/exec-plans/active/kanban-done-merge-visibility.md`) brought synchronous git back onto the
+`GET /api/tasks` hot path: every `done` card with a worktree ran `isGitRepository`, `getRepoRefSha` and
+`getRepoLandingStatus` through `gitExecSync` (about 5–6 `execFileSync` calls per card), and only
+`landedOnBase === true` was cached. TopBI cards go through Gerrit and never land on the local base, so
+they were re-probed on every request. The slow-request log recorded 125 `/api/tasks` requests over 1 s
+since 2026-10-21 (worst 24 s); a TopBI list took 1.47–1.62 s, and a 4 KB `/api/kanban/boards` request
+fired beside it waited 1–5 s.
+
+Fix:
+
+- `src/core/git/git-landing-probe.ts` runs git with async `execFile` only. One
+  `git cat-file --batch-check` resolves `HEAD` and every candidate base ref
+  (`origin/<base>`, `<base>`, `origin/main`, `main`, `origin/master`, `master`) to shas;
+  `rev-list --count` and `merge-base --is-ancestor` then run against those shas, so the answer belongs
+  to exactly those refs. Semantics match `getRepoLandingStatus`.
+- Results are cached for both `true` and `false`, keyed by worktree path + `HEAD` sha + resolved base
+  ref name and sha (+ local base branch sha when the probe falls back to it). A new commit or a moved
+  base misses the cache, so a stale "unmerged +N" cannot be served. Results computed while a git command
+  failed unexpectedly, or with an unborn `HEAD`, are not cached. A hit costs one git process.
+- At most 8 landing probes run at once per process; each probe runs its git commands one after another.
+
+Measured on the live data (read-only `routa.db`, real worktrees, machine load 13–16, 3 rounds each):
+
+| Probe set | Before (sync) | After, cold cache | After, warm cache |
+|---|---:|---:|---:|
+| TopBI, 15 done cards (5 with a live worktree) | 0.82–1.08 s, main thread blocked the whole time | 0.14–0.26 s, longest main-thread block 6–23 ms | 43–58 ms |
+| All workspaces, 124 done cards (10 with a live worktree) | 1.34–2.06 s, blocked the whole time | 0.27–0.44 s, longest block 29–41 ms | 78–182 ms |
+
+Old and new probes returned byte-identical results on both sets.
+
+The all-projects overview (`kanban-overview.tsx`) was the visible victim: it unmounts when the user switches
+back to the single board, so every switch to "全部项目" re-fetched tasks + boards for all 6 workspaces and
+showed "loading" for 0.76–4.1 s. `use-kanban-overview-data.ts` now keeps the last ready data per workspace
+and the last workspace list in a module-level cache: a switch back renders the cached rows at once and
+refreshes them in the background (later request still wins, aborts are not failures, SSE refresh
+unchanged). Only a workspace that was never loaded shows "loading".
+
 ## Fitness Follow-Up
 
 Existing performance fitness lives in `docs/fitness/runtime/performance.md`, but the current `web_route_performance_smoke` is a page/navigation smoke. It does not assert task API latency or task-list payload/derivation budgets.
@@ -160,5 +200,14 @@ The probe should run against deterministic fixture data instead of the developer
 - `src/app/api/tasks/[taskId]/changes/route.ts`
 - `src/core/kanban/task-derived-summary.ts`
 - `src/core/kanban/task-delivery-readiness.ts`
+- `src/core/kanban/task-delivery-landing.ts`
+- `src/core/git/git-landing-probe.ts`
 - `src/core/git/git-utils.ts`
+- `src/app/workspace/[workspaceId]/kanban/use-kanban-overview-data.ts`
 - `docs/fitness/runtime/performance.md`
+
+## 变更记录
+
+| 日期 | 改了什么 | 效果数字 | 提交号 |
+|---|---|---|---|
+| 2026-10-23 | `deliveryLanding` 探测改异步 git、并发上限 8、按 HEAD+基线 sha 缓存（含未合入）；「全部项目」总览按工作区缓存，切回先显示旧数据再后台刷新 | TopBI 15 张卡探测 0.82–1.08 s（全程堵主线程）→ 冷 0.14–0.26 s、热 43–58 ms，主线程最长被占 ≤23 ms | 见本提交 |

@@ -10,6 +10,10 @@
  * - `kanban:changed` / `kanban:task-lifecycle` refetch only the event's
  *   workspace (tasks only for `entity: "task"`), debounced like
  *   use-kanban-events.ts. A reconnect (second `connected`) refetches all.
+ * - The last ready snapshot per workspace (and the workspace list) lives in a
+ *   module-level cache, so switching back to the overview shows it at once
+ *   and refreshes in the background; only a never-loaded workspace shows
+ *   "loading".
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -40,6 +44,31 @@ interface PendingRefresh {
 
 const EMPTY_DATA: OverviewWorkspaceData = { status: "loading", tasks: [], boards: [] };
 
+/** Last ready data per workspace id, shared by every overview mount. */
+const overviewDataCache = new Map<string, OverviewWorkspaceData>();
+/** Last fetched workspace list, shown while the list is refetched on remount. */
+let overviewWorkspacesCache: readonly OverviewWorkspace[] | null = null;
+
+/** Test-only: forget the cached overview data and workspace list. */
+export function __resetKanbanOverviewCacheForTests(): void {
+  overviewDataCache.clear();
+  overviewWorkspacesCache = null;
+}
+
+/**
+ * The workspace list to render: the fetched one, or, while the first fetch of
+ * this mount is still running, the list from the previous mount.
+ */
+export function useRememberedOverviewWorkspaces(
+  fetched: readonly OverviewWorkspace[],
+  loading: boolean,
+): readonly OverviewWorkspace[] {
+  useEffect(() => {
+    if (!loading) overviewWorkspacesCache = fetched.map(({ id, title }) => ({ id, title }));
+  }, [fetched, loading]);
+  return loading && fetched.length === 0 && overviewWorkspacesCache ? overviewWorkspacesCache : fetched;
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
@@ -51,15 +80,20 @@ async function fetchJson(path: string, signal: AbortSignal): Promise<Record<stri
 }
 
 export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) {
-  const [data, setData] = useState<Record<string, OverviewWorkspaceData>>({});
+  const [data, setData] = useState<Record<string, OverviewWorkspaceData>>(() => Object.fromEntries(overviewDataCache));
   const dataRef = useRef(data);
   const inflightRef = useRef(new Map<string, InflightRequest>());
   const pendingRef = useRef(new Map<string, PendingRefresh>());
   const workspaceIdsRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(true);
+  // Workspaces whose load (first or background refresh) this mount started.
+  const startedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     dataRef.current = data;
+    for (const [workspaceId, entry] of Object.entries(data)) {
+      if (entry.status === "ready") overviewDataCache.set(workspaceId, entry);
+    }
   }, [data]);
 
   const loadWorkspace = useCallback(async (workspaceId: string, options: { boards: boolean }) => {
@@ -123,12 +157,14 @@ export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) 
 
   const workspaceKey = workspaces.map((workspace) => workspace.id).join("\n");
 
-  // Initial load for every (new) workspace in the list.
+  // Load every (new) workspace once per mount. Cached ones keep showing their
+  // last data with status "ready" while this background refresh runs.
   useEffect(() => {
     const ids = workspaceKey ? workspaceKey.split("\n") : [];
     workspaceIdsRef.current = new Set(ids);
     for (const id of ids) {
-      if (!dataRef.current[id] && !inflightRef.current.has(id)) {
+      if (!startedRef.current.has(id) && !inflightRef.current.has(id)) {
+        startedRef.current.add(id);
         void loadWorkspace(id, { boards: true });
       }
     }
@@ -142,6 +178,7 @@ export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) 
     let connectedCount = 0;
     const inflight = inflightRef.current;
     const pending = pendingRef.current;
+    const started = startedRef.current;
 
     const connect = () => {
       if (!mountedRef.current) return;
@@ -190,6 +227,8 @@ export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) 
       pending.clear();
       for (const entry of inflight.values()) entry.controller.abort();
       inflight.clear();
+      // Aborted loads must start again if this hook instance remounts.
+      started.clear();
     };
   }, [loadWorkspace, scheduleRefresh]);
 

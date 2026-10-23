@@ -2,7 +2,12 @@ import { act, render } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TASK_INVALIDATE_DEBOUNCE_MS, TASK_INVALIDATE_MAX_WAIT_MS } from "@/client/hooks/use-kanban-events";
-import { OVERVIEW_RECONNECT_DELAY_MS, useKanbanOverviewData, type OverviewWorkspaceData } from "../use-kanban-overview-data";
+import {
+  __resetKanbanOverviewCacheForTests,
+  OVERVIEW_RECONNECT_DELAY_MS,
+  useKanbanOverviewData,
+  type OverviewWorkspaceData,
+} from "../use-kanban-overview-data";
 import type { OverviewWorkspace } from "../kanban-overview-rules";
 
 class MockEventSource {
@@ -87,6 +92,7 @@ async function flush() {
 }
 
 beforeEach(() => {
+  __resetKanbanOverviewCacheForTests();
   calls = [];
   autoRespond = defaultResponder;
   MockEventSource.instances = [];
@@ -238,5 +244,39 @@ describe("useKanbanOverviewData", () => {
     await flush();
     expect(latest.data.w1.status).toBe("ready");
     expect(latest.data.w1.tasks.map((task) => task.id)).toEqual(["newer"]);
+  });
+
+  it("shows cached data at once after a remount and refreshes it in the background", async () => {
+    const first = render(<Harness workspaces={WORKSPACES} />);
+    await flush();
+    expect(latest.data.w1.tasks.map((task) => task.id)).toEqual(["w1-t"]);
+    first.unmount();
+
+    autoRespond = null;
+    const before = fetchUrls().length;
+    render(<Harness workspaces={WORKSPACES} />);
+    // Before any response: the previous data, not "loading".
+    expect(latest.data.w1.status).toBe("ready");
+    expect(latest.data.w1.tasks.map((task) => task.id)).toEqual(["w1-t"]);
+    expect(latest.data.w2.status).toBe("ready");
+    await flush();
+    expect(fetchUrls().slice(before).sort()).toEqual([
+      "/api/kanban/boards?workspaceId=w1",
+      "/api/kanban/boards?workspaceId=w2",
+      "/api/tasks?workspaceId=w1",
+      "/api/tasks?workspaceId=w2",
+    ]);
+    expect(latest.data.w1.status).toBe("ready");
+
+    calls.splice(0).forEach((call) => call.resolve(call.url.includes("tasks")
+      ? { tasks: [{ id: "fresh", title: "f", status: "PENDING" }] }
+      : { boards: [] }));
+    await flush();
+    expect(latest.data.w1.tasks.map((task) => task.id)).toEqual(["fresh"]);
+  });
+
+  it("starts with loading for a workspace that was never loaded", () => {
+    render(<Harness workspaces={WORKSPACES} />);
+    expect(latest.data.w1).toBeUndefined();
   });
 });

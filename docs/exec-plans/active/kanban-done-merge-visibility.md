@@ -83,7 +83,7 @@ Column header: count of done cards with `landedOnBase === false`, shown next to 
 deliveryLanding?: { landedOnBase: boolean | null; commitsSinceBase: number; branch?; baseBranch? }
 ```
 
-Backed by `getRepoLandingStatus` (`git-utils.ts`): `rev-parse --verify` + `rev-list --count` + `merge-base --is-ancestor`, no `status`/`remote`. Measured on a real task worktree: 57 ms vs 159 ms for the full path. It runs only for cards where `columnId === "done" && worktreeId` is set, is always on in the default list view, and `resolveCardMergeState` prefers it over `deliveryReadiness` when both are present. `landedOnBase` is still also added to `deliveryReadiness` so the detail view (which does get the full probe) agrees with the tile.
+Originally backed by `getRepoLandingStatus` (`git-utils.ts`): `rev-parse --verify` + `rev-list --count` + `merge-base --is-ancestor`, no `status`/`remote`. Measured on a real task worktree: 57 ms vs 159 ms for the full path. Since 2026-10-23 it uses `git-landing-probe.ts` instead: async `execFile` only, one `cat-file --batch-check` for HEAD + base refs, at most 8 probes at once, and a cache keyed by HEAD + base shas that also holds `false` results (see `docs/issues/2026-04-09-next-task-api-head-of-line-blocking.md`, "2026-10-23 Landing Probe Off the Main Thread"). It runs only for cards where `columnId === "done" && worktreeId` is set, is always on in the default list view, and `resolveCardMergeState` prefers it over `deliveryReadiness` when both are present. `landedOnBase` is still also added to `deliveryReadiness` so the detail view (which does get the full probe) agrees with the tile.
 
 `landedAt` on the snapshot is added as a pure helper (`markTaskDeliveryLanded`) but **not yet persisted** from any read path — writing on GET would be a side effect in a hot path; the Phase 2 land endpoint is the natural writer.
 
@@ -178,6 +178,7 @@ done
 - `merge-tree --write-tree` requires git ≥ 2.38. Detect once and fall back to "prediction unavailable" rather than failing the panel.
 - Desktop parity gap: Phase 2 endpoints will be Next-only until ported. Tauri users see a disabled button with a tooltip, not a broken one.
 - `landedOnBase` adds one git subprocess per task in `GET /api/tasks`. The list already does one `getRepoDeliveryStatus` per task (`tasks/route.ts:532`); this piggybacks on the same call, so no additional process spawn.
+- 2026-10-23: the list-path `deliveryLanding` probe was itself synchronous (~5–6 `execFileSync` per done card, only `true` cached) and blocked the Next main thread for 0.8–2 s per list. Now async, capped at 8 concurrent probes, cached on HEAD + base shas; a cache hit is one `git cat-file`.
 
 ## Related
 

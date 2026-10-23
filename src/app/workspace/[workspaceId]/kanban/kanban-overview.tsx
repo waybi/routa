@@ -24,7 +24,7 @@ import {
   type OverviewRow,
 } from "./kanban-overview-rules";
 import { readAttentionDismissals } from "./use-kanban-attention-dismissals";
-import { useKanbanOverviewData, type OverviewWorkspaceData } from "./use-kanban-overview-data";
+import { useKanbanOverviewData, useRememberedOverviewWorkspaces, type OverviewWorkspaceData } from "./use-kanban-overview-data";
 import { buttonClassName } from "@/client/components/ui/button";
 
 export type KanbanViewMode = "board" | "all";
@@ -234,7 +234,8 @@ const LOADING: OverviewWorkspaceData = { status: "loading", tasks: [], boards: [
 export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; now?: number }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { workspaces } = useWorkspaces();
+  const { workspaces: fetchedWorkspaces, loading: workspacesLoading } = useWorkspaces();
+  const workspaces = useRememberedOverviewWorkspaces(fetchedWorkspaces, workspacesLoading);
   const { data, retry } = useKanbanOverviewData(workspaces);
   const search = useKanbanBoardSearch();
   const at = useMinuteClock(now);
