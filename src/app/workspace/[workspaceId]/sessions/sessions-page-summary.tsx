@@ -77,7 +77,7 @@ export function SessionsRecentButton({
       type="button"
       onClick={() => onOpen(latest.sessionId)}
       data-testid="sessions-recent-button"
-      className="max-w-full shrink-0 truncate rounded-md border border-default bg-subtle px-2.5 py-1 text-[11px] font-medium text-secondary transition-colors duration-150 hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+      className="min-w-0 max-w-full truncate rounded-md border border-default bg-subtle px-2.5 py-1 text-[11px] font-medium text-secondary transition-colors duration-150 hover:bg-hover hover:text-primary focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
     >
       {sessionDisplayLabel(latest, t.homeRedesign.sessionFallback)}
     </button>

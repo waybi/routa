@@ -153,8 +153,8 @@ export function SessionsPageClient() {
             aria-label={t.home.modeSessionTitle}
             className="rounded-lg border border-default bg-surface p-4"
           >
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+              <div className="min-w-[12rem] flex-1">
                 <h2 className="m-0 text-[15px] font-semibold text-primary">{t.home.modeSessionTitle}</h2>
                 <p className="m-0 mt-1 text-xs text-secondary">{t.home.modeSessionDescription}</p>
               </div>

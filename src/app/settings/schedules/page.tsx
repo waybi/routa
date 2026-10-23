@@ -28,7 +28,7 @@ export default function SchedulesSettingsPage() {
       actions={(
         // Trigger and runtime pills restored from the pre-redesign header
         // (e4e5c162 L56-59); design-spec §12 keeps them visible.
-        <div className="flex flex-wrap gap-2" data-testid="schedules-header-pills">
+        <div className="flex flex-wrap justify-end gap-2 min-[801px]:max-[1100px]:max-w-[22rem]" data-testid="schedules-header-pills">
           <span className={PILL_CLASS} data-testid="schedules-tick-pill">
             {t.settingsExtended.tickEndpoint}
             <code className="font-mono text-primary">/api/schedules/tick</code>
