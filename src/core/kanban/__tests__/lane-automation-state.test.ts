@@ -7,6 +7,7 @@ import type { KanbanColumn } from "../../models/kanban";
 import { createTask, type Task } from "../../models/task";
 import {
   resolveCurrentLaneAutomationState,
+  resolveLaneResumeStep,
   resolveLaunchStepIndex,
   resolveRemainingLaneStepsMoveBlock,
 } from "../lane-automation-state";
@@ -91,5 +92,16 @@ describe("resolveRemainingLaneStepsMoveBlock", () => {
   it("does not block when no session triggered the lane", () => {
     const task = { ...buildTask("session-qa"), triggerSessionId: undefined };
     expect(resolveRemainingLaneStepsMoveBlock(task, columns)).toBeUndefined();
+  });
+});
+
+describe("resolveLaneResumeStep after a finished step (unchanged by card 5fdaa681)", () => {
+  it("runs the step after the lane's latest completed step", () => {
+    const task = buildTask("session-qa");
+    task.laneSessions = task.laneSessions!.slice(0, 1);
+    expect(resolveLaneResumeStep(task, columns)).toMatchObject({
+      stepIndex: 1,
+      step: expect.objectContaining({ specialistId: "kanban-review-guard" }),
+    });
   });
 });

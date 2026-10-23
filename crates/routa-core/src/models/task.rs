@@ -52,6 +52,12 @@ pub enum TaskLaneSessionRecoveryReason {
     /// Session could not run because of the host environment (for example an
     /// unregistered provider). Not counted as a retry and never auto-retried.
     EnvironmentFailure,
+    /// The turn ended with stopReason=cancelled (Routa restart, manual
+    /// cancel). The step failed and waits for a manual rerun.
+    TurnCancelled,
+    /// Routa restarted while the step was running; the startup sweep or
+    /// revive ended its record.
+    RestartInterrupted,
 }
 
 /// Session associated with a task lane transition

@@ -106,7 +106,11 @@ export type TaskLaneSessionRecoveryReason =
   | "agent_failed"
   | "completion_criteria_not_met"
   /** Session could not run because of the host environment (e.g. unregistered provider); never auto-retried. */
-  | "environment_failure";
+  | "environment_failure"
+  /** The turn ended with stopReason=cancelled (Routa restart, manual cancel); waits for a manual rerun. */
+  | "turn_cancelled"
+  /** Routa restarted while the step ran; the startup sweep or revive ended the record. */
+  | "restart_interrupted";
 
 export type TaskLaneHandoffRequestType =
   | "environment_preparation"

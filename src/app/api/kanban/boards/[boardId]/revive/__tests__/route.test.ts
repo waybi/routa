@@ -244,7 +244,9 @@ describe("/api/kanban/boards/[boardId]/revive POST", () => {
     }));
   });
 
-  it("marks stale review sessions with existing verdicts as transitioned before revive", async () => {
+  // Card 5fdaa681: a verdict on the card does not mean the step that was
+  // running in the current column finished; it was interrupted by the restart.
+  it("marks stale current-lane sessions as restart_interrupted even when the card has a verdict", async () => {
     taskStore.listByWorkspace.mockResolvedValue([
       createTaskWithRunningSession({
         title: "Approved review story",
@@ -261,13 +263,17 @@ describe("/api/kanban/boards/[boardId]/revive POST", () => {
     expect(taskStore.save).toHaveBeenCalledWith(expect.objectContaining({
       laneSessions: [expect.objectContaining({
         sessionId: "session-1",
-        status: "transitioned",
+        status: "timed_out",
+        recoveryReason: "restart_interrupted",
       })],
     }));
     expect(processKanbanColumnTransition).toHaveBeenCalledTimes(1);
   });
 
-  it("resumes the next review step instead of replaying step 0 after stale verdict recovery", async () => {
+  // Card 5fdaa681: QA Frontend (step 0) was interrupted by the restart, so it
+  // runs again; Review Guard is not started over an unfinished QA step. The
+  // "previous step completed → next step" resume is covered in restart-recovery.test.ts.
+  it("reruns the interrupted first review step even when the card has a verdict", async () => {
     const reviewBoard = {
       id: "board-1",
       workspaceId: "workspace-1",
@@ -321,20 +327,16 @@ describe("/api/kanban/boards/[boardId]/revive POST", () => {
       triggerSessionId: undefined,
       laneSessions: [expect.objectContaining({
         sessionId: "session-1",
-        status: "transitioned",
+        status: "timed_out",
+        recoveryReason: "restart_interrupted",
         stepIndex: 0,
       })],
     }));
-    expect(enqueueKanbanTaskSession).toHaveBeenCalledWith(system, expect.objectContaining({
-      expectedColumnId: "review",
-      ignoreExistingTrigger: true,
-      stepIndex: 1,
-      step: expect.objectContaining({
-        id: "review-guard",
-        specialistName: "Review Guard",
-      }),
+    expect(processKanbanColumnTransition).toHaveBeenCalledWith(system, expect.objectContaining({
+      fromColumnId: "__revive__",
+      toColumnId: "review",
     }));
-    expect(processKanbanColumnTransition).not.toHaveBeenCalled();
+    expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
   });
 
   it("converges approved review cards to done when restart left no active review session", async () => {

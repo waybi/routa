@@ -3,9 +3,9 @@ import { getHttpSessionStore } from "../acp/http-session-store";
 import { getAcpProcessManager } from "../acp/processer";
 import type { RoutaSystem } from "../routa-system";
 import { getKanbanAutomationSteps, resolveTaskStatusForBoardColumn } from "../models/kanban";
-import type { Task, TaskLaneSessionStatus } from "../models/task";
-import { getTaskLaneSession, markTaskLaneSessionStatus } from "./task-lane-history";
-import { resolveCurrentLaneAutomationState } from "./lane-automation-state";
+import type { Task } from "../models/task";
+import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import { resolveCurrentLaneAutomationState, resolveLaneResumeStep } from "./lane-automation-state";
 import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
@@ -69,12 +69,15 @@ function isAwaitingRerunAfterLaneWatchdog(
     && latest.recoveryReason === "watchdog_inactivity";
 }
 
-function resolveStaleLaneSessionTerminalStatus(
-  task: Pick<Task, "verificationVerdict" | "verificationReport" | "completionSummary">,
-): TaskLaneSessionStatus {
-  return task.verificationVerdict || task.verificationReport || task.completionSummary
-    ? "transitioned"
-    : "timed_out";
+/**
+ * A step of the card's current column that was still running when Routa
+ * restarted did not finish, whatever conclusion the card already carries
+ * (a Done card has Review's verdict; card a0b2b4fa's pusher, 2026-10-23):
+ * it is recorded as interrupted, so a rerun starts at that step.
+ */
+function markInterruptedByRestart(task: Task, sessionId: string): void {
+  markTaskLaneSessionStatus(task, sessionId, "timed_out");
+  upsertTaskLaneSession(task, { sessionId, recoveryReason: "restart_interrupted" });
 }
 
 /**
@@ -105,11 +108,7 @@ async function sanitizeStaleCurrentLaneAutomation(
     const triggerLaneSession = getTaskLaneSession(nextTask, nextTask.triggerSessionId);
     if (triggerLaneSession && triggerLaneSession.columnId === nextTask.columnId) {
       if (triggerLaneSession.status === "running") {
-        markTaskLaneSessionStatus(
-          nextTask,
-          triggerLaneSession.sessionId,
-          resolveStaleLaneSessionTerminalStatus(nextTask),
-        );
+        markInterruptedByRestart(nextTask, triggerLaneSession.sessionId);
         sweep?.ended.push(triggerLaneSession.sessionId);
       }
     }
@@ -124,11 +123,11 @@ async function sanitizeStaleCurrentLaneAutomation(
       && entry.status === "running"
       && !isSessionActivelyRunning(entry.sessionId, options)
     ) {
-      markTaskLaneSessionStatus(
-        nextTask,
-        entry.sessionId,
-        inCurrentColumn ? resolveStaleLaneSessionTerminalStatus(nextTask) : "transitioned",
-      );
+      if (inCurrentColumn) {
+        markInterruptedByRestart(nextTask, entry.sessionId);
+      } else {
+        markTaskLaneSessionStatus(nextTask, entry.sessionId, "transitioned");
+      }
       sweep?.ended.push(entry.sessionId);
       mutated = true;
     }
@@ -310,9 +309,30 @@ export async function reviveMissingEntryAutomations(
       continue;
     }
 
+    // The lane's latest run was interrupted or failed (Routa restart,
+    // cancelled turn): rerun that step, not the next one and not the lane's
+    // first one (card 5fdaa681). Step 0 re-enters the column below.
+    const latestRun = [...(task.laneSessions ?? [])]
+      .reverse()
+      .find((entry) => entry.columnId === currentColumnId && typeof entry.stepIndex === "number");
+    const latestRunEnded = latestRun?.status === "failed" || latestRun?.status === "timed_out";
+    const resumeStep = latestRunEnded ? resolveLaneResumeStep(task, board.columns) : undefined;
+    if (resumeStep && resumeStep.stepIndex > 0) {
+      await enqueueKanbanTaskSession(system, {
+        task,
+        expectedColumnId: currentColumnId,
+        ignoreExistingTrigger: true,
+        step: resumeStep.step,
+        stepIndex: resumeStep.stepIndex,
+        adoptLaneRun: true,
+      });
+      continue;
+    }
+
     const laneState = resolveCurrentLaneAutomationState(task, board.columns);
     if (
-      laneState.currentSession
+      !latestRunEnded
+      && laneState.currentSession
       && laneState.currentSession.columnId === currentColumnId
       && (laneState.currentSession.status === "transitioned" || laneState.currentSession.status === "completed")
       && laneState.nextStep

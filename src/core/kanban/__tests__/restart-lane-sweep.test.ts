@@ -102,16 +102,18 @@ describe("startup sweep of stale running lane sessions", () => {
 
     const done = await system.taskStore.get("card-done");
     expect(done?.triggerSessionId).toBeUndefined();
-    // Card has a verdict: same terminal status revive gives it.
+    // Card 5fdaa681: a verdict on the card does not make the interrupted
+    // current-column step "done"; it is recorded as interrupted by the restart.
     expect(done?.laneSessions?.find((entry) => entry.sessionId === "dead-reporter"))
-      .toMatchObject({ status: "transitioned", completedAt: expect.any(String) });
+      .toMatchObject({ status: "timed_out", recoveryReason: "restart_interrupted", completedAt: expect.any(String) });
 
     const todo = await system.taskStore.get("card-todo");
     expect(todo?.triggerSessionId).toBeUndefined();
     expect(todo?.laneSessions?.find((entry) => entry.sessionId === "dead-contract"))
-      .toMatchObject({ status: "timed_out", completedAt: expect.any(String) });
+      .toMatchObject({ status: "timed_out", recoveryReason: "restart_interrupted", completedAt: expect.any(String) });
     expect(todo?.laneSessions?.find((entry) => entry.sessionId === "dead-review-guard"))
       .toMatchObject({ status: "transitioned", completedAt: expect.any(String) });
+    expect(todo?.laneSessions?.find((entry) => entry.sessionId === "dead-review-guard")?.recoveryReason).toBeUndefined();
 
     const live = await system.taskStore.get("card-live");
     expect(live?.triggerSessionId).toBe("live-guard");
@@ -119,6 +121,43 @@ describe("startup sweep of stale running lane sessions", () => {
     expect(live?.laneSessions?.[0]?.completedAt).toBeUndefined();
 
     expect(triggerAssignedTaskAgentMock).not.toHaveBeenCalled();
+  });
+
+  // C4: whatever conclusion the card already carries, the step that was
+  // running in the card's current column was interrupted, not finished.
+  it.each([
+    { label: "verdict only", extra: { verificationVerdict: VerificationVerdict.APPROVED } },
+    { label: "completionSummary only", extra: { completionSummary: "Dev summary" } },
+    { label: "no conclusion", extra: {} },
+  ])("records the interrupted current-column step as restart_interrupted ($label)", async ({ extra }) => {
+    const system = createInMemorySystem();
+    await system.workspaceStore.save(createWorkspace({ id: "ws-c4", title: "C4" }));
+    const untouched = [
+      { sessionId: "dead-old-review", columnId: "review", stepIndex: 0, status: "completed" as const, startedAt: "2026-10-23T08:00:00.000Z", completedAt: "2026-10-23T08:10:00.000Z" },
+      { sessionId: "dead-old-done", columnId: "done", stepIndex: 0, status: "failed" as const, recoveryReason: "agent_failed" as const, startedAt: "2026-10-23T08:11:00.000Z", completedAt: "2026-10-23T08:12:00.000Z" },
+    ];
+    await system.taskStore.save({
+      ...createTask({ id: "card-c4", title: "c4", objective: "c4", workspaceId: "ws-c4", boardId: "board-c4", columnId: "done", status: TaskStatus.COMPLETED }),
+      ...extra,
+      triggerSessionId: "dead-pusher",
+      laneSessions: [
+        ...untouched.slice(0, 1),
+        running("dead-earlier-guard", "review", 1),
+        ...untouched.slice(1),
+        running("dead-pusher", "done", 0),
+      ],
+    });
+
+    await endStaleRunningLaneSessions(system, options);
+
+    const lane = (await system.taskStore.get("card-c4"))?.laneSessions ?? [];
+    expect(lane.find((entry) => entry.sessionId === "dead-pusher"))
+      .toMatchObject({ status: "timed_out", recoveryReason: "restart_interrupted" });
+    const earlier = lane.find((entry) => entry.sessionId === "dead-earlier-guard");
+    expect(earlier).toMatchObject({ status: "transitioned" });
+    expect(earlier?.recoveryReason).toBeUndefined();
+    expect(lane.filter((entry) => untouched.some((item) => item.sessionId === entry.sessionId)))
+      .toEqual(untouched);
   });
 
   it("finds nothing to end on a second run", async () => {

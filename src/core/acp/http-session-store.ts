@@ -698,10 +698,14 @@ class HttpSessionStore {
           },
         });
         break;
-      case "agent_completed":
+      case "agent_completed": {
+        // A cancelled turn (Routa restart, manual cancel) did not finish its
+        // work: report it as a failed completion. It stays AGENT_COMPLETED so
+        // the board queue still frees the session's slot.
+        const cancelled = event.stopReason === "cancelled";
         this.setSessionTerminalState(
           sessionId,
-          "completed",
+          cancelled ? "failed" : "completed",
           event.stopReason ?? "agent_completed",
           event.timestamp,
         );
@@ -710,12 +714,13 @@ class HttpSessionStore {
           type: AgentEventType.AGENT_COMPLETED,
           data: {
             sessionId,
-            success: true,
+            success: !cancelled,
             stopReason: event.stopReason,
             usage: event.usage,
           },
         });
         break;
+      }
       case "agent_failed":
         this.setSessionTerminalState(
           sessionId,

@@ -10,6 +10,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { EventBus, AgentEventType, type AgentEvent } from "../../events/event-bus";
 import { LocalSessionProvider } from "../../storage/local-session-provider";
+import { KanbanSessionQueue } from "../../kanban/kanban-session-queue";
+import { createTask } from "../../models/task";
+import { InMemoryTaskStore } from "../../store/task-store";
 
 // We need to test the store in isolation. Import the class and types.
 // The singleton getter is module-scoped, so we test via the exported function.
@@ -167,6 +170,97 @@ describe("HttpSessionStore — ACP status", () => {
       },
     });
   });
+
+  // Card 5fdaa681 (C1): a turn that ends with stopReason=cancelled (Routa
+  // restart, manual cancel) is not a successful step. The lifecycle event is
+  // still AGENT_COMPLETED so the board queue frees the slot.
+  it("bridges a cancelled turn as a failed completion and frees the board slot", async () => {
+    const store = getHttpSessionStore();
+    const eventBus = new EventBus();
+    const received: AgentEvent[] = [];
+    store.setEventBus(eventBus);
+    eventBus.on("test-listener", (event) => {
+      received.push(event);
+    });
+    const taskStore = new InMemoryTaskStore();
+    await taskStore.save(createTask({
+      id: "card-cancel",
+      title: "Cancelled card",
+      objective: "Cancelled card",
+      workspaceId: "ws-1",
+      boardId: "board-1",
+      columnId: "done",
+    }));
+    const queue = new KanbanSessionQueue(eventBus, taskStore, async () => 2);
+    queue.start();
+    await queue.enqueue({
+      cardId: "card-cancel",
+      cardTitle: "Cancelled card",
+      boardId: "board-1",
+      workspaceId: "ws-1",
+      columnId: "done",
+      start: async () => ({ sessionId: "test-cancelled" }),
+    });
+    expect((await queue.getBoardSnapshot("board-1")).runningCount).toBe(1);
+
+    store.upsertSession({
+      sessionId: "test-cancelled",
+      cwd: tmpDir,
+      workspaceId: "ws-1",
+      provider: "opencode",
+      createdAt: new Date().toISOString(),
+    });
+    received.length = 0;
+
+    store.pushNotification({
+      sessionId: "test-cancelled",
+      update: { sessionUpdate: "turn_complete", stopReason: "cancelled" },
+    });
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({
+      type: AgentEventType.AGENT_COMPLETED,
+      data: { sessionId: "test-cancelled", success: false, stopReason: "cancelled" },
+    });
+    expect(store.getSessionActivity("test-cancelled")).toMatchObject({
+      terminalState: "failed",
+      terminalReason: "cancelled",
+    });
+    await vi.waitFor(async () => {
+      expect((await queue.getBoardSnapshot("board-1")).runningCount).toBe(0);
+    });
+    queue.stop();
+  });
+
+  // F2: every other stopReason is bridged exactly as before the change.
+  it.each(["end_turn", "max_tokens", "max_turn_requests", "refusal"])(
+    "bridges stopReason=%s as a successful completion (unchanged)",
+    (stopReason) => {
+      const store = getHttpSessionStore();
+      const eventBus = new EventBus();
+      const received: AgentEvent[] = [];
+      store.setEventBus(eventBus);
+      eventBus.on("test-listener", (event) => {
+        received.push(event);
+      });
+      const sessionId = `test-stop-${stopReason}`;
+      store.upsertSession({
+        sessionId,
+        cwd: tmpDir,
+        workspaceId: "ws-1",
+        provider: "opencode",
+        createdAt: new Date().toISOString(),
+      });
+      received.length = 0;
+
+      store.pushNotification({ sessionId, update: { sessionUpdate: "turn_complete", stopReason } });
+
+      expect(received).toHaveLength(1);
+      expect(received[0].type).toBe(AgentEventType.AGENT_COMPLETED);
+      expect(received[0].data).toEqual({ sessionId, success: true, stopReason, usage: undefined });
+      expect(store.getSessionActivity(sessionId)).toMatchObject({ terminalState: "completed", terminalReason: stopReason });
+    },
+  );
 
   it("tracks session activity timestamps from normalized ACP updates", () => {
     const store = getHttpSessionStore();

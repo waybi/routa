@@ -110,26 +110,26 @@ describe("kanban restart recovery", () => {
     }));
   });
 
-  it("re-enqueues the next review step when recovery resumes a multi-step lane", async () => {
-    const reviewBoard = {
-      id: "board-1",
-      columns: [{
-        id: "review",
-        name: "Review",
-        position: 0,
-        stage: "review",
-        automation: {
-          enabled: true,
-          transitionType: "entry",
-          steps: [
-            { id: "qa-frontend", role: "GATE", specialistId: "kanban-qa-frontend", specialistName: "QA Frontend" },
-            { id: "review-guard", role: "GATE", specialistId: "kanban-review-guard", specialistName: "Review Guard" },
-          ],
-        },
-      }],
-    };
-    kanbanBoardStore.get.mockResolvedValue(reviewBoard);
-    taskStore.listByWorkspace.mockResolvedValue([{
+  const reviewBoard = {
+    id: "board-1",
+    columns: [{
+      id: "review",
+      name: "Review",
+      position: 0,
+      stage: "review",
+      automation: {
+        enabled: true,
+        transitionType: "entry",
+        steps: [
+          { id: "qa-frontend", role: "GATE", specialistId: "kanban-qa-frontend", specialistName: "QA Frontend" },
+          { id: "review-guard", role: "GATE", specialistId: "kanban-review-guard", specialistName: "Review Guard" },
+        ],
+      },
+    }],
+  };
+
+  function reviewTask(qaStatus: "running" | "completed"): Task {
+    return {
       ...createTaskWithRunningSession({
         title: "Approved review story",
         objective: "Review story",
@@ -137,17 +137,49 @@ describe("kanban restart recovery", () => {
         status: TaskStatus.REVIEW_REQUIRED,
         verificationVerdict: VerificationVerdict.APPROVED,
         verificationReport: "looks good",
+        triggerSessionId: qaStatus === "running" ? "session-1" : undefined,
       }),
       laneSessions: [{
         sessionId: "session-1",
         columnId: "review",
-        status: "running",
+        status: qaStatus,
         stepId: "qa-frontend",
         stepIndex: 0,
         stepName: "QA Frontend",
         startedAt: "2025-01-01T00:00:00.000Z",
       }],
-    }]);
+    };
+  }
+
+  // Card 5fdaa681: the QA step was still running when Routa restarted. The
+  // verdict on the card does not mean QA finished: it is recorded as
+  // interrupted and the lane restarts at QA (step 0), not at Review Guard.
+  it("reruns an interrupted first review step instead of starting the next one", async () => {
+    kanbanBoardStore.get.mockResolvedValue(reviewBoard);
+    taskStore.listByWorkspace.mockResolvedValue([reviewTask("running")]);
+
+    await reviveMissingEntryAutomations(system as never, "workspace-1", "board-1", {
+      sessionStore: sessionStore as never,
+      processManager: processManager as never,
+    });
+
+    expect(taskStore.save).toHaveBeenCalledWith(expect.objectContaining({
+      laneSessions: [expect.objectContaining({
+        sessionId: "session-1",
+        status: "timed_out",
+        recoveryReason: "restart_interrupted",
+      })],
+    }));
+    expect(processKanbanColumnTransition).toHaveBeenCalledWith(system, expect.objectContaining({
+      fromColumnId: "__revive__",
+      toColumnId: "review",
+    }));
+    expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
+  });
+
+  it("re-enqueues the next review step when the previous step completed", async () => {
+    kanbanBoardStore.get.mockResolvedValue(reviewBoard);
+    taskStore.listByWorkspace.mockResolvedValue([reviewTask("completed")]);
 
     await reviveMissingEntryAutomations(system as never, "workspace-1", "board-1", {
       sessionStore: sessionStore as never,
@@ -157,6 +189,7 @@ describe("kanban restart recovery", () => {
     expect(enqueueKanbanTaskSession).toHaveBeenCalledWith(system, expect.objectContaining({
       expectedColumnId: "review",
       ignoreExistingTrigger: true,
+      adoptLaneRun: true,
       stepIndex: 1,
       step: expect.objectContaining({ id: "review-guard" }),
     }));

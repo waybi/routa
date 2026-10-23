@@ -516,4 +516,97 @@ mod tests {
         assert_eq!(loaded.lane_sessions, task.lane_sessions);
         assert_eq!(loaded.lane_handoffs, task.lane_handoffs);
     }
+
+    async fn load_with_raw_lane_sessions(store: &TaskStore, task_id: &str, raw: &str) -> Task {
+        let task = Task::new(
+            task_id.to_string(),
+            "Raw lane JSON".to_string(),
+            "Lane JSON written by the Next.js backend".to_string(),
+            "default".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        store.save(&task).await.expect("save should succeed");
+        let id = task_id.to_string();
+        let raw = raw.to_string();
+        store
+            .db
+            .with_conn_async(move |conn| {
+                conn.execute(
+                    "UPDATE tasks SET lane_sessions = ?1 WHERE id = ?2",
+                    rusqlite::params![raw, id],
+                )
+            })
+            .await
+            .expect("raw lane_sessions update should succeed");
+        store
+            .get(task_id)
+            .await
+            .expect("get should succeed")
+            .expect("task should exist")
+    }
+
+    /// Card 5fdaa681 (C8): the Next.js backend writes the new recovery reasons
+    /// `turn_cancelled` and `restart_interrupted`. An unknown value used to make
+    /// `parse_json_column` drop the card's whole lane history.
+    #[tokio::test]
+    async fn lane_sessions_with_interruption_recovery_reasons_survive_a_read() {
+        let store = setup().await;
+        let raw = concat!(
+            r#"[{"sessionId":"s-cancel","columnId":"done","stepIndex":0,"recoveryReason":"turn_cancelled","status":"failed","startedAt":"2026-10-23T20:23:00.000Z","completedAt":"2026-10-23T20:25:46.000Z"},"#,
+            r#"{"sessionId":"s-restart","columnId":"done","stepIndex":0,"recoveryReason":"restart_interrupted","status":"timed_out","startedAt":"2026-10-23T20:26:00.000Z","completedAt":"2026-10-23T20:30:00.000Z"},"#,
+            r#"{"sessionId":"s-watchdog","columnId":"review","stepIndex":1,"recoveryReason":"watchdog_inactivity","status":"timed_out","startedAt":"2026-10-23T20:31:00.000Z"}]"#,
+        );
+
+        let loaded = load_with_raw_lane_sessions(&store, "task-c8", raw).await;
+
+        assert_eq!(loaded.lane_sessions.len(), 3, "no lane record may be dropped");
+        // Each reason parsed into its own enum variant (checked by the
+        // variant's serialized name, so this test also compiles without them).
+        let reasons: Vec<String> = loaded
+            .lane_sessions
+            .iter()
+            .map(|session| serde_json::to_string(&session.recovery_reason).expect("serialize"))
+            .collect();
+        assert_eq!(
+            reasons,
+            vec![
+                "\"turn_cancelled\"",
+                "\"restart_interrupted\"",
+                "\"watchdog_inactivity\""
+            ]
+        );
+        assert_eq!(
+            loaded.lane_sessions[2].recovery_reason,
+            Some(TaskLaneSessionRecoveryReason::WatchdogInactivity)
+        );
+        assert_eq!(
+            serde_json::to_string(&loaded.lane_sessions).expect("serialize"),
+            raw
+        );
+    }
+
+    /// F2: lane JSON with only the older reasons reads and writes back byte for byte.
+    #[tokio::test]
+    async fn lane_sessions_with_older_recovery_reasons_round_trip_unchanged() {
+        let store = setup().await;
+        let raw = concat!(
+            r#"[{"sessionId":"s-1","columnId":"dev","stepIndex":0,"recoveryReason":"agent_failed","status":"failed","startedAt":"2026-10-23T08:00:00.000Z"},"#,
+            r#"{"sessionId":"s-2","columnId":"review","recoveryReason":"watchdog_inactivity","status":"timed_out","startedAt":"2026-10-23T09:00:00.000Z"},"#,
+            r#"{"sessionId":"s-3","columnId":"done","recoveryReason":"environment_failure","status":"failed","startedAt":"2026-10-23T10:00:00.000Z"}]"#,
+        );
+
+        let loaded = load_with_raw_lane_sessions(&store, "task-old", raw).await;
+
+        assert_eq!(loaded.lane_sessions.len(), 3);
+        assert_eq!(
+            serde_json::to_string(&loaded.lane_sessions).expect("serialize"),
+            raw
+        );
+    }
 }

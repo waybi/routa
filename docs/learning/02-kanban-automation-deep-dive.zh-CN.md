@@ -251,6 +251,8 @@ Agent 完成/失败/超时
    ▼
 ① 是成功吗？
    ├─ AGENT_FAILED / AGENT_TIMEOUT → successEvent = false
+   ├─ 回合以 stopReason=cancelled 结束 → successEvent = false
+   │    （会话库发 success:false 的 AGENT_COMPLETED，记 recoveryReason=turn_cancelled）
    └─ 其他 & data.success ≠ false  → successEvent = true
    │
    ▼
@@ -272,11 +274,13 @@ Agent 完成/失败/超时
    ▼
 ④ 失败 & 开了 automatic fallback & 还有下一个 step？
    → 试下一个 fallback agent（比如 Claude 失败了换 OpenCode）
+     环境故障、非 dev 列看门狗超时、回合被取消（turn_cancelled）不走 fallback
    │
    ▼
 ⑤ 需要恢复吗？（shouldRecover）
    ├─ 监督模式 ≠ watchdog_retry / ralph_loop → 不恢复
    ├─ 已经超过 maxRecoveryAttempts → 不恢复
+   ├─ 环境故障、回合被取消（turn_cancelled）→ 不恢复
    ├─ TIMEOUT / FAILED → 恢复
    └─ ralph_loop + COMPLETED 但没满足完成条件 → 恢复
    → 发恢复通知 → recoverAutomation（重新 createSession，attempt+1）
@@ -291,6 +295,16 @@ Agent 完成/失败/超时
 ⑦ 30 秒后从 activeAutomations 里清理掉这条记录
 ~~~
 
+**被取消或被重启打断的步骤（卡 5fdaa681）**：回合以 stopReason=cancelled 结束时，会话库仍发 AGENT_COMPLETED
+（看板队列靠它释放名额），但带 `success:false`，会话终态记 failed。编排器把这一步记 failed + `turn_cancelled`，
+不起下一步、不走 fallback、不恢复、不 autoAdvance，卡留在本列，等人点「重新运行」或 POST revive。
+pm2 重启时施工者先收到 SIGINT、以 cancelled 回复，所以重启打断的步骤主要走这条路；
+Routa 先死、没收到回合结束的，由启动清扫和 revive 记 timed_out + `restart_interrupted`（见 5d）。
+两种都是 failed / timed_out，Done 列的这类卡在「需要你处理」里显示为 Done 岗位失败。
+**用户在网页上手动取消某张卡在跑的会话，同样以 cancelled 结束：卡会停在本列，不再自动接下一步。**
+之前这一步被记成 completed 并推进：卡 a0b2b4fa 的 Done 推送员（会话 4a14cb98）2026-10-23 20:25:46 被取消，
+Routa 接着起了完成汇报员，提交没进主干。
+
 ### 5c. 手动「重新运行」（PATCH retryTrigger）
 
 ~~~plaintext
@@ -300,7 +314,8 @@ PATCH /api/tasks/{id} {retryTrigger:true}
    ▼
 enqueueKanbanTaskSession(resumeLane: true)
    │  resolveLaneResumeStep 按本列最近一条 lane 记录选步骤：
-   │    没完成 → 重跑那一步；完成了 → 跑下一步（下一步丢了的情况）；
+   │    没完成（failed / timed_out，含 turn_cancelled、restart_interrupted）→ 重跑那一步；
+   │    完成了 → 跑下一步（下一步丢了的情况）；
    │    已是最后一步或还没跑过 → 第一步
    │  卡上有卡片级 agent 覆盖时不选步骤，走原来的单步重跑
    ▼
@@ -324,15 +339,18 @@ enqueueKanbanTaskSession(resumeLane: true)
 
 ~~~plaintext
 reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
-   │  本列 running 但进程已不在的 lane 记录 → 标 timed_out（卡上已有结论的标 transitioned）
+   │  本列 running 但进程已不在的 lane 记录 → 标 timed_out + restart_interrupted
+   │  （卡上已有 verdict / completionSummary 也一样：结论是上一列写的，不说明本列这一步做完了）
    │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障 / 看门狗判超时
    ▼
 ┌─ Review 收敛到别的列 → 移卡 + processKanbanColumnTransition（编排器正常路径）
+├─ 本列最近一条运行 failed / timed_out 且不是第 0 步（被打断、被取消、失败）
+│     → enqueueKanbanTaskSession(step=那一步, adoptLaneRun: true)，重跑被打断的那一步
 ├─ 本列上一步 completed/transitioned 且还有下一步
 │     → enqueueKanbanTaskSession(step=下一步, adoptLaneRun: true)
 │     → 编排器 adoptLaneRun 接管（排队的话在队列拉起时按 triggerSessionId 接管）
 │     → 它结束后 lane 记 completed，再起列内下一步 / autoAdvance
-└─ 其他 → processKanbanColumnTransition（从本列第一步走编排器正常路径）
+└─ 其他（含第 0 步被打断）→ processKanbanColumnTransition（从本列第一步走编排器正常路径）
 ~~~
 
 中间那条直接起会话、不经过列转移事件，所以必须交给编排器登记；否则步骤跑完 lane 一直是 running，
@@ -344,7 +362,7 @@ revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器�
 所以上一个进程留下的 running 记录（包括修复前漏跟踪、已经卡住的那些）会一直显示在跑。
 启动时 `endStaleRunningLaneSessions` 扫所有工作区的所有卡，用和 revive 相同的「还在跑吗」判定
 （本进程有活进程、本进程会话库记 ready/connecting，或会话属于本实例且租约有效；上一个进程的会话 ownerInstanceId 是旧 pid，都判已结束），把判为已结束的 running 记录收尾：
-当前列的按 revive 的规则标 timed_out / transitioned，已离开的列标 transitioned，失效的 triggerSessionId 清掉。
+当前列的标 timed_out + `restart_interrupted`，已离开的列标 transitioned，失效的 triggerSessionId 清掉。
 它只改记录、不起会话；之后再 POST revive，决策和不清扫时一样。
 只在本机 SQLite + 内嵌执行时跑：配了 `ROUTA_ACP_RUNNER_URL`（施工者在独立 runner 里）、
 Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-production-build`）都跳过；
@@ -551,3 +569,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-23 | 看板「运行/重新运行」按钮点击即显示「启动中…」并防连点，失败弹提示并恢复；重跑成功后新运行露面前卡片显示「启动中」（5c 节末） | 新增 13 个前端用例，撤掉组件改动 7 个变红、撤掉提示和标记 2 个变红 | fix(kanban): run/rerun shows a disabled…、本提交 |
 | 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | e2b122f1 fix(kanban): revive hands the next lane step to the orchestrator |
 | 2026-10-23 | 启动时清扫上一个进程留下的 running lane 记录（所有卡、所有列，判定与 revive 相同，只改记录不起会话；runner / Postgres / next build 跳过）；补 revive 拉起步骤失败、Done 列末步、列转移分支 3 个用例（5d） | 新增 10 个用例；撤掉 instrumentation 调用、去掉「所有列」各有 1 个变红，撤掉 e2b122f1 的 adoptLaneRun 4 个变红；修复前 6 条已结束步骤（a1d9bffc 等）重启后仍显示 running | fix(kanban): end lane records left running by the previous process on startup |
+| 2026-10-24 | 车道步骤被取消（stopReason=cancelled）记 failed + `turn_cancelled`，不起下一步、不走 fallback 和恢复、不进下一列；启动清扫和 revive 把当前列被重启打断的记录一律记 timed_out + `restart_interrupted`（不再因卡上有 verdict/completionSummary 记 transitioned）；revive 对本列第 1 步及以后被打断的卡重跑那一步；TS 与 Rust 的 recoveryReason 各加两个值（5b、5c、5d） | 新增 C1–C8 对应用例与随机对拍（清扫 10,000 组、取消 10,000 组，不一致 0 组），撤掉实现后 C1/C2/C4/C5/C6/C7/C8 用例变红；修复前 Done 推送员被取消会被记 completed 并起完成汇报员（卡 a0b2b4fa 提交漏进主干）。界面手动取消会话后卡停在本列 | 本提交 fix(kanban): record cancelled or restart-interrupted lane steps as failed and rerun them |

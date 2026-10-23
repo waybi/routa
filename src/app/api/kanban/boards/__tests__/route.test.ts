@@ -149,4 +149,39 @@ describe("/api/kanban/boards GET", () => {
     expect(enqueueKanbanTaskSession).toHaveBeenCalledTimes(0);
     expect(taskStore.save).toHaveBeenCalledTimes(0);
   });
+
+  // Card 5fdaa681 (F2, 6f4f9ed4): a card waiting for a rerun after a restart
+  // interruption is still only read by GET, however often the page loads.
+  it("does not rerun a restart-interrupted step when the board is read twice", async () => {
+    taskStore.listByWorkspace.mockResolvedValue([{
+      ...createTask({
+        id: "task-interrupted",
+        title: "Interrupted Done pusher",
+        objective: "Interrupted Done pusher",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        columnId: "backlog",
+        status: TaskStatus.PENDING,
+      }),
+      laneSessions: [{
+        sessionId: "pusher-1",
+        columnId: "backlog",
+        stepIndex: 0,
+        status: "timed_out",
+        recoveryReason: "restart_interrupted",
+        startedAt: "2026-10-23T20:23:00.000Z",
+        completedAt: "2026-10-23T20:30:00.000Z",
+      }],
+    }]);
+
+    for (let read = 0; read < 2; read += 1) {
+      const response = await GET(new NextRequest("http://localhost/api/kanban/boards?workspaceId=workspace-1"));
+      expect(response.status).toBe(200);
+    }
+
+    expect(reviveMissingEntryAutomations).toHaveBeenCalledTimes(0);
+    expect(processKanbanColumnTransition).toHaveBeenCalledTimes(0);
+    expect(enqueueKanbanTaskSession).toHaveBeenCalledTimes(0);
+    expect(taskStore.save).toHaveBeenCalledTimes(0);
+  });
 });

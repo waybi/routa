@@ -77,6 +77,11 @@ function isRecoveryMode(mode: KanbanDevSessionSupervisionMode): mode is "watchdo
   return mode === "watchdog_retry" || mode === "ralph_loop";
 }
 
+/** The turn ended with stopReason=cancelled: a failed step that waits for a manual rerun. */
+function isCancelledTurn(event: AgentEvent): boolean {
+  return event.type === AgentEventType.AGENT_COMPLETED && event.data?.stopReason === "cancelled";
+}
+
 function getRecoveryReason(
   event: AgentEvent,
   completionSatisfied: boolean,
@@ -84,6 +89,9 @@ function getRecoveryReason(
 ): TaskLaneSessionRecoveryReason {
   if (environmentFailure) {
     return "environment_failure";
+  }
+  if (isCancelledTurn(event)) {
+    return "turn_cancelled";
   }
   if (event.type === AgentEventType.AGENT_TIMEOUT) {
     return "watchdog_inactivity";
@@ -672,10 +680,14 @@ export class KanbanWorkflowOrchestrator {
         });
       }
 
+      // A cancelled turn is final: no next step, recovery, or fallback; it
+      // waits for a manual rerun (card 5fdaa681).
+      const cancelledTurn = isCancelledTurn(event);
       const successEvent =
         event.type !== AgentEventType.AGENT_FAILED
         && event.type !== AgentEventType.AGENT_TIMEOUT
-        && event.data?.success !== false;
+        && event.data?.success !== false
+        && !cancelledTurn;
       if (!successEvent) {
         // A failed or timed-out session keeps its agent process alive (and its
         // memory) unless we end it. Kill it before any fallback/recovery starts
@@ -691,7 +703,7 @@ export class KanbanWorkflowOrchestrator {
       );
       // Environment failures cannot succeed on retry: no recovery, no fallback,
       // and they do not consume the supervision retry budget.
-      const shouldRecover = task && !environmentFailure
+      const shouldRecover = task && !environmentFailure && !cancelledTurn
         ? await this.shouldRecover(task, automation, event, completionSatisfied)
         : false;
 
@@ -736,6 +748,7 @@ export class KanbanWorkflowOrchestrator {
       const canFallback = !successEvent
         && !environmentFailure
         && !laneWatchdogTimeout
+        && !cancelledTurn
         && automation.enableAutomaticFallback
         && nextStepIndex < automation.steps.length;
       if (task && canFallback) {
@@ -1367,6 +1380,9 @@ export class KanbanWorkflowOrchestrator {
     if (event.type === AgentEventType.AGENT_FAILED) {
       const error = typeof event.data?.error === "string" ? event.data.error : "ACP session failed.";
       return error;
+    }
+    if (isCancelledTurn(event)) {
+      return `${stepLabel} was cancelled before it finished; rerun the card to run it again.`;
     }
     if (event.type === AgentEventType.AGENT_COMPLETED && !completionSatisfied) {
       return `${stepLabel} completed but did not satisfy ${automation.supervision.completionRequirement}.`;
