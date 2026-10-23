@@ -33,6 +33,7 @@ import { getKanbanSessionCopy } from "./i18n/kanban-session-copy";
 import { useTaskRuns } from "./use-task-runs";
 import { resolveSessionModelChips } from "./kanban-session-activity";
 import { useModelEffortChoices } from "./kanban-model-effort-fields";
+import { buildRunTabTooltip } from "./kanban-run-tab-tooltip";
 
 function formatTaskRunKind(kind: TaskRunInfo["kind"] | undefined): string {
   switch (kind) {
@@ -396,6 +397,17 @@ export function KanbanCardActivityBar({
             const laneLabel = laneSession?.columnName ?? laneSession?.columnId ?? t.kanban.runLabel;
             const runLabel = buildSessionDisplayLabel(sessionId, index, sessionMap);
             const fullTabLabel = laneSession?.stepName?.trim() || runLabel;
+            const runTabTooltip = buildRunTabTooltip({
+              index,
+              columnId: laneSession?.columnId ?? run?.columnId,
+              columnName: laneSession?.columnName,
+              status: run?.status ?? laneSession?.status,
+              startedAt: laneSession?.startedAt || run?.startedAt,
+              completedAt: laneSession?.completedAt || run?.completedAt,
+              stepLabel: fullTabLabel,
+              now: new Date(),
+              copy: t.kanbanDetailRedesign.runTabTooltip,
+            });
 
             return (
               <button
@@ -407,12 +419,11 @@ export function KanbanCardActivityBar({
                 onClick={() => onSelectSession?.(sessionId)}
                 className={getRunTabClasses(run?.status ?? laneSession?.status, active)}
                 aria-pressed={active}
-                title={`${fullTabLabel} · ${laneLabel} · Run ${index + 1}`}
+                title={runTabTooltip}
               >
                 <span
                   className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${getLaneBadgeClasses(laneLabel)}`}
                   aria-label={laneLabel}
-                  title={laneLabel}
                 >
                   {renderLaneIcon(laneLabel)}
                 </span>

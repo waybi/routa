@@ -2392,10 +2392,10 @@ describe("KanbanTab card detail manual runs", () => {
       expect(acp.selectSession).toHaveBeenCalledWith("session-456");
     });
 
-    // Run tabs are compact (lane badge + index); the specialist name lives
-    // in the title, not the visible text.
-    const runOne = await screen.findByTitle("Dev Crafter · Dev · Run 1");
-    const runTwo = await screen.findByTitle("Review Guard · Review · Run 2");
+    // Run tabs are compact; the specialist name lives in the multi-line hover title (identity normalizer keeps "\n").
+    const byTitle = (head: string, tail: string) => screen.findByTitle((t) => t.startsWith(head) && t.endsWith(tail), { normalizer: (s: string) => s });
+    const runOne = await byTitle("Run 1 · Dev: write code per plan\n", "\nDev Crafter");
+    const runTwo = await byTitle("Run 2 · Review: check the work is right\n", "\nReview Guard");
 
     expect(runOne.getAttribute("title")).toContain("Dev Crafter");
     expect(runTwo.getAttribute("title")).toContain("Review Guard");

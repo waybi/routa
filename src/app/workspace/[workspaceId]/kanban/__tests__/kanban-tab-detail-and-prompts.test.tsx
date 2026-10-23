@@ -621,18 +621,28 @@ describe("KanbanCardActivityBar", () => {
       />,
     );
 
+    // Fixture lanes only carry columnName (no columnId), so the stage line shows the raw
+    // column name; no completedAt, so line 3 is the "running for" form tied to the clock.
+    const runOneTitle = (title: string) =>
+      title.startsWith("Run 1 · Backlog\nFailed: exited with an error (open this run to see the log on the right)\nStarted ")
+      && title.endsWith("\nBacklog 梳理员");
+    const runTwoTitle = (title: string) =>
+      title.startsWith("Run 2 · Todo\nCompleted\nStarted ") && title.endsWith("\n开发执行员");
+
+    // Identity normalizer keeps the real "\n" line breaks of the native tooltip.
+    const keepLineBreaks = { normalizer: (text: string) => text };
+
     await waitFor(() => {
-      expect(screen.getByTitle("Backlog 梳理员 · Backlog · Run 1")).toBeTruthy();
-      expect(screen.getByTitle("开发执行员 · Todo · Run 2")).toBeTruthy();
+      expect(screen.getByTitle(runOneTitle, keepLineBreaks)).toBeTruthy();
+      expect(screen.getByTitle(runTwoTitle, keepLineBreaks)).toBeTruthy();
     });
 
     expect(screen.queryByText("BAC 梳理")).toBeNull();
     expect(screen.queryByText("Backlog 梳理员")).toBeNull();
-    expect(screen.getByTitle("Backlog 梳理员 · Backlog · Run 1").getAttribute("title")).toBe(
-      "Backlog 梳理员 · Backlog · Run 1",
-    );
+    expect(screen.getByTitle(runOneTitle, keepLineBreaks).getAttribute("title")?.split("\n")).toHaveLength(4);
     expect(screen.getByLabelText("Backlog")).toBeTruthy();
-    expect(screen.getByTitle("Backlog 梳理员 · Backlog · Run 1").parentElement?.className).toContain("flex-wrap");
+    expect(screen.getByLabelText("Backlog").getAttribute("title")).toBeNull();
+    expect(screen.getByTitle(runOneTitle, keepLineBreaks).parentElement?.className).toContain("flex-wrap");
   });
 
   it("renders a labelled hide-session-pane pill next to the run tabs only when onCloseSession is provided", async () => {

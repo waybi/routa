@@ -609,5 +609,30 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     remoteTask: string;
     remoteTaskMetadata: string;
     cardTitle: string;
+    /** Native hover text for the compact run tabs in the card detail session pane. */
+    runTabTooltip: {
+      runIndex: string;
+      runLine: string;
+      lanes: {
+        backlog: string;
+        todo: string;
+        dev: string;
+        review: string;
+        done: string;
+        blocked: string;
+      };
+      statuses: {
+        completed: string;
+        running: string;
+        timed_out: string;
+        failed: string;
+        transitioned: string;
+        unknown: string;
+      };
+      range: string;
+      ongoing: string;
+      minutes: string;
+      seconds: string;
+    };
   };
 }
