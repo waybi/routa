@@ -20,13 +20,18 @@ export interface TabsProps {
   listClassName?: string;
   /** Replaces the default panel classes (e.g. to let the panel fill height). */
   panelClassName?: string;
+  /**
+   * Render every panel and hide the unselected ones instead of unmounting
+   * them, so panel state (drafts, scroll, subscriptions) survives switching.
+   */
+  keepMounted?: boolean;
 }
 
 /**
  * WAI-ARIA tabs with roving tabindex: ←/→ move between enabled tabs and
  * wrap around, Home/End jump to the ends. Selection follows focus.
  */
-export function Tabs({ items, value, onChange, label, className = "", listClassName = "", panelClassName }: TabsProps) {
+export function Tabs({ items, value, onChange, label, className = "", listClassName = "", panelClassName, keepMounted = false }: TabsProps) {
   const baseId = useId();
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const enabled = items.filter((item) => !item.disabled);
@@ -84,17 +89,31 @@ export function Tabs({ items, value, onChange, label, className = "", listClassN
           );
         })}
       </div>
-      {selected ? (
-        <div
-          role="tabpanel"
-          id={`${baseId}-panel-${selected.id}`}
-          aria-labelledby={`${baseId}-tab-${selected.id}`}
-          tabIndex={0}
-          className={`${panelClassName ?? "pt-4"} focus-visible:outline-2 focus-visible:outline-accent`}
-        >
-          {selected.content}
-        </div>
-      ) : null}
+      {keepMounted
+        ? items.map((item) => (
+          <div
+            key={item.id}
+            role="tabpanel"
+            id={`${baseId}-panel-${item.id}`}
+            aria-labelledby={`${baseId}-tab-${item.id}`}
+            tabIndex={0}
+            hidden={item.id !== selected?.id}
+            className={`${panelClassName ?? "pt-4"} focus-visible:outline-2 focus-visible:outline-accent`}
+          >
+            {item.content}
+          </div>
+        ))
+        : selected ? (
+          <div
+            role="tabpanel"
+            id={`${baseId}-panel-${selected.id}`}
+            aria-labelledby={`${baseId}-tab-${selected.id}`}
+            tabIndex={0}
+            className={`${panelClassName ?? "pt-4"} focus-visible:outline-2 focus-visible:outline-accent`}
+          >
+            {selected.content}
+          </div>
+        ) : null}
     </div>
   );
 }

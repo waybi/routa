@@ -54,3 +54,40 @@ describe("ui/Tabs", () => {
     expect(screen.getByRole("tab", { name: "Delta" }).getAttribute("aria-selected")).toBe("true");
   });
 });
+
+describe("ui/Tabs keepMounted", () => {
+  function KeepHarness({ keepMounted }: { keepMounted?: boolean }) {
+    const [value, setValue] = useState("a");
+    return (
+      <Tabs
+        label="Keep"
+        value={value}
+        onChange={setValue}
+        keepMounted={keepMounted}
+        items={[
+          { id: "a", label: "Alpha", content: <p>alpha body</p> },
+          { id: "b", label: "Beta", content: <p>beta body</p> },
+        ]}
+      />
+    );
+  }
+
+  it("keeps unselected panels in the DOM but hidden when keepMounted is true", () => {
+    render(<KeepHarness keepMounted />);
+    const beta = screen.getByText("beta body").closest('[role="tabpanel"]') as HTMLElement;
+    expect(beta).toBeTruthy();
+    expect(beta.hidden).toBe(true);
+    const alpha = screen.getByText("alpha body").closest('[role="tabpanel"]') as HTMLElement;
+    expect(alpha.hidden).toBe(false);
+    fireEvent.click(screen.getByRole("tab", { name: "Beta" }));
+    expect(beta.hidden).toBe(false);
+    expect(alpha.hidden).toBe(true);
+    expect(screen.getByText("alpha body")).toBeTruthy();
+  });
+
+  it("only renders the selected panel when keepMounted is false", () => {
+    render(<KeepHarness />);
+    expect(screen.queryByText("beta body")).toBeNull();
+    expect(screen.getByText("alpha body")).toBeTruthy();
+  });
+});
