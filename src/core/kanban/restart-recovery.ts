@@ -77,10 +77,17 @@ function resolveStaleLaneSessionTerminalStatus(
     : "timed_out";
 }
 
+/**
+ * End the card's "running" lane records whose session no longer runs and drop
+ * a dead triggerSessionId. Revive only looks at the current column; the
+ * startup sweep (`allColumns`) also ends records left in earlier columns,
+ * which count as "transitioned" because the card has moved on.
+ */
 async function sanitizeStaleCurrentLaneAutomation(
   system: RoutaSystem,
   task: Task,
   options: RestartRecoveryOptions,
+  sweep?: { allColumns: boolean; ended: string[] },
 ): Promise<Task> {
   let mutated = false;
   const nextTask: Task = {
@@ -103,6 +110,7 @@ async function sanitizeStaleCurrentLaneAutomation(
           triggerLaneSession.sessionId,
           resolveStaleLaneSessionTerminalStatus(nextTask),
         );
+        sweep?.ended.push(triggerLaneSession.sessionId);
       }
     }
     nextTask.triggerSessionId = undefined;
@@ -110,16 +118,18 @@ async function sanitizeStaleCurrentLaneAutomation(
   }
 
   for (const entry of nextTask.laneSessions ?? []) {
+    const inCurrentColumn = entry.columnId === nextTask.columnId;
     if (
-      entry.columnId === nextTask.columnId
+      (inCurrentColumn || sweep?.allColumns)
       && entry.status === "running"
       && !isSessionActivelyRunning(entry.sessionId, options)
     ) {
       markTaskLaneSessionStatus(
         nextTask,
         entry.sessionId,
-        resolveStaleLaneSessionTerminalStatus(nextTask),
+        inCurrentColumn ? resolveStaleLaneSessionTerminalStatus(nextTask) : "transitioned",
       );
+      sweep?.ended.push(entry.sessionId);
       mutated = true;
     }
   }
@@ -131,6 +141,30 @@ async function sanitizeStaleCurrentLaneAutomation(
   }
 
   return task;
+}
+
+/**
+ * Startup sweep over every card of every workspace. A restart ends every agent
+ * process, yet lane records stay "running" until someone POSTs revive for that
+ * board, and revive only looks at the current column. Records whose end was
+ * never recorded (steps revive started before the orchestrator adopted them,
+ * e.g. Done Reporter a1d9bffc, 2026-10-23) stayed "running" forever.
+ * Uses revive's own "still running" test and terminal statuses, so a later
+ * revive makes the same decisions. Starts no session.
+ */
+export async function endStaleRunningLaneSessions(
+  system: RoutaSystem,
+  options: RestartRecoveryOptions,
+): Promise<{ cards: number; sessions: string[] }> {
+  const ended: string[] = [];
+  let cards = 0;
+  for (const workspace of await system.workspaceStore.list()) {
+    for (const task of await system.taskStore.listByWorkspace(workspace.id)) {
+      const next = await sanitizeStaleCurrentLaneAutomation(system, task, options, { allColumns: true, ended });
+      if (next !== task) cards += 1;
+    }
+  }
+  return { cards, sessions: ended };
 }
 
 async function convergeRecoveredReviewTask(

@@ -39,10 +39,12 @@ revive 拉起的步骤结束后 lane 记 completed，列内还有步骤就自动
 
 修复提交 e2b122f1。`enqueueKanbanTaskSession` 新增 `adoptLaneRun` 参数：起会话（或排队）后调用编排器 `adoptLaneRun`；排队的运行在队列拉起时按 triggerSessionId 接管。revive 的这条路径传 `adoptLaneRun: true`，重新运行（resumeLane）也改走同一参数。restart-recovery.ts 里其余两条起会话的路径（Review 收敛、无下一步）都走 `processKanbanColumnTransition`，本来就有编排器登记。测试：`src/core/kanban/__tests__/restart-recovery-adopt.test.ts`。设计说明见 `docs/learning/02-kanban-automation-deep-dive.zh-CN.md` 5d 节。
 
-已经卡住的 lane（上面 5 张卡）不会因部署自动恢复，需另行处理。
+已经卡住的 lane（上面 5 张卡，另有 c84b2e5e 的 Contract Setter c11d8b88 同样卡住）：后续提交加了启动清扫（`src/core/kanban/startup-lane-sweep.ts`，instrumentation `register()` 开始接请求前跑），重启时把上一个进程留下的 running 记录按 revive 的规则收尾（当前列 timed_out / transitioned，已离开的列 transitioned），清掉失效的 triggerSessionId，只改记录不起会话；要续跑仍需 POST revive。4 张 Done 卡都有 verificationVerdict，会记 transitioned，Done 列算跑完，revive 不会重推。测试：`src/core/kanban/__tests__/restart-lane-sweep.test.ts`。
 
 ## Relevant Files
 
 - `src/core/kanban/restart-recovery.ts`
 - `src/core/kanban/workflow-orchestrator-singleton.ts`
 - `src/core/kanban/__tests__/restart-recovery-adopt.test.ts`
+- `src/core/kanban/startup-lane-sweep.ts`
+- `src/core/kanban/__tests__/restart-lane-sweep.test.ts`

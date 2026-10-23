@@ -30,6 +30,15 @@ export async function register() {
     );
     const telemetry = initializeNextRuntimeTelemetry();
 
+    // Lane records the previous process left "running" are ended before the
+    // first request, so a revive right after the restart sees the same cards.
+    if (process.env.ROUTA_SKIP_RUNTIME_SERVICES !== "1") {
+      const { endStaleRunningLaneSessionsOnStartup } = await import(
+        "./core/kanban/startup-lane-sweep"
+      );
+      await endStaleRunningLaneSessionsOnStartup();
+    }
+
     if (telemetry.enabled) {
       const span = trace
         .getTracer("routa.nextjs.runtime")

@@ -337,6 +337,18 @@ reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
 
 中间那条直接起会话、不经过列转移事件，所以必须交给编排器登记；否则步骤跑完 lane 一直是 running，
 列内再下一步也不会起（2026-10-23 重启后 4 张 Done 卡的完成汇报员、7a25276b 的 Flight Review Guard）。
+revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器记 failed，不再起后面的步骤。
+
+**启动清扫（startup-lane-sweep.ts，instrumentation `register()` 里、开始接请求前跑一次）**：
+重启会结束所有施工者进程，但 revive 要有人对每块看板手动 POST，而且只看当前列，
+所以上一个进程留下的 running 记录（包括修复前漏跟踪、已经卡住的那些）会一直显示在跑。
+启动时 `endStaleRunningLaneSessions` 扫所有工作区的所有卡，用和 revive 相同的「还在跑吗」判定
+（本进程有活进程、本进程会话库记 ready/connecting，或会话属于本实例且租约有效；上一个进程的会话 ownerInstanceId 是旧 pid，都判已结束），把判为已结束的 running 记录收尾：
+当前列的按 revive 的规则标 timed_out / transitioned，已离开的列标 transitioned，失效的 triggerSessionId 清掉。
+它只改记录、不起会话；之后再 POST revive，决策和不清扫时一样。
+只在本机 SQLite + 内嵌执行时跑：配了 `ROUTA_ACP_RUNNER_URL`（施工者在独立 runner 里）、
+Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-production-build`）都跳过；
+`ROUTA_SKIP_RUNTIME_SERVICES=1` 也跳过。pm2 日志打一行 `[RestartRecovery] Startup sweep ended N …`。
 
 ## 6. 门禁：不是想过就能过
 
@@ -538,3 +550,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-23 | 队列 drain 每轮读当前队首、清 queued 孤儿、空位先放行早排队的卡；下一步排队不再记失败；重新运行先存库再重读卡；重新运行按 lane 记录选步骤并由编排器接管（第 3 节、5b、5c） | 新增 8 个用例、1 个旧用例补断言，撤掉任一修复对应用例变红；卡 1e7dd356 那类「上一步完成、下一步报 ACP session did not complete successfully.」不再出现 | fix(kanban): board queue drain…、fix(kanban): a lane step queued…、fix(tasks): rerunning a card keeps…、本提交 |
 | 2026-10-23 | 看板「运行/重新运行」按钮点击即显示「启动中…」并防连点，失败弹提示并恢复；重跑成功后新运行露面前卡片显示「启动中」（5c 节末） | 新增 13 个前端用例，撤掉组件改动 7 个变红、撤掉提示和标记 2 个变红 | fix(kanban): run/rerun shows a disabled…、本提交 |
 | 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | e2b122f1 fix(kanban): revive hands the next lane step to the orchestrator |
+| 2026-10-23 | 启动时清扫上一个进程留下的 running lane 记录（所有卡、所有列，判定与 revive 相同，只改记录不起会话；runner / Postgres / next build 跳过）；补 revive 拉起步骤失败、Done 列末步、列转移分支 3 个用例（5d） | 新增 10 个用例；撤掉 instrumentation 调用、去掉「所有列」各有 1 个变红，撤掉 e2b122f1 的 adoptLaneRun 4 个变红；修复前 6 条已结束步骤（a1d9bffc 等）重启后仍显示 running | fix(kanban): end lane records left running by the previous process on startup |
