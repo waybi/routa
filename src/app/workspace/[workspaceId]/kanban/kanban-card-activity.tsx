@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   Braces,
   Check,
@@ -23,6 +24,7 @@ import {
   createKanbanSpecialistResolver,
   formatSessionTimestamp,
   getLaneSessionStepLabel,
+  getOrderedSessionIds,
   getStableOrderedSessionIds,
   getSpecialistName,
   type KanbanSpecialistOption,
@@ -264,6 +266,16 @@ function SessionIdChip({
   );
 }
 
+type ActivityTabId = "runs" | "handoffs" | "github";
+
+/**
+ * Run count shown on the "Run records" sub-tab: the run ledger when it
+ * loaded, otherwise the session ids recorded on the card.
+ */
+export function countKanbanCardRuns(task: TaskInfo, runs: TaskRunInfo[] | null | undefined): number {
+  return runs?.length ?? getOrderedSessionIds(task).length;
+}
+
 export function KanbanCardActivityPanel({
   task,
   sessions,
@@ -291,10 +303,20 @@ export function KanbanCardActivityPanel({
     task.id,
     `${refreshSignal ?? ""}:${task.updatedAt ?? ""}:${task.triggerSessionId ?? ""}:${task.laneSessions?.length ?? 0}`,
   );
+  // Sub-tabs as before the redesign: handoffs only when there are some,
+  // GitHub only when the card is linked to an issue.
+  const handoffCount = task.laneHandoffs?.length ?? 0;
+  const tabs: Array<{ id: ActivityTabId; label: string; count?: number }> = [
+    { id: "runs", label: t.kanbanDetailRedesign.runRecords, count: countKanbanCardRuns(task, runs) },
+    ...(handoffCount > 0 ? [{ id: "handoffs" as const, label: copy.handoffs, count: handoffCount }] : []),
+    ...(task.githubNumber ? [{ id: "github" as const, label: "GitHub" }] : []),
+  ];
+  const [activeTab, setActiveTab] = useState<ActivityTabId>("runs");
+  const visibleTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : "runs";
 
   return (
     <ActivitySection
-      title={t.kanbanDetailRedesign.runRecords}
+      title={copy.activityTitle}
       description={compact ? undefined : copy.activityDescription}
       compact={compact}
     >
@@ -303,16 +325,55 @@ export function KanbanCardActivityPanel({
           {t.kanbanDetailRedesign.runLedgerUnavailable} {error}
         </div>
       )}
-      <SessionHistoryPanel
-        task={task}
-        runs={runs ?? undefined}
-        specialists={specialists}
-        sessions={sessions}
-        specialistLanguage={specialistLanguage}
-        currentSessionId={currentSessionId}
-        onSelectSession={onSelectSession}
-        compact={compact}
-      />
+      <div className="flex flex-wrap gap-1 border-b border-default" data-testid="kanban-activity-subtabs">
+        {tabs.map((tab) => {
+          const active = tab.id === visibleTab;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              aria-pressed={active}
+              data-testid={`kanban-activity-subtab-${tab.id}`}
+              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+                active ? "border-accent text-primary" : "border-transparent text-secondary hover:text-primary"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {typeof tab.count === "number" ? (
+                <span
+                  className={`rounded px-1 py-0.5 font-mono text-[10px] ${active ? "bg-accent-subtle text-information" : "bg-subtle text-secondary"}`}
+                  data-testid={`kanban-activity-subtab-${tab.id}-count`}
+                >
+                  {tab.count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {visibleTab === "runs" && (
+        <SessionHistoryPanel
+          task={task}
+          runs={runs ?? undefined}
+          specialists={specialists}
+          sessions={sessions}
+          specialistLanguage={specialistLanguage}
+          currentSessionId={currentSessionId}
+          onSelectSession={onSelectSession}
+          compact={compact}
+        />
+      )}
+      {visibleTab === "handoffs" && (
+        <div data-testid="kanban-detail-handoffs">
+          <HandoffPanel task={task} compact={compact} />
+        </div>
+      )}
+      {visibleTab === "github" && (
+        <div data-testid="kanban-detail-github">
+          <GitHubPanel task={task} compact={compact} />
+        </div>
+      )}
     </ActivitySection>
   );
 }
@@ -324,6 +385,7 @@ export function KanbanCardActivityBar({
   currentSessionId,
   onSelectSession,
   onCloseSession,
+  statusSlot,
 }: {
   task: TaskInfo;
   sessions?: SessionInfo[];
@@ -331,6 +393,12 @@ export function KanbanCardActivityBar({
   currentSessionId?: string;
   onSelectSession?: (sessionId: string) => void;
   onCloseSession?: () => void;
+  /**
+   * Where the selected run's status chips go. The card detail passes the
+   * chat panel's session info row, so chips, session id, Debug and
+   * Chat / Trace share one line; without it the chips get their own row.
+   */
+  statusSlot?: HTMLElement | null;
 }) {
   const { t } = useTranslation();
   const copy = getKanbanSessionCopy(specialistLanguage);
@@ -363,6 +431,37 @@ export function KanbanCardActivityBar({
     </button>
   ) : null;
 
+  const hasStatusChips = Boolean(selectedLaneSession?.columnName || selectedStepLabel || selectedLaneSession?.status || selectedRun);
+  const statusChips = hasStatusChips ? (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[10px]" data-testid="kanban-run-status-chips">
+      {selectedLaneSession?.columnName && (
+        <span className="whitespace-nowrap rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
+          {selectedLaneSession.columnName}
+        </span>
+      )}
+      {selectedLaneSession?.transport && (
+        <span className="whitespace-nowrap rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
+          {selectedLaneSession.transport}
+        </span>
+      )}
+      {selectedRun && (
+        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedRun.status)}`} data-testid="kanban-run-status-badge">
+          {formatTaskRunStatus(selectedRun.status, t.kanbanDetailRedesign.runEnded)}
+        </span>
+      )}
+      {selectedStepLabel && (
+        <span className="whitespace-nowrap rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
+          {selectedStepLabel}
+        </span>
+      )}
+      {selectedLaneSession?.status && (
+        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedLaneSession.status)}`} data-testid="kanban-lane-status-badge">
+          {formatTaskRunStatus(selectedLaneSession.status, t.kanbanDetailRedesign.runEnded)}
+        </span>
+      )}
+    </span>
+  ) : null;
+
   useEffect(() => {
     if (!selectedRunId) return;
     sessionTabRefs.current[selectedRunId]?.scrollIntoView({
@@ -382,14 +481,15 @@ export function KanbanCardActivityBar({
   }
 
   return (
-    <div className="space-y-2 px-1 py-1">
+    <div className="space-y-1 px-1">
       {error && (
         <div className="border-l-2 border-attention px-3 py-2 text-[11px] text-attention">
           {t.kanbanDetailRedesign.runLedgerUnavailable}
         </div>
       )}
-      <div className="flex items-start gap-2 border-b border-default pb-2">
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1.5 border-default pr-1 pb-1">
+      <div className="flex items-center gap-2" data-testid="kanban-run-tabs-row">
+        {/* One line: run tabs scroll sideways; the hide button stays put. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pr-1 [scrollbar-width:thin] [&>button]:shrink-0" data-testid="kanban-run-tabs">
           {orderedSessionIds.map((sessionId, index) => {
             const active = sessionId === selectedRunId;
             const laneSession = laneSessionMap.get(sessionId);
@@ -440,35 +540,12 @@ export function KanbanCardActivityBar({
         </div>
         {hideSessionPaneButton}
       </div>
-      {(selectedLaneSession?.columnName || selectedStepLabel || selectedLaneSession?.status) && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-default pb-1 text-[10px]">
-          {selectedLaneSession?.columnName && (
-            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
-              {selectedLaneSession.columnName}
-            </span>
-          )}
-          {selectedLaneSession?.transport && (
-            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
-              {selectedLaneSession.transport}
-            </span>
-          )}
-          {selectedRun && (
-            <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedRun.status)}`}>
-              {formatTaskRunStatus(selectedRun.status, t.kanbanDetailRedesign.runEnded)}
-            </span>
-          )}
-          {selectedStepLabel && (
-            <span className="rounded-full bg-accent-subtle px-2 py-0.5 font-semibold text-information">
-              {selectedStepLabel}
-            </span>
-          )}
-          {selectedLaneSession?.status && !selectedRun && (
-            <span className={`rounded-full px-2 py-0.5 font-semibold ${getTaskRunStatusClasses(selectedLaneSession.status)}`}>
-              {formatTaskRunStatus(selectedLaneSession.status, t.kanbanDetailRedesign.runEnded)}
-            </span>
-          )}
+      {statusChips && !statusSlot ? (
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-[10px]" data-testid="kanban-run-status-row">
+          {statusChips}
         </div>
-      )}
+      ) : null}
+      {statusChips && statusSlot ? createPortal(statusChips, statusSlot) : null}
     </div>
   );
 }

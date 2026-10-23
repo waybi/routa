@@ -140,7 +140,7 @@ describe("run tab look and behaviour unchanged (C7)", () => {
     expect(tabs[1].className).toContain("border-danger bg-danger-subtle");
     expect(tabs[1].getAttribute("aria-pressed")).toBe("true");
     expect(tabs[0].getAttribute("aria-pressed")).toBe("false");
-    expect(tabs[0].parentElement?.className).toContain("flex-wrap");
+    expect(tabs[0].parentElement?.className).not.toContain("flex-wrap"); expect(tabs[0].parentElement?.className).toContain("overflow-x-auto");
 
     fireEvent.click(tabs[0]);
     expect(onSelectSession).toHaveBeenCalledWith("s-dev");
@@ -154,6 +154,6 @@ describe("run tab look and behaviour unchanged (C7)", () => {
     const laneChip = screen.getByText("Review");
     expect(laneChip.tagName).toBe("SPAN");
     expect(laneChip.className).toContain("rounded-full bg-accent-subtle");
-    expect(laneChip.parentElement?.className).toContain("flex flex-wrap items-center gap-1.5 border-b");
+    expect(laneChip.closest("[data-testid='kanban-run-status-row']")?.className).toContain("overflow-x-auto");
   });
 });

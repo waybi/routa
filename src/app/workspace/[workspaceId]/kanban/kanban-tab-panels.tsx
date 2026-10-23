@@ -285,7 +285,7 @@ function A2ASessionPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-default bg-canvas py-2 pl-2 pr-2" data-testid="kanban-session-pane-top-row">
+      <div className="shrink-0 border-b border-default bg-canvas py-1 pl-1 pr-2" data-testid="kanban-session-pane-top-row">
         <KanbanCardActivityBar
           task={task}
           sessions={sessions}
@@ -420,6 +420,9 @@ export function KanbanTaskDetailOverlay({
   const canShowSessionPane = Boolean(showEmptySessionPane || isA2ASessionPane || (activeSessionId && acp));
   const [hiddenSessionPaneTaskId, setHiddenSessionPaneTaskId] = useState<string | null>(null);
   const [sessionRecoveryInputPrefill, setSessionRecoveryInputPrefill] = useState<string | null>(null);
+  // The chat panel's session info row; the run bar renders the selected
+  // run's status chips into it, so the pane header stays at two lines.
+  const [sessionInfoSlot, setSessionInfoSlot] = useState<HTMLSpanElement | null>(null);
   const isSessionPaneVisible = activeTaskId ? hiddenSessionPaneTaskId !== activeTaskId : true;
   const hasSessionPane = canShowSessionPane && isSessionPaneVisible;
   const selectTaskSession = (task: TaskInfo, sessionId: string) => {
@@ -674,7 +677,7 @@ export function KanbanTaskDetailOverlay({
                 style={activeTaskId ? sessionPaneStyle : undefined}
               >
                 {activeTask && !isA2ASessionPane && (
-                  <div className="shrink-0 border-b border-default bg-canvas py-2 pl-2 pr-2" data-testid="kanban-session-pane-top-row">
+                  <div className="shrink-0 border-b border-default bg-canvas py-1 pl-1 pr-2" data-testid="kanban-session-pane-top-row">
                     <KanbanCardActivityBar
                       task={activeTask}
                       sessions={combinedSessions}
@@ -682,6 +685,7 @@ export function KanbanTaskDetailOverlay({
                       currentSessionId={activeSessionId ?? undefined}
                       onSelectSession={(sessionId) => selectTaskSession(activeTask, sessionId)}
                       onCloseSession={() => setHiddenSessionPaneTaskId(activeTask.id)}
+                      statusSlot={acp ? sessionInfoSlot : null}
                     />
                   </div>
                 )}
@@ -716,6 +720,8 @@ export function KanbanTaskDetailOverlay({
                       onInputPrefillConsumed={() => setSessionRecoveryInputPrefill(null)}
                       onResumeActiveSession={recoverActiveAcpSession}
                       sessionFinished={selectedLaneSession?.status === "completed" || selectedLaneSession?.status === "transitioned"}
+                      compactSessionHeader
+                      sessionInfoLeadingRef={setSessionInfoSlot}
                       // A person asking a follow-up here wants an answer they
                       // can read, not the agent's work log. Wrap the typed
                       // message with reply-writing rules; the card's own

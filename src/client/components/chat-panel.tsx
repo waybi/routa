@@ -150,6 +150,19 @@ interface ChatPanelProps {
   sessionFinished?: boolean;
   /** Optional: told whenever the working state (prompt in flight / stream running) changes. */
   onRunStateChange?: (running: boolean) => void;
+  /**
+   * Optional compact header (kanban card detail): the session info row is a
+   * single tighter line and the "session finished" note folds into that row
+   * (one truncated line, full text on hover) instead of a two-line banner.
+   * Real send failures keep the red banner with Resume. Off by default.
+   */
+  compactSessionHeader?: boolean;
+  /**
+   * Optional: receives an element at the start of the session info row so
+   * the parent can render its own chips into the same line (via a portal).
+   * Only used together with `compactSessionHeader`.
+   */
+  sessionInfoLeadingRef?: (node: HTMLSpanElement | null) => void;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────
@@ -185,6 +198,8 @@ export function ChatPanel({
   onResumeActiveSession,
   sessionFinished = false,
   onRunStateChange,
+  compactSessionHeader = false,
+  sessionInfoLeadingRef,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { connected, loading, error, authError, updates, promptSession, clearAuthError } = acp;
@@ -618,7 +633,55 @@ export function ChatPanel({
   return (
     <div className="flex flex-col h-full bg-surface">
       {/* Session info bar with view toggle */}
-      {activeSessionId && (
+      {activeSessionId && compactSessionHeader && (
+        <div
+          className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap border-b border-default px-2 py-1"
+          data-testid="chat-session-info-row"
+        >
+          <span ref={sessionInfoLeadingRef} className="inline-flex shrink-0 items-center empty:hidden" data-testid="chat-session-info-leading" />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-secondary" title={activeSessionId}>
+            {t.sessions.sessionInfo} {activeSessionId}
+          </span>
+          {errorBanner?.tone === "ended" && (
+            <span
+              className="min-w-0 max-w-[14rem] shrink truncate text-[11px] text-secondary"
+              role="status"
+              data-testid="chat-ended-inline"
+              title={`${errorBanner.title} ${errorBanner.hint ?? ""}`.trim()}
+            >
+              {errorBanner.title}
+            </span>
+          )}
+          <a
+            href={`/traces?sessionId=${encodeURIComponent(traceSessionId ?? activeSessionId)}${activeWorkspaceId ? `&workspaceId=${encodeURIComponent(activeWorkspaceId)}` : ""}`}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 rounded-md border border-default px-2 py-0.5 text-[11px] font-medium text-secondary transition-colors hover:bg-hover"
+          >
+            Debug
+          </a>
+          <div className="flex shrink-0 items-center rounded-md bg-subtle p-0.5">
+            <button
+              onClick={() => setViewMode("chat")}
+              className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                viewMode === "chat" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
+              }`}
+            >
+              {t.chat.viewToggle.chat}
+            </button>
+            <button
+              onClick={() => setViewMode("trace")}
+              className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                viewMode === "trace" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
+              }`}
+            >
+              {t.chat.viewToggle.trace}
+            </button>
+          </div>
+        </div>
+      )}
+      {activeSessionId && !compactSessionHeader && (
         <div className="px-5 py-2 border-b border-default flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-success" />
@@ -665,7 +728,7 @@ export function ChatPanel({
         </div>
       )}
 
-      {errorBanner?.tone === "ended" && (
+      {errorBanner?.tone === "ended" && !(compactSessionHeader && activeSessionId) && (
         <div
           className="border-b border-default bg-subtle px-5 py-2 text-xs text-secondary"
           role="status"
