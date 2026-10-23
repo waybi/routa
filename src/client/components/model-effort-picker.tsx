@@ -48,6 +48,8 @@ export interface ModelEffortPickerProps {
   allowDefaultModel?: boolean;
   /** Make the "Default" effort segment selectable (off when the agent does not accept ""). */
   allowDefaultEffort?: boolean;
+  /** Hover text on the "Follow default" item (and on the capsule while it is selected): the model it resolves to. */
+  defaultModelHint?: string;
 }
 
 type PanelPosition = { left: number; top?: number; bottom?: number; maxHeight: number; width: number };
@@ -110,6 +112,7 @@ export function ModelEffortPicker({
   testIdPrefix = "model-effort-picker",
   allowDefaultModel = true,
   allowDefaultEffort = true,
+  defaultModelHint,
 }: ModelEffortPickerProps) {
   const { t } = useTranslation();
   const copy = t.kanbanModelSelection;
@@ -230,7 +233,7 @@ export function ModelEffortPicker({
       : "text-primary hover:bg-hover"
   }`;
 
-  const renderOption = (value: string, label: string) => {
+  const renderOption = (value: string, label: string, hint?: string) => {
     const selected = value === currentModel;
     return (
       <button
@@ -242,6 +245,7 @@ export function ModelEffortPicker({
         disabled={disabled}
         data-testid={`${testIdPrefix}-model-option`}
         data-value={value}
+        title={hint}
         onClick={() => selectModel(value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -269,7 +273,9 @@ export function ModelEffortPicker({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={resolvedAriaLabel}
-        title={readOnlyReason ?? `${resolvedAriaLabel}: ${capsuleText}`}
+        title={readOnlyReason ?? (!currentModel && defaultModelHint
+          ? `${resolvedAriaLabel}: ${capsuleText}\n${defaultModelHint}`
+          : `${resolvedAriaLabel}: ${capsuleText}`)}
         data-testid={testIdPrefix}
         data-readonly={readOnly || undefined}
         className={variant === "form" ? FORM_BUTTON_CLASS : TOOLBAR_BUTTON_CLASS}
@@ -310,7 +316,7 @@ export function ModelEffortPicker({
               </p>
             </div>
             <div role="listbox" aria-label={copy.model} className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-              {allowDefaultModel && renderOption("", copy.followDefault)}
+              {allowDefaultModel && renderOption("", copy.followDefault, defaultModelHint)}
               {modelGroups.map((group, index) => (
                 <div key={`${group.label ?? "ungrouped"}-${index}`} role="group" aria-label={group.label}>
                   {group.label && (

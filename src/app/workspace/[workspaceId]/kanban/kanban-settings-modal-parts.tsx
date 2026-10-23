@@ -34,6 +34,7 @@ import {
 } from "./kanban-settings-automation-helpers";
 import { useModelEffortChoices } from "./kanban-model-effort-fields";
 import { ModelEffortPicker } from "@/client/components/model-effort-picker";
+import { useStepDefaultModelHint } from "./kanban-step-default-model-hint";
 import { applyStepModelEffort, resolveModelOptionsProviderId } from "./kanban-model-effort-options";
 
 export interface SpecialistOption {
@@ -668,6 +669,7 @@ export function ColumnAutomationWorkspace({
     resolveModelOptionsProviderId(step.providerId, autoProviderId)
   ));
   const modelEffortChoices = useModelEffortChoices(stepOptionsProviderIds);
+  const stepDefaultModelHint = useStepDefaultModelHint();
   const renderStepModelEffort = (
     step: KanbanAutomationStep | undefined,
     index: number,
@@ -681,6 +683,7 @@ export function ColumnAutomationWorkspace({
         reasoningEffort={step?.reasoningEffort}
         emptyLabel={t.kanbanModelSelection.followDefault}
         effortEmptyLabel={t.kanbanModelSelection.followDefault}
+        defaultModelHint={stepDefaultModelHint(step?.specialistId, stepOptionsProviderIds[index])}
         ariaLabel={`${t.kanbanModelSelection.modelAndEffort}${labelSuffix}`}
         testIdPrefix={`kanban-settings-step-${index + 1}-model-effort`}
         // Two fields stay separate on the step; "" removes the field.

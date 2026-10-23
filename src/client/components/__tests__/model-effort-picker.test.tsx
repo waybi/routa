@@ -275,3 +275,18 @@ describe("ModelEffortPicker without default choices", () => {
     expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Low", "High", "X-Max"]);
   });
 });
+
+describe("ModelEffortPicker default model hint", () => {
+  it("shows the resolved default model on hover of Follow default and of an unset capsule", () => {
+    renderPicker({ model: "", defaultModelHint: "Follow default: this step runs claude-sonnet-5-5" });
+    expect(screen.getByTestId("model-effort-picker").getAttribute("title")).toContain("claude-sonnet-5-5");
+    openPanel();
+    expect(screen.getByRole("option", { name: "Follow default" }).getAttribute("title"))
+      .toBe("Follow default: this step runs claude-sonnet-5-5");
+  });
+
+  it("keeps the capsule hover plain when a model is chosen", () => {
+    renderPicker({ defaultModelHint: "Follow default: this step runs claude-sonnet-5-5" });
+    expect(screen.getByTestId("model-effort-picker").getAttribute("title")).not.toContain("claude-sonnet-5-5");
+  });
+});
