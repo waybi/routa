@@ -59,6 +59,7 @@ import { buildRecoveryModelEnv, replayStoredSessionConfig } from "@/core/acp/ses
 import { handleSessionNew, parseRequestedAcpMcpServers } from "./acp-session-create";
 import { getSessionWriteBuffer } from "./acp-session-history";
 import { handleSessionPrompt } from "./acp-session-prompt";
+import { resolveRequestServerUrl } from "./acp-request-server-url";
 
 export const dynamic = "force-dynamic";
 
@@ -1229,10 +1230,6 @@ function jsonrpcResponse(
     return NextResponse.json({ jsonrpc: "2.0", id, error });
   }
   return NextResponse.json({ jsonrpc: "2.0", id, result });
-}
-
-function resolveRequestServerUrl(request: NextRequest): string {
-  return request.nextUrl.origin;
 }
 
 /**

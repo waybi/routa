@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentRole, AgentStatus, ModelTier, createAgent } from "@/core/models/agent";
 import { TaskStatus, VerificationVerdict, createTask } from "@/core/models/task";
@@ -856,5 +856,57 @@ describe("RoutaOrchestrator", () => {
     ).sendPromptToSession("parent-session", "child finished", "ws-record");
 
     expect(received).toEqual([["child finished", "parent-session", undefined, "ws-record"]]);
+  });
+});
+
+// L127: production binds 127.0.0.1 only; delegated agents must get a loopback MCP URL.
+describe("RoutaOrchestrator child MCP url", () => {
+  async function spawnAndCaptureMcpUrl(): Promise<string> {
+    const fixture = createSystemFixture();
+    const processManager = {
+      killSession: vi.fn(),
+      createClaudeSession: vi.fn(async (..._args: unknown[]) => "acp-session-1"),
+      getClaudeProcess: vi.fn(() => undefined),
+    };
+    const orchestrator = new RoutaOrchestrator(fixture.system as never, processManager as never, {
+      defaultCrafterProvider: "claude",
+      defaultGateProvider: "opencode",
+      defaultCwd: "/workspace/project",
+      serverPort: "4123",
+    });
+    const internals = orchestrator as unknown as {
+      watchForReportFiles: () => void;
+      spawnChildAgent: (...args: string[]) => Promise<unknown>;
+    };
+    internals.watchForReportFiles = vi.fn();
+    await internals.spawnChildAgent("child-session", "child-agent-1", "claude", "/workspace/project", "go", "parent-session", "ws-1");
+    const [mcpConfigJson] = processManager.createClaudeSession.mock.calls[0][3] as string[];
+    return JSON.parse(mcpConfigJson).mcpServers.routa.url as string;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("PORT", "3000");
+    vi.stubEnv("HOST", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("defaults to http://127.0.0.1:<port>/api/mcp when HOST is unset", async () => {
+    vi.stubEnv("HOST", undefined);
+    const mcpUrl = await spawnAndCaptureMcpUrl();
+    expect(mcpUrl.split("?")[0]).toBe("http://127.0.0.1:4123/api/mcp");
+  });
+
+  it("treats HOST=\"\" as unset (no host-less URL)", async () => {
+    const mcpUrl = await spawnAndCaptureMcpUrl();
+    expect(mcpUrl.startsWith("http://127.0.0.1:4123/api/mcp?")).toBe(true);
+    expect(mcpUrl).toContain("wsId=ws-1");
+  });
+
+  it("keeps HOST override", async () => {
+    vi.stubEnv("HOST", "myhost");
+    expect((await spawnAndCaptureMcpUrl()).startsWith("http://myhost:4123/api/mcp?")).toBe(true);
   });
 });

@@ -64,7 +64,7 @@ export function getMcpEndpointUrl(fallbackPort: string = "3000"): string {
     return instance.mcpUrl;
   }
   // Fall back to the Next.js API route
-  const host = process.env.HOST || "localhost";
+  const host = process.env.HOST || "127.0.0.1";
   const port = process.env.PORT || fallbackPort;
   return `http://${host}:${port}/api/mcp`;
 }

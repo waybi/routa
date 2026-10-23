@@ -14,7 +14,7 @@ import type { McpServerProfile } from "../mcp/mcp-server-profiles";
 type ToolMode = "essential" | "full";
 
 export interface RoutaMcpConfig {
-  /** Base URL of the routa-js server (e.g., http://localhost:3000) */
+  /** Base URL of the routa-js server (e.g., http://127.0.0.1:3000) */
   routaServerUrl: string;
   /**
    * Optional working directory used by provider-specific MCP setup flows
@@ -100,7 +100,7 @@ export function generateRoutaMcpConfig(config: RoutaMcpConfig): McpServerConfig 
  * via the --mcp-config flag.
  *
  * Example usage:
- *   const mcpConfigJson = generateRoutaMcpConfigJson({ routaServerUrl: "http://localhost:3000" });
+ *   const mcpConfigJson = generateRoutaMcpConfigJson({ routaServerUrl: "http://127.0.0.1:3000" });
  *   // Pass to Claude Code: claude --mcp-config <mcpConfigJson>
  *
  * @param config - Routa MCP configuration
@@ -193,7 +193,7 @@ export function getDefaultRoutaMcpConfig(
         // Standalone server serves at /mcp (not /api/mcp).
         // Use mcpEndpoint override so mcp-setup doesn't append "/api/mcp".
         const port = process.env.PORT || "3000";
-        const host = process.env.HOST || "localhost";
+        const host = process.env.HOST || "127.0.0.1";
         return {
           routaServerUrl: `http://${host}:${port}`,
           mcpEndpoint: withWsParam(standaloneServer.mcpUrl),
@@ -208,7 +208,7 @@ export function getDefaultRoutaMcpConfig(
 
     // If running in Next.js, try to detect the port
     const port = process.env.PORT || "3000";
-    const host = process.env.HOST || "localhost";
+    const host = process.env.HOST || "127.0.0.1";
     routaServerUrl = `http://${host}:${port}`;
   }
   

@@ -445,7 +445,7 @@ describe("/api/acp POST", () => {
       "default",
       undefined,
       undefined,
-      "http://localhost",
+      "http://127.0.0.1", // L127: loopback alias pinned to 127.0.0.1
       expect.objectContaining({
         provider: "codex-acp",
       }),
@@ -714,7 +714,7 @@ describe("/api/acp POST", () => {
       "workspace-1",
       "full",
       "kanban-planning",
-      "http://localhost",
+      "http://127.0.0.1", // L127: loopback alias pinned to 127.0.0.1
       {
         provider: "codex",
         role: "DEVELOPER",
@@ -777,7 +777,7 @@ describe("/api/acp POST", () => {
       "workspace-1",
       "full",
       "kanban-planning",
-      "http://localhost",
+      "http://127.0.0.1", // L127: loopback alias pinned to 127.0.0.1
       {
         provider: "codex",
         role: "CRAFTER",

@@ -912,7 +912,7 @@ export class RoutaOrchestrator {
 
     // Detect the actual server port dynamically
     const port = this.detectServerPort();
-    const host = process.env.HOST ?? "localhost";
+    const host = process.env.HOST || "127.0.0.1";
     const baseMcpUrl = `http://${host}:${port}/api/mcp`;
     // Embed workspaceId (?wsId=) and parentSessionId (?sid=) so the MCP server
     // can scope tool calls (e.g. create_note) to the correct session.

@@ -6,7 +6,7 @@
  *   - Internally calls `/api/acp` with `session/new` + `session/prompt`
  *     to reuse all existing session-creation logic without duplication.
  *   - The base URL is read from the NEXTAUTH_URL / VERCEL_URL env var, or
- *     defaults to http://localhost:PORT for local dev.
+ *     defaults to http://127.0.0.1:PORT (production binds 127.0.0.1 only).
  *   - Runs as a singleton via globalThis to survive HMR.
  *   - In production (Vercel) schedule via a Vercel Cron Job that POST
  *     to `/api/background-tasks/process` instead of long-running interval.
@@ -27,11 +27,11 @@ const MAX_CONCURRENT_TASKS = 2;
 
 // ─── Internal URL helper ─────────────────────────────────────────────────────
 
-function getInternalBaseUrl(): string {
+export function getInternalBaseUrl(): string {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
   const port = process.env.PORT ?? "3000";
-  return `http://localhost:${port}`;
+  return `http://127.0.0.1:${port}`;
 }
 
 // ─── Worker ──────────────────────────────────────────────────────────────────
