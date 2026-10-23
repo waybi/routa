@@ -1,6 +1,7 @@
 import type { TailTranslationDictionarySections } from "../types-tail";
 import { enShell } from "./en-shell";
 import { enSessionsRedesign } from "./en-sessions-redesign";
+import { enSessionDetail } from "./en-session-detail";
 
 export const enTail: TailTranslationDictionarySections = {
   messageBubble: {
@@ -569,4 +570,5 @@ export const enTail: TailTranslationDictionarySections = {
   },
   ...enShell,
   ...enSessionsRedesign,
+  ...enSessionDetail,
 };

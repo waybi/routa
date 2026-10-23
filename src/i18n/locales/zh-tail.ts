@@ -1,6 +1,7 @@
 import type { TailTranslationDictionarySections } from "../types-tail";
 import { zhShell } from "./zh-shell";
 import { zhSessionsRedesign } from "./zh-sessions-redesign";
+import { zhSessionDetail } from "./zh-session-detail";
 
 export const zhTail: TailTranslationDictionarySections = {
   messageBubble: {
@@ -563,4 +564,5 @@ export const zhTail: TailTranslationDictionarySections = {
   },
   ...zhShell,
   ...zhSessionsRedesign,
+  ...zhSessionDetail,
 };
