@@ -283,9 +283,12 @@ describe("startAcpOrphanReaper timing (C3)", () => {
     const table = [row(7101, 1, "02:01", DSH_ACP), row(7102, 1, "01:59", DSH_ACP)];
     const terminated: number[] = [];
     const listProcesses = vi.fn(async () => table);
-    start({ ...config, listProcesses, kill: (pid, signal) => { if (signal === "SIGTERM") terminated.push(pid); } });
+    const getTrackedPids = vi.fn(() => [] as number[]);
+    start({ ...config, listProcesses, getTrackedPids, kill: (pid, signal) => { if (signal === "SIGTERM") terminated.push(pid); } });
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(listProcesses.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // One getTrackedPids read per round; a round with a candidate lists processes twice (before and after the grace).
+    expect(getTrackedPids).toHaveBeenCalledTimes(2);
+    expect(listProcesses).toHaveBeenCalledTimes(4);
     expect(new Set(terminated)).toEqual(new Set([7101]));
     expect(selectOrphanCandidates({ processes: table, trackedPids: [], selfPid: 5000, minAgeMs: config.minAgeMs })
       .map((proc) => proc.pid)).toEqual([7101]);

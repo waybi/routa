@@ -54,7 +54,7 @@ function step(id: string) {
   return { id, role: "CRAFTER", providerId: "codex", specialistId: id, specialistName: id };
 }
 
-function columns(overrides?: { doneRequiredArtifacts?: string[] }): KanbanColumn[] {
+function columns(overrides?: { doneRequiredArtifacts?: string[]; doneReporterOnly?: boolean }): KanbanColumn[] {
   return [
     { id: "backlog", name: "Backlog", stage: "backlog", position: 0, automation: { enabled: true, steps: [step("backlog-refiner")] } },
     { id: "todo", name: "Todo", stage: "todo", position: 1, automation: { enabled: true, steps: [step("todo-orchestrator")] } },
@@ -67,7 +67,7 @@ function columns(overrides?: { doneRequiredArtifacts?: string[] }): KanbanColumn
       position: 4,
       automation: {
         enabled: true,
-        steps: [step("done-pusher"), step("done-reporter")],
+        steps: overrides?.doneReporterOnly ? [step("done-reporter")] : [step("done-pusher"), step("done-reporter")],
         ...(overrides?.doneRequiredArtifacts ? { requiredArtifacts: overrides.doneRequiredArtifacts } : {}),
       },
     } as KanbanColumn,
@@ -135,7 +135,7 @@ function killedIds(): string[] {
   return h.killSession.mock.calls.map(([sessionId]) => sessionId);
 }
 
-async function setupSystem(options?: { doneRequiredArtifacts?: string[]; concurrencyLimit?: number }) {
+async function setupSystem(options?: { doneRequiredArtifacts?: string[]; doneReporterOnly?: boolean; concurrencyLimit?: number }) {
   resetWorkflowOrchestrator();
   h.system = createInMemorySystem();
   const metadata = options?.concurrencyLimit
@@ -354,6 +354,20 @@ describe("F2 baseline shapes: moves without running sessions kill nothing", () =
     const response = await patch("K", { columnId: target });
     expect(response.status).toBe(200);
     expect(started).toEqual(expected);
+    expect(h.killSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Done with pusher", false, "done-pusher"],
+    ["Done with reporter only", true, "done-reporter"],
+  ])("%s: entering Done starts its first step and kills 0", async (_label, reporterOnly, firstStep) => {
+    await setupSystem({ doneReporterOnly: reporterOnly });
+    await saveCard({ id: "K", columnId: "review" });
+    expect((await patch("K", { columnId: "done" })).status).toBe(200);
+    const board = await h.system.kanbanBoardStore.get(BOARD);
+    const done = board?.columns.find((column) => column.id === "done");
+    expect(done?.automation?.steps?.[0]?.specialistId).toBe(firstStep);
+    expect(started).toEqual([{ cardId: "K", columnId: "done", via: "transition" }]);
     expect(h.killSession).not.toHaveBeenCalled();
   });
 
