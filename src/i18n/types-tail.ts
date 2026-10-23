@@ -540,7 +540,6 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     reload: string;
     emptyTitle: string;
     emptyHint: string;
-    closeDispatch: string;
     /** Activity line when only the lane and its age are known; "{who}" "{age}". */
     laneActivity: string;
     noActivity: string;
@@ -557,20 +556,10 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
   };
   /** Card detail redesign: four tabs, property rail, load states (card 3/6). */
   kanbanDetailRedesign: {
-    construction: string;
-    changesAndEvidence: string;
-    properties: string;
     runCount: string;
-    labels: string;
     pendingEvaluation: string;
-    stageProgress: string;
-    stageProgressHint: string;
     runRecords: string;
-    advancedSettings: string;
-    advancedSettingsHint: string;
     noGithubLink: string;
-    evidenceSection: string;
-    evidenceSectionHint: string;
     detailLoading: string;
     detailLoadFailed: string;
     detailLoadFailedHint: string;
