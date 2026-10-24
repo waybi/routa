@@ -204,5 +204,20 @@ export interface TeamRedesignTranslationDictionarySections {
       searchShortcut: string;
       searchShortcutHint: string;
     };
+    /** Launch box "model · reasoning effort" capsule (card 15). */
+    modelEffort: {
+      ariaLabel: string;
+      followDefault: string;
+      unsupported: string;
+      searchPlaceholder: string;
+      noMatch: string;
+      note: string;
+      effortDefault: string;
+      effortLow: string;
+      effortMedium: string;
+      effortHigh: string;
+      effortXhigh: string;
+      effortMax: string;
+    };
   };
 }

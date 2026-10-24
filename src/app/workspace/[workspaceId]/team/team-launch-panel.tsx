@@ -1,6 +1,7 @@
 "use client";
 
 import React, { forwardRef } from "react";
+import { Cpu } from "lucide-react";
 
 import { HomeInput } from "@/client/components/home-input";
 import type { InsertTextRequest } from "@/client/components/tiptap-input";
@@ -12,6 +13,31 @@ export interface TeamLaunchModeCopy {
   label: string;
   description: string;
   placeholder: string;
+}
+
+/** Team runs start on DeepSeek Harness unless the user picked a provider (same default as the board). */
+export const TEAM_DEFAULT_PROVIDER_ID = "dsh";
+
+/** "model · reasoning effort" capsule options for the launch box (card 15). */
+export function teamModelEffortPickerOptions(copy: TeamRedesignCopy) {
+  const text = copy.modelEffort;
+  return {
+    ariaLabel: text.ariaLabel,
+    emptyLabel: text.followDefault,
+    unsupportedReason: text.unsupported,
+    searchable: { placeholder: text.searchPlaceholder, noMatch: text.noMatch },
+    effortLabels: {
+      "": text.effortDefault,
+      low: text.effortLow,
+      medium: text.effortMedium,
+      high: text.effortHigh,
+      xhigh: text.effortXhigh,
+      max: text.effortMax,
+    },
+    footerNote: text.note,
+    leadingIcon: <Cpu className="h-3 w-3 shrink-0 text-secondary" aria-hidden />,
+    returnFocusOnDismiss: true,
+  };
 }
 
 /** Template chips under the launch box, in display order. */
@@ -78,6 +104,10 @@ export const TeamLaunchPanel = forwardRef<HTMLElement, {
           }]}
           insertTextRequest={insertTextRequest}
           onSessionCreated={onSessionCreated}
+          alwaysShowModelEffortPicker
+          modelEffortTestIdPrefix="team-model-effort-picker"
+          modelEffortPickerOptions={teamModelEffortPickerOptions(copy)}
+          preferredDefaultProvider={TEAM_DEFAULT_PROVIDER_ID}
         />
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="team-launch-templates">
