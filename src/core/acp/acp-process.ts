@@ -87,6 +87,19 @@ export function resolveAcpStartupTimeoutMs(
     return isNpxOrUvx ? NPX_ACP_STARTUP_TIMEOUT_MS : DEFAULT_ACP_STARTUP_TIMEOUT_MS;
 }
 
+/** Only a spawned, still-running child (pid > 0) may receive a signal. */
+function isSignalable(child: IProcessHandle): boolean {
+    return typeof child.pid === "number" && child.pid > 0 && child.exitCode === null;
+}
+
+function describeSpawnFailure(displayName: string, command: string, cause: Error | null): Error {
+    const code = (cause as NodeJS.ErrnoException | null)?.code;
+    const reason = code === "ENOENT"
+        ? `"${command}" is not installed or not in PATH (spawn ENOENT)`
+        : `is "${command}" installed and in PATH?${cause ? ` (${cause.message})` : ""}`;
+    return new Error(`Failed to spawn ${displayName} - ${reason}`, cause ? { cause } : undefined);
+}
+
 export class AcpProcess {
     private process: IProcessHandle | null = null;
     private buffer = "";
@@ -112,6 +125,7 @@ export class AcpProcess {
     private lastStderrErrorMessage: string | null = null;
     private _configOptions: AcpConfigOption[] | undefined;
     private configOptionsListener: ((options: AcpConfigOption[]) => void) | null = null;
+    private forceKillTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(config: AcpProcessConfig, onNotification: NotificationHandler) {
         this._config = config;
@@ -284,6 +298,7 @@ export class AcpProcess {
             // still holds the session. Any exit Routa did not request counts.
             const unexpected = this._alive && this._sessionId !== null;
             this._alive = false;
+            this.clearForceKillTimer();
             if (unexpected) {
                 // Without this the session stayed `ready` forever and the
                 // board card read "idle" for a dead agent. Routed as a
@@ -317,17 +332,24 @@ export class AcpProcess {
             }
         });
 
-        this.process.on("error", (err) => {
-            console.error(`[AcpProcess:${displayName}] Process error:`, err);
-            this._alive = false;
+        // A failed spawn (e.g. ENOENT) only surfaces as an async `error`
+        // event; capture it so start() rejects with the real cause.
+        let spawnError: Error | null = null;
+        const spawnFailed = new Promise<void>((resolve) => {
+            this.process?.on("error", (err) => {
+                console.error(`[AcpProcess:${displayName}] Process error:`, err);
+                this._alive = false;
+                spawnError = err instanceof Error ? err : new Error(String(err));
+                resolve();
+            });
         });
 
         await awaitProcessReady(this.process);
 
         if (!this.process || !this.process.pid) {
-            throw new Error(
-                `Failed to spawn ${displayName} - is "${command}" installed and in PATH?`
-            );
+            // The spawn error is emitted on the next tick; give it a moment.
+            await Promise.race([spawnFailed, new Promise((resolve) => setTimeout(resolve, 100))]);
+            throw describeSpawnFailure(displayName, command, spawnError);
         }
 
         if (!this.process.stdin || !this.process.stdout) {
@@ -343,7 +365,9 @@ export class AcpProcess {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         if (!this.alive) {
-            throw new Error(`${displayName} process died during startup`);
+            throw new Error(
+                `${displayName} process died during startup ("${command}" exited with code ${this.process.exitCode})`
+            );
         }
 
         console.log(
@@ -524,7 +548,9 @@ export class AcpProcess {
                 if (isPromptRequest) {
                     this.timedOutPromptIds.add(id);
                 }
-                reject(new Error(`Timeout waiting for ${method} (id=${id})`));
+                reject(new Error(
+                    `Timeout waiting for ${method} (id=${id}) from ${this._config.displayName} ("${this._config.command}")`
+                ));
             }, timeoutMs ?? defaultTimeout);
 
             this.pendingRequests.set(id, {resolve, reject, timeout});
@@ -545,21 +571,33 @@ export class AcpProcess {
         // Cleared before signalling so the exit handler (which may fire
         // synchronously) sees an intentional stop, not a crash.
         this._alive = false;
-        if (this.process && this.process.exitCode === null) {
+        // Never signal a child without a pid: Node keeps the handle of a
+        // failed spawn (ENOENT) with pid 0, and kill() then signals the whole
+        // process group — the Routa server itself.
+        if (this.process && isSignalable(this.process)) {
             console.log(
                 `[AcpProcess:${this._config.displayName}] Killing process pid=${this.process.pid}`
             );
             this.process.kill("SIGTERM");
 
             // Force kill after 5 seconds if still alive
-            setTimeout(() => {
-                if (this.process && this.process.exitCode === null) {
+            this.clearForceKillTimer();
+            this.forceKillTimer = setTimeout(() => {
+                this.forceKillTimer = null;
+                if (this.process && isSignalable(this.process)) {
                     this.process.kill("SIGKILL");
                 }
             }, 5000);
         }
         this._alive = false;
         this.pendingInteractiveRequests.clear();
+    }
+
+    private clearForceKillTimer(): void {
+        if (this.forceKillTimer) {
+            clearTimeout(this.forceKillTimer);
+            this.forceKillTimer = null;
+        }
     }
 
     respondToUserInput(toolCallId: string, response: Record<string, unknown>): boolean {
