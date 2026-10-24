@@ -65,6 +65,10 @@ export interface RedesignSettingsTranslationDictionarySections {
       emptyTitle: string;
       emptyDescription: string;
     };
+    modelsTabHint: {
+      text: string;
+      link: string;
+    };
   };
   pagesRedesign: {
     doneRail: {

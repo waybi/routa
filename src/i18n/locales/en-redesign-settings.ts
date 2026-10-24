@@ -61,6 +61,10 @@ export const enRedesignSettings: RedesignSettingsTranslationDictionarySections =
       emptyTitle: "No MCP servers yet",
       emptyDescription: "Add a server so agents can use its tools.",
     },
+    modelsTabHint: {
+      text: "Default model and reasoning effort for kanban lane agents are set on the Specialists page",
+      link: "Go to Specialists",
+    },
   },
   pagesRedesign: {
     doneRail: {

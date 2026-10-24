@@ -61,6 +61,10 @@ export const zhRedesignSettings: RedesignSettingsTranslationDictionarySections =
       emptyTitle: "还没有 MCP 服务",
       emptyDescription: "添加一个服务，执行器就能用它的工具。",
     },
+    modelsTabHint: {
+      text: "看板施工者（Dev、Review 等岗位）用的默认模型和推理档位，在「岗位」页设置",
+      link: "去设置",
+    },
   },
   pagesRedesign: {
     doneRail: {

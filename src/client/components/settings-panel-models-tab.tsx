@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useRef, useState } from "react";
 
 import {
@@ -16,7 +17,7 @@ import {
 } from "./settings-panel-shared";
 import { useTranslation } from "@/i18n";
 import { useConfirm } from "./confirm-dialog";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Info, Plus, Trash2 } from "lucide-react";
 
 
 export function ModelsTab() {
@@ -69,6 +70,18 @@ export function ModelsTab() {
       <datalist id={baseUrlListId}>
         {BASE_URL_SUGGESTIONS.map((url) => <option key={url} value={url} />)}
       </datalist>
+
+      <div
+        role="note"
+        data-testid="models-tab-specialists-hint"
+        className="flex items-start gap-2 rounded-lg border border-desktop-border bg-desktop-bg-secondary px-3 py-2 text-[11px] text-desktop-text-secondary"
+      >
+        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+        <span className="min-w-0 flex-1">{t.settingsRedesign.modelsTabHint.text}</span>
+        <Link href="/settings/specialists" className="shrink-0 text-accent hover:underline">
+          {t.settingsRedesign.modelsTabHint.link}
+        </Link>
+      </div>
 
       <div className="rounded-xl border border-accent bg-gradient-to-b from-accent-subtle to-transparent p-3.5 space-y-3">
         <div className="flex items-center gap-2">
