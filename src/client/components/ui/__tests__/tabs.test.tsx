@@ -55,6 +55,53 @@ describe("ui/Tabs", () => {
   });
 });
 
+describe("ui/Tabs overflow guards (card f022a30f)", () => {
+  function RowHarness({ trailing }: { trailing?: boolean }) {
+    const [value, setValue] = useState("chat");
+    return (
+      <Tabs
+        label="Row"
+        value={value}
+        onChange={setValue}
+        compact={trailing}
+        trailing={trailing ? <span>session info</span> : undefined}
+        items={[
+          { id: "chat", label: "对话", content: <p>chat</p> },
+          { id: "events", label: "事件", content: <p>events</p> },
+          { id: "evidence", label: "证据", content: <p>evidence</p> },
+        ]}
+      />
+    );
+  }
+
+  it("trailing mode: the tab list cannot scroll vertically and the row draws its baseline inside the box", () => {
+    render(<RowHarness trailing />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).toContain("overflow-y-hidden");
+    const row = screen.getByTestId("tabs-row");
+    expect(row.className).toContain("shadow-[inset_0_-1px_0_var(--color-default)]");
+    expect(row.className).not.toContain("border-b");
+  });
+
+  it.each([true, false])("every tab button stays on one line and never shrinks (trailing=%s)", (trailing) => {
+    render(<RowHarness trailing={trailing} />);
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab.className).toContain("whitespace-nowrap");
+      expect(tab.className).toContain("shrink-0");
+      // No negative margin: the button must not stick out of the tab list.
+      expect(tab.className).not.toContain("-mb-px");
+      expect(tab.className).toContain("border-b-2");
+    }
+  });
+
+  it("default mode keeps a bottom baseline on the tab list", () => {
+    render(<RowHarness />);
+    const tablist = screen.getByRole("tablist");
+    expect(tablist.className).toContain("shadow-[inset_0_-1px_0_var(--color-default)]");
+    expect(screen.queryByTestId("tabs-row")).toBeNull();
+  });
+});
+
 describe("ui/Tabs keepMounted", () => {
   function KeepHarness({ keepMounted }: { keepMounted?: boolean }) {
     const [value, setValue] = useState("a");

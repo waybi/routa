@@ -36,6 +36,9 @@ export interface TabsProps {
   compact?: boolean;
 }
 
+/** 1px bottom line in the border colour, drawn inside the box. */
+const BASELINE = "shadow-[inset_0_-1px_0_var(--color-default)]";
+
 /**
  * WAI-ARIA tabs with roving tabindex: ←/→ move between enabled tabs and
  * wrap around, Home/End jump to the ends. Selection follows focus.
@@ -76,6 +79,10 @@ export function Tabs({
   };
 
   const hasTrailing = trailing !== undefined && trailing !== null;
+  // The baseline is an inset shadow, not a border: tab buttons stay inside
+  // the box (no -mb-px), so the tab list never overflows by 1px and never
+  // grows a scrollbar when callers add overflow-x-auto or the OS shows
+  // classic scrollbars. The selected tab's 2px underline paints over it.
   const tabList = (
     <div
       role="tablist"
@@ -83,8 +90,8 @@ export function Tabs({
       onKeyDown={handleKeyDown}
       className={
         hasTrailing
-          ? `flex shrink-0 gap-5 ${listClassName}`.trim()
-          : `flex gap-5 border-b border-default ${listClassName}`.trim()
+          ? `flex shrink-0 gap-5 overflow-y-hidden ${listClassName}`.trim()
+          : `flex gap-5 ${BASELINE} ${listClassName}`.trim()
       }
     >
       {items.map((item) => {
@@ -104,7 +111,7 @@ export function Tabs({
             tabIndex={isSelected ? 0 : -1}
             disabled={item.disabled}
             onClick={() => onChange(item.id)}
-            className={`-mb-px border-b-2 ${compact ? "py-1.5" : "py-2.5"} text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 ${
+            className={`shrink-0 whitespace-nowrap border-b-2 ${compact ? "py-1.5" : "py-2.5"} text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:opacity-50 ${
               isSelected ? "border-accent text-primary" : "border-transparent text-secondary hover:text-primary"
             }`}
           >
@@ -118,7 +125,7 @@ export function Tabs({
   return (
     <div className={className}>
       {hasTrailing ? (
-        <div className="flex min-w-0 shrink-0 items-stretch gap-3 border-b border-default" data-testid="tabs-row">
+        <div className={`flex min-w-0 shrink-0 items-stretch gap-3 ${BASELINE}`} data-testid="tabs-row">
           {tabList}
           {trailing}
         </div>

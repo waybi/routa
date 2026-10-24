@@ -71,7 +71,7 @@ export function SessionDetailTabs({ sessionId, workspaceId, chat, knownContext, 
         />
       ) : undefined}
       className="flex min-h-0 flex-1 flex-col"
-      listClassName="shrink-0 overflow-x-auto px-4 md:px-[22px]"
+      listClassName="px-4 md:px-[22px]"
       panelClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       items={[
         { id: "chat", label: copy.chat, content: chat },
