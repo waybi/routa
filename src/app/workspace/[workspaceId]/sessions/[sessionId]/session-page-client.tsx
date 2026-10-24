@@ -177,6 +177,8 @@ export function SessionPageClient() {
   const [isResumingSession, setIsResumingSession] = useState(false);
   const [chatRunning, setChatRunning] = useState<boolean | null>(null);
   const [knownContext, setKnownContext] = useState<KnownSessionContext | null>(null);
+  // End of the Chat/Events/Evidence tab row; ChatPanel portals its session info there (callback ref, no effect).
+  const [tabTrailingSlot, setTabTrailingSlot] = useState<HTMLDivElement | null>(null);
 
   // ── Workspace state ───────────────────────────────────────────────────
   const workspacesHook = useWorkspaces();
@@ -979,36 +981,13 @@ export function SessionPageClient() {
       onDecoratePrompt={canvasPromptEnabled ? decorateCanvasPrompt : undefined}
       onDecoratedPromptSent={handleCanvasPromptSent}
       onRunStateChange={setChatRunning}
+      compactSessionHeader={!isEmbedMode}
+      sessionInfoPortalTarget={isEmbedMode ? undefined : tabTrailingSlot}
     />
   );
 
   const sessionPageContent = (
     <div className={`flex min-w-0 flex-col bg-surface ${isEmbedMode ? "h-screen embed-mode" : "h-full"}`}>
-
-      {isPlanningSession && !isEmbedMode ? (
-        <div className="border-b border-default bg-surface px-5 py-4">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-end">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => router.push(`/workspace/${workspaceId}/sessions`)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-default bg-surface px-3 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-hover"
-              >
-                <ScrollText className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
-                {t.nav.sessions}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push(`/workspace/${workspaceId}/kanban`)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[11px] font-medium text-on-accent transition-colors hover:opacity-90"
-              >
-                <Columns2 className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
-                {t.workspace.goToBoard}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {!isEmbedMode ? (
         <SessionDetailHeader
@@ -1018,7 +997,30 @@ export function SessionPageClient() {
           model={activeSessionRecord?.model}
           role={activeSessionRecord?.role}
           provider={activeSessionRecord?.provider}
-          actions={(
+          actions={(<>
+            {/* Planning sessions: "Sessions" / "Go to board" live in the header row (no separate action row). */}
+            {isPlanningSession ? (
+              <>
+                <button
+                  type="button"
+                  data-testid="session-planning-sessions"
+                  onClick={() => router.push(`/workspace/${workspaceId}/sessions`)}
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-default bg-surface px-3 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-hover"
+                >
+                  <ScrollText className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
+                  {t.nav.sessions}
+                </button>
+                <button
+                  type="button"
+                  data-testid="session-planning-board"
+                  onClick={() => router.push(`/workspace/${workspaceId}/kanban`)}
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-[11px] font-medium text-on-accent transition-colors hover:opacity-90"
+                >
+                  <Columns2 className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} />
+                  {t.workspace.goToBoard}
+                </button>
+              </>
+            ) : null}
             <button
               ref={contextToggleRef}
               type="button"
@@ -1030,7 +1032,7 @@ export function SessionPageClient() {
               <PanelRight className="h-3.5 w-3.5" aria-hidden="true" />
               {showMobileSidebar ? t.sessionsRedesign.hideContext : t.sessionsRedesign.showContext}
             </button>
-          )}
+          </>)}
         />
       ) : null}
 
@@ -1060,6 +1062,7 @@ export function SessionPageClient() {
               workspaceId={workspaceId}
               knownContext={knownContext}
               chat={chatPanel}
+              onTrailingSlot={setTabTrailingSlot}
             />
           )}
         </div>

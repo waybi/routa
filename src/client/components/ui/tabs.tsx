@@ -25,13 +25,33 @@ export interface TabsProps {
    * them, so panel state (drafts, scroll, subscriptions) survives switching.
    */
   keepMounted?: boolean;
+  /**
+   * Optional content at the end of the tab row (e.g. page-level controls).
+   * Rendered next to the tab list, never inside `role="tablist"`, so arrow
+   * keys and screen readers still see only the tabs. When omitted the DOM is
+   * unchanged.
+   */
+  trailing?: ReactNode;
+  /** Tighter vertical padding on the tab buttons (py-1.5 instead of py-2.5). */
+  compact?: boolean;
 }
 
 /**
  * WAI-ARIA tabs with roving tabindex: ←/→ move between enabled tabs and
  * wrap around, Home/End jump to the ends. Selection follows focus.
  */
-export function Tabs({ items, value, onChange, label, className = "", listClassName = "", panelClassName, keepMounted = false }: TabsProps) {
+export function Tabs({
+  items,
+  value,
+  onChange,
+  label,
+  className = "",
+  listClassName = "",
+  panelClassName,
+  keepMounted = false,
+  trailing,
+  compact = false,
+}: TabsProps) {
   const baseId = useId();
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const enabled = items.filter((item) => !item.disabled);
@@ -55,40 +75,54 @@ export function Tabs({ items, value, onChange, label, className = "", listClassN
     focusTab(next.id);
   };
 
+  const hasTrailing = trailing !== undefined && trailing !== null;
+  const tabList = (
+    <div
+      role="tablist"
+      aria-label={label}
+      onKeyDown={handleKeyDown}
+      className={
+        hasTrailing
+          ? `flex shrink-0 gap-5 ${listClassName}`.trim()
+          : `flex gap-5 border-b border-default ${listClassName}`.trim()
+      }
+    >
+      {items.map((item) => {
+        const isSelected = item.id === selected?.id;
+        return (
+          <button
+            key={item.id}
+            ref={(node) => {
+              if (node) tabRefs.current.set(item.id, node);
+              else tabRefs.current.delete(item.id);
+            }}
+            type="button"
+            role="tab"
+            id={`${baseId}-tab-${item.id}`}
+            aria-selected={isSelected}
+            aria-controls={`${baseId}-panel-${item.id}`}
+            tabIndex={isSelected ? 0 : -1}
+            disabled={item.disabled}
+            onClick={() => onChange(item.id)}
+            className={`-mb-px border-b-2 ${compact ? "py-1.5" : "py-2.5"} text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 ${
+              isSelected ? "border-accent text-primary" : "border-transparent text-secondary hover:text-primary"
+            }`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className={className}>
-      <div
-        role="tablist"
-        aria-label={label}
-        onKeyDown={handleKeyDown}
-        className={`flex gap-5 border-b border-default ${listClassName}`.trim()}
-      >
-        {items.map((item) => {
-          const isSelected = item.id === selected?.id;
-          return (
-            <button
-              key={item.id}
-              ref={(node) => {
-                if (node) tabRefs.current.set(item.id, node);
-                else tabRefs.current.delete(item.id);
-              }}
-              type="button"
-              role="tab"
-              id={`${baseId}-tab-${item.id}`}
-              aria-selected={isSelected}
-              aria-controls={`${baseId}-panel-${item.id}`}
-              tabIndex={isSelected ? 0 : -1}
-              disabled={item.disabled}
-              onClick={() => onChange(item.id)}
-              className={`-mb-px border-b-2 py-2.5 text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 ${
-                isSelected ? "border-accent text-primary" : "border-transparent text-secondary hover:text-primary"
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+      {hasTrailing ? (
+        <div className="flex min-w-0 shrink-0 items-stretch gap-3 border-b border-default" data-testid="tabs-row">
+          {tabList}
+          {trailing}
+        </div>
+      ) : tabList}
       {keepMounted
         ? items.map((item) => (
           <div

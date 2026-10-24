@@ -6,7 +6,7 @@
  * parent can render chips into the same line. Real failures keep the red
  * banner with Resume either way.
  */
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UseAcpActions, UseAcpState } from "@/client/hooks/use-acp";
 import { ChatPanel } from "../chat-panel";
@@ -41,6 +41,7 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("../tiptap-input", () => ({ TiptapInput: () => <div data-testid="tiptap-mock" /> }));
+vi.mock("@/client/components/trace-panel", () => ({ TracePanel: () => <div data-testid="trace-panel-mock" /> }));
 
 vi.mock("../chat-panel/hooks", () => ({
   useChatMessages: () => ({
@@ -161,5 +162,55 @@ describe("ChatPanel with compactSessionHeader (card detail)", () => {
     expect(screen.queryByTestId("chat-ended-inline")).toBeNull();
     expect(screen.queryByTestId("chat-ended-banner")).toBeNull();
     expect(screen.queryByTestId("chat-error-banner")).toBeNull();
+  });
+});
+
+describe("ChatPanel with sessionInfoPortalTarget (session detail page)", () => {
+  function renderPortal(target: HTMLElement | null) {
+    return render(
+      <ChatPanel
+        acp={makeAcp(GONE)}
+        activeSessionId="session-0123456789abcdef"
+        traceSessionId="session-0123456789abcdef"
+        activeWorkspaceId="ws-1"
+        onEnsureSession={async () => "session-0123456789abcdef"}
+        onSelectSession={async () => {}}
+        onResumeActiveSession={async () => {}}
+        repoSelection={null}
+        onRepoChange={vi.fn()}
+        sessionFinished
+        compactSessionHeader
+        sessionInfoPortalTarget={target}
+      />,
+    );
+  }
+
+  it("renders the session info row inside the target, not above the messages", () => {
+    const target = document.createElement("div");
+    document.body.appendChild(target);
+    const { container } = renderPortal(target);
+    const row = within(target).getByTestId("chat-session-info-row");
+    expect(container.querySelector('[data-testid="chat-session-info-row"]')).toBeNull();
+    expect(row.className).not.toContain("border-b");
+    const id = within(row).getByText(/session-0123456789abcdef/);
+    expect(id.getAttribute("title")).toBe("session-0123456789abcdef");
+    const debug = within(row).getByRole("link", { name: "Debug" });
+    expect(debug.getAttribute("href")).toBe("/traces?sessionId=session-0123456789abcdef&workspaceId=ws-1");
+    expect(debug.getAttribute("target")).toBe("_blank");
+    expect(within(row).getByTestId("chat-ended-inline").textContent).toBe("This session has finished.");
+    expect(screen.queryByTestId("chat-ended-banner")).toBeNull();
+    const trace = within(row).getByRole("button", { name: "Trace" });
+    fireEvent.click(trace);
+    expect(trace.className).toContain("bg-surface");
+    expect(within(row).getByRole("button", { name: "Chat" }).className).not.toContain("bg-surface");
+    expect(screen.getByTestId("trace-panel-mock")).toBeTruthy();
+    target.remove();
+  });
+
+  it("renders nothing (no separate row) while the target is not mounted yet", () => {
+    renderPortal(null);
+    expect(screen.queryByTestId("chat-session-info-row")).toBeNull();
+    expect(screen.queryByText(/Session info/)).toBeNull();
+    expect(screen.queryByTestId("chat-ended-banner")).toBeNull();
   });
 });

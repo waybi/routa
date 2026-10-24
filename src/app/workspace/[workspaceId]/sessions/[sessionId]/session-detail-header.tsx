@@ -6,9 +6,10 @@ import { Badge } from "@/client/components/ui/badge";
 import { useTranslation } from "@/i18n";
 
 export interface SessionDetailHeaderProps {
-  /** Small label above the title, e.g. "施工会话" / "团队会话". */
+  /** Small label before the title, e.g. "施工会话". */
   eyebrow: ReactNode;
-  title: ReactNode;
+  /** Plain text: also used as the hover title when the heading is truncated. */
+  title: string;
   sessionId: string;
   model?: string | null;
   role?: string | null;
@@ -18,10 +19,12 @@ export interface SessionDetailHeaderProps {
 }
 
 /**
- * Shared header for the session detail and team session pages
- * (design-spec §3 rows 6 and 8, prototype `sessionPage()`): page label,
- * session title that wraps instead of truncating, then ID / model / role
- * badges. The model badge says "not recorded" rather than inventing one.
+ * Header for the session detail page (prototype `sessionPage()`): page label,
+ * session title, then ID / model / role / provider badges and the actions.
+ * On wide screens (xl) it is a single row: the title truncates to one line
+ * and shows the full text on hover (2026-10-24 老板要求压缩顶部高度，覆盖
+ * design-spec §3 的「标题换行不截断」). Narrow screens may wrap.
+ * The model badge says "not recorded" rather than inventing one.
  */
 export function SessionDetailHeader({
   eyebrow,
@@ -37,15 +40,15 @@ export function SessionDetailHeader({
   const copy = t.sessionsRedesign;
 
   return (
-    <header data-testid={testId} className="shrink-0 border-b border-default bg-canvas px-4 py-4 md:px-[22px] xl:px-7">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="m-0 text-xs text-secondary">{eyebrow}</p>
-          <h1 className="m-0 mt-0.5 break-words text-[21px] font-semibold leading-tight text-primary">{title}</h1>
-        </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+    <header
+      data-testid={testId}
+      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-default bg-canvas px-4 py-1.5 md:px-[22px] xl:flex-nowrap xl:px-7"
+    >
+      <div className="flex min-w-0 flex-1 basis-full items-baseline gap-2 xl:basis-0" data-testid="session-detail-title-group">
+        <span className="shrink-0 text-xs text-secondary">{eyebrow}</span>
+        <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold leading-tight text-primary" title={title}>{title}</h1>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label={copy.sessionIdLabel}>
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 xl:flex-nowrap" aria-label={copy.sessionIdLabel} data-testid="session-detail-badges">
         <Badge className="font-mono">
           <span className="sr-only">{copy.sessionIdLabel} </span>
           <span title={sessionId}>{sessionId.slice(0, 8)}</span>
@@ -67,6 +70,9 @@ export function SessionDetailHeader({
           </Badge>
         ) : null}
       </div>
+      {actions ? (
+        <div className="ml-auto flex shrink-0 items-center gap-2" data-testid="session-detail-actions">{actions}</div>
+      ) : null}
     </header>
   );
 }

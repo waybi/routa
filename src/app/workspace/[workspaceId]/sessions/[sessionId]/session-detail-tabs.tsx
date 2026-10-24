@@ -17,6 +17,12 @@ export interface SessionDetailTabsProps {
   /** The chat column (ChatPanel). Rendered once and kept mounted across tab switches. */
   chat: ReactNode;
   knownContext?: KnownSessionContext | null;
+  /**
+   * Optional: receives the element at the end of the tab row. The page
+   * portals ChatPanel's session info (ID, Debug, Chat/Trace) into it so the
+   * tabs and that info share one line. The slot is hidden outside the Chat tab.
+   */
+  onTrailingSlot?: (node: HTMLDivElement | null) => void;
 }
 
 /**
@@ -25,7 +31,7 @@ export interface SessionDetailTabsProps {
  * ChatPanel, or the draft, scroll position, stream subscription and the
  * pending re-send after Resume would be lost (keep-list item 25).
  */
-export function SessionDetailTabs({ sessionId, workspaceId, chat, knownContext }: SessionDetailTabsProps) {
+export function SessionDetailTabs({ sessionId, workspaceId, chat, knownContext, onTrailingSlot }: SessionDetailTabsProps) {
   const { t } = useTranslation();
   const copy = t.sessionDetailRedesign.tabs;
   const [tab, setTab] = useState<SessionDetailTab>("chat");
@@ -55,6 +61,15 @@ export function SessionDetailTabs({ sessionId, workspaceId, chat, knownContext }
       value={tab}
       onChange={handleChange}
       keepMounted
+      compact={onTrailingSlot !== undefined}
+      trailing={onTrailingSlot ? (
+        <div
+          ref={onTrailingSlot}
+          hidden={tab !== "chat"}
+          className="flex min-w-0 flex-1 items-center pr-4 md:pr-[22px]"
+          data-testid="session-tabs-trailing"
+        />
+      ) : undefined}
       className="flex min-h-0 flex-1 flex-col"
       listClassName="shrink-0 overflow-x-auto px-4 md:px-[22px]"
       panelClassName="flex min-h-0 flex-1 flex-col overflow-hidden"

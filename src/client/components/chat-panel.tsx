@@ -8,6 +8,7 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState,} from "react";
+import {createPortal} from "react-dom";
 import {v4 as uuidv4} from "uuid";
 import type {UseAcpActions, UseAcpState} from "../hooks/use-acp";
 import {type InputContext, TiptapInput} from "./tiptap-input";
@@ -163,6 +164,14 @@ interface ChatPanelProps {
    * Only used together with `compactSessionHeader`.
    */
   sessionInfoLeadingRef?: (node: HTMLSpanElement | null) => void;
+  /**
+   * Optional (session detail page): render the compact session info row into
+   * this element (via a portal) instead of above the messages, so it can share
+   * a line with the parent's tabs. `null` means the target is not mounted yet:
+   * nothing renders (no flash of a separate row). Only used together with
+   * `compactSessionHeader`; leave undefined to keep the row in place.
+   */
+  sessionInfoPortalTarget?: HTMLElement | null;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────
@@ -200,6 +209,7 @@ export function ChatPanel({
   onRunStateChange,
   compactSessionHeader = false,
   sessionInfoLeadingRef,
+  sessionInfoPortalTarget,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { connected, loading, error, authError, updates, promptSession, clearAuthError } = acp;
@@ -630,57 +640,64 @@ export function ChatPanel({
 
   // ── Render ───────────────────────────────────────────────────────────
 
+  const portalSessionInfo = compactSessionHeader && sessionInfoPortalTarget !== undefined;
+  const compactSessionInfoRow = activeSessionId && compactSessionHeader ? (
+    <div
+      className={portalSessionInfo
+        ? "flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap"
+        : "flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap border-b border-default px-2 py-1"}
+      data-testid="chat-session-info-row"
+    >
+      <span ref={sessionInfoLeadingRef} className="inline-flex shrink-0 items-center empty:hidden" data-testid="chat-session-info-leading" />
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-secondary" title={activeSessionId}>
+        {t.sessions.sessionInfo} {activeSessionId}
+      </span>
+      {errorBanner?.tone === "ended" && (
+        <span
+          className="min-w-0 max-w-[14rem] shrink truncate text-[11px] text-secondary"
+          role="status"
+          data-testid="chat-ended-inline"
+          title={`${errorBanner.title} ${errorBanner.hint ?? ""}`.trim()}
+        >
+          {errorBanner.title}
+        </span>
+      )}
+      <a
+        href={`/traces?sessionId=${encodeURIComponent(traceSessionId ?? activeSessionId)}${activeWorkspaceId ? `&workspaceId=${encodeURIComponent(activeWorkspaceId)}` : ""}`}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 rounded-md border border-default px-2 py-0.5 text-[11px] font-medium text-secondary transition-colors hover:bg-hover"
+      >
+        Debug
+      </a>
+      <div className="flex shrink-0 items-center rounded-md bg-subtle p-0.5">
+        <button
+          onClick={() => setViewMode("chat")}
+          className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+            viewMode === "chat" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
+          }`}
+        >
+          {t.chat.viewToggle.chat}
+        </button>
+        <button
+          onClick={() => setViewMode("trace")}
+          className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+            viewMode === "trace" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
+          }`}
+        >
+          {t.chat.viewToggle.trace}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="flex flex-col h-full bg-surface">
       {/* Session info bar with view toggle */}
-      {activeSessionId && compactSessionHeader && (
-        <div
-          className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap border-b border-default px-2 py-1"
-          data-testid="chat-session-info-row"
-        >
-          <span ref={sessionInfoLeadingRef} className="inline-flex shrink-0 items-center empty:hidden" data-testid="chat-session-info-leading" />
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-secondary" title={activeSessionId}>
-            {t.sessions.sessionInfo} {activeSessionId}
-          </span>
-          {errorBanner?.tone === "ended" && (
-            <span
-              className="min-w-0 max-w-[14rem] shrink truncate text-[11px] text-secondary"
-              role="status"
-              data-testid="chat-ended-inline"
-              title={`${errorBanner.title} ${errorBanner.hint ?? ""}`.trim()}
-            >
-              {errorBanner.title}
-            </span>
-          )}
-          <a
-            href={`/traces?sessionId=${encodeURIComponent(traceSessionId ?? activeSessionId)}${activeWorkspaceId ? `&workspaceId=${encodeURIComponent(activeWorkspaceId)}` : ""}`}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-md border border-default px-2 py-0.5 text-[11px] font-medium text-secondary transition-colors hover:bg-hover"
-          >
-            Debug
-          </a>
-          <div className="flex shrink-0 items-center rounded-md bg-subtle p-0.5">
-            <button
-              onClick={() => setViewMode("chat")}
-              className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                viewMode === "chat" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
-              }`}
-            >
-              {t.chat.viewToggle.chat}
-            </button>
-            <button
-              onClick={() => setViewMode("trace")}
-              className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                viewMode === "trace" ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"
-              }`}
-            >
-              {t.chat.viewToggle.trace}
-            </button>
-          </div>
-        </div>
-      )}
+      {portalSessionInfo
+        ? (compactSessionInfoRow && sessionInfoPortalTarget ? createPortal(compactSessionInfoRow, sessionInfoPortalTarget) : null)
+        : compactSessionInfoRow}
       {activeSessionId && !compactSessionHeader && (
         <div className="px-5 py-2 border-b border-default flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
