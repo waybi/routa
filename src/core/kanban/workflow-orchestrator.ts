@@ -82,6 +82,11 @@ function isCancelledTurn(event: AgentEvent): boolean {
   return event.type === AgentEventType.AGENT_COMPLETED && event.data?.stopReason === "cancelled";
 }
 
+/** A completion synthesized from a tool call (or a report) arrives while the agent is still inside its turn. */
+function isInTurnEvent(event: AgentEvent): boolean {
+  return event.type === AgentEventType.REPORT_SUBMITTED || typeof event.data?.synthesizedBy === "string";
+}
+
 function getRecoveryReason(
   event: AgentEvent,
   completionSatisfied: boolean,
@@ -330,6 +335,13 @@ export class KanbanWorkflowOrchestrator {
    * aborted prompt) are teardown: no lane record, recovery or re-run.
    */
   private cardEndedSessionIds = new Set<string>();
+  /**
+   * Running sessions of a lane their card left (move_card, update_task
+   * convergence), mapped to the card id. Their end only winds the step down:
+   * the lane record is completed and the process ended; no next step,
+   * recovery or re-run starts.
+   */
+  private departedLaneSessions = new Map<string, string>();
   private doneWorktreeCleanup?: DoneWorktreeCleanup;
   /**
    * Worktree removals waiting for a deferred teardown session to end, keyed by
@@ -444,6 +456,7 @@ export class KanbanWorkflowOrchestrator {
       this.teardownSessionIds.add(sessionId);
       this.cardEndedSessionIds.add(sessionId);
       this.deferredTeardownSessionIds.delete(sessionId);
+      this.departedLaneSessions.delete(sessionId);
     }
     for (const sessionId of unique) {
       await this.endSessionProcess(sessionId, label);
@@ -462,6 +475,33 @@ export class KanbanWorkflowOrchestrator {
     this.activeAutomations.delete(cardId);
   }
 
+  /** Drop the automation of the lane the card left; keep its running session for windDownDepartedSession. */
+  private leaveLane(cardId: string, columnId: string): void {
+    const automation = this.activeAutomations.get(cardId);
+    if (!automation || automation.columnId !== columnId) return;
+    if (automation.sessionId && automation.status === "running") {
+      this.departedLaneSessions.set(automation.sessionId, cardId);
+    }
+    this.activeAutomations.delete(cardId);
+  }
+
+  /**
+   * End of a session whose card left its lane: complete its still-running
+   * lane record (as completeRunningSessionsOutsideColumn does) and end its
+   * process, deferred while the session is still inside its turn.
+   */
+  private async windDownDepartedSession(sessionId: string, cardId: string, event: AgentEvent): Promise<void> {
+    if (!isInTurnEvent(event)) {
+      this.departedLaneSessions.delete(sessionId);
+    }
+    const task = await this.taskStore.get(cardId);
+    if (task && getTaskLaneSession(task, sessionId)?.status === "running") {
+      markTaskLaneSessionStatus(task, sessionId, "completed");
+      await this.taskStore.save(task);
+    }
+    await this.endFinishedStepSession(sessionId, event);
+  }
+
   private async handleColumnTransition(event: AgentEvent): Promise<void> {
     await this.handleColumnTransitionData(event.data as unknown as ColumnTransitionData);
   }
@@ -472,7 +512,7 @@ export class KanbanWorkflowOrchestrator {
     // a late end of its session must not start, fail or recover a step there.
     // Runs before any await so it is in place when the emitter returns.
     if (data.fromColumnId !== data.toColumnId) {
-      this.forgetCard(data.cardId, { columnId: data.fromColumnId });
+      this.leaveLane(data.cardId, data.fromColumnId);
     }
     const board = await this.kanbanBoardStore.get(data.boardId);
     if (!board) return;
@@ -647,6 +687,11 @@ export class KanbanWorkflowOrchestrator {
     await this.finishDeferredTeardown(event);
     const endedSessionId = typeof event.data?.sessionId === "string" ? event.data.sessionId : undefined;
     if (endedSessionId && this.cardEndedSessionIds.has(endedSessionId)) {
+      return;
+    }
+    const departedCardId = endedSessionId ? this.departedLaneSessions.get(endedSessionId) : undefined;
+    if (endedSessionId && departedCardId) {
+      await this.windDownDepartedSession(endedSessionId, departedCardId, event);
       return;
     }
     for (const [cardId, automation] of this.activeAutomations.entries()) {
@@ -970,9 +1015,7 @@ export class KanbanWorkflowOrchestrator {
     if (this.endedSessionIds.has(sessionId)) {
       return;
     }
-    const stillInTurn = event.type === AgentEventType.REPORT_SUBMITTED
-      || typeof event.data?.synthesizedBy === "string";
-    if (stillInTurn) {
+    if (isInTurnEvent(event)) {
       this.deferredTeardownSessionIds.add(sessionId);
       return;
     }
