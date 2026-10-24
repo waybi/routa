@@ -29,7 +29,7 @@ import {
 } from "@/core/acp/execution-backend";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
 import { applySessionConfig } from "@/core/acp/session-config-apply";
-import { resolveTierModelForProvider } from "@/core/kanban/kanban-model-tiers";
+import { resolveTierModelForProvider, resolveTierReasoningEffortForProvider } from "@/core/kanban/kanban-model-tiers";
 import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
 import { pendingAcpCreations } from "@/core/acp/pending-acp-creations";
 import { buildFeatureTreeSpecPromptSection } from "@/core/spec/feature-tree-spec-resource-contract";
@@ -773,10 +773,18 @@ export async function handleSessionNew({
       // Process-backed ACP agents (dsh, codex-acp, custom) expose standard
       // configOptions: apply model first, then reasoning effort.
       if (manager.getProcess(sessionId)) {
+        // Reasoning effort: request (card > column step, decided upstream)
+        // > the specialist tier's global effort (dsh only) > acp default.
+        // Independent of which layer chose the model.
+        // A blank request value keeps its old meaning when no tier effort is set.
+        const tierEffort = !reasoningEffort && provider === "dsh" && specialist?.defaultModelTier
+          ? resolveTierReasoningEffortForProvider(provider, specialist.defaultModelTier)
+          : undefined;
+        const effortToApply = tierEffort ?? reasoningEffort;
         const applied = await applySessionConfig(
           manager,
           sessionId,
-          { model: effectiveModel, reasoningEffort },
+          { model: effectiveModel, reasoningEffort: effortToApply },
           "[ACP Route]",
         );
         effectiveModel = applied.model ?? effectiveModel;

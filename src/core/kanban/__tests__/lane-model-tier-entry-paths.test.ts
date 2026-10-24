@@ -7,6 +7,7 @@
  *
  * Order under test: card > column step > specialist model
  *   > global tier setting (~/.routa/kanban-model-tiers.json) > code tier table > acp default.
+ * Reasoning effort: card > column step > global tier effort (dsh only) > acp default.
  */
 import fs from "fs";
 import os from "os";
@@ -17,9 +18,10 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 const { processManager, systemRef } = vi.hoisted(() => ({
   processManager: {
     createSession: vi.fn(),
-    getProcess: vi.fn(() => undefined),
+    getProcess: vi.fn((): unknown => undefined),
     hasActiveSession: vi.fn(() => false),
-    getConfigOptions: vi.fn(() => []),
+    getConfigOptions: vi.fn((): unknown[] => []),
+    setConfigOption: vi.fn(async (): Promise<unknown[]> => []),
     killSession: vi.fn(),
   },
   systemRef: { current: undefined as unknown },
@@ -77,7 +79,11 @@ import { AgentEventType } from "../../events/event-bus";
 import { createCodebase } from "../../models/codebase";
 import { createKanbanBoard, type KanbanAutomationStep } from "../../models/kanban";
 import { createTask, TaskStatus, type Task } from "../../models/task";
-import { writeKanbanModelTierOverrides, type KanbanModelTierOverrides } from "../kanban-model-tiers";
+import {
+  writeKanbanModelTierOverrides,
+  writeKanbanModelTierSettings,
+  type KanbanModelTierOverrides,
+} from "../kanban-model-tiers";
 import {
   getWorkflowOrchestrator,
   processKanbanColumnTransition,
@@ -371,5 +377,147 @@ describe("lane agent model: global tier setting on every start path", () => {
       }),
     }));
     expect(startedModels()).toEqual(["gpt-6.1-sol"]);
+  });
+
+  describe("reasoning effort (agent process with config options)", () => {
+    const mv = (model: string) => JSON.stringify(["local-7357", model]);
+    let current: { model: string; effort: string };
+    const options = () => [
+      {
+        id: "model",
+        type: "select",
+        currentValue: mv(current.model),
+        options: [{ group: "local-7357", name: "Local 7357", options: [
+          CODE_DEFAULT, GLOBAL.fast, GLOBAL.balanced, GLOBAL.smart, "gpt-6.1-sol",
+        ].map((model) => ({ value: mv(model), name: model })) }],
+      },
+      {
+        id: "reasoning_effort",
+        type: "select",
+        currentValue: current.effort,
+        options: ["", "low", "medium", "high", "xhigh"].map((value) => ({ value, name: value || "default" })),
+      },
+    ];
+
+    /** [configId, value] pairs in the order the agent received them. */
+    const configCalls = () => processManager.setConfigOption.mock.calls.map((call) => [call[1], call[2]] as const);
+    const appliedEfforts = () => configCalls().filter(([id]) => id === "reasoning_effort").map(([, value]) => value);
+
+    beforeEach(() => {
+      current = { model: CODE_DEFAULT, effort: "high" };
+      processManager.getProcess.mockReturnValue({});
+      processManager.getConfigOptions.mockImplementation(() => options());
+      processManager.setConfigOption.mockReset();
+      processManager.setConfigOption.mockImplementation(async (...args: unknown[]) => {
+        const [, configId, value] = args as [string, string, string];
+        // Mirrors DSH: switching the model resets reasoning_effort.
+        if (configId === "model") current = { model: JSON.parse(value)[1], effort: "" };
+        else current = { ...current, effort: value };
+        return options();
+      });
+    });
+
+    afterEach(() => {
+      processManager.getProcess.mockImplementation(() => undefined);
+      processManager.getConfigOptions.mockImplementation(() => []);
+    });
+
+    const TIER_SETTINGS = {
+      fast: { model: GLOBAL.fast, reasoningEffort: "low" },
+      smart: { model: GLOBAL.smart, reasoningEffort: "xhigh" },
+    };
+
+    it("card reasoning effort wins over the step and the global tier effort", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      const { system } = await setup(
+        [step("spec-smart", { reasoningEffort: "medium" })],
+        { assignedReasoningEffort: "low" },
+      );
+      await enterTodo(system);
+      await vi.waitFor(() => expect(appliedEfforts()).toEqual(["low"]));
+    });
+
+    it("column step reasoning effort wins over the global tier effort", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      const { system } = await setup([step("spec-smart", { reasoningEffort: "medium" })]);
+      await enterTodo(system);
+      await vi.waitFor(() => expect(appliedEfforts()).toEqual(["medium"]));
+    });
+
+    it("global tier effort applies when card and step leave it blank, after the model", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      const { system } = await setup([step("spec-smart")]);
+      await enterTodo(system);
+      await vi.waitFor(() => expect(configCalls()).toEqual([
+        ["model", mv(GLOBAL.smart)],
+        ["reasoning_effort", "xhigh"],
+      ]));
+    });
+
+    it("global tier effort applies even when the card names the model", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      const { system } = await setup([step("spec-fast")], { assignedModel: "gpt-6.1-sol" });
+      await enterTodo(system);
+      await vi.waitFor(() => expect(configCalls()).toEqual([
+        ["model", mv("gpt-6.1-sol")],
+        ["reasoning_effort", "low"],
+      ]));
+    });
+
+    it("no global tier effort leaves the acp default (reasoning_effort is never set)", async () => {
+      writeKanbanModelTierSettings({ smart: { model: GLOBAL.smart } });
+      const { system } = await setup([step("spec-smart")]);
+      await enterTodo(system);
+      await vi.waitFor(() => expect(configCalls()).toEqual([["model", mv(GLOBAL.smart)]]));
+      expect(appliedEfforts()).toEqual([]);
+    });
+
+    it("POST /api/acp session/new on its own applies the global tier effort", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      systemRef.current = createInMemorySystem();
+      const response = await acpPost(new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "session/new",
+          params: { provider: "dsh", workspaceId: "default", cwd: tmpDir, specialistId: "spec-fast" },
+        }),
+      }));
+      expect(response.status).toBe(200);
+      expect(configCalls()).toEqual([["model", mv(GLOBAL.fast)], ["reasoning_effort", "low"]]);
+    });
+
+    it("POST /api/acp session/new keeps an explicit reasoning effort over the global tier effort", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      systemRef.current = createInMemorySystem();
+      await acpPost(new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          method: "session/new",
+          params: { provider: "dsh", workspaceId: "default", cwd: tmpDir, specialistId: "spec-fast", reasoningEffort: "medium" },
+        }),
+      }));
+      expect(appliedEfforts()).toEqual(["medium"]);
+    });
+
+    it("never applies the global tier effort to a provider other than dsh", async () => {
+      writeKanbanModelTierSettings(TIER_SETTINGS);
+      systemRef.current = createInMemorySystem();
+      const response = await acpPost(new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 5,
+          method: "session/new",
+          params: { provider: "codex", workspaceId: "default", cwd: tmpDir, specialistId: "spec-fast" },
+        }),
+      }));
+      expect(response.status).toBe(200);
+      expect(processManager.createSession).toHaveBeenCalledTimes(1);
+      expect(appliedEfforts()).toEqual([]);
+    });
   });
 });
