@@ -5,6 +5,11 @@ import type { RoutaSystem } from "../routa-system";
 import { getKanbanAutomationSteps, resolveTaskStatusForBoardColumn } from "../models/kanban";
 import type { Task } from "../models/task";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import {
+  endLaneRecordByOutcome,
+  resolvePersistedSessionOutcome,
+  type ReadSessionEndHistory,
+} from "./lane-session-settlement";
 import { resolveCurrentLaneAutomationState, resolveLaneResumeStep } from "./lane-automation-state";
 import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
@@ -25,6 +30,12 @@ export interface RestartRecoveryOptions {
   processManager: ReturnType<typeof getAcpProcessManager>;
   /** Clock for the rate-limit rerun time (tests); defaults to now. */
   now?: () => Date;
+  /**
+   * Persisted history of a session. With it, a stale "running" record whose
+   * session already ended is recorded by its real outcome (card 6d8365ca);
+   * without it, or when the history has no end, the restart rules apply.
+   */
+  readSessionEndHistory?: ReadSessionEndHistory;
 }
 
 function isSessionActivelyRunning(
@@ -87,10 +98,30 @@ function markInterruptedByRestart(task: Task, sessionId: string): void {
 }
 
 /**
+ * End a stale "running" record. A session whose history shows how it ended is
+ * recorded by that outcome (completed at its turn end; failed on an error,
+ * cancelled turn or exit inside the turn). Otherwise: interrupted by the
+ * restart in the card's column, "transitioned" in a column it already left.
+ */
+async function endStaleLaneRecord(
+  task: Task,
+  sessionId: string,
+  inCurrentColumn: boolean,
+  options: RestartRecoveryOptions,
+): Promise<void> {
+  const outcome = await resolvePersistedSessionOutcome(sessionId, options.readSessionEndHistory);
+  if (endLaneRecordByOutcome(task, sessionId, outcome)) return;
+  if (inCurrentColumn) {
+    markInterruptedByRestart(task, sessionId);
+  } else {
+    markTaskLaneSessionStatus(task, sessionId, "transitioned");
+  }
+}
+
+/**
  * End the card's "running" lane records whose session no longer runs and drop
  * a dead triggerSessionId. Revive only looks at the current column; the
- * startup sweep (`allColumns`) also ends records left in earlier columns,
- * which count as "transitioned" because the card has moved on.
+ * startup sweep (`allColumns`) also ends records left in earlier columns.
  */
 async function sanitizeStaleCurrentLaneAutomation(
   system: RoutaSystem,
@@ -114,7 +145,7 @@ async function sanitizeStaleCurrentLaneAutomation(
     const triggerLaneSession = getTaskLaneSession(nextTask, nextTask.triggerSessionId);
     if (triggerLaneSession && triggerLaneSession.columnId === nextTask.columnId) {
       if (triggerLaneSession.status === "running") {
-        markInterruptedByRestart(nextTask, triggerLaneSession.sessionId);
+        await endStaleLaneRecord(nextTask, triggerLaneSession.sessionId, true, options);
         sweep?.ended.push(triggerLaneSession.sessionId);
       }
     }
@@ -129,11 +160,7 @@ async function sanitizeStaleCurrentLaneAutomation(
       && entry.status === "running"
       && !isSessionActivelyRunning(entry.sessionId, options)
     ) {
-      if (inCurrentColumn) {
-        markInterruptedByRestart(nextTask, entry.sessionId);
-      } else {
-        markTaskLaneSessionStatus(nextTask, entry.sessionId, "transitioned");
-      }
+      await endStaleLaneRecord(nextTask, entry.sessionId, inCurrentColumn, options);
       sweep?.ended.push(entry.sessionId);
       mutated = true;
     }

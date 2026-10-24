@@ -3,6 +3,7 @@ import { getHttpSessionStore } from "../acp/http-session-store";
 import { getAcpProcessManager } from "../acp/processer";
 import { getDatabaseDriver } from "../db/index";
 import { getRoutaSystem } from "../routa-system";
+import { readPersistedSessionEndHistory } from "./lane-session-settlement";
 import { endStaleRunningLaneSessions } from "./restart-recovery";
 
 /**
@@ -25,6 +26,8 @@ export async function endStaleRunningLaneSessionsOnStartup(): Promise<void> {
     const result = await endStaleRunningLaneSessions(getRoutaSystem(), {
       sessionStore: getHttpSessionStore(),
       processManager: getAcpProcessManager(),
+      // The session store is not hydrated yet: read how each session ended from the database.
+      readSessionEndHistory: readPersistedSessionEndHistory,
     });
     console.log(
       `[RestartRecovery] Startup sweep ended ${result.sessions.length} stale running lane session(s) on ${result.cards} card(s)`

@@ -322,7 +322,7 @@ Routa 接着起了完成汇报员，提交没进主干。
 于是误报「缺推送员和汇报员」（25afcd82、e11cac2f、497ae435），僵尸 running 还占看板名额。
 现在每个出口都调同一个幂等函数 `settleEndedLaneSession`：重读卡、只改仍是 running 的那条记录、存库；
 不起下一步、不 kill、不 fallback、不恢复，所以编排器没跟踪的运行不会被推进两次。
-会话结束事件早于 lane 记录写入时（极快结束的会话）找不到记录，由下次启动清扫收尾（见 5d）。
+会话结束事件早于 lane 记录写入时（极快结束的会话）找不到记录，由下次启动清扫按真实结果补登（见 5d）。
 没被编排器跟踪的会话结束时，按事件里的 workspaceId 扫该工作区的卡找这条 running 记录。
 
 ### 5c. 手动「重新运行」（PATCH retryTrigger）
@@ -361,7 +361,10 @@ enqueueKanbanTaskSession(resumeLane: true)
 
 ~~~plaintext
 reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
-   │  本列 running 但进程已不在的 lane 记录 → 标 timed_out + restart_interrupted
+   │  本列 running 但进程已不在的 lane 记录 → 先读会话持久化历史看它怎么结束的：
+   │    回合 end_turn 结束 → completed（completedAt=会话结束时间）
+   │    错误 / 取消 / 回合中进程退出 → failed + recoveryReason（取消为 turn_cancelled）
+   │    历史里没有结束 → timed_out + restart_interrupted
    │  （卡上已有 verdict / completionSummary 也一样：结论是上一列写的，不说明本列这一步做完了）
    │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障 / 看门狗判超时
    │        / 限流还没到 retryAfterAt / 可重试环境失败已熔断（见 5e）
@@ -379,13 +382,19 @@ reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
 中间那条直接起会话、不经过列转移事件，所以必须交给编排器登记；否则步骤跑完 lane 一直是 running，
 列内再下一步也不会起（2026-10-23 重启后 4 张 Done 卡的完成汇报员、7a25276b 的 Flight Review Guard）。
 revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器记 failed，不再起后面的步骤。
+**行为变化（卡 6d8365ca）**：本列 running 记录的会话其实已经 end_turn 结束时，revive 先把它记 completed，
+再走「上一步 completed 且还有下一步」那条，起本列下一步，不再当作被打断、从同一步重跑；
+它是本列最后一步（如 Done 汇报员、卡已 COMPLETED）时什么都不起。
 
 **启动清扫（startup-lane-sweep.ts，instrumentation `register()` 里、开始接请求前跑一次）**：
 重启会结束所有施工者进程，但 revive 要有人对每块看板手动 POST，而且只看当前列，
 所以上一个进程留下的 running 记录（包括修复前漏跟踪、已经卡住的那些）会一直显示在跑。
 启动时 `endStaleRunningLaneSessions` 扫所有工作区的所有卡，用和 revive 相同的「还在跑吗」判定
 （本进程有活进程、本进程会话库记 ready/connecting，或会话属于本实例且租约有效；上一个进程的会话 ownerInstanceId 是旧 pid，都判已结束），把判为已结束的 running 记录收尾：
-当前列的标 timed_out + `restart_interrupted`，已离开的列标 transitioned，失效的 triggerSessionId 清掉。
+先按会话持久化历史（`readPersistedSessionEndHistory`，读 session_messages 及写入时间；会话库此时还没 hydrate）
+补登真实结果：end_turn → completed，错误 / 取消 / 回合中退出 → failed + recoveryReason，completedAt 取那条消息的写入时间、
+取不到才用当前时间；历史里没有结束的，当前列的标 timed_out + `restart_interrupted`，已离开的列标 transitioned。
+只对 running 记录逐条读历史。失效的 triggerSessionId 清掉。
 它只改记录、不起会话；之后再 POST revive，决策和不清扫时一样。
 只在本机 SQLite + 内嵌执行时跑：配了 `ROUTA_ACP_RUNNER_URL`（施工者在独立 runner 里）、
 Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-production-build`）都跳过；
@@ -636,3 +645,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-24 | 429 限流和重启打断归为「可重试环境失败」：新 recoveryReason `rate_limited` 和 lane 字段 `retryAfterAt`（TS 与 Rust 同步）；限流、取消、重启打断不计非开发列 3 次上限、不扣开发列 recoveryAttempts；429 按 resets_at / retry-after 或 5/10/20 分钟退避在同一步自动重跑；revive 在 retryAfterAt 前不重跑；同列连续 5 次可重试环境失败熔断（5b、5d、5e） | 新增约 100 个用例与随机对拍（分类 10,000 条、时间 10,000 组，不一致 0；植入错各被抓到），线上库 76 条失败记录里复盘报告列的 15 次 429 全判 rate_limited；撤掉实现后 C3/C4/C6 用例与 Rust 用例变红 | feat(rust): keep rate_limited lane records…、feat(kanban): classify rate limits as retryable…、fix(kanban): rate limits and restart interruptions no longer consume retry budgets…、本提交 fix(kanban): revive waits for retryAfterAt… |
 | 2026-10-24 | 卡 79804de2 rebase 到主干（主干新增 leaveLane）：列转移先取消限流计时器再 leaveLane；限流重跑函数从编排器挪到 `rate-limit-retry.ts`（5e） | workflow-orchestrator.ts 1647 → 1596 行，回到 1600 行预算内；新增「move_card 移到 Blocked 后计时器取消、到点 0 个会话」用例，去掉取消那一行即变红 | 本提交 refactor(kanban): run the rate-limit rerun from rate-limit-retry.ts… |
 | 2026-10-24 | 车道步骤结束的每个出口都落 lane 终态（用户结束 / 已完成卡收尾 → completed 或 transitioned，从不 failed；自动化已结束、已删、会话不匹配 → 按事件），只改记录不推进；进程退出前回合已 end_turn 的按完成处理；forgetCard 丢掉的运行按收尾处理；编排器不再改写已结束的记录；重新运行找不到续跑步骤（卡片级 agent 覆盖等）也交编排器接管（5b、5c） | 新增 44 个用例（结束出口 24、进程层 8、重跑入口 12），改前与撤掉实现各 28 个变红（全是断言失败）；修复前 25afcd82 / e11cac2f / 497ae435 的 Done 推送员和汇报员跑完仍 running、fd9722de 的开发会话 b2261ec7 没有结束记录 | 本提交 fix(kanban): settle the lane record at every end of a step session |
+| 2026-10-24 | 启动清扫和 revive 对已结束会话的 running 记录按会话持久化历史补登真实结果（end_turn → completed、错误/取消/回合中退出 → failed，completedAt 取会话结束时间），没有结束记录的保持原规则；revive 遇真实 completed 的步骤接本列下一步（5d） | 新增 16 个用例和 224 组全组合对拍（不一致 0 组；埋错 1 格被抓到），撤掉实现后清扫用例 10 个变红、对拍 96 格不一致 | 本提交 fix(kanban): the restart sweep records ended sessions by their real outcome |

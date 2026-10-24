@@ -3,6 +3,7 @@ import { getRoutaSystem } from "@/core/routa-system";
 import { reviveMissingEntryAutomations } from "@/core/kanban/restart-recovery";
 import { getHttpSessionStore } from "@/core/acp/http-session-store";
 import { getAcpProcessManager } from "@/core/acp/processer";
+import { readPersistedSessionEndHistory } from "@/core/kanban/lane-session-settlement";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function POST(
   await reviveMissingEntryAutomations(system, board.workspaceId, board.id, {
     sessionStore,
     processManager,
+    readSessionEndHistory: readPersistedSessionEndHistory,
   });
 
   return NextResponse.json({ boardId: board.id, workspaceId: board.workspaceId, revived: true });
