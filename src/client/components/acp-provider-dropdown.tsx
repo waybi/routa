@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AcpProviderInfo } from "../acp-client";
 import { SettingsPanel } from "./settings-panel";
+import { resolvePanelLeft } from "./model-effort-picker";
 import { useTranslation } from "@/i18n";
 import {
   dedupeProviderIds,
@@ -139,6 +140,8 @@ export function AcpProviderDropdown({
     ? "font-medium truncate max-w-[160px] text-slate-700 dark:text-slate-200"
     : "truncate max-w-30";
   const panelWidthClassName = variant === "hero" ? "w-80" : "w-72";
+  /** Pixel width of w-80 / w-72: the panel is kept inside the viewport with it. */
+  const panelWidth = variant === "hero" ? 320 : 288;
   const resolvedAriaLabel = ariaLabel ?? t.providerDropdown.selectProvider;
 
   const updateVisibleProviders = (nextVisibleIds: string[]) => {
@@ -155,16 +158,18 @@ export function AcpProviderDropdown({
     const padding = 8;
     const spaceAbove = rect.top - padding;
     const spaceBelow = window.innerHeight - rect.bottom - padding;
+    // Start at the button's left edge; right-align / clamp when that runs past the viewport.
+    const left = resolvePanelLeft(rect, Math.min(panelWidth, window.innerWidth - padding * 2), window.innerWidth);
 
     if (spaceBelow >= spaceAbove) {
       setDropdownPos({
-        left: rect.left,
+        left,
         top: rect.bottom + 4,
         maxHeight: Math.min(spaceBelow, preferredHeight),
       });
     } else {
       setDropdownPos({
-        left: rect.left,
+        left,
         bottom: window.innerHeight - rect.top + 4,
         maxHeight: Math.min(spaceAbove, preferredHeight),
       });
@@ -245,12 +250,14 @@ export function AcpProviderDropdown({
       {isOpen && dropdownPos && typeof document !== "undefined" && createPortal(
         <div
           ref={dropdownRef}
+          data-testid={dataTestId ? `${dataTestId}-panel` : undefined}
           className={`fixed ${panelWidthClassName} rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1e2130] shadow-xl z-[9999] overflow-hidden`}
           style={{
             left: dropdownPos.left,
             top: dropdownPos.top,
             bottom: dropdownPos.bottom,
             maxHeight: `${dropdownPos.maxHeight}px`,
+            maxWidth: "calc(100vw - 16px)",
           }}
         >
           <div className="flex h-full max-h-[inherit] flex-col">
