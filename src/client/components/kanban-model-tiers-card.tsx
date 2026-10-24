@@ -196,7 +196,7 @@ function TierRow({
       {state ? (
         <p className="mt-0.5 text-[11px] text-desktop-text-secondary" data-testid={`kanban-model-tier-${tier}-effort-effective`}>
           <span className="font-mono font-semibold text-desktop-text-primary">
-            {copy.effectiveEffort.replace("{effort}", effectiveEffort ?? copy.followEffortDefault)}
+            {copy.effectiveEffort.replace("{effort}", effectiveEffort ?? copy.effortAgentDefault)}
           </span>
           <span className="ml-1 text-desktop-text-muted">
             ({effectiveEffort ? copy.effortSourceGlobal : copy.effortSourceDefault})

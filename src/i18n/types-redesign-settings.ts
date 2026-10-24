@@ -144,6 +144,8 @@ export interface RedesignSettingsTranslationDictionarySections {
     effortLabel: string;
     /** First effort option: clear the tier effort, the acp default applies. */
     followEffortDefault: string;
+    /** Effective line value when no tier effort is set. */
+    effortAgentDefault: string;
     effectiveEffort: string;
     effortSourceGlobal: string;
     effortSourceDefault: string;
