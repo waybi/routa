@@ -15,13 +15,12 @@
  * session/set_config_option after start.
  */
 
-import { applySessionConfig, type SessionConfigTarget } from "../acp/session-config-apply";
+import { DSH_ENV_MODEL_GROUP, applySessionConfig, type SessionConfigTarget } from "../acp/session-config-apply";
 import { parseModelValue, resolveModelValue, type AcpConfigOption } from "../acp/config-options";
 import { getHttpSessionStore } from "../acp/http-session-store";
 import { AgentRole } from "../models/agent";
 
-/** DSH config-options group that DSH_ACP_MODEL can start on. */
-export const DSH_ENV_MODEL_GROUP = "local-7357";
+export { DSH_ENV_MODEL_GROUP };
 
 export interface ChildModelConfig {
   model?: string;

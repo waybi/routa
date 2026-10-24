@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AcpError } from "../acp-process";
+import { recordProviderConfigOptions, resetProviderConfigOptionsCache } from "../provider-config-probe";
 
 const managerMock = vi.hoisted(() => ({
   hasActiveSession: vi.fn(),
@@ -170,6 +171,7 @@ const {
 describe("session-prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetProviderConfigOptionsCache();
     managerMock.hasActiveSession.mockReturnValue(true);
     managerMock.isOpencodeAdapterSession.mockReturnValue(false);
     managerMock.isOpencodeSdkSessionAsync.mockResolvedValue(false);
@@ -453,6 +455,8 @@ describe("session-prompt", () => {
       prompt: vi.fn(async () => ({ stopReason: "end_turn" })),
     });
     managerMock.getAcpSessionId.mockReturnValue("agent-dsh");
+    // A live dsh session has reported its options since start: the stored model is known to be Local 7357.
+    recordProviderConfigOptions("dsh", options);
 
     await dispatchSessionPrompt({
       sessionId: "dsh-recover-1",
@@ -479,5 +483,42 @@ describe("session-prompt", () => {
       model: "claude-opus-4-6",
       reasoningEffort: "high",
     }));
+  });
+  it("recreates a dsh session on a DeepSeek official model without DSH_ACP_MODEL and switches with set_config_option (review R2)", async () => {
+    const value = (provider: string, model: string) => JSON.stringify([provider, model]);
+    const startup = () => [
+      { id: "model", type: "select", currentValue: value("local-7357", "claude-opus-5-5-pool"), options: [
+        { group: "deepseek-official", options: [{ value: value("deepseek-official", "deepseek-v4-pro") }] },
+        { group: "local-7357", options: [{ value: value("local-7357", "claude-opus-5-5-pool") }] },
+      ] },
+      { id: "reasoning_effort", type: "select", currentValue: "", options: [{ value: "" }, { value: "high" }] },
+    ];
+    let options = startup();
+    const calls: string[] = [];
+    managerMock.hasActiveSession.mockReturnValue(false);
+    storeMock.getSession.mockImplementation((sessionId: string) => ({
+      sessionId, cwd: "/workspace", workspaceId: "ws-1", provider: "dsh",
+      model: "deepseek-v4-pro", reasoningEffort: "high", createdAt: new Date().toISOString(),
+    }));
+    managerMock.createSession.mockResolvedValue("agent-dsh");
+    managerMock.getConfigOptions.mockImplementation(() => options);
+    managerMock.setConfigOption.mockImplementation(async (_sid: string, configId: string, next: string) => {
+      calls.push(`${configId}=${next}`);
+      options = options.map((option) => (option.id === configId ? { ...option, currentValue: next } : option));
+      return options;
+    });
+    managerMock.getProcess.mockReturnValue({ alive: true, prompt: vi.fn(async () => ({ stopReason: "end_turn" })) });
+    managerMock.getAcpSessionId.mockReturnValue("agent-dsh");
+
+    for (const knownOptions of [false, true]) {
+      managerMock.createSession.mockClear();
+      calls.length = 0;
+      options = startup();
+      if (knownOptions) recordProviderConfigOptions("dsh", options);
+      await dispatchSessionPrompt({ sessionId: `dsh-recover-official-${knownOptions}`, prompt: "continue", workspaceId: "ws-1" });
+      expect(managerMock.createSession).toHaveBeenCalledOnce();
+      expect(managerMock.createSession.mock.calls[0][6]).toBeUndefined();
+      expect(calls[0]).toBe(`model=${value("deepseek-official", "deepseek-v4-pro")}`);
+    }
   });
 });

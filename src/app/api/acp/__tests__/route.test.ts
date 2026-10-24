@@ -4,6 +4,8 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recordProviderConfigOptions, resetProviderConfigOptionsCache } from "@/core/acp/provider-config-probe";
+
 const {
   getHttpSessionStore,
   httpSessionStore,
@@ -321,6 +323,7 @@ describe("/api/acp GET", () => {
 describe("/api/acp POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetProviderConfigOptionsCache();
     isForwardedAcpRequest.mockReturnValue(false);
     getRequiredRunnerUrl.mockReturnValue(null);
     updateSessionExecutionBindingInDb.mockResolvedValue(undefined);
@@ -821,6 +824,8 @@ describe("/api/acp POST", () => {
     acpProcessManager.setConfigOption
       .mockResolvedValueOnce(options("claude-opus-4-6", ""))
       .mockResolvedValueOnce(options("claude-opus-4-6", "high"));
+    // A live dsh session has reported its options since start: the stored model is known to be Local 7357.
+    recordProviderConfigOptions("dsh", options("claude-opus-5-5-pool", ""));
 
     const response = await POST(
       new NextRequest("http://localhost/api/acp", {
@@ -838,6 +843,47 @@ describe("/api/acp POST", () => {
     ]);
     expect(httpSessionStore.upsertSession).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: "session-dsh", model: "claude-opus-4-6", reasoningEffort: "high" }),
+    );
+  });
+
+  it("recreates a recovered dsh session on a DeepSeek official model without DSH_ACP_MODEL (review R2)", async () => {
+    const value = (provider: string, model: string) => JSON.stringify([provider, model]);
+    const options = (current: string, effort: string) => [
+      { id: "model", currentValue: current, options: [
+        { group: "deepseek-official", options: [{ value: value("deepseek-official", "deepseek-v4-pro") }] },
+        { group: "local-7357", options: [{ value: value("local-7357", "claude-opus-5-5-pool") }] },
+      ] },
+      { id: "reasoning_effort", currentValue: effort, options: [{ value: "" }, { value: "high" }] },
+    ];
+    recordProviderConfigOptions("dsh", options(value("local-7357", "claude-opus-5-5-pool"), ""));
+    httpSessionStore.getSession.mockReturnValue(undefined);
+    loadSessionFromDb.mockResolvedValue({
+      id: "session-dsh-official", cwd: "/tmp/dsh", workspaceId: "workspace-1", provider: "dsh", role: "CRAFTER",
+      model: "deepseek-v4-pro", reasoningEffort: "high", parentSessionId: "lead-session",
+      createdAt: new Date("2026-10-24T00:00:00.000Z"),
+    });
+    acpProcessManager.createSession.mockResolvedValue("session-dsh-official");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(options(value("local-7357", "claude-opus-5-5-pool"), ""));
+    acpProcessManager.setConfigOption
+      .mockResolvedValueOnce(options(value("deepseek-official", "deepseek-v4-pro"), ""))
+      .mockResolvedValueOnce(options(value("deepseek-official", "deepseek-v4-pro"), "high"));
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 11, method: "session/load", params: { sessionId: "session-dsh-official" } }),
+      }),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ result: { sessionId: "session-dsh-official", provider: "dsh" } });
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toBeUndefined();
+    expect(acpProcessManager.setConfigOption.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      ["model", value("deepseek-official", "deepseek-v4-pro")],
+      ["reasoning_effort", "high"],
+    ]);
+    expect(httpSessionStore.upsertSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "session-dsh-official", model: "deepseek-v4-pro", reasoningEffort: "high" }),
     );
   });
 

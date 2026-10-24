@@ -5,7 +5,7 @@
 import { ChildProcess } from "node:child_process";
 import { tmpdir } from "node:os";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentRole, ModelTier, createAgent } from "@/core/models/agent";
 import { createTask } from "@/core/models/task";
@@ -36,6 +36,8 @@ vi.mock("@/core/storage/agent-memory-writer", () => ({
 const { RoutaOrchestrator } = await import("../orchestrator");
 const { AcpProcess } = await import("@/core/acp/acp-process");
 const { resolveChildModelConfig, resolveRoleModel, buildChildModelEnv } = await import("../delegation-model-inheritance");
+const { buildRecoveryModelEnv, replayStoredSessionConfig } = await import("@/core/acp/session-config-apply");
+const { recordProviderConfigOptions, resetProviderConfigOptionsCache } = await import("@/core/acp/provider-config-probe");
 
 const LOCAL_MODEL = "claude-opus-5-5-pool";
 const OFFICIAL_MODEL = "deepseek-v4-pro";
@@ -372,5 +374,92 @@ describe("every execution path shows the new effect (F4 ③–⑤)", () => {
       process.off("unhandledRejection", onEscape);
       vi.restoreAllMocks();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review R2: the written-back member record goes through restart recovery
+// ---------------------------------------------------------------------------
+
+describe("R2: an inherited model survives restart recovery (DSH_ACP_MODEL only for Local 7357)", () => {
+  const ACP_DEFAULT = JSON.stringify(["local-7357", "gpt-6.1-sol"]);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetProviderConfigOptionsCache();
+  });
+  afterEach(() => {
+    resetProviderConfigOptionsCache();
+  });
+
+  /**
+   * Lead (dsh, `model`, high) delegates a dsh member → the member record is
+   * written back → restart (in-process caches gone, record hydrated as-is) →
+   * recovery: startup env from buildRecoveryModelEnv, then replay onto a fresh
+   * process that starts on the acp default model.
+   */
+  async function delegateThenRecover(model: string, knownOptionsAfterRestart: boolean) {
+    const t = setup({ childProvider: "dsh", caller: { provider: "dsh", model, reasoningEffort: "high" }, callerConfig: modelOptions("") });
+    await t.delegate();
+    const record = t.registered[0] as { provider?: string; model?: string; reasoningEffort?: string };
+
+    resetProviderConfigOptionsCache();
+    if (knownOptionsAfterRestart) recordProviderConfigOptions("dsh", modelOptions(ACP_DEFAULT));
+    const env = buildRecoveryModelEnv(record.provider ?? "", record.model);
+
+    const fresh = modelOptions(ACP_DEFAULT);
+    const calls: Array<[string, string]> = [];
+    const target = {
+      getProcess: () => ({}),
+      getConfigOptions: () => fresh,
+      setConfigOption: vi.fn(async (_sessionId: string, configId: string, value: string) => {
+        calls.push([configId, value]);
+        const option = fresh.find((entry) => entry.id === configId);
+        if (option) option.currentValue = value;
+        return fresh;
+      }),
+    };
+    const replayed = await replayStoredSessionConfig(target, "child-session", {
+      model: record.model,
+      reasoningEffort: record.reasoningEffort,
+    });
+    return { record, env, calls, replayed };
+  }
+
+  it("DeepSeek official model, cold restart: no DSH_ACP_MODEL; replay switches to it", async () => {
+    const r = await delegateThenRecover(OFFICIAL_MODEL, false);
+    expect(r.record).toMatchObject({ provider: "dsh", model: OFFICIAL_MODEL, reasoningEffort: "high" });
+    expect(r.env).toBeUndefined();
+    expect(r.calls).toEqual([
+      ["model", JSON.stringify(["deepseek-official", OFFICIAL_MODEL])],
+      ["reasoning_effort", "high"],
+    ]);
+    expect(r.replayed).toMatchObject({ model: OFFICIAL_MODEL, reasoningEffort: "high" });
+  });
+
+  it("DeepSeek official model, options known (a dsh session reported them): still no DSH_ACP_MODEL", async () => {
+    const r = await delegateThenRecover(OFFICIAL_MODEL, true);
+    expect(r.env).toBeUndefined();
+    expect(r.calls[0]).toEqual(["model", JSON.stringify(["deepseek-official", OFFICIAL_MODEL])]);
+  });
+
+  it("Local 7357 model with known options: DSH_ACP_MODEL carries it, replay only sets effort", async () => {
+    const r = await delegateThenRecover(LOCAL_MODEL, true);
+    expect(r.env).toEqual({ DSH_ACP_MODEL: LOCAL_MODEL });
+    expect(r.replayed).toMatchObject({ model: LOCAL_MODEL, reasoningEffort: "high" });
+  });
+
+  it("Local 7357 model, options unknown: starts on the default, replay switches (never guesses the group)", async () => {
+    const r = await delegateThenRecover(LOCAL_MODEL, false);
+    expect(r.env).toBeUndefined();
+    expect(r.calls[0]).toEqual(["model", JSON.stringify(["local-7357", LOCAL_MODEL])]);
+  });
+
+  it("buildRecoveryModelEnv: full option values decide by their group; other providers never get the env", () => {
+    expect(buildRecoveryModelEnv("dsh", JSON.stringify(["local-7357", "gpt-6.1-sol"]), undefined)).toEqual({ DSH_ACP_MODEL: "gpt-6.1-sol" });
+    expect(buildRecoveryModelEnv("dsh", JSON.stringify(["deepseek-official", OFFICIAL_MODEL]), modelOptions(""))).toBeUndefined();
+    expect(buildRecoveryModelEnv("dsh", "unknown-model", modelOptions(""))).toBeUndefined();
+    expect(buildRecoveryModelEnv("dsh", undefined, modelOptions(""))).toBeUndefined();
+    expect(buildRecoveryModelEnv("opencode", LOCAL_MODEL, modelOptions(""))).toBeUndefined();
   });
 });

@@ -7,10 +7,12 @@
  * never fail because an agent lacks (or rejects) a config option.
  */
 
+import { getCachedProviderConfigOptions } from "@/core/acp/provider-config-probe";
 import {
   MODEL_CONFIG_ID,
   REASONING_EFFORT_CONFIG_ID,
   findOption,
+  flattenOptionValues,
   parseModelValue,
   resolveModelValue,
   summarizeConfigOptions,
@@ -92,16 +94,40 @@ export async function applySessionConfig(
   return { ...summarizeConfigOptions(options), configOptions: options, warnings };
 }
 
+/** DSH config-options group DSH_ACP_MODEL starts on (the acp profile pins the env model to it). */
+export const DSH_ENV_MODEL_GROUP = "local-7357";
+
+/**
+ * True only when the model is known to live in Local 7357: either the value
+ * itself is a full `["local-7357", id]` option value, or `options` list the id
+ * under that group. Unknown means false.
+ */
+export function isDshEnvStartableModel(model: string | undefined, options: AcpConfigOption[] | undefined): boolean {
+  const parsed = parseModelValue(model?.trim());
+  if (!parsed) return false;
+  if (parsed.provider) return parsed.provider === DSH_ENV_MODEL_GROUP;
+  return flattenOptionValues(findOption(options, MODEL_CONFIG_ID)).some((entry) => {
+    const value = parseModelValue(entry.value);
+    return value?.provider === DSH_ENV_MODEL_GROUP && value.model === parsed.model;
+  });
+}
+
 /**
  * Startup env for recreating a session: DSH only accepts its startup model
- * through DSH_ACP_MODEL (it ignores -m).
+ * through DSH_ACP_MODEL (it ignores -m), and only for Local 7357 models — any
+ * other line fails session/new. So the env carries the stored model only when
+ * the provider's known options (latest seen on any live session, or a probe)
+ * place it in Local 7357; otherwise DSH starts on its default and
+ * replayStoredSessionConfig switches the model with set_config_option.
  */
 export function buildRecoveryModelEnv(
   provider: string,
   storedModel: string | undefined,
+  knownOptions: AcpConfigOption[] | undefined = getCachedProviderConfigOptions(provider)?.configOptions,
 ): Record<string, string> | undefined {
-  const model = storedModel?.trim();
-  return provider === "dsh" && model ? { DSH_ACP_MODEL: model } : undefined;
+  const parsed = parseModelValue(storedModel?.trim());
+  if (provider !== "dsh" || !parsed || !isDshEnvStartableModel(storedModel, knownOptions)) return undefined;
+  return { DSH_ACP_MODEL: parsed.model };
 }
 
 /**
