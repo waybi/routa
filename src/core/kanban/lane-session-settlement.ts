@@ -58,6 +58,10 @@ function isProcessExit(update: Record<string, unknown>): boolean {
  * that ended normally is that turn's end (pusher 435fbeed exited with code 0
  * after its turn); an exit inside a turn, an error, or a cancelled turn is a
  * failure; no turn end at all is unknown.
+ *
+ * Persisted history (session_messages) stores no user_message: a session
+ * killed after a new prompt, before writing any update of that turn, still
+ * reads as its previous turn's end (completed). Rare; accepted.
  */
 export function resolveSessionOutcome(entries: SessionHistoryEntry[]): SessionOutcome {
   let exit: SessionHistoryEntry | undefined;
@@ -200,10 +204,14 @@ export async function settleEndedLaneSession(params: {
   const cardId = params.cardId ?? await findCardWithRunningRecord(taskStore, event.workspaceId, sessionId);
   // Read the card again right before writing: an older copy would erase newer lane records.
   const task = cardId ? await taskStore.get(cardId) : undefined;
-  if (!task || getTaskLaneSession(task, sessionId)?.status !== "running") return false;
+  const record = task ? getTaskLaneSession(task, sessionId) : undefined;
+  if (!task || record?.status !== "running") return false;
 
   const outcome = resolveLiveSessionOutcome(sessions, sessionId);
-  const end = mode === "teardown"
+  // The card already left the step's column (move_card ends that step's
+  // process): its late end is teardown, as the sweep records a left column.
+  const leftColumn = Boolean(task.columnId) && record.columnId !== task.columnId;
+  const end = mode === "teardown" || leftColumn
     ? { status: outcome.kind === "completed" ? "completed" as const : "transitioned" as const }
     : endForEvent(event, outcome);
   const completedAt = end.status === "completed" && outcome.kind === "completed" ? outcome.endedAt : undefined;

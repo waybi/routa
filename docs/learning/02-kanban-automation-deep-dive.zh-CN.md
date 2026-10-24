@@ -366,8 +366,9 @@ reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
    │    错误 / 取消 / 回合中进程退出 → failed + recoveryReason（取消为 turn_cancelled）
    │    历史里没有结束 → timed_out + restart_interrupted
    │  （卡上已有 verdict / completionSummary 也一样：结论是上一列写的，不说明本列这一步做完了）
-   │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障 / 看门狗判超时
+   │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障
    │        / 限流还没到 retryAfterAt / 可重试环境失败已熔断（见 5e）
+   │        / 本列末步已 completed（卡的最后一条 lane 记录）/ 看门狗判超时
    ▼
 ┌─ Review 收敛到别的列 → 移卡 + processKanbanColumnTransition（编排器正常路径）
 ├─ 本列最近一条运行 failed / timed_out 且不是第 0 步（被打断、被取消、失败）
@@ -384,7 +385,11 @@ reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
 revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器记 failed，不再起后面的步骤。
 **行为变化（卡 6d8365ca）**：本列 running 记录的会话其实已经 end_turn 结束时，revive 先把它记 completed，
 再走「上一步 completed 且还有下一步」那条，起本列下一步，不再当作被打断、从同一步重跑；
-它是本列最后一步（如 Done 汇报员、卡已 COMPLETED）时什么都不起。
+它是本列最后一步时什么都不起：Done 汇报员、Dev 施工者、Review Guard、Todo 契约员都一样，
+之后每次 revive 看到这条已 completed 的末步也不起。判定只看卡的最后一条 lane 记录：
+卡离开本列又回来、还没有新记录时（如 Review 打回 Dev），最后一条是别的列的，仍从第一步重进本列。
+（评审第 1 次打回：之前末步真实结束后，Dev 会重起施工者，Review 会从 QA Frontend 把整列重跑一遍。）
+卡已离开某列后，该列会话的迟到结束事件按收尾处理：有 end_turn 记 completed，否则 transitioned，不记 failed。
 
 **启动清扫（startup-lane-sweep.ts，instrumentation `register()` 里、开始接请求前跑一次）**：
 重启会结束所有施工者进程，但 revive 要有人对每块看板手动 POST，而且只看当前列，
@@ -646,3 +651,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-24 | 卡 79804de2 rebase 到主干（主干新增 leaveLane）：列转移先取消限流计时器再 leaveLane；限流重跑函数从编排器挪到 `rate-limit-retry.ts`（5e） | workflow-orchestrator.ts 1647 → 1596 行，回到 1600 行预算内；新增「move_card 移到 Blocked 后计时器取消、到点 0 个会话」用例，去掉取消那一行即变红 | 本提交 refactor(kanban): run the rate-limit rerun from rate-limit-retry.ts… |
 | 2026-10-24 | 车道步骤结束的每个出口都落 lane 终态（用户结束 / 已完成卡收尾 → completed 或 transitioned，从不 failed；自动化已结束、已删、会话不匹配 → 按事件），只改记录不推进；进程退出前回合已 end_turn 的按完成处理；forgetCard 丢掉的运行按收尾处理；编排器不再改写已结束的记录；重新运行找不到续跑步骤（卡片级 agent 覆盖等）也交编排器接管（5b、5c） | 新增 44 个用例（结束出口 24、进程层 8、重跑入口 12），改前与撤掉实现各 28 个变红（全是断言失败）；修复前 25afcd82 / e11cac2f / 497ae435 的 Done 推送员和汇报员跑完仍 running、fd9722de 的开发会话 b2261ec7 没有结束记录 | 本提交 fix(kanban): settle the lane record at every end of a step session |
 | 2026-10-24 | 启动清扫和 revive 对已结束会话的 running 记录按会话持久化历史补登真实结果（end_turn → completed、错误/取消/回合中退出 → failed，completedAt 取会话结束时间），没有结束记录的保持原规则；revive 遇真实 completed 的步骤接本列下一步（5d） | 新增 16 个用例和 224 组全组合对拍（不一致 0 组；埋错 1 格被抓到），撤掉实现后清扫用例 10 个变红、对拍 96 格不一致 | 本提交 fix(kanban): the restart sweep records ended sessions by their real outcome |
+| 2026-10-24 | revive 遇到「卡的最后一条 lane 记录是本列末步且 completed」时什么都不起（Dev、Review、Todo、Done 同规则；卡离开又回来仍从第一步重进）；卡已离开某列后，该列未跟踪会话的迟到结束事件按收尾记 completed / transitioned，不记 failed（5d） | 新增 25 个用例；修复前 11 个变红（末步 3 个：Dev 重起施工者、Review 从 QA Frontend 整列重跑、Todo 从第一步重跑；离列迟到事件 8 个记 failed / timed_out），撤掉本次修复同样 11 个变红 | 本提交 fix(kanban): revive starts nothing once a lane's last step really completed |

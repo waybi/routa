@@ -258,6 +258,23 @@ async function convergeRecoveredReviewTask(
   return true;
 }
 
+/**
+ * The card's latest lane record is the last step of this column, completed.
+ * Only the card's very last record counts: a card that left the column and
+ * came back has a later record of another column, and re-enters as before.
+ */
+function isLatestRunCompletedLastStep(
+  task: Task,
+  columnId: string,
+  automation: Parameters<typeof getKanbanAutomationSteps>[0],
+): boolean {
+  const steps = getKanbanAutomationSteps(automation);
+  const latest = task.laneSessions?.at(-1);
+  if (!latest || latest.columnId !== columnId || latest.status !== "completed" || steps.length === 0) return false;
+  const stepIndex = typeof latest.stepIndex === "number" ? latest.stepIndex : steps.length === 1 ? 0 : undefined;
+  return stepIndex === steps.length - 1;
+}
+
 export async function reviveMissingEntryAutomations(
   system: RoutaSystem,
   workspaceId: string,
@@ -343,6 +360,14 @@ export async function reviveMissingEntryAutomations(
       hasTrippedRetryableEnvironmentFuse(task, currentColumnId)
       || isWaitingForRateLimitRetry(task, currentColumnId, options.now?.() ?? new Date())
     ) {
+      continue;
+    }
+
+    // The lane's last step really completed (also when the sweep above just
+    // read it from the session history): nothing is left to run. Before, a
+    // Dev crafter or Review Guard that ended its turn was re-run from the
+    // lane's first step (card 6d8365ca, review R2/R2b).
+    if (isLatestRunCompletedLastStep(task, currentColumnId, automation)) {
       continue;
     }
 
