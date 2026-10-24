@@ -10,7 +10,11 @@ import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { isLaneAutomationComplete } from "./done-lane-teardown";
-import { isAwaitingEnvironmentFix } from "./environment-failure";
+import {
+  hasTrippedRetryableEnvironmentFuse,
+  isAwaitingEnvironmentFix,
+  isWaitingForRateLimitRetry,
+} from "./environment-failure";
 import {
   enqueueKanbanTaskSession,
   processKanbanColumnTransition,
@@ -19,6 +23,8 @@ import {
 export interface RestartRecoveryOptions {
   sessionStore: ReturnType<typeof getHttpSessionStore>;
   processManager: ReturnType<typeof getAcpProcessManager>;
+  /** Clock for the rate-limit rerun time (tests); defaults to now. */
+  now?: () => Date;
 }
 
 function isSessionActivelyRunning(
@@ -299,6 +305,17 @@ export async function reviveMissingEntryAutomations(
     // example an unregistered provider). Re-running cannot succeed until a
     // human fixes it, so revive leaves the card alone.
     if (isAwaitingEnvironmentFix(task, currentColumnId)) {
+      continue;
+    }
+
+    // A rate-limited step waits for its planned rerun time (retryAfterAt);
+    // after that it is rerun below like any failed step. A lane whose
+    // retryable environment failures tripped the fuse is left alone
+    // (card 79804de2).
+    if (
+      hasTrippedRetryableEnvironmentFuse(task, currentColumnId)
+      || isWaitingForRateLimitRetry(task, currentColumnId, options.now?.() ?? new Date())
+    ) {
       continue;
     }
 

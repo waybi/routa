@@ -184,4 +184,42 @@ describe("/api/kanban/boards GET", () => {
     expect(enqueueKanbanTaskSession).toHaveBeenCalledTimes(0);
     expect(taskStore.save).toHaveBeenCalledTimes(0);
   });
+
+  // Card 79804de2 (F2): a rate-limited step whose rerun time has passed is
+  // still only read by GET; the rerun belongs to the timer or POST revive.
+  it("does not rerun a rate-limited step past its retryAfterAt when the board is read twice", async () => {
+    const laneSessions = [{
+      sessionId: "pusher-429",
+      columnId: "backlog",
+      stepIndex: 0,
+      status: "failed" as const,
+      recoveryReason: "rate_limited" as const,
+      retryAfterAt: "2026-10-23T09:56:37.846Z",
+      startedAt: "2026-10-23T09:40:00.000Z",
+      completedAt: "2026-10-23T09:50:00.000Z",
+    }];
+    taskStore.listByWorkspace.mockResolvedValue([{
+      ...createTask({
+        id: "task-rate-limited",
+        title: "Rate-limited Done pusher",
+        objective: "Rate-limited Done pusher",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        columnId: "backlog",
+        status: TaskStatus.PENDING,
+      }),
+      laneSessions,
+    }]);
+
+    for (let read = 0; read < 2; read += 1) {
+      const response = await GET(new NextRequest("http://localhost/api/kanban/boards?workspaceId=workspace-1"));
+      expect(response.status).toBe(200);
+    }
+
+    expect(reviveMissingEntryAutomations).toHaveBeenCalledTimes(0);
+    expect(processKanbanColumnTransition).toHaveBeenCalledTimes(0);
+    expect(enqueueKanbanTaskSession).toHaveBeenCalledTimes(0);
+    expect(taskStore.save).toHaveBeenCalledTimes(0);
+    expect(laneSessions).toHaveLength(1);
+  });
 });

@@ -230,12 +230,15 @@ describe("F2: rerun behavior that must not change", () => {
       card: {
         laneSessions: [
           { sessionId: "old-qa", columnId: "review", stepIndex: 0, status: "completed", startedAt: "2026-10-23T08:00:00.000Z" },
+          // Card 79804de2: the restart-interrupted guard run no longer counts
+          // toward the limit (AC3), so a real failed run makes the third.
+          { sessionId: "old-guard", columnId: "review", stepIndex: 1, status: "failed", recoveryReason: "agent_failed", startedAt: "2026-10-23T08:10:00.000Z" },
         ],
       },
     });
     const sessionId = await interrupt(h, "sweep");
-    // old-qa + qa + guard = 3 runs in Review.
-    expect((await h.card()).laneSessions?.filter((entry) => entry.columnId === "review")).toHaveLength(3);
+    // old-qa + old-guard + qa = 3 counted runs in Review; the interrupted guard is not counted.
+    expect((await h.card()).laneSessions?.filter((entry) => entry.columnId === "review")).toHaveLength(4);
     expect((await h.laneRecord(sessionId))?.status).toBe("timed_out");
     enqueueSpy.mockClear();
     transitionSpy.mockClear();

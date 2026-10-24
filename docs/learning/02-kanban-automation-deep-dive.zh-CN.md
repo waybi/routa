@@ -274,13 +274,14 @@ Agent 完成/失败/超时
    ▼
 ④ 失败 & 开了 automatic fallback & 还有下一个 step？
    → 试下一个 fallback agent（比如 Claude 失败了换 OpenCode）
-     环境故障、非 dev 列看门狗超时、回合被取消（turn_cancelled）不走 fallback
+     环境故障、限流（rate_limited）、非 dev 列看门狗超时、回合被取消（turn_cancelled）不走 fallback
    │
    ▼
 ⑤ 需要恢复吗？（shouldRecover）
    ├─ 监督模式 ≠ watchdog_retry / ralph_loop → 不恢复
    ├─ 已经超过 maxRecoveryAttempts → 不恢复
-   ├─ 环境故障、回合被取消（turn_cancelled）→ 不恢复
+   ├─ 环境故障、限流（rate_limited）、回合被取消（turn_cancelled）→ 不恢复
+   │    （限流另走延后重跑，见 5e，不扣 maxRecoveryAttempts）
    ├─ TIMEOUT / FAILED → 恢复
    └─ ralph_loop + COMPLETED 但没满足完成条件 → 恢复
    → 发恢复通知 → recoverAutomation（重新 createSession，attempt+1）
@@ -342,6 +343,7 @@ reviveMissingEntryAutomations（restart-recovery.ts）逐张卡：
    │  本列 running 但进程已不在的 lane 记录 → 标 timed_out + restart_interrupted
    │  （卡上已有 verdict / completionSummary 也一样：结论是上一列写的，不说明本列这一步做完了）
    │  跳过：本列还有活会话 / Done 已跑完 / 非 dev 熔断 / 环境故障 / 看门狗判超时
+   │        / 限流还没到 retryAfterAt / 可重试环境失败已熔断（见 5e）
    ▼
 ┌─ Review 收敛到别的列 → 移卡 + processKanbanColumnTransition（编排器正常路径）
 ├─ 本列最近一条运行 failed / timed_out 且不是第 0 步（被打断、被取消、失败）
@@ -367,6 +369,45 @@ revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器�
 只在本机 SQLite + 内嵌执行时跑：配了 `ROUTA_ACP_RUNNER_URL`（施工者在独立 runner 里）、
 Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-production-build`）都跳过；
 `ROUTA_SKIP_RUNTIME_SERVICES=1` 也跳过。pm2 日志打一行 `[RestartRecovery] Startup sweep ended N …`。
+
+### 5e. 环境失败与重试预算（卡 79804de2）
+
+模型限流（429）和 Routa 重启打断都不是卡自己的错，以前却照样扣重试次数：
+10-23 的 92744a50、7a25276b、6ad2df9d 共 0 次真实代码失败，都被 429 和重启扣光预算停住。
+现在把失败分三类：
+
+| 类别 | recoveryReason | 怎么认出来 | 扣预算吗 | 之后怎么办 |
+|---|---|---|---|---|
+| 等人修的环境失败 | `environment_failure` | 报错含 `Not registered in ProviderRegistry` / `Unknown provider:` | 不扣 | 永不自动重跑，`isAwaitingEnvironmentFix`=true，revive 也跳过 |
+| 可重试：限流 | `rate_limited` | 报错（`event.data.error`、会话 `acpError`；看门狗超时再加会话最后一条消息）含 `usage_limit_reached`、`rate_limit_error`、`trial_rate_limited`，或明确的 HTTP 429 写法（`HTTP 429`、`HTTP/1.1 429`、`"status":429`、`status 429`、`429 Too Many Requests`）。裸数字 429（如 `processed 429 rows`）不算 | 不扣 | 到 `retryAfterAt` 自动从同一步（同 stepIndex）重跑 |
+| 可重试：重启打断 | `turn_cancelled`、`restart_interrupted` | 回合 stopReason=cancelled；启动清扫 / revive 收尾的 running 记录（见 5b、5d） | 不扣 | 不定时重跑，仍由 revive 或人点「重新运行」从该步重跑 |
+
+「不扣预算」指两处：非开发列 3 次上限（`getNonDevAutomationRunCount` 跳过 failed / timed_out 的可重试记录），
+和开发列 `recoveryAttempts`（限流不进 `shouldRecover` / `recoverAutomation`，重跑沿用失败前的 attempt 与 recoveryAttempts）。
+分类偏保守：证据不足一律按普通失败扣预算。
+
+**429 什么时候重跑**（`computeRateLimitRetryAt`，`environment-failure.ts`）：
+- 报错里有服务端时间（`resets_at=<ISO>`、`"resets_at":<unix 秒或 ISO>`、多层转义也认；`resets_in_seconds`；`retry-after` / `retry_after` 秒数）：
+  在该时间上**只往后**加 0–60 秒抖动，不会早于服务端时间；服务端时间已过就从现在算。
+- 没有服务端时间：本列连续第 1 / 2 / ≥3 次分别等 5 / 10 / 20 分钟，±20% 抖动。
+- 计划时间写在失败那条 lane 记录的 `retryAfterAt`（ISO），`lastSyncError` 写
+  `[environment] rate_limited：限流，预计 HH:MM 重试`（HH:MM 是服务器本地时间）。
+- 到点由进程内计时器（`rate-limit-retry.ts` 的 `RateLimitRetryScheduler`，每张卡最多一个）重跑：
+  先重读卡，卡已移列、本列已有 running 记录、或本列最新记录已不是那条 rate_limited，就放弃；
+  否则清掉 triggerSessionId、交给编排器 `adoptLaneRun` 接管后起同一步。卡被移走（列转移、`forgetCard`）或编排器 stop 时取消计时器。
+- 起会话时就报 429（`workflow-orchestrator-singleton.ts` 触发阶段）：记一条 `rate-limited-<uuid>` 的 failed 记录带 `retryAfterAt`，不起计时器，由 revive 到点后重跑。
+- 看门狗超时后 12 秒才到的 429（a2f634b3 那种）不改判：同一会话只处理第一次结束事件，仍记 `watchdog_inactivity`。
+
+**熔断**：同一列从最新往回数，连续的可重试环境失败（限流、取消、重启打断）达到
+`RETRYABLE_ENVIRONMENT_FAILURE_FUSE_LIMIT = 5` 次就停：不再排计时器，`lastSyncError` 写
+`[environment] rate_limited：连续 N 次可重试环境失败，已熔断，停止自动重跑`，revive 也跳过。
+中间出现一次 completed 或一次普通失败，连续计数清零；换列重新计数。
+
+已知限制：
+- 计时器只在进程内。Routa 重启后不会自己到点重跑，要有人（或调度会话）POST revive；revive 在 `retryAfterAt` 之前跳过、之后从同一步重跑。
+- Done 推送员 429 后也会被延后重跑同一步。推送幂等不在本卡范围：如果推送员在报 429 前已经推了一部分，重跑可能重复推送。
+- 同一个 RunAI 账号限流时多张卡会拿到同一个 `resets_at`，在 60 秒内一起重跑，可能再撞 429；靠看板并发上限和熔断兜底，没有跨卡共享限流状态。
+- Rust 后端（桌面版）只同步了模型：`TaskLaneSessionRecoveryReason::RateLimited` 与 `retry_after_at`，读写不丢 lane 记录；Rust 的 revive 没有加 `retryAfterAt` 守卫。
 
 ## 6. 门禁：不是想过就能过
 
@@ -570,3 +611,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-23 | POST revive 起「本列下一步」时带 `adoptLaneRun: true`，由编排器接管（排队的在拉起时接管）；重新运行的接管改走同一个参数（5c、5d） | 新增 2 个用例（直接起、排队后起），撤掉修复 2 个都变红；修复前 4 张 Done 卡的完成汇报员跑完后 lane 一直 running | e2b122f1 fix(kanban): revive hands the next lane step to the orchestrator |
 | 2026-10-23 | 启动时清扫上一个进程留下的 running lane 记录（所有卡、所有列，判定与 revive 相同，只改记录不起会话；runner / Postgres / next build 跳过）；补 revive 拉起步骤失败、Done 列末步、列转移分支 3 个用例（5d） | 新增 10 个用例；撤掉 instrumentation 调用、去掉「所有列」各有 1 个变红，撤掉 e2b122f1 的 adoptLaneRun 4 个变红；修复前 6 条已结束步骤（a1d9bffc 等）重启后仍显示 running | fix(kanban): end lane records left running by the previous process on startup |
 | 2026-10-24 | 车道步骤被取消（stopReason=cancelled）记 failed + `turn_cancelled`，不起下一步、不走 fallback 和恢复、不进下一列；启动清扫和 revive 把当前列被重启打断的记录一律记 timed_out + `restart_interrupted`（不再因卡上有 verdict/completionSummary 记 transitioned）；revive 对本列第 1 步及以后被打断的卡重跑那一步；TS 与 Rust 的 recoveryReason 各加两个值（5b、5c、5d） | 新增 C1–C8 对应用例与随机对拍（清扫 10,000 组、取消 10,000 组，不一致 0 组），撤掉实现后 C1/C2/C4/C5/C6/C7/C8 用例变红；修复前 Done 推送员被取消会被记 completed 并起完成汇报员（卡 a0b2b4fa 提交漏进主干）。界面手动取消会话后卡停在本列 | 本提交 fix(kanban): record cancelled or restart-interrupted lane steps as failed and rerun them |
+| 2026-10-24 | 429 限流和重启打断归为「可重试环境失败」：新 recoveryReason `rate_limited` 和 lane 字段 `retryAfterAt`（TS 与 Rust 同步）；限流、取消、重启打断不计非开发列 3 次上限、不扣开发列 recoveryAttempts；429 按 resets_at / retry-after 或 5/10/20 分钟退避在同一步自动重跑；revive 在 retryAfterAt 前不重跑；同列连续 5 次可重试环境失败熔断（5b、5d、5e） | 新增约 100 个用例与随机对拍（分类 10,000 条、时间 10,000 组，不一致 0；植入错各被抓到），线上库 76 条失败记录里复盘报告列的 15 次 429 全判 rate_limited；撤掉实现后 C3/C4/C6 用例与 Rust 用例变红 | feat(rust): keep rate_limited lane records…、feat(kanban): classify rate limits as retryable…、fix(kanban): rate limits and restart interruptions no longer consume retry budgets…、本提交 fix(kanban): revive waits for retryAfterAt… |

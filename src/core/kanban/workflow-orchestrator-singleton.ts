@@ -34,7 +34,12 @@ import { getKanbanSessionConcurrencyLimit as getBoardSessionConcurrencyLimit } f
 import { getKanbanDevSessionSupervision, getKanbanLaneSessionWatchdog } from "./board-session-supervision";
 import { getKanbanAutoProvider } from "./board-auto-provider";
 import { upsertTaskLaneSession } from "./task-lane-history";
-import { formatEnvironmentFailureError, isEnvironmentFailureMessage } from "./environment-failure";
+import {
+  classifyRetryableEnvironmentFailure,
+  formatEnvironmentFailureError,
+  isEnvironmentFailureMessage,
+} from "./environment-failure";
+import { planRateLimitRetry } from "./rate-limit-retry";
 import { refreshTaskLaneExperienceMemory } from "./task-lane-experience";
 import { completeRunningSessionsOutsideColumn } from "./task-session-transition";
 import { resolveLaneResumeStep } from "./lane-automation-state";
@@ -401,6 +406,36 @@ async function startKanbanTaskSession(
       completedAt: failedAt,
     });
     nextTask.lastSyncError = formatEnvironmentFailureError(triggerResult.error);
+  } else if (triggerResult.error && nextTask.columnId
+    && classifyRetryableEnvironmentFailure(triggerResult.error) === "rate_limited") {
+    // Rate limited before the session started (card 79804de2): a retryable
+    // failed run with its planned rerun time. Not counted against any budget;
+    // revive reruns the step once retryAfterAt has passed.
+    const currentColumn = board?.columns.find((column) => column.id === nextTask.columnId);
+    const failedAt = new Date().toISOString();
+    const sessionId = `rate-limited-${uuidv4()}`;
+    upsertTaskLaneSession(nextTask, {
+      sessionId,
+      columnId: nextTask.columnId,
+      columnName: currentColumn?.name,
+      stepId: sessionStep?.id,
+      stepIndex: sessionStepIndex,
+      stepName: sessionStep?.specialistName ?? sessionStep?.specialistId ?? sessionStep?.role,
+      provider: sessionProviderId,
+      role: sessionStep?.role ?? effectiveAutomation.role,
+      attempt: params.supervision?.attempt,
+      recoveredFromSessionId: params.supervision?.recoveredFromSessionId,
+      recoveryReason: "rate_limited",
+      status: "failed",
+      startedAt: failedAt,
+      completedAt: failedAt,
+    });
+    nextTask.lastSyncError = planRateLimitRetry({
+      task: nextTask,
+      columnId: nextTask.columnId,
+      sessionId,
+      evidence: triggerResult.error,
+    }).lastSyncError;
   } else if (triggerResult.error) {
     nextTask.lastSyncError = triggerResult.error;
   }
