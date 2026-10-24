@@ -10,11 +10,16 @@
  *
  * The session's real outcome comes from its history: the last turn end
  * (turn_complete) or error. "Unknown" is never read as success.
+ *
+ * A rate limit (HTTP 429) is judged and timed like the orchestrator's main
+ * path (card 28f64f39): failed + rate_limited with retryAfterAt, written only
+ * when this call ends the record; revive reruns the step after that time.
  */
 import { AgentEventType, type AgentEvent } from "../events/event-bus";
 import type { Task, TaskLaneSessionRecoveryReason, TaskLaneSessionStatus } from "../models/task";
 import type { TaskStore } from "../store/task-store";
-import { isEnvironmentFailureMessage } from "./environment-failure";
+import { classifyRetryableEnvironmentFailure, isEnvironmentFailureMessage } from "./environment-failure";
+import { collectRateLimitEvidence, planRateLimitRetry } from "./rate-limit-retry";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 
 /** One session update as stored in the session history; `createdAt` only when persisted. */
@@ -28,7 +33,7 @@ export type ReadSessionEndHistory = (sessionId: string) => Promise<SessionHistor
 
 export type SessionOutcome =
   | { kind: "completed"; endedAt?: string }
-  | { kind: "failed"; reason: TaskLaneSessionRecoveryReason; endedAt?: string }
+  | { kind: "failed"; reason: TaskLaneSessionRecoveryReason; endedAt?: string; evidence?: string }
   | { kind: "unknown" };
 
 /** The in-memory session store, as far as the outcome needs it. */
@@ -51,6 +56,14 @@ const TURN_ACTIVITY = new Set([
 function isProcessExit(update: Record<string, unknown>): boolean {
   const error = update.error as { code?: unknown } | undefined;
   return error?.code === "process_exited";
+}
+
+/** An error entry's outcome: rate_limited when its text carries a 429 signal (main path's rule), else agent_failed. */
+function errorEntryOutcome(entry: SessionHistoryEntry, update: Record<string, unknown>): SessionOutcome {
+  const text = typeof update.error === "string" ? update.error : JSON.stringify(update.error ?? null);
+  return classifyRetryableEnvironmentFailure(text) === "rate_limited"
+    ? { kind: "failed", reason: "rate_limited", endedAt: entry.createdAt, evidence: text }
+    : { kind: "failed", reason: "agent_failed", endedAt: entry.createdAt };
 }
 
 /**
@@ -79,7 +92,7 @@ export function resolveSessionOutcome(entries: SessionHistoryEntry[]): SessionOu
         exit ??= entry;
         continue;
       }
-      return { kind: "failed", reason: "agent_failed", endedAt: entry.createdAt };
+      return errorEntryOutcome(entry, update);
     }
     if (typeof kind === "string" && TURN_ACTIVITY.has(kind)) {
       // A turn was still running when the history ends (or when the process exited).
@@ -127,13 +140,39 @@ export function endRunningLaneRecord(
   return true;
 }
 
-/** Record an ended session by its persisted outcome; false when the outcome is unknown. */
-export function endLaneRecordByOutcome(task: Task, sessionId: string, outcome: SessionOutcome): boolean {
+/**
+ * Plan the rerun of a record this call just ended as rate_limited, in the
+ * card's current column only (revive looks at no other). The fuse counts this
+ * record too, so it runs after the end is written.
+ */
+function planRerunOfEndedRateLimit(task: Task, sessionId: string, evidence: string, now: Date): void {
+  const columnId = getTaskLaneSession(task, sessionId)?.columnId;
+  if (!columnId || columnId !== task.columnId) return;
+  planRateLimitRetry({ task, columnId, sessionId, evidence, now });
+}
+
+/**
+ * Record an ended session by its persisted outcome; false when the outcome is
+ * unknown. A rate limit's rerun time counts from the session's end, else from
+ * `options.now` (the sweep clock).
+ */
+export function endLaneRecordByOutcome(
+  task: Task,
+  sessionId: string,
+  outcome: SessionOutcome,
+  options: { now?: Date } = {},
+): boolean {
   if (outcome.kind === "completed") {
     return endRunningLaneRecord(task, sessionId, "completed", { completedAt: outcome.endedAt });
   }
   if (outcome.kind === "failed") {
-    return endRunningLaneRecord(task, sessionId, "failed", { completedAt: outcome.endedAt, recoveryReason: outcome.reason });
+    const ended = endRunningLaneRecord(task, sessionId, "failed", { completedAt: outcome.endedAt, recoveryReason: outcome.reason });
+    if (ended && outcome.reason === "rate_limited") {
+      const endedAtMs = outcome.endedAt ? Date.parse(outcome.endedAt) : Number.NaN;
+      const now = Number.isFinite(endedAtMs) ? new Date(endedAtMs) : options.now ?? new Date();
+      planRerunOfEndedRateLimit(task, sessionId, outcome.evidence ?? "", now);
+    }
+    return ended;
   }
   return false;
 }
@@ -160,6 +199,7 @@ export function reconcileExitAfterTurnEnd(event: AgentEvent, sessions: LiveSessi
 function endForEvent(
   event: AgentEvent,
   outcome: SessionOutcome,
+  evidence: string,
 ): { status: Exclude<TaskLaneSessionStatus, "running">; recoveryReason?: TaskLaneSessionRecoveryReason } {
   if (event.type === AgentEventType.AGENT_TIMEOUT) {
     return { status: "timed_out", recoveryReason: "watchdog_inactivity" };
@@ -170,8 +210,10 @@ function endForEvent(
   if (!isEndFailure(event) || outcome.kind === "completed") {
     return { status: "completed" };
   }
-  const error = event.data?.error;
-  return { status: "failed", recoveryReason: isEnvironmentFailureMessage(error) ? "environment_failure" : "agent_failed" };
+  if (isEnvironmentFailureMessage(event.data?.error)) return { status: "failed", recoveryReason: "environment_failure" };
+  // Same order as the main path: environment failure first, then rate limit.
+  if (classifyRetryableEnvironmentFailure(evidence) === "rate_limited") return { status: "failed", recoveryReason: "rate_limited" };
+  return { status: "failed", recoveryReason: "agent_failed" };
 }
 
 async function findCardWithRunningRecord(
@@ -189,7 +231,9 @@ async function findCardWithRunningRecord(
  * step end. `teardown` (a card the user ended, a finished card's teardown):
  * completed when the turn really ended, else transitioned, never failed, so
  * revive cannot re-run a finished card's step (3054a54f). `event`: by the
- * event (completed, failed + reason, timed_out). Only the record changes.
+ * event (completed, failed + reason, timed_out); a rate limit also gets its
+ * retryAfterAt (no timer, no lastSyncError: revive reruns it). Only the
+ * record changes.
  */
 export async function settleEndedLaneSession(params: {
   taskStore: TaskStore;
@@ -211,11 +255,19 @@ export async function settleEndedLaneSession(params: {
   // The card already left the step's column (move_card ends that step's
   // process): its late end is teardown, as the sweep records a left column.
   const leftColumn = Boolean(task.columnId) && record.columnId !== task.columnId;
+  const evidence = collectRateLimitEvidence({
+    timeout: false,
+    error: event.data?.error,
+    acpError: outcome.kind === "failed" ? outcome.evidence : undefined,
+  });
   const end = mode === "teardown" || leftColumn
     ? { status: outcome.kind === "completed" ? "completed" as const : "transitioned" as const }
-    : endForEvent(event, outcome);
+    : endForEvent(event, outcome, evidence);
   const completedAt = end.status === "completed" && outcome.kind === "completed" ? outcome.endedAt : undefined;
-  endRunningLaneRecord(task, sessionId, end.status, { completedAt, recoveryReason: "recoveryReason" in end ? end.recoveryReason : undefined });
+  const recoveryReason = "recoveryReason" in end ? end.recoveryReason : undefined;
+  if (endRunningLaneRecord(task, sessionId, end.status, { completedAt, recoveryReason }) && recoveryReason === "rate_limited") {
+    planRerunOfEndedRateLimit(task, sessionId, evidence, new Date());
+  }
   task.updatedAt = new Date();
   await taskStore.save(task);
   return true;

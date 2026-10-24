@@ -247,7 +247,7 @@ function endEvent(type: AgentEventType, sessionId: string, data: Record<string, 
 }
 
 const LATE_EVENTS = {
-  agent_failed: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, { success: false, error: "turn failed: usage_limit_reached" }),
+  agent_failed: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, { success: false, error: "turn failed: boom" }),
   exit_nonzero: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, {
     success: false,
     error: "DeepSeek Harness process exited unexpectedly (code=1, signal=null)",

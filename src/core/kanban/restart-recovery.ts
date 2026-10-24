@@ -110,7 +110,7 @@ async function endStaleLaneRecord(
   options: RestartRecoveryOptions,
 ): Promise<void> {
   const outcome = await resolvePersistedSessionOutcome(sessionId, options.readSessionEndHistory);
-  if (endLaneRecordByOutcome(task, sessionId, outcome)) return;
+  if (endLaneRecordByOutcome(task, sessionId, outcome, { now: options.now?.() })) return;
   if (inCurrentColumn) {
     markInterruptedByRestart(task, sessionId);
   } else {

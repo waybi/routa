@@ -43,7 +43,7 @@ const HISTORY: Record<string, HistoryEntry[]> = {
   ],
   error: [
     { update: { sessionUpdate: "user_message" }, createdAt: "2026-10-23T11:31:00.000Z" },
-    { update: { sessionUpdate: "error", error: { code: "prompt_failed_after_timeout", message: "turn failed: usage_limit_reached" } }, createdAt: T_END },
+    { update: { sessionUpdate: "error", error: { code: "prompt_failed_after_timeout", message: "turn failed: boom" } }, createdAt: T_END },
   ],
   cancelled: [
     { update: { sessionUpdate: "user_message" }, createdAt: "2026-10-23T11:31:00.000Z" },

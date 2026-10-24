@@ -433,6 +433,10 @@ Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-pr
   卡被移走（列转移、`move_card`、`forgetCard`）或编排器 stop 时取消计时器；列转移里先取消计时器，再走 `leaveLane` 结束旧车道。
 - 起会话时就报 429（`workflow-orchestrator-singleton.ts` 触发阶段）：记一条 `rate-limited-<uuid>` 的 failed 记录带 `retryAfterAt`，不起计时器，由 revive 到点后重跑。
 - 看门狗超时后 12 秒才到的 429（a2f634b3 那种）不改判：同一会话只处理第一次结束事件，仍记 `watchdog_inactivity`。
+- 编排器主路径之外的两条落终态路径用同一套判定（`classifyRetryableEnvironmentFailure`）和同一套时间计算（`planRateLimitRetry` → `computeRateLimitRetryAt`），代码在 `lane-session-settlement.ts`（卡 28f64f39）：
+  - **异常结束收尾**（`settleUnhandledLaneEnd` mode=event，编排器「没有自动化跟着这个会话」那类结束）：先认环境失败，再看 `event.data.error` 和会话历史最后的 error 条目有没有 429 信号，有就记 failed + `rate_limited`，`retryAfterAt` 从当前时间起算。mode=teardown 或卡已离开该列时照旧记 completed / transitioned。AGENT_TIMEOUT 照旧记 `watchdog_inactivity`。
+  - **重启清扫 / revive 补登**（`resolveSessionOutcome` 读会话持久化历史）：最后的结束条目是带 429 信号的 error（其后跟着 process_exited 也算，completedAt 取 429 条目的时间）就记 failed + `rate_limited`；`retryAfterAt` 从会话结束时间 endedAt（条目 createdAt）起算，缺失时用清扫时刻（`RestartRecoveryOptions.now`）。不在卡当前列的记录只记 `rate_limited`，不写 `retryAfterAt`（revive 只看当前列）。
+  - 两条路径都只改 lane 记录：不起计时器、不写 `lastSyncError`，到点由 revive 重跑；只在本次调用把 running 改成终态时写 `retryAfterAt`，已结束的记录不改写。熔断计数包含这一条（先落终态再算），预算口径与主路径相同。
 
 **熔断**：同一列从最新往回数，连续的可重试环境失败（限流、取消、重启打断）达到
 `RETRYABLE_ENVIRONMENT_FAILURE_FUSE_LIMIT = 5` 次就停：不再排计时器，`lastSyncError` 写
@@ -441,6 +445,7 @@ Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-pr
 
 已知限制：
 - 计时器只在进程内。Routa 重启后不会自己到点重跑，要有人（或调度会话）POST revive；revive 在 `retryAfterAt` 之前跳过、之后从同一步重跑。
+- 异常结束收尾记下的 `rate_limited` 不起计时器：Routa 不重启时，也要等有人 POST revive 才会到点重跑。
 - Done 推送员 429 后也会被延后重跑同一步。推送幂等不在本卡范围：如果推送员在报 429 前已经推了一部分，重跑可能重复推送。
 - 同一个 RunAI 账号限流时多张卡会拿到同一个 `resets_at`，在 60 秒内一起重跑，可能再撞 429；靠看板并发上限和熔断兜底，没有跨卡共享限流状态。
 - Rust 后端（桌面版）只同步了模型：`TaskLaneSessionRecoveryReason::RateLimited` 与 `retry_after_at`，读写不丢 lane 记录；Rust 的 revive 没有加 `retryAfterAt` 守卫。
@@ -652,3 +657,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-24 | 车道步骤结束的每个出口都落 lane 终态（用户结束 / 已完成卡收尾 → completed 或 transitioned，从不 failed；自动化已结束、已删、会话不匹配 → 按事件），只改记录不推进；进程退出前回合已 end_turn 的按完成处理；forgetCard 丢掉的运行按收尾处理；编排器不再改写已结束的记录；重新运行找不到续跑步骤（卡片级 agent 覆盖等）也交编排器接管（5b、5c） | 新增 44 个用例（结束出口 24、进程层 8、重跑入口 12），改前与撤掉实现各 28 个变红（全是断言失败）；修复前 25afcd82 / e11cac2f / 497ae435 的 Done 推送员和汇报员跑完仍 running、fd9722de 的开发会话 b2261ec7 没有结束记录 | 本提交 fix(kanban): settle the lane record at every end of a step session |
 | 2026-10-24 | 启动清扫和 revive 对已结束会话的 running 记录按会话持久化历史补登真实结果（end_turn → completed、错误/取消/回合中退出 → failed，completedAt 取会话结束时间），没有结束记录的保持原规则；revive 遇真实 completed 的步骤接本列下一步（5d） | 新增 16 个用例和 224 组全组合对拍（不一致 0 组；埋错 1 格被抓到），撤掉实现后清扫用例 10 个变红、对拍 96 格不一致 | 本提交 fix(kanban): the restart sweep records ended sessions by their real outcome |
 | 2026-10-24 | revive 遇到「卡的最后一条 lane 记录是本列末步且 completed」时什么都不起（Dev、Review、Todo、Done 同规则；卡离开又回来仍从第一步重进）；卡已离开某列后，该列未跟踪会话的迟到结束事件按收尾记 completed / transitioned，不记 failed（5d） | 新增 25 个用例；修复前 11 个变红（末步 3 个：Dev 重起施工者、Review 从 QA Frontend 整列重跑、Todo 从第一步重跑；离列迟到事件 8 个记 failed / timed_out），撤掉本次修复同样 11 个变红 | 本提交 fix(kanban): revive starts nothing once a lane's last step really completed |
+| 2026-10-24 | 异常结束收尾（`settleUnhandledLaneEnd` mode=event）和重启清扫 / revive 补登（`resolveSessionOutcome`）遇 429 也记 failed + `rate_limited` 并写 `retryAfterAt`，复用主路径判定与时间计算；补登从会话结束时间起算，离列记录不写 `retryAfterAt`；三份旧测试里把 429 文本当普通失败的夹具改成 `turn failed: boom`（5e） | 新增 45 个用例（含 10,000 组随机对拍：不一致 0；埋错「取退出时间」被抓 586 组、「熔断阈值改 6」被抓 247 组）；撤掉实现后 20 个用例变红，全是断言失败；kanban 全套 689 → 734 个用例全过 | 本提交 fix(kanban): settle and sweep paths record 429 as rate_limited with retryAfterAt |

@@ -87,7 +87,7 @@ function endEvent(type: AgentEventType, sessionId: string, data: Record<string, 
 const EVENTS = {
   end_turn: (id: string) => endEvent(AgentEventType.AGENT_COMPLETED, id, { success: true, stopReason: "end_turn" }),
   cancelled: (id: string) => endEvent(AgentEventType.AGENT_COMPLETED, id, { success: false, stopReason: "cancelled" }),
-  agent_failed: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, { success: false, error: "turn failed: usage_limit_reached" }),
+  agent_failed: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, { success: false, error: "turn failed: boom" }),
   timeout: (id: string) => endEvent(AgentEventType.AGENT_TIMEOUT, id, { success: false, error: "No ACP activity for 20 minutes." }),
   exit_0: (id: string) => endEvent(AgentEventType.AGENT_FAILED, id, {
     success: false,
