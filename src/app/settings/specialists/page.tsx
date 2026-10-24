@@ -22,10 +22,13 @@ export default function SpecialistsSettingsPage() {
       activeSettingsItem="specialists"
       title={copy.title}
       description={copy.description}
-      contentClassName="flex min-h-0 flex-1 flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-y-auto"
     >
       <KanbanModelTiersCard />
-      <SpecialistsTab modelDefs={modelDefs} />
+      {/* Keep the specialist list usable when the tier card stacks on narrow screens; the page scrolls instead. */}
+      <div className="flex min-h-[20rem] flex-1 flex-col">
+        <SpecialistsTab modelDefs={modelDefs} />
+      </div>
     </SettingsRouteShell>
   );
 }

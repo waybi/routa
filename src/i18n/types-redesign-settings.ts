@@ -119,7 +119,18 @@ export interface RedesignSettingsTranslationDictionarySections {
     title: string;
     description: string;
     order: string;
+    /** Small heading above the resolution order steps. */
+    orderTitle: string;
+    /** Resolution order, highest priority first (6 steps; step 4 is this setting). */
+    orderSteps: string[];
     tiers: { fast: string; balanced: string; smart: string };
+    /** Visible label above the model dropdown. */
+    modelLabel: string;
+    /** Key labels of the effective key/value block. */
+    effectiveModelLabel: string;
+    effectiveEffortLabel: string;
+    /** Hover text on the dot shown when a tier has an override. */
+    overriddenHint: string;
     /** First dropdown option; {model} = code tier default. */
     followCodeDefault: string;
     effective: string;

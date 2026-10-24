@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KanbanModelTiersCard } from "../kanban-model-tiers-card";
+import en from "../../../i18n/locales/en";
+import zh from "../../../i18n/locales/zh";
 import { resetKanbanModelTiersCache } from "../../kanban-model-tiers/use-kanban-model-tiers";
 import { resetModelEffortChoicesCache } from "../../model-effort/use-model-effort-choices";
 
@@ -166,5 +168,81 @@ describe("KanbanModelTiersCard", () => {
     await waitFor(() => expect(select.value).toBe("xhigh"));
     expect(Array.from(select.options).map((option) => option.value)).toContain("xhigh");
     expect(screen.getByTestId("kanban-model-tier-fast-effort-effective").textContent).toContain("xhigh");
+  });
+
+  it("renders the resolution order as six steps with decorative separators", async () => {
+    render(<KanbanModelTiersCard />);
+    const order = await screen.findByTestId("kanban-model-tiers-order");
+    const steps = Array.from(order.querySelectorAll("li")).map((item) => item.textContent);
+    expect(steps).toEqual(en.kanbanModelTiers.orderSteps);
+    expect(en.kanbanModelTiers.orderSteps).toHaveLength(6);
+    expect(zh.kanbanModelTiers.orderSteps).toHaveLength(6);
+    const separators = order.querySelectorAll("svg");
+    expect(separators).toHaveLength(5);
+    separators.forEach((separator) => expect(separator.getAttribute("aria-hidden")).toBe("true"));
+  });
+
+  it("labels both dropdowns of a tier and stacks them full width", async () => {
+    render(<KanbanModelTiersCard />);
+    const fast = await screen.findByTestId("kanban-model-tier-fast");
+    const model = within(fast).getByLabelText(/^Model/);
+    const effortSelect = within(fast).getByLabelText(/^Reasoning effort/);
+    expect(model).toBe(within(fast).getByTestId("kanban-model-tier-fast-select"));
+    expect(effortSelect).toBe(within(fast).getByTestId("kanban-model-tier-fast-effort-select"));
+    expect(model.getAttribute("aria-label")).toBeNull();
+    expect(model.className).toContain("w-full");
+    expect(effortSelect.className).toContain("w-full");
+    expect(effortSelect.className).not.toContain("w-28");
+    expect(effortSelect.className).not.toContain("font-mono");
+  });
+
+  it("marks an overridden tier and switches its source badges", async () => {
+    render(<KanbanModelTiersCard />);
+    const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
+    await waitFor(() => expect(select.options.length).toBe(3));
+    const tier = screen.getByTestId("kanban-model-tier-smart");
+    const copy = en.kanbanModelTiers;
+    expect(tier.getAttribute("data-overridden")).toBe("false");
+    expect(screen.getByTestId("kanban-model-tier-smart-source").textContent).toBe(copy.sourceCode);
+
+    fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
+    await waitFor(() => expect(tier.getAttribute("data-overridden")).toBe("true"));
+    expect(screen.getByTestId("kanban-model-tier-smart-source").textContent).toBe(copy.sourceGlobal);
+
+    fireEvent.change(select, { target: { value: "" } });
+    await waitFor(() => expect(tier.getAttribute("data-overridden")).toBe("false"));
+    expect(screen.getByTestId("kanban-model-tier-smart-source").textContent).toBe(copy.sourceCode);
+
+    const effortSelect = screen.getByTestId("kanban-model-tier-smart-effort-select") as HTMLSelectElement;
+    await waitFor(() => expect(effortSelect.options.length).toBe(4));
+    expect(screen.getByTestId("kanban-model-tier-smart-effort-source").textContent).toBe(copy.effortSourceDefault);
+    fireEvent.change(effortSelect, { target: { value: "low" } });
+    await waitFor(() => expect(tier.getAttribute("data-overridden")).toBe("true"));
+    expect(screen.getByTestId("kanban-model-tier-smart-effort-source").textContent).toBe(copy.effortSourceGlobal);
+  });
+
+  it("keeps the save status slot mounted and uses the danger color on failure", async () => {
+    render(<KanbanModelTiersCard />);
+    const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
+    await waitFor(() => expect(select.options.length).toBe(3));
+    for (const tier of ["fast", "balanced", "smart"]) {
+      expect(screen.getByTestId(`kanban-model-tier-${tier}-status`).textContent).toBe("");
+    }
+    fetchMock.mockImplementationOnce(async () => new Response("boom", { status: 500 }));
+    fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
+    const status = screen.getByTestId("kanban-model-tier-smart-status");
+    await waitFor(() => expect(status.className).toContain("text-danger"));
+    expect(status.className).not.toContain("text-red-600");
+    expect(status.textContent).not.toBe("");
+  });
+
+  it("drops the accent alert frame and only splits tiers into columns at xl", async () => {
+    render(<KanbanModelTiersCard />);
+    const card = await screen.findByTestId("kanban-model-tiers-card");
+    expect(card.className).not.toMatch(/border-l-4|border-l-desktop-accent|border-desktop-accent\/40/);
+    expect(card.className).toContain("border-desktop-border");
+    const grid = screen.getByTestId("kanban-model-tiers-grid");
+    expect(grid.className).not.toContain("md:grid-cols-3");
+    expect(grid.className).toContain("xl:grid-cols-3");
   });
 });
