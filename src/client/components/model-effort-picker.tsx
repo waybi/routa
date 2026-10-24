@@ -10,7 +10,7 @@
  * values to their own storage (session POST, lane step fields, card PATCH).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "@/i18n";
@@ -50,6 +50,18 @@ export interface ModelEffortPickerProps {
   allowDefaultEffort?: boolean;
   /** Hover text on the "Follow default" item (and on the capsule while it is selected): the model it resolves to. */
   defaultModelHint?: string;
+  /** Disabled capsule whose hover text explains why (e.g. the provider lists no options). */
+  disabledReason?: string;
+  /** Search box above the model list; filters by name and id across groups. */
+  searchable?: { placeholder: string; noMatch: string };
+  /** Display names for effort values ("" = default), replacing the agent's names. */
+  effortLabels?: Record<string, string>;
+  /** Short explanation under the effort segments. */
+  footerNote?: string;
+  /** Icon before the capsule text. */
+  leadingIcon?: ReactNode;
+  /** Return focus to the capsule after an outside click too (Escape always does). */
+  returnFocusOnDismiss?: boolean;
 }
 
 type PanelPosition = { left: number; top?: number; bottom?: number; maxHeight: number; width: number };
@@ -113,11 +125,19 @@ export function ModelEffortPicker({
   allowDefaultModel = true,
   allowDefaultEffort = true,
   defaultModelHint,
+  disabledReason,
+  searchable,
+  effortLabels,
+  footerNote,
+  leadingIcon,
+  returnFocusOnDismiss = false,
 }: ModelEffortPickerProps) {
   const { t } = useTranslation();
   const copy = t.kanbanModelSelection;
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<PanelPosition | null>(null);
+  const [query, setQuery] = useState("");
+  const isDisabled = disabled || Boolean(disabledReason);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const readOnly = Boolean(readOnlyReason);
@@ -126,13 +146,22 @@ export function ModelEffortPicker({
 
   const modelChoices = useMemo(() => withStoredChoice(choices?.models ?? [], currentModel), [choices, currentModel]);
   const effortChoices = useMemo(
-    () => withStoredChoice(choices?.reasoningEfforts ?? [], currentEffort),
-    [choices, currentEffort],
+    () => withStoredChoice(choices?.reasoningEfforts ?? [], currentEffort)
+      .map((choice) => (effortLabels?.[choice.value] ? { ...choice, label: effortLabels[choice.value] } : choice)),
+    [choices, currentEffort, effortLabels],
   );
-  const modelGroups = useMemo(() => groupModels(modelChoices), [modelChoices]);
+  const normalizedQuery = searchable ? query.trim().toLowerCase() : "";
+  const visibleModels = useMemo(
+    () => (normalizedQuery
+      ? modelChoices.filter((choice) => `${choice.label}\n${choice.value}`.toLowerCase().includes(normalizedQuery))
+      : modelChoices),
+    [modelChoices, normalizedQuery],
+  );
+  const modelGroups = useMemo(() => groupModels(visibleModels), [visibleModels]);
+  const defaultEffortLabel = effortLabels?.[""] ?? copy.defaultEffort;
 
   const modelText = findChoiceLabel(modelChoices, currentModel) ?? emptyLabel;
-  const effortText = findChoiceLabel(effortChoices, currentEffort) ?? effortEmptyLabel ?? copy.defaultEffort;
+  const effortText = findChoiceLabel(effortChoices, currentEffort) ?? effortEmptyLabel ?? defaultEffortLabel;
   const showEffort = effortChoices.length > 0 || Boolean(effortEmptyLabel);
   const capsuleText = showEffort ? `${modelText} · ${effortText}` : modelText;
   const resolvedAriaLabel = ariaLabel ?? copy.pickerAriaLabel;
@@ -148,14 +177,20 @@ export function ModelEffortPicker({
       const target = event.target as Node;
       if (panelRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
       setIsOpen(false);
+      if (returnFocusOnDismiss) buttonRef.current?.focus();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
+  }, [isOpen, returnFocusOnDismiss]);
 
-  // Move focus into the list on open so arrow keys work right away.
+  // Move focus into the search box (or the list) on open so typing / arrow keys work right away.
   useEffect(() => {
     if (!isOpen) return;
+    const search = panelRef.current?.querySelector<HTMLElement>('[data-model-search]');
+    if (search) {
+      search.focus();
+      return;
+    }
     const selected = panelRef.current?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
       ?? panelRef.current?.querySelector<HTMLElement>('[role="option"]');
     selected?.focus();
@@ -180,6 +215,7 @@ export function ModelEffortPicker({
     const spaceBelow = window.innerHeight - rect.bottom - padding;
     const width = Math.max(PANEL_MIN_WIDTH, variant === "form" ? rect.width : 0);
     const base = { left: resolvePanelLeft(rect, width, window.innerWidth), width };
+    setQuery("");
     setPosition(spaceBelow >= spaceAbove
       ? { ...base, top: rect.bottom + 4, maxHeight: Math.min(spaceBelow, preferredHeight) }
       : { ...base, bottom: window.innerHeight - rect.top + 4, maxHeight: Math.min(spaceAbove, preferredHeight) });
@@ -187,7 +223,7 @@ export function ModelEffortPicker({
   };
 
   const handleButtonClick = () => {
-    if (readOnly || disabled) return;
+    if (readOnly || isDisabled) return;
     if (isOpen) {
       close(false);
       return;
@@ -268,18 +304,19 @@ export function ModelEffortPicker({
         type="button"
         onClick={handleButtonClick}
         onKeyDown={handleButtonKeyDown}
-        disabled={disabled}
+        disabled={isDisabled}
         aria-disabled={readOnly || undefined}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={resolvedAriaLabel}
-        title={readOnlyReason ?? (!currentModel && defaultModelHint
+        title={readOnlyReason ?? disabledReason ?? (!currentModel && defaultModelHint
           ? `${resolvedAriaLabel}: ${capsuleText}\n${defaultModelHint}`
           : `${resolvedAriaLabel}: ${capsuleText}`)}
         data-testid={testIdPrefix}
         data-readonly={readOnly || undefined}
         className={variant === "form" ? FORM_BUTTON_CLASS : TOOLBAR_BUTTON_CLASS}
       >
+        {leadingIcon}
         <span
           className={variant === "form" ? "min-w-0 flex-1 truncate text-left" : "truncate max-w-56"}
           data-testid={`${testIdPrefix}-label`}
@@ -315,8 +352,22 @@ export function ModelEffortPicker({
                 {copy.model}
               </p>
             </div>
+            {searchable && (
+              <div className="px-2 pt-2">
+                <input
+                  type="search"
+                  data-model-search=""
+                  data-testid={`${testIdPrefix}-search`}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={searchable.placeholder}
+                  aria-label={searchable.placeholder}
+                  className="w-full rounded-md border border-default bg-transparent px-2 py-1 text-xs text-primary outline-none focus:border-accent"
+                />
+              </div>
+            )}
             <div role="listbox" aria-label={copy.model} className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-              {allowDefaultModel && renderOption("", copy.followDefault, defaultModelHint)}
+              {allowDefaultModel && !normalizedQuery && renderOption("", copy.followDefault, defaultModelHint)}
               {modelGroups.map((group, index) => (
                 <div key={`${group.label ?? "ungrouped"}-${index}`} role="group" aria-label={group.label}>
                   {group.label && (
@@ -329,6 +380,9 @@ export function ModelEffortPicker({
               ))}
               {modelChoices.length === 0 && (
                 <div className="px-3 py-2 text-[11px] text-secondary">{copy.noModels}</div>
+              )}
+              {modelChoices.length > 0 && visibleModels.length === 0 && searchable && (
+                <div className="px-3 py-2 text-[11px] text-secondary" data-testid={`${testIdPrefix}-no-match`}>{searchable.noMatch}</div>
               )}
             </div>
             {(effortChoices.length > 0 || currentEffort) && (
@@ -343,7 +397,7 @@ export function ModelEffortPicker({
                 >
                   {[
                     // Not selectable: still shown while it is the current value.
-                    ...(allowDefaultEffort || !currentEffort ? [{ value: "", label: copy.defaultEffort }] : []),
+                    ...(allowDefaultEffort || !currentEffort ? [{ value: "", label: defaultEffortLabel }] : []),
                     ...effortChoices,
                   ].map((choice) => {
                     const selected = choice.value === currentEffort;
@@ -354,7 +408,7 @@ export function ModelEffortPicker({
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        disabled={disabled || locked}
+                        disabled={isDisabled || locked}
                         data-testid={`${testIdPrefix}-effort-option`}
                         data-value={choice.value}
                         onClick={() => selectEffort(choice.value)}
@@ -370,6 +424,11 @@ export function ModelEffortPicker({
                   })}
                 </div>
               </div>
+            )}
+            {footerNote && (
+              <p className="m-0 border-t border-default px-3 py-2 text-[11px] leading-relaxed text-secondary" data-testid={`${testIdPrefix}-note`}>
+                {footerNote}
+              </p>
             )}
           </div>
         </div>,

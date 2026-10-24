@@ -10,12 +10,13 @@
  * - Context (workspace/repo) is always visible but non-intrusive
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { TiptapInput, type InputContext, type InsertTextRequest } from "./tiptap-input";
-import { ModelEffortPicker } from "./model-effort-picker";
+import { ModelEffortPicker, type ModelEffortPickerProps } from "./model-effort-picker";
 import { useModelEffortChoices } from "../model-effort/use-model-effort-choices";
 import { useAcp } from "../hooks/use-acp";
+import { hasPickedComposerProvider, markComposerProviderPicked, subscribeToComposerProviderPick } from "../hooks/acp-provider-choice";
 import { useSkills } from "../hooks/use-skills";
 import { useWorkspaces, useCodebases } from "../hooks/use-workspaces";
 import type { RepoSelection } from "./repo-picker";
@@ -113,6 +114,15 @@ interface HomeInputProps {
   onSkillPillClick?: (name: string) => void;
   /** Legacy fallback for single-mode launchers. Prefer launchModes for new call sites. */
   extraSessionParams?: HomeInputSessionConfig;
+  /** Keep the model / effort capsule visible when the provider lists no options (disabled, with a reason). */
+  alwaysShowModelEffortPicker?: boolean;
+  /** data-testid prefix of the model / effort capsule. */
+  modelEffortTestIdPrefix?: string;
+  /** Capsule presentation; `unsupportedReason` is the hover text while the provider lists no options. */
+  modelEffortPickerOptions?: Pick<ModelEffortPickerProps, "ariaLabel" | "searchable" | "effortLabels" | "footerNote" | "leadingIcon" | "returnFocusOnDismiss">
+    & { emptyLabel?: string; unsupportedReason?: string };
+  /** Provider to use while no provider choice is stored, if it is available. */
+  preferredDefaultProvider?: string;
 }
 
 export function HomeInput({
@@ -134,6 +144,10 @@ export function HomeInput({
   displaySkills,
   onSkillPillClick: _onSkillPillClick,
   extraSessionParams,
+  alwaysShowModelEffortPicker = false,
+  modelEffortTestIdPrefix = "home-model-effort-picker",
+  modelEffortPickerOptions,
+  preferredDefaultProvider,
 }: HomeInputProps) {
   const router = useRouter();
   const acp = useAcp();
@@ -370,8 +384,20 @@ export function HomeInput({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Until the user picks a provider in a composer: the caller's preferred provider (when available).
+  const hasPickedProvider = useSyncExternalStore(subscribeToComposerProviderPick, hasPickedComposerProvider, () => true);
+  const selectedProviderId = preferredDefaultProvider && !hasPickedProvider
+    && acp.providers?.some((provider) => provider.id === preferredDefaultProvider)
+    ? preferredDefaultProvider
+    : acp.selectedProvider;
+  const { setProvider } = acp;
+  const handleProviderChange = useCallback((providerId: string) => {
+    markComposerProviderPicked();
+    setProvider(providerId);
+  }, [setProvider]);
+
   // Options for the composer picker; one cached request per provider.
-  const pickerProviderId = acp.selectedProvider?.trim() ?? "";
+  const pickerProviderId = selectedProviderId?.trim() ?? "";
   const modelEffortChoicesByProvider = useModelEffortChoices(pickerProviderId ? [pickerProviderId] : []);
   const pickerChoices = pickerProviderId ? modelEffortChoicesByProvider[pickerProviderId] : undefined;
   const showModelEffortPicker = Boolean(
@@ -384,6 +410,7 @@ export function HomeInput({
     setPickerProviderSeen(pickerProviderId);
     setPickedModelEffort({ model: "", reasoningEffort: "" });
   }
+  const { unsupportedReason: unsupportedPickerReason, emptyLabel: pickerEmptyLabel, ...pickerPresentation } = modelEffortPickerOptions ?? {};
   const pickedModel = showModelEffortPicker ? pickedModelEffort.model : "";
   const pickedEffort = showModelEffortPicker ? pickedModelEffort.reasoningEffort : "";
 
@@ -408,7 +435,7 @@ export function HomeInput({
           selectedSpecialistId,
         });
         const selectedSpec = effectiveSpecialistId ? specialists.find((s) => s.id === effectiveSpecialistId) : undefined;
-        const effectiveProvider = context.provider ?? selectedSpec?.defaultProvider ?? acp.selectedProvider;
+        const effectiveProvider = context.provider ?? selectedSpec?.defaultProvider ?? selectedProviderId;
         const conn = loadProviderConnectionConfig(effectiveProvider);
         // Picker choice ranks after the legacy toolbar model and before the specialist/connection default.
         const modelAliasOrName = context.model ?? (pickedModel || undefined) ?? selectedSpec?.model ?? conn.model;
@@ -476,7 +503,7 @@ export function HomeInput({
         setIsSubmitting(false);
       }
     },
-    [acp, activeSessionConfig, allowCustomSpecialist, effectiveBuildSessionUrl, effectiveDispatchMode, effectiveLockedSpecialistId, effectiveRequireRepoSelection, pickedEffort, pickedModel, router, onSessionCreated, selectedRole, selectedSpecialistId, selectedWorkspaceId, specialists],
+    [acp, activeSessionConfig, allowCustomSpecialist, effectiveBuildSessionUrl, effectiveDispatchMode, effectiveLockedSpecialistId, effectiveRequireRepoSelection, pickedEffort, pickedModel, router, onSessionCreated, selectedProviderId, selectedRole, selectedSpecialistId, selectedWorkspaceId, specialists],
   );
 
   const activeWorkspace = workspacesHook.workspaces.find((w) => w.id === selectedWorkspaceId);
@@ -544,8 +571,8 @@ export function HomeInput({
             skills={skillsHook.skills}
             repoSkills={skillsHook.repoSkills}
             providers={acp.providers}
-            selectedProvider={acp.selectedProvider}
-            onProviderChange={acp.setProvider}
+            selectedProvider={selectedProviderId}
+            onProviderChange={handleProviderChange}
             repoSelection={repoSelection}
             onRepoChange={handleRepoSelectionChange}
             additionalRepos={codebases
@@ -562,15 +589,17 @@ export function HomeInput({
             onSkillInserted={() => setPendingSkill(null)}
             insertTextRequest={insertTextRequest}
             variant={variant}
-            beforeProviderSlot={showModelEffortPicker ? (
+            beforeProviderSlot={showModelEffortPicker || alwaysShowModelEffortPicker ? (
               <ModelEffortPicker
+                {...pickerPresentation}
                 choices={pickerChoices}
                 model={pickedModel}
                 reasoningEffort={pickedEffort}
                 onChange={setPickedModelEffort}
                 disabled={!acp.connected || isSubmitting}
-                emptyLabel={t.chat.sessionConfig.defaultModel}
-                testIdPrefix="home-model-effort-picker"
+                disabledReason={showModelEffortPicker ? undefined : unsupportedPickerReason}
+                emptyLabel={pickerEmptyLabel ?? t.chat.sessionConfig.defaultModel}
+                testIdPrefix={modelEffortTestIdPrefix}
               />
             ) : undefined}
           />
