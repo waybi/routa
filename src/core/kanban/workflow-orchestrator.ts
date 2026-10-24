@@ -29,6 +29,7 @@ import {
 } from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
+import { reconcileExitAfterTurnEnd, settleUnhandledLaneEnd } from "./lane-session-settlement";
 import {
   classifyRetryableEnvironmentFailure,
   formatEnvironmentFailureError,
@@ -495,6 +496,7 @@ export class KanbanWorkflowOrchestrator {
     const automation = this.activeAutomations.get(cardId);
     if (!automation) return;
     if (options?.columnId !== undefined && automation.columnId !== options.columnId) return;
+    if (automation.sessionId) this.cardEndedSessionIds.add(automation.sessionId); // its later end is teardown
     this.activeAutomations.delete(cardId);
   }
 
@@ -714,7 +716,7 @@ export class KanbanWorkflowOrchestrator {
     await this.finishDeferredTeardown(event);
     const endedSessionId = typeof event.data?.sessionId === "string" ? event.data.sessionId : undefined;
     if (endedSessionId && this.cardEndedSessionIds.has(endedSessionId)) {
-      return;
+      return settleUnhandledLaneEnd(this.taskStore, getHttpSessionStore(), event, "teardown");
     }
     const departedCardId = endedSessionId ? this.departedLaneSessions.get(endedSessionId) : undefined;
     if (endedSessionId && departedCardId) {
@@ -747,10 +749,11 @@ export class KanbanWorkflowOrchestrator {
           automation.status = "queued";
         }
         automation.signaledSessionIds.add(eventSessionId);
-        return;
+        return settleUnhandledLaneEnd(this.taskStore, getHttpSessionStore(), event, "teardown", cardId);
       }
 
       const sessionStore = getHttpSessionStore();
+      event = reconcileExitAfterTurnEnd(event, sessionStore); // exit right after a normal turn end = that end
       const sessionActivity = sessionStore.getSessionActivity(eventSessionId);
       if (task) {
         upsertTaskLaneSession(task, {
@@ -796,7 +799,7 @@ export class KanbanWorkflowOrchestrator {
         ? await this.shouldRecover(task, automation, event, completionSatisfied)
         : false;
 
-      if (task) {
+      if (task && getTaskLaneSession(task, eventSessionId)?.status === "running") { // an ended record is final
         const nextStatus = event.type === AgentEventType.AGENT_TIMEOUT
           ? "timed_out"
           : successEvent && completionSatisfied
@@ -952,6 +955,7 @@ export class KanbanWorkflowOrchestrator {
       }, COMPLETED_AUTOMATION_CLEANUP_DELAY_MS);
       return;
     }
+    await settleUnhandledLaneEnd(this.taskStore, getHttpSessionStore(), event, "event"); // no automation follows it
   }
 
   /**

@@ -83,6 +83,8 @@ export function markTaskLaneSessionStatus(
   task: TaskLaneHistoryState,
   sessionId: string | undefined,
   status: TaskLaneSessionStatus,
+  /** When the session really ended (e.g. read from its history); defaults to now. */
+  completedAt?: string,
 ): TaskLaneSession | undefined {
   if (!sessionId) {
     return undefined;
@@ -96,7 +98,7 @@ export function markTaskLaneSessionStatus(
 
   entry.status = status;
   if (status !== "running") {
-    entry.completedAt = new Date().toISOString();
+    entry.completedAt = completedAt ?? new Date().toISOString();
   }
   refreshTaskLaneExperienceMemory(task);
   return entry;

@@ -249,6 +249,17 @@ setInterval(() => scanForInactiveSessions(), 30_000)
 Agent 完成/失败/超时
    │
    ▼
+⓪ 编排器不处理这次结束的出口，也都落 lane 终态（lane-session-settlement.ts，只改记录）：
+   ├─ 用户删卡/移卡结束的会话（cardEndedSessionIds，含 forgetCard 丢掉的运行）
+   ├─ 已完成卡收尾时的失败（isPostCompletionTeardownFailure）
+   │    → 会话历史里回合以 end_turn 结束记 completed，否则 transitioned，从不记 failed
+   ├─ 自动化已 completed/failed、30 秒后已删，或事件会话不是编排器在跟的这一步
+   │    → 按事件：成功 completed；取消 failed+turn_cancelled；失败 failed+agent_failed
+   │      （环境故障 environment_failure）；超时 timed_out
+   └─ 已是终态的记录不改（同一会话的多次结束事件只生效一次）
+   编排器在跟的这一步：进程退出（AGENT_FAILED）但会话历史里这一回合已 end_turn 结束 → 按成功处理
+   │
+   ▼
 ① 是成功吗？
    ├─ AGENT_FAILED / AGENT_TIMEOUT → successEvent = false
    ├─ 回合以 stopReason=cancelled 结束 → successEvent = false
@@ -306,6 +317,14 @@ Routa 先死、没收到回合结束的，由启动清扫和 revive 记 timed_ou
 之前这一步被记成 completed 并推进：卡 a0b2b4fa 的 Done 推送员（会话 4a14cb98）2026-10-23 20:25:46 被取消，
 Routa 接着起了完成汇报员，提交没进主干。
 
+**每个出口都落终态（卡 6d8365ca，复盘 L189）**：之前 ⓪ 里这些出口直接 return，lane 记录停在 running，
+要等重启后的启动清扫才收尾，而且被记成 transitioned / timed_out。复盘脚本和「需要你处理」只认 completed，
+于是误报「缺推送员和汇报员」（25afcd82、e11cac2f、497ae435），僵尸 running 还占看板名额。
+现在每个出口都调同一个幂等函数 `settleEndedLaneSession`：重读卡、只改仍是 running 的那条记录、存库；
+不起下一步、不 kill、不 fallback、不恢复，所以编排器没跟踪的运行不会被推进两次。
+会话结束事件早于 lane 记录写入时（极快结束的会话）找不到记录，由下次启动清扫收尾（见 5d）。
+没被编排器跟踪的会话结束时，按事件里的 workspaceId 扫该工作区的卡找这条 running 记录。
+
 ### 5c. 手动「重新运行」（PATCH retryTrigger）
 
 ~~~plaintext
@@ -318,7 +337,9 @@ enqueueKanbanTaskSession(resumeLane: true)
    │    没完成（failed / timed_out，含 turn_cancelled、restart_interrupted）→ 重跑那一步；
    │    完成了 → 跑下一步（下一步丢了的情况）；
    │    已是最后一步或还没跑过 → 第一步
-   │  卡上有卡片级 agent 覆盖时不选步骤，走原来的单步重跑
+   │  卡上有卡片级 agent 覆盖、或选不出步骤时，照原样起会话，但同样交给编排器
+   │  （stepIndex 用起会话时的步骤号 0）；编排器拒绝接管（adoptLaneRun 返回 false）时，
+   │  这次运行结束时仍由 5b ⓪ 的兜底落终态
    ▼
 编排器 adoptLaneRun：为这次运行建 ActiveAutomation（running 或 queued），
    它结束后照常推进到列内下一步 / autoAdvance
@@ -614,3 +635,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-24 | 车道步骤被取消（stopReason=cancelled）记 failed + `turn_cancelled`，不起下一步、不走 fallback 和恢复、不进下一列；启动清扫和 revive 把当前列被重启打断的记录一律记 timed_out + `restart_interrupted`（不再因卡上有 verdict/completionSummary 记 transitioned）；revive 对本列第 1 步及以后被打断的卡重跑那一步；TS 与 Rust 的 recoveryReason 各加两个值（5b、5c、5d） | 新增 C1–C8 对应用例与随机对拍（清扫 10,000 组、取消 10,000 组，不一致 0 组），撤掉实现后 C1/C2/C4/C5/C6/C7/C8 用例变红；修复前 Done 推送员被取消会被记 completed 并起完成汇报员（卡 a0b2b4fa 提交漏进主干）。界面手动取消会话后卡停在本列 | 本提交 fix(kanban): record cancelled or restart-interrupted lane steps as failed and rerun them |
 | 2026-10-24 | 429 限流和重启打断归为「可重试环境失败」：新 recoveryReason `rate_limited` 和 lane 字段 `retryAfterAt`（TS 与 Rust 同步）；限流、取消、重启打断不计非开发列 3 次上限、不扣开发列 recoveryAttempts；429 按 resets_at / retry-after 或 5/10/20 分钟退避在同一步自动重跑；revive 在 retryAfterAt 前不重跑；同列连续 5 次可重试环境失败熔断（5b、5d、5e） | 新增约 100 个用例与随机对拍（分类 10,000 条、时间 10,000 组，不一致 0；植入错各被抓到），线上库 76 条失败记录里复盘报告列的 15 次 429 全判 rate_limited；撤掉实现后 C3/C4/C6 用例与 Rust 用例变红 | feat(rust): keep rate_limited lane records…、feat(kanban): classify rate limits as retryable…、fix(kanban): rate limits and restart interruptions no longer consume retry budgets…、本提交 fix(kanban): revive waits for retryAfterAt… |
 | 2026-10-24 | 卡 79804de2 rebase 到主干（主干新增 leaveLane）：列转移先取消限流计时器再 leaveLane；限流重跑函数从编排器挪到 `rate-limit-retry.ts`（5e） | workflow-orchestrator.ts 1647 → 1596 行，回到 1600 行预算内；新增「move_card 移到 Blocked 后计时器取消、到点 0 个会话」用例，去掉取消那一行即变红 | 本提交 refactor(kanban): run the rate-limit rerun from rate-limit-retry.ts… |
+| 2026-10-24 | 车道步骤结束的每个出口都落 lane 终态（用户结束 / 已完成卡收尾 → completed 或 transitioned，从不 failed；自动化已结束、已删、会话不匹配 → 按事件），只改记录不推进；进程退出前回合已 end_turn 的按完成处理；forgetCard 丢掉的运行按收尾处理；编排器不再改写已结束的记录；重新运行找不到续跑步骤（卡片级 agent 覆盖等）也交编排器接管（5b、5c） | 新增 44 个用例（结束出口 24、进程层 8、重跑入口 12），改前与撤掉实现各 28 个变红（全是断言失败）；修复前 25afcd82 / e11cac2f / 497ae435 的 Done 推送员和汇报员跑完仍 running、fd9722de 的开发会话 b2261ec7 没有结束记录 | 本提交 fix(kanban): settle the lane record at every end of a step session |

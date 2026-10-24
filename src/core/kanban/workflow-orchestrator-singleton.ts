@@ -149,6 +149,22 @@ export async function enqueueKanbanTaskSession(
         adoptLaneRun: true,
       });
     }
+    // No lane step to resume (a card-level agent override, or no step found):
+    // the run still belongs to the lane, so the orchestrator follows it at the
+    // step it starts as (card 6d8365ca; dev session b2261ec7 was never ended).
+    // If the orchestrator refuses, the run's end still settles its lane record.
+    const { resumeLane: _resumeLane, ...startParams } = params;
+    const columnId = params.expectedColumnId ?? task.columnId;
+    const result = await enqueueKanbanTaskSession(system, startParams);
+    if (columnId && (result.sessionId || result.queued)) {
+      await getWorkflowOrchestrator(system).adoptLaneRun({
+        cardId: task.id,
+        columnId,
+        stepIndex: params.stepIndex ?? 0,
+        sessionId: result.sessionId,
+      });
+    }
+    return result;
   }
 
   if (params.adoptLaneRun) {
