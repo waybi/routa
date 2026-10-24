@@ -69,6 +69,7 @@ export function upsertTaskLaneSession(
     lastActivityAt: session.lastActivityAt,
     recoveredFromSessionId: session.recoveredFromSessionId,
     recoveryReason: session.recoveryReason,
+    retryAfterAt: session.retryAfterAt,
     status: session.status ?? "running",
     startedAt: session.startedAt ?? new Date().toISOString(),
     completedAt: session.completedAt,

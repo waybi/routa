@@ -200,7 +200,9 @@ export interface TaskInfo {
       | "completion_criteria_not_met"
       | "environment_failure"
       | "turn_cancelled"
-      | "restart_interrupted";
+      | "restart_interrupted"
+      | "rate_limited";
+    retryAfterAt?: string;
     status: "running" | "completed" | "failed" | "timed_out" | "transitioned";
     startedAt: string;
     completedAt?: string;

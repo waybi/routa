@@ -110,7 +110,12 @@ export type TaskLaneSessionRecoveryReason =
   /** The turn ended with stopReason=cancelled (Routa restart, manual cancel); waits for a manual rerun. */
   | "turn_cancelled"
   /** Routa restarted while the step ran; the startup sweep or revive ended the record. */
-  | "restart_interrupted";
+  | "restart_interrupted"
+  /**
+   * The model was rate limited (HTTP 429, usage_limit_reached, ...). Retryable:
+   * not counted against any retry budget; re-run automatically at retryAfterAt.
+   */
+  | "rate_limited";
 
 export type TaskLaneHandoffRequestType =
   | "environment_preparation"
@@ -156,6 +161,8 @@ export interface TaskLaneSession {
   lastActivityAt?: string;
   recoveredFromSessionId?: string;
   recoveryReason?: TaskLaneSessionRecoveryReason;
+  /** ISO time a rate-limited run is planned to be re-run (recoveryReason "rate_limited"). */
+  retryAfterAt?: string;
   status: TaskLaneSessionStatus;
   startedAt: string;
   completedAt?: string;
