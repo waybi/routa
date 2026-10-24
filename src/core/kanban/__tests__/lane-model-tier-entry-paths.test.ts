@@ -21,7 +21,7 @@ const { processManager, systemRef } = vi.hoisted(() => ({
     getProcess: vi.fn((): unknown => undefined),
     hasActiveSession: vi.fn(() => false),
     getConfigOptions: vi.fn((): unknown[] => []),
-    setConfigOption: vi.fn(async (): Promise<unknown[]> => []),
+    setConfigOption: vi.fn(async (_sessionId: string, _configId: string, _value: string): Promise<unknown[]> => []),
     killSession: vi.fn(),
   },
   systemRef: { current: undefined as unknown },
@@ -408,8 +408,7 @@ describe("lane agent model: global tier setting on every start path", () => {
       processManager.getProcess.mockReturnValue({});
       processManager.getConfigOptions.mockImplementation(() => options());
       processManager.setConfigOption.mockReset();
-      processManager.setConfigOption.mockImplementation(async (...args: unknown[]) => {
-        const [, configId, value] = args as [string, string, string];
+      processManager.setConfigOption.mockImplementation(async (_sessionId: string, configId: string, value: string) => {
         // Mirrors DSH: switching the model resets reasoning_effort.
         if (configId === "model") current = { model: JSON.parse(value)[1], effort: "" };
         else current = { ...current, effort: value };
