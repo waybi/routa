@@ -467,6 +467,13 @@ export class KanbanWorkflowOrchestrator {
   }
 
   private async handleColumnTransitionData(data: ColumnTransitionData): Promise<void> {
+    // The card left the column its automation runs in: that lane is over even
+    // when the new column has no automation (e.g. move_card into Blocked), so
+    // a late end of its session must not start, fail or recover a step there.
+    // Runs before any await so it is in place when the emitter returns.
+    if (data.fromColumnId !== data.toColumnId) {
+      this.forgetCard(data.cardId, { columnId: data.fromColumnId });
+    }
     const board = await this.kanbanBoardStore.get(data.boardId);
     if (!board) return;
     const resolved = resolveTransitionAutomation(board, data);
