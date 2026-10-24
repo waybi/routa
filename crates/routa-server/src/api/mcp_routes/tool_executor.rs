@@ -1,7 +1,10 @@
 mod agents_tasks;
 mod delegation;
 mod events_kanban;
+mod get_task;
 mod notes_workspace;
+
+pub(super) use get_task::{get_task_input_schema, GET_TASK_DESCRIPTION};
 
 use crate::rpc::RpcRouter;
 use crate::state::AppState;

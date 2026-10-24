@@ -409,6 +409,7 @@ pub(super) async fn execute(
                 Err(error) => tool_result_error(&error),
             }
         }
+        "get_task" => super::get_task::execute(state, args, workspace_id).await,
         _ => return None,
     };
 

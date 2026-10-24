@@ -296,6 +296,7 @@ async fn api_mcp_kanban_profile_filters_tools_list() {
         "update_task",
         "update_card",
         "move_card",
+        "get_task",
         "create_note",
         "provide_artifact",
         "list_artifacts",
@@ -309,6 +310,10 @@ async fn api_mcp_kanban_profile_filters_tools_list() {
     assert!(
         names.iter().all(|name| allowed.contains(name)),
         "kanban profile should only expose allowed tools, got: {names:?}"
+    );
+    assert!(
+        names.contains(&"get_task"),
+        "kanban profile should expose the read-only get_task tool, got: {names:?}"
     );
     assert!(
         names.contains(&"create_card") && names.contains(&"decompose_tasks"),

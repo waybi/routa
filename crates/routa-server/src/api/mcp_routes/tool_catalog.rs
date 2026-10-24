@@ -29,6 +29,7 @@ pub(super) fn tool_allowed_for_profile(name: &str, profile: Option<&str>) -> boo
                 | "update_task"
                 | "update_card"
                 | "move_card"
+                | "get_task"
                 | "create_note"
                 | "provide_artifact"
                 | "list_artifacts"
@@ -431,6 +432,7 @@ fn build_tool_list_inner() -> Vec<serde_json::Value> {
             },
             "required": ["cardId"]
         })),
+        tool_def("get_task", super::tool_executor::GET_TASK_DESCRIPTION, super::tool_executor::get_task_input_schema()),
         tool_def("delete_card", "Delete a card from the board", serde_json::json!({
             "type": "object",
             "properties": {
@@ -562,6 +564,7 @@ mod tests {
             "update_task",
             "update_card",
             "move_card",
+            "get_task",
             "create_note",
             "provide_artifact",
             "list_artifacts",
@@ -575,6 +578,42 @@ mod tests {
 
         assert!(!names.is_empty());
         assert!(names.iter().all(|name| allowed.contains(name)));
+        // F2 ①: baseline kanban-planning list (no capture_screenshot in the Rust
+        // catalog) plus get_task, nothing dropped.
+        let actual: HashSet<&str> = names.iter().copied().collect();
+        let expected: HashSet<&str> = allowed
+            .iter()
+            .copied()
+            .filter(|name| *name != "capture_screenshot")
+            .collect();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn get_task_is_listed_for_full_and_kanban_planning_profiles() {
+        for profile in [None, Some("kanban-planning")] {
+            let tools = build_tool_list_for_profile(profile);
+            let get_task = tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(|v| v.as_str()) == Some("get_task"))
+                .unwrap_or_else(|| panic!("get_task missing for profile {profile:?}"));
+            let properties = get_task["inputSchema"]["properties"]
+                .as_object()
+                .expect("schema");
+            for key in [
+                "taskId",
+                "commentLimit",
+                "maxCommentChars",
+                "sessionId",
+                "workspaceId",
+            ] {
+                assert!(properties.contains_key(key), "missing {key}");
+            }
+        }
+        assert!(tool_allowed_for_profile(
+            "get_task",
+            Some("kanban-planning")
+        ));
     }
 
     #[test]
