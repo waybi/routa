@@ -3,26 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   describeKanbanModelTiers,
   isValidKanbanTierModelId,
+  isValidKanbanTierReasoningEffort,
   KANBAN_MODEL_TIER_KEYS,
   KANBAN_MODEL_TIER_PROVIDER_ID,
   modelTierToKey,
-  readKanbanModelTierOverrides,
-  writeKanbanModelTierOverrides,
-  type KanbanModelTierOverrides,
+  readKanbanModelTierSettings,
+  writeKanbanModelTierSettings,
+  type KanbanModelTierSettings,
+  type KanbanTierSetting,
 } from "@/core/kanban/kanban-model-tiers";
 import { loadSpecialistsSync } from "@/core/orchestration/specialist-prompts";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Global per-tier default models for DSH lane agents.
+ * Global per-tier default models and reasoning efforts for DSH lane agents.
  *
- * GET  -> { providerId, tiers: { fast|balanced|smart: { override, codeDefault, effective } },
+ * GET  -> { providerId,
+ *           tiers: { fast|balanced|smart: { override, codeDefault, effective,
+ *                                           reasoningEffort: { override, effective } } },
  *           specialists: [{ id, name, tier, model? }] }
- * PUT  { fast?, balanced?, smart? } -> same shape. A string sets the tier,
- *      null or "" clears it ("follow the code default"), an absent key keeps it.
+ * PUT  -> same shape. Per tier key, two body forms:
+ *   legacy  { fast: "<model>" }  a string sets the model, null or "" clears it;
+ *           the stored reasoning effort is kept.
+ *   object  { fast: { model?, reasoningEffort? } }  per field: a string sets it,
+ *           null or "" clears it, an absent field keeps it.
+ *   An absent tier key keeps the whole tier. Invalid values -> 400, nothing written.
  */
-function buildResponse(locale: string | null, overrides?: KanbanModelTierOverrides) {
+function buildResponse(locale: string | null, settings?: KanbanModelTierSettings) {
   const specialists = loadSpecialistsSync(locale || undefined).flatMap((specialist) => {
     const tier = modelTierToKey(specialist.defaultModelTier);
     if (!tier) return [];
@@ -35,9 +43,24 @@ function buildResponse(locale: string | null, overrides?: KanbanModelTierOverrid
   });
   return {
     providerId: KANBAN_MODEL_TIER_PROVIDER_ID,
-    tiers: describeKanbanModelTiers(overrides),
+    tiers: describeKanbanModelTiers(settings),
     specialists,
   };
+}
+
+type FieldUpdate = { kind: "keep" } | { kind: "clear" } | { kind: "set"; value: string } | { kind: "invalid" };
+
+function parseField(value: unknown, isValid: (value: string) => boolean): FieldUpdate {
+  if (value === undefined) return { kind: "keep" };
+  if (value === null || (typeof value === "string" && value.trim() === "")) return { kind: "clear" };
+  if (typeof value !== "string" || !isValid(value.trim())) return { kind: "invalid" };
+  return { kind: "set", value: value.trim() };
+}
+
+function applyField(current: string | undefined, update: FieldUpdate): string | undefined {
+  if (update.kind === "keep") return current;
+  if (update.kind === "set") return update.value;
+  return undefined;
 }
 
 export async function GET(request: NextRequest) {
@@ -55,20 +78,28 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Body must be an object" }, { status: 400 });
   }
 
-  const next: KanbanModelTierOverrides = { ...readKanbanModelTierOverrides() };
+  const current = readKanbanModelTierSettings();
+  const next: KanbanModelTierSettings = { ...current };
   for (const key of KANBAN_MODEL_TIER_KEYS) {
     if (!(key in body)) continue;
     const value = (body as Record<string, unknown>)[key];
-    if (value === null || (typeof value === "string" && value.trim() === "")) {
-      delete next[key];
-      continue;
-    }
-    if (typeof value !== "string" || !isValidKanbanTierModelId(value.trim())) {
+    const isObject = !!value && typeof value === "object" && !Array.isArray(value);
+    const modelUpdate = parseField(isObject ? (value as KanbanTierSetting).model : value, isValidKanbanTierModelId);
+    if (modelUpdate.kind === "invalid") {
       return NextResponse.json({ error: `Invalid model for tier "${key}"` }, { status: 400 });
     }
-    next[key] = value.trim();
+    const effortUpdate: FieldUpdate = isObject
+      ? parseField((value as KanbanTierSetting).reasoningEffort, isValidKanbanTierReasoningEffort)
+      : { kind: "keep" };
+    if (effortUpdate.kind === "invalid") {
+      return NextResponse.json({ error: `Invalid reasoning effort for tier "${key}"` }, { status: 400 });
+    }
+    next[key] = {
+      model: applyField(current[key]?.model, modelUpdate),
+      reasoningEffort: applyField(current[key]?.reasoningEffort, effortUpdate),
+    };
   }
 
-  const saved = writeKanbanModelTierOverrides(next);
+  const saved = writeKanbanModelTierSettings(next);
   return NextResponse.json(buildResponse(request.nextUrl.searchParams.get("locale"), saved));
 }

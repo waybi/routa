@@ -36,6 +36,7 @@ describe("/api/kanban/model-tiers", () => {
       override: null,
       codeDefault: PROVIDER_MODEL_TIERS.dsh.smart,
       effective: PROVIDER_MODEL_TIERS.dsh.smart,
+      reasoningEffort: { override: null, effective: null },
     });
     expect(data.specialists).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "kanban-done-reporter", tier: "balanced" }),
@@ -50,8 +51,8 @@ describe("/api/kanban/model-tiers", () => {
     expect(data.tiers.smart).toMatchObject({ override: "claude-sonnet-5-5", effective: "claude-sonnet-5-5" });
     expect(data.tiers.fast).toMatchObject({ override: "claude-haiku-5-5" });
     expect(JSON.parse(fs.readFileSync(file, "utf8")).tiers).toEqual({
-      fast: "claude-haiku-5-5",
-      smart: "claude-sonnet-5-5",
+      fast: { model: "claude-haiku-5-5" },
+      smart: { model: "claude-sonnet-5-5" },
     });
 
     const reread = await (await GET(new NextRequest("http://localhost/api/kanban/model-tiers"))).json();
@@ -65,8 +66,51 @@ describe("/api/kanban/model-tiers", () => {
       override: null,
       codeDefault: PROVIDER_MODEL_TIERS.dsh.smart,
       effective: PROVIDER_MODEL_TIERS.dsh.smart,
+      reasoningEffort: { override: null, effective: null },
     });
     expect(data.tiers.fast.override).toBeNull();
+  });
+
+  it("PUT object form sets the reasoning effort without touching the model", async () => {
+    await put({ smart: "claude-sonnet-5-5" });
+    const data = await (await put({ smart: { reasoningEffort: "high" } })).json();
+    expect(data.tiers.smart).toMatchObject({
+      override: "claude-sonnet-5-5",
+      reasoningEffort: { override: "high", effective: "high" },
+    });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).tiers).toEqual({
+      smart: { model: "claude-sonnet-5-5", reasoningEffort: "high" },
+    });
+  });
+
+  it("PUT object form sets both fields, keeps absent fields and clears with null or blank", async () => {
+    await put({ fast: { model: "claude-haiku-5-5", reasoningEffort: "low" } });
+    let data = await (await put({ fast: { model: "gpt-5.6-luna" } })).json();
+    expect(data.tiers.fast).toMatchObject({ override: "gpt-5.6-luna", reasoningEffort: { override: "low" } });
+
+    data = await (await put({ fast: { reasoningEffort: null } })).json();
+    expect(data.tiers.fast).toMatchObject({ override: "gpt-5.6-luna", reasoningEffort: { override: null, effective: null } });
+
+    await put({ fast: { reasoningEffort: "medium" } });
+    data = await (await put({ fast: { model: "", reasoningEffort: "  " } })).json();
+    expect(data.tiers.fast).toMatchObject({ override: null, reasoningEffort: { override: null } });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).tiers).toEqual({});
+  });
+
+  it("PUT legacy string form keeps the stored reasoning effort", async () => {
+    await put({ balanced: { reasoningEffort: "medium" } });
+    let data = await (await put({ balanced: "gpt-6-astra" })).json();
+    expect(data.tiers.balanced).toMatchObject({ override: "gpt-6-astra", reasoningEffort: { override: "medium" } });
+    data = await (await put({ balanced: null })).json();
+    expect(data.tiers.balanced).toMatchObject({ override: null, reasoningEffort: { override: "medium" } });
+  });
+
+  it("PUT rejects invalid reasoning efforts and object fields without writing", async () => {
+    expect((await put({ smart: { reasoningEffort: "Has Spaces" } })).status).toBe(400);
+    expect((await put({ smart: { reasoningEffort: 3 } })).status).toBe(400);
+    expect((await put({ smart: { model: "has spaces in it" } })).status).toBe(400);
+    expect((await put({ smart: { model: "claude-sonnet-5-5", reasoningEffort: "!" } })).status).toBe(400);
+    expect(fs.existsSync(file)).toBe(false);
   });
 
   it("PUT rejects invalid bodies and model ids without writing", async () => {
