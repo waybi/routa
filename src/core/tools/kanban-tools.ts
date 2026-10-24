@@ -81,6 +81,7 @@ import {
 } from "../kanban/transition-gates";
 import { resolveTaskWorktreeTruth } from "../kanban/task-worktree-truth";
 import { filterBacklogContextSearchSpec } from "../kanban/backlog-context-confirmation";
+import { buildTaskSnapshot, findTaskBoundToSession, type TaskSnapshotOptions } from "./kanban-task-snapshot";
 
 
 
@@ -294,6 +295,26 @@ export class KanbanTools {
     if (!task) return false;
     const board = task.boardId ? await this.kanbanBoardStore.get(task.boardId) : undefined;
     return canSessionWriteVerificationVerdict(task, sessionId, board?.columns ?? []);
+  }
+
+  /**
+   * Read-only card snapshot for the MCP `get_task` tool. Without `taskId` it
+   * reads the card bound to `sessionId` (trigger session first, then lane
+   * sessions). Never saves, broadcasts, or starts automation.
+   */
+  async getTask(params: TaskSnapshotOptions & { taskId?: string; sessionId?: string; workspaceId: string }): Promise<ToolResult> {
+    const options = { commentLimit: params.commentLimit, maxCommentChars: params.maxCommentChars };
+    if (params.taskId) {
+      const task = await this.taskStore.get(params.taskId);
+      return task ? successResult(buildTaskSnapshot(task, options)) : errorResult(`Task not found: ${params.taskId}`);
+    }
+    if (!params.sessionId) {
+      return errorResult("get_task needs a taskId: none was given and there is no current session to look up a bound card.");
+    }
+    const task = findTaskBoundToSession(await this.taskStore.listByWorkspace(params.workspaceId), params.sessionId);
+    return task
+      ? successResult(buildTaskSnapshot(task, options))
+      : errorResult(`No card is bound to session ${params.sessionId} in workspace ${params.workspaceId}; pass taskId.`);
   }
 
   async moveCard(params: {
@@ -960,6 +981,7 @@ export class KanbanTools {
       labels: task.labels,
       assignee: task.assignee,
       contextSearchSpec: task.contextSearchSpec,
+      verificationVerdict: task.verificationVerdict,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
     };
