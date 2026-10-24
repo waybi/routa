@@ -10,6 +10,12 @@
 
 import type { Task } from "../models/task";
 import type { SessionUpdateNotification } from "../acp/http-session-store";
+import type { TaskStore } from "../store/task-store";
+import type {
+  ActiveAutomation,
+  AutomationSessionSupervisionContext,
+  CreateAutomationSession,
+} from "./workflow-orchestrator";
 import {
   computeRateLimitRetryAt,
   formatRateLimitedError,
@@ -47,6 +53,16 @@ export class RateLimitRetryScheduler {
     this.arm(entry);
   }
 
+  /** Schedule a rerun of the automation's current step, keeping its Dev counters. */
+  scheduleRun(
+    automation: Pick<ActiveAutomation, "cardId" | "columnId" | "currentStepIndex" | "attempt" | "recoveryAttempts">,
+    failedSessionId: string,
+    retryAt: Date,
+  ): void {
+    const { cardId, columnId, currentStepIndex: stepIndex, attempt, recoveryAttempts } = automation;
+    this.schedule({ cardId, columnId, stepIndex, retryAt, failedSessionId, attempt, recoveryAttempts });
+  }
+
   private arm(entry: RateLimitRetryEntry): void {
     const delay = Math.max(0, entry.retryAt.getTime() - Date.now());
     const wait = Math.min(delay, MAX_TIMER_DELAY_MS);
@@ -72,6 +88,11 @@ export class RateLimitRetryScheduler {
     if (keepColumnId !== undefined && current.entry.columnId === keepColumnId) return;
     clearTimeout(current.timer);
     this.pending.delete(cardId);
+  }
+
+  /** forgetCard: drop the rerun, or only the one for `columnId` when given. */
+  forget(cardId: string, columnId?: string): void {
+    if (columnId === undefined || this.get(cardId)?.columnId === columnId) this.cancel(cardId);
   }
 
   stopAll(): void {
@@ -152,4 +173,69 @@ export function planRateLimitRetry(params: {
   });
   upsertTaskLaneSession(params.task, { sessionId: params.sessionId, retryAfterAt: retryAt.toISOString() });
   return { retryAt, lastSyncError: formatRateLimitedError(retryAt) };
+}
+
+/** What the rerun needs from the orchestrator. */
+export interface RateLimitRetryHost {
+  taskStore: Pick<TaskStore, "get" | "save">;
+  /** Starts a session for a lane step; undefined when no session creator is set. */
+  createSession?: (
+    params: Parameters<CreateAutomationSession>[0],
+  ) => Promise<{ sessionId?: string; queued: boolean }>;
+  /** Registers the lane run as the card's active automation; undefined when it cannot. */
+  adoptLaneRun: (params: {
+    cardId: string;
+    columnId: string;
+    stepIndex: number;
+    counters: { attempt: number; recoveryAttempts: number };
+  }) => Promise<ActiveAutomation | undefined>;
+  cleanupCardSession?: (cardId: string) => void;
+  buildSupervision: (
+    active: ActiveAutomation,
+    objective: string,
+    recoveredFromSessionId: string,
+  ) => AutomationSessionSupervisionContext | undefined;
+}
+
+/**
+ * Re-run a rate-limited step at the same index, as a new session. Nothing is
+ * counted: the Dev attempt and recovery counters are carried over unchanged.
+ */
+export async function runRateLimitRetry(host: RateLimitRetryHost, entry: RateLimitRetryEntry): Promise<void> {
+  const task = await host.taskStore.get(entry.cardId);
+  if (!host.createSession || !task || !canRunRateLimitRetry(task, entry)) return;
+  const { cardId, columnId, stepIndex } = entry;
+  const active = await host.adoptLaneRun({ cardId, columnId, stepIndex, counters: entry });
+  if (!active) return;
+  if (task.triggerSessionId) {
+    if (!task.sessionIds.includes(task.triggerSessionId)) task.sessionIds.push(task.triggerSessionId);
+    task.triggerSessionId = undefined;
+  }
+  task.lastSyncError = undefined;
+  task.updatedAt = new Date();
+  await host.taskStore.save(task);
+  host.cleanupCardSession?.(cardId);
+  try {
+    const { sessionId, queued } = await host.createSession({
+      workspaceId: active.workspaceId,
+      cardId,
+      cardTitle: active.cardTitle,
+      columnId,
+      columnName: active.columnName,
+      automation: active.automation,
+      step: active.steps[stepIndex],
+      stepIndex,
+      // No recoveryReason: it would be written onto the new run's record.
+      supervision: host.buildSupervision(active, task.objective || task.title, entry.failedSessionId),
+    });
+    if (sessionId) {
+      active.status = "running";
+      active.sessionId = sessionId;
+    } else if (!queued) {
+      active.status = "failed";
+    }
+  } catch (error) {
+    active.status = "failed";
+    console.error("[WorkflowOrchestrator] Rate-limit rerun failed to start:", error);
+  }
 }

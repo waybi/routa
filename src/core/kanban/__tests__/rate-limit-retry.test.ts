@@ -16,6 +16,7 @@ import { createKanbanBoard, type KanbanColumn, type KanbanDevSessionSupervision 
 import { createTask, type Task, type TaskLaneSession, type TaskLaneSessionRecoveryReason } from "../../models/task";
 import { InMemoryKanbanBoardStore } from "../../store/kanban-board-store";
 import { InMemoryTaskStore } from "../../store/task-store";
+import { KanbanTools } from "../../tools/kanban-tools";
 import { getConsecutiveRetryableEnvironmentFailureCount } from "../environment-failure";
 import type { RateLimitRetryEntry, RateLimitRetryScheduler } from "../rate-limit-retry";
 import { upsertTaskLaneSession } from "../task-lane-history";
@@ -77,6 +78,7 @@ interface Harness {
   orchestrator: KanbanWorkflowOrchestrator;
   eventBus: EventBus;
   taskStore: InMemoryTaskStore;
+  boardStore: InMemoryKanbanBoardStore;
   createSession: ReturnType<typeof vi.fn>;
   cardId: string;
   lane: Lane;
@@ -152,6 +154,7 @@ async function createHarness(
     orchestrator,
     eventBus,
     taskStore,
+    boardStore,
     createSession,
     cardId,
     lane,
@@ -463,6 +466,26 @@ describe("C4: guards when the rerun time comes", () => {
     expect(h.scheduler().size).toBe(0);
     await advanceToRetry(record, 1_000);
     expect(h.createSession).toHaveBeenCalledTimes(2);
+    h.orchestrator.stop();
+  });
+
+  // Review round 1: main's leaveLane (382763e1/a04533b5) and this card's
+  // timer cancel both sit on the column-transition path; drive the real
+  // move_card tool so both run together.
+  it("move_card to blocked (leaveLane path) cancels the timer: no session at the rerun time", async () => {
+    const { h, record } = await failedReviewGuard();
+    expect(h.scheduler().get(h.cardId)).toMatchObject({ columnId: "review", stepIndex: 1 });
+    const tools = new KanbanTools(h.boardStore, h.taskStore);
+    tools.setEventBus(h.eventBus);
+    expect((await tools.moveCard({ cardId: h.cardId, targetColumnId: "blocked" })).success).toBe(true);
+    await flush();
+    expect((await h.card()).columnId).toBe("blocked");
+    expect(h.scheduler().size).toBe(0);
+    expect(h.orchestrator.getAutomationForCard(h.cardId)).toBeUndefined();
+    await advanceToRetry(record, 1_000);
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(h.createSession).toHaveBeenCalledTimes(2);
+    expect((await h.card()).laneSessions?.some((entry) => entry.status === "running")).toBe(false);
     h.orchestrator.stop();
   });
 

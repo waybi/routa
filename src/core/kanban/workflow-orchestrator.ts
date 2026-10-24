@@ -37,11 +37,10 @@ import {
   isRetryableEnvironmentFailureLaneSession,
 } from "./environment-failure";
 import {
-  canRunRateLimitRetry,
   collectRateLimitEvidence,
   planRateLimitRetry,
   RateLimitRetryScheduler,
-  type RateLimitRetryEntry,
+  runRateLimitRetry,
 } from "./rate-limit-retry";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
@@ -363,7 +362,13 @@ export class KanbanWorkflowOrchestrator {
    */
   private pendingWorktreeCleanup = new Map<string, PendingWorktreeCleanup>();
   /** Delayed reruns of rate-limited steps (card 79804de2). */
-  private rateLimitRetries = new RateLimitRetryScheduler((entry) => this.runRateLimitRetry(entry));
+  private rateLimitRetries = new RateLimitRetryScheduler((entry) => runRateLimitRetry({
+    taskStore: this.taskStore,
+    createSession: this.createSession && (async (params) => readCreatedSession(await this.createSession!(params))),
+    adoptLaneRun: async (params) => (await this.adoptLaneRun(params)) ? this.activeAutomations.get(params.cardId) : undefined,
+    cleanupCardSession: this.cleanupCardSession,
+    buildSupervision: (active, objective, from) => this.buildSupervisionContext(active, objective, { recoveredFromSessionId: from }),
+  }, entry));
 
   constructor(
     private eventBus: EventBus,
@@ -486,8 +491,7 @@ export class KanbanWorkflowOrchestrator {
    * (the card was moved away from it).
    */
   forgetCard(cardId: string, options?: { columnId?: string }): void {
-    if (options?.columnId === undefined) this.rateLimitRetries.cancel(cardId);
-    else if (this.rateLimitRetries.get(cardId)?.columnId === options.columnId) this.rateLimitRetries.cancel(cardId);
+    this.rateLimitRetries.forget(cardId, options?.columnId);
     const automation = this.activeAutomations.get(cardId);
     if (!automation) return;
     if (options?.columnId !== undefined && automation.columnId !== options.columnId) return;
@@ -890,17 +894,7 @@ export class KanbanWorkflowOrchestrator {
         await this.taskStore.save(task);
       }
 
-      if (rateLimitPlan?.retryAt) {
-        this.rateLimitRetries.schedule({
-          cardId,
-          columnId: automation.columnId,
-          stepIndex: automation.currentStepIndex,
-          retryAt: rateLimitPlan.retryAt,
-          failedSessionId: eventSessionId,
-          attempt: automation.attempt,
-          recoveryAttempts: automation.recoveryAttempts,
-        });
-      }
+      if (rateLimitPlan?.retryAt) this.rateLimitRetries.scheduleRun(automation, eventSessionId, rateLimitPlan.retryAt);
 
       if (
         task
@@ -1432,51 +1426,6 @@ export class KanbanWorkflowOrchestrator {
       task.updatedAt = new Date();
       await this.taskStore.save(task);
       return false;
-    }
-  }
-
-  /**
-   * Re-run a rate-limited step at the same index, as a new session. Nothing is
-   * counted: the Dev attempt and recovery counters are carried over unchanged.
-   */
-  private async runRateLimitRetry(entry: RateLimitRetryEntry): Promise<void> {
-    const task = await this.taskStore.get(entry.cardId);
-    if (!this.createSession || !task || !canRunRateLimitRetry(task, entry)) return;
-    const { cardId, columnId, stepIndex } = entry;
-    if (!(await this.adoptLaneRun({ cardId, columnId, stepIndex, counters: entry }))) return;
-    const active = this.activeAutomations.get(cardId)!;
-    if (task.triggerSessionId) {
-      if (!task.sessionIds.includes(task.triggerSessionId)) task.sessionIds.push(task.triggerSessionId);
-      task.triggerSessionId = undefined;
-    }
-    task.lastSyncError = undefined;
-    task.updatedAt = new Date();
-    await this.taskStore.save(task);
-    this.cleanupCardSession?.(cardId);
-    try {
-      const { sessionId, queued } = readCreatedSession(await this.createSession({
-        workspaceId: active.workspaceId,
-        cardId,
-        cardTitle: active.cardTitle,
-        columnId,
-        columnName: active.columnName,
-        automation: active.automation,
-        step: active.steps[stepIndex],
-        stepIndex,
-        // No recoveryReason: it would be written onto the new run's record.
-        supervision: this.buildSupervisionContext(active, task.objective || task.title, {
-          recoveredFromSessionId: entry.failedSessionId,
-        }),
-      }));
-      if (sessionId) {
-        active.status = "running";
-        active.sessionId = sessionId;
-      } else if (!queued) {
-        active.status = "failed";
-      }
-    } catch (error) {
-      active.status = "failed";
-      console.error("[WorkflowOrchestrator] Rate-limit rerun failed to start:", error);
     }
   }
 
