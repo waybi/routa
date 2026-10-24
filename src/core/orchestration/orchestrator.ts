@@ -43,6 +43,7 @@ import { AgentEventBridge, makeStartedEvent } from "../acp/agent-event-bridge";
 import type { WorkspaceAgentEvent } from "../acp/agent-event-bridge";
 import { getHttpSessionStore } from "../acp/http-session-store";
 import { LifecycleNotifier } from "../acp/lifecycle-notifier";
+import { applyChildModelConfig, planDelegationModel, type DelegationModelPlan } from "./delegation-model-inheritance";
 import { createWorkspaceSessionSandbox } from "../sandbox/permissions";
 import { AgentMemoryWriter, type CompletionSnapshotSource } from "../storage/agent-memory-writer";
 import { TraceReader } from "../trace/reader";
@@ -503,6 +504,7 @@ export class RoutaOrchestrator {
       specialistId?: string;
       parentSessionId?: string;
       sandboxId?: string;
+      model?: string; reasoningEffort?: string;
     }) => void
   ): void {
     this.sessionRegistrationHandler = handler;
@@ -568,6 +570,10 @@ export class RoutaOrchestrator {
         : this.config.defaultGateProvider);
 
     const cwd = this.resolveDelegationCwd(callerSessionId, params.cwd);
+    const modelPlan = planDelegationModel({
+      callerSessionId, childProvider: provider, role: specialistConfig.role, specialistModel: specialistConfig.model,
+      config: this.config, callerOptions: (id) => this.processManager.getConfigOptions(id),
+    });
 
     // 4. Create agent record with delegation depth metadata
     const agentName = `${specialistConfig.id}-${task.title
@@ -681,18 +687,11 @@ export class RoutaOrchestrator {
 
     // 7. Spawn the ACP process
     const childSessionId = uuidv4();
-    let childSandboxId: string | undefined;
+    let spawnResult: Awaited<ReturnType<RoutaOrchestrator["spawnChildAgent"]>>;
     try {
-      const spawnResult = await this.spawnChildAgent(
-        childSessionId,
-        agentId,
-        provider,
-        cwd,
-        delegationPrompt,
-        callerSessionId,
-        workspaceId,
+      spawnResult = await this.spawnChildAgent(
+        childSessionId, agentId, provider, cwd, delegationPrompt, callerSessionId, workspaceId, modelPlan,
       );
-      childSandboxId = spawnResult.sandboxId;
     } catch (err) {
       // Clean up on spawn failure
       await this.system.agentStore.updateStatus(agentId, AgentStatus.ERROR);
@@ -732,7 +731,7 @@ export class RoutaOrchestrator {
         role: specialistConfig.role,
         specialistId: specialistConfig.id,
         parentSessionId: callerSessionId,
-        sandboxId: childSandboxId,
+        ...spawnResult,
       });
     }
 
@@ -841,7 +840,8 @@ export class RoutaOrchestrator {
     initialPrompt: string,
     parentSessionId: string,
     workspaceId?: string,
-  ): Promise<{ sandboxId?: string }> {
+    modelPlan?: DelegationModelPlan,
+  ): Promise<{ sandboxId?: string; model?: string; reasoningEffort?: string }> {
     const isClaudeCode = isClaudeStreamJsonProvider(provider);
     const isClaudeCodeSdk = provider === "claude-code-sdk";
     const isNativeWorkspaceAgent = isWorkspaceProvider(provider);
@@ -923,6 +923,7 @@ export class RoutaOrchestrator {
 
     let acpSessionId: string;
     let sandboxId: string | undefined;
+    let modelInEffect = {};
 
     if (isNativeWorkspaceAgent) {
       sandboxId = (await createWorkspaceSessionSandbox({
@@ -1028,15 +1029,9 @@ export class RoutaOrchestrator {
       }
     } else {
       acpSessionId = await this.processManager.createSession(
-        sessionId,
-        cwd,
-        notificationHandler,
-        provider,
-        undefined, // initialModeId
-        undefined, // extraArgs
-        undefined, // extraEnv
-        workspaceId,
+        sessionId, cwd, notificationHandler, provider, undefined, undefined, modelPlan?.extraEnv, workspaceId,
       );
+      modelInEffect = await applyChildModelConfig(this.processManager, sessionId, modelPlan);
 
       // Send the initial prompt and handle completion
       const proc = this.processManager.getProcess(sessionId);
@@ -1062,7 +1057,7 @@ export class RoutaOrchestrator {
     console.log(
       `[Orchestrator] Spawned ${provider} process for agent ${agentId} (session: ${sessionId}, mcpUrl: ${mcpUrl})`
     );
-    return { sandboxId };
+    return { sandboxId, ...modelInEffect };
   }
 
   /**

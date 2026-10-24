@@ -839,6 +839,8 @@ export async function handleSessionNew({
               specialistId: childSession.specialistId,
               parentSessionId: childSession.parentSessionId,
               sandboxId: childSession.sandboxId,
+              model: childSession.model,
+              reasoningEffort: childSession.reasoningEffort,
               createdAt: new Date().toISOString(),
               ...childExecutionBinding,
             });
@@ -852,6 +854,8 @@ export async function handleSessionNew({
               role: childSession.role ?? "CRAFTER",
               parentSessionId: childSession.parentSessionId,
               specialistId: childSession.specialistId,
+              model: childSession.model,
+              reasoningEffort: childSession.reasoningEffort,
               ...childExecutionBinding,
             }).catch((err: unknown) =>
               console.error(`[ACP Route] Failed to persist child session ${childSession.sessionId}:`, err),
