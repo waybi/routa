@@ -30,10 +30,19 @@ import {
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import {
+  classifyRetryableEnvironmentFailure,
   formatEnvironmentFailureError,
   isEnvironmentFailureLaneSession,
   isEnvironmentFailureMessage,
+  isRetryableEnvironmentFailureLaneSession,
 } from "./environment-failure";
+import {
+  canRunRateLimitRetry,
+  collectRateLimitEvidence,
+  planRateLimitRetry,
+  RateLimitRetryScheduler,
+  type RateLimitRetryEntry,
+} from "./rate-limit-retry";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
@@ -91,9 +100,13 @@ function getRecoveryReason(
   event: AgentEvent,
   completionSatisfied: boolean,
   environmentFailure = false,
+  rateLimited = false,
 ): TaskLaneSessionRecoveryReason {
   if (environmentFailure) {
     return "environment_failure";
+  }
+  if (rateLimited) {
+    return "rate_limited";
   }
   if (isCancelledTurn(event)) {
     return "turn_cancelled";
@@ -149,9 +162,10 @@ export function getNonDevAutomationRunCount(
     if (entry.columnId !== columnId) {
       break;
     }
-    // Environment failures are counted separately (see environment-failure.ts)
-    // and must not consume the normal repeat budget.
-    if (isEnvironmentFailureLaneSession(entry)) {
+    // Environment failures (including retryable ones: rate limits, restart
+    // interruptions) are counted separately (see environment-failure.ts) and
+    // must not consume the normal repeat budget.
+    if (isEnvironmentFailureLaneSession(entry) || isRetryableEnvironmentFailureLaneSession(entry)) {
       continue;
     }
     runCount += 1;
@@ -348,6 +362,8 @@ export class KanbanWorkflowOrchestrator {
    * that session id. In memory only: a restart in between keeps the copy.
    */
   private pendingWorktreeCleanup = new Map<string, PendingWorktreeCleanup>();
+  /** Delayed reruns of rate-limited steps (card 79804de2). */
+  private rateLimitRetries = new RateLimitRetryScheduler((entry) => this.runRateLimitRetry(entry));
 
   constructor(
     private eventBus: EventBus,
@@ -389,6 +405,7 @@ export class KanbanWorkflowOrchestrator {
     }
     this.eventBus.off(this.handlerKey);
     this.activeAutomations.clear();
+    this.rateLimitRetries.stopAll();
     if (this.watchdogTimer) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = undefined;
@@ -469,6 +486,8 @@ export class KanbanWorkflowOrchestrator {
    * (the card was moved away from it).
    */
   forgetCard(cardId: string, options?: { columnId?: string }): void {
+    if (options?.columnId === undefined) this.rateLimitRetries.cancel(cardId);
+    else if (this.rateLimitRetries.get(cardId)?.columnId === options.columnId) this.rateLimitRetries.cancel(cardId);
     const automation = this.activeAutomations.get(cardId);
     if (!automation) return;
     if (options?.columnId !== undefined && automation.columnId !== options.columnId) return;
@@ -507,6 +526,8 @@ export class KanbanWorkflowOrchestrator {
   }
 
   private async handleColumnTransitionData(data: ColumnTransitionData): Promise<void> {
+    // The card left the column of its pending rate-limit rerun.
+    this.rateLimitRetries.cancel(data.cardId, data.toColumnId);
     // The card left the column its automation runs in: that lane is over even
     // when the new column has no automation (e.g. move_card into Blocked), so
     // a late end of its session must not start, fail or recover a step there.
@@ -611,6 +632,8 @@ export class KanbanWorkflowOrchestrator {
     columnId: string;
     stepIndex: number;
     sessionId?: string;
+    /** Dev counters to carry over (a rate-limit rerun); default a fresh run. */
+    counters?: { attempt: number; recoveryAttempts: number };
   }): Promise<boolean> {
     const task = await this.taskStore.get(params.cardId);
     if (!task?.boardId || task.columnId !== params.columnId) return false;
@@ -637,8 +660,8 @@ export class KanbanWorkflowOrchestrator {
       status: params.sessionId ? "running" : "queued",
       supervision: await this.resolveLaneSupervision(task.workspaceId, task.boardId, column),
       laneWatchdog: await this.resolveLaneWatchdog(task.workspaceId, task.boardId, column),
-      attempt: 1,
-      recoveryAttempts: 0,
+      attempt: params.counters?.attempt ?? 1,
+      recoveryAttempts: params.counters?.recoveryAttempts ?? 0,
       signaledSessionIds: new Set(),
       enableAutomaticFallback: task.enableAutomaticFallback,
     });
@@ -748,14 +771,24 @@ export class KanbanWorkflowOrchestrator {
       }
 
       const completionSatisfied = await this.isCompletionSatisfied(task, automation, successEvent);
+      const acpError = sessionStore.getSession(eventSessionId)?.acpError;
       const environmentFailure = !successEvent && isEnvironmentFailureMessage(
-        typeof event.data?.error === "string" && event.data.error
-          ? event.data.error
-          : sessionStore.getSession(eventSessionId)?.acpError,
+        typeof event.data?.error === "string" && event.data.error ? event.data.error : acpError,
       );
+      const rateLimitEvidence = !successEvent && !environmentFailure && !cancelledTurn
+        ? collectRateLimitEvidence({
+          timeout: event.type === AgentEventType.AGENT_TIMEOUT,
+          error: event.data?.error,
+          acpError,
+          history: sessionStore.getHistory(eventSessionId),
+        })
+        : "";
+      // A rate limit clears by itself: the step is re-run later at the same
+      // index, outside the recovery and fallback budgets (card 79804de2).
+      const rateLimited = classifyRetryableEnvironmentFailure(rateLimitEvidence) === "rate_limited";
       // Environment failures cannot succeed on retry: no recovery, no fallback,
       // and they do not consume the supervision retry budget.
-      const shouldRecover = task && !environmentFailure && !cancelledTurn
+      const shouldRecover = task && !environmentFailure && !rateLimited && !cancelledTurn
         ? await this.shouldRecover(task, automation, event, completionSatisfied)
         : false;
 
@@ -769,10 +802,13 @@ export class KanbanWorkflowOrchestrator {
         if (!successEvent || !completionSatisfied) {
           upsertTaskLaneSession(task, {
             sessionId: eventSessionId,
-            recoveryReason: getRecoveryReason(event, completionSatisfied, environmentFailure),
+            recoveryReason: getRecoveryReason(event, completionSatisfied, environmentFailure, rateLimited),
           });
         }
       }
+      const rateLimitPlan = task && rateLimited
+        ? planRateLimitRetry({ task, columnId: automation.columnId, sessionId: eventSessionId, evidence: rateLimitEvidence })
+        : undefined;
 
       const nextStepIndex = automation.currentStepIndex + 1;
       const hasNextStep = successEvent
@@ -799,6 +835,7 @@ export class KanbanWorkflowOrchestrator {
       const laneWatchdogTimeout = event.type === AgentEventType.AGENT_TIMEOUT && Boolean(automation.laneWatchdog);
       const canFallback = !successEvent
         && !environmentFailure
+        && !rateLimited
         && !laneWatchdogTimeout
         && !cancelledTurn
         && automation.enableAutomaticFallback
@@ -845,10 +882,24 @@ export class KanbanWorkflowOrchestrator {
           task.lastSyncError = formatEnvironmentFailureError(
             this.buildFailureMessage(automation, event, completionSatisfied),
           );
+        } else if (rateLimitPlan) {
+          task.lastSyncError = rateLimitPlan.lastSyncError;
         } else if (!task.lastSyncError) {
           task.lastSyncError = this.buildFailureMessage(automation, event, completionSatisfied);
         }
         await this.taskStore.save(task);
+      }
+
+      if (rateLimitPlan?.retryAt) {
+        this.rateLimitRetries.schedule({
+          cardId,
+          columnId: automation.columnId,
+          stepIndex: automation.currentStepIndex,
+          retryAt: rateLimitPlan.retryAt,
+          failedSessionId: eventSessionId,
+          attempt: automation.attempt,
+          recoveryAttempts: automation.recoveryAttempts,
+        });
       }
 
       if (
@@ -1381,6 +1432,51 @@ export class KanbanWorkflowOrchestrator {
       task.updatedAt = new Date();
       await this.taskStore.save(task);
       return false;
+    }
+  }
+
+  /**
+   * Re-run a rate-limited step at the same index, as a new session. Nothing is
+   * counted: the Dev attempt and recovery counters are carried over unchanged.
+   */
+  private async runRateLimitRetry(entry: RateLimitRetryEntry): Promise<void> {
+    const task = await this.taskStore.get(entry.cardId);
+    if (!this.createSession || !task || !canRunRateLimitRetry(task, entry)) return;
+    const { cardId, columnId, stepIndex } = entry;
+    if (!(await this.adoptLaneRun({ cardId, columnId, stepIndex, counters: entry }))) return;
+    const active = this.activeAutomations.get(cardId)!;
+    if (task.triggerSessionId) {
+      if (!task.sessionIds.includes(task.triggerSessionId)) task.sessionIds.push(task.triggerSessionId);
+      task.triggerSessionId = undefined;
+    }
+    task.lastSyncError = undefined;
+    task.updatedAt = new Date();
+    await this.taskStore.save(task);
+    this.cleanupCardSession?.(cardId);
+    try {
+      const { sessionId, queued } = readCreatedSession(await this.createSession({
+        workspaceId: active.workspaceId,
+        cardId,
+        cardTitle: active.cardTitle,
+        columnId,
+        columnName: active.columnName,
+        automation: active.automation,
+        step: active.steps[stepIndex],
+        stepIndex,
+        // No recoveryReason: it would be written onto the new run's record.
+        supervision: this.buildSupervisionContext(active, task.objective || task.title, {
+          recoveredFromSessionId: entry.failedSessionId,
+        }),
+      }));
+      if (sessionId) {
+        active.status = "running";
+        active.sessionId = sessionId;
+      } else if (!queued) {
+        active.status = "failed";
+      }
+    } catch (error) {
+      active.status = "failed";
+      console.error("[WorkflowOrchestrator] Rate-limit rerun failed to start:", error);
     }
   }
 
