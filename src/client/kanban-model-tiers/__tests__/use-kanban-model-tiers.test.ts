@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { enRedesignSettings as en } from "@/i18n/locales/en-redesign-settings";
+import { zhRedesignSettings as zh } from "@/i18n/locales/zh-redesign-settings";
 import {
+  buildStepDefaultHint,
   filterLaneModelChoices,
   resolveStepDefaultModel,
+  resolveStepDefaultReasoningEffort,
   toSpecialistLocale,
   type KanbanModelTiersData,
 } from "../use-kanban-model-tiers";
@@ -10,9 +14,18 @@ import {
 const data: KanbanModelTiersData = {
   providerId: "dsh",
   tiers: {
-    fast: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5" },
-    balanced: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5" },
-    smart: { override: "claude-sonnet-5-5", codeDefault: "claude-opus-5-5", effective: "claude-sonnet-5-5" },
+    fast: {
+      override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5",
+      reasoningEffort: { override: null, effective: null },
+    },
+    balanced: {
+      override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5",
+      reasoningEffort: { override: "medium", effective: "medium" },
+    },
+    smart: {
+      override: "claude-sonnet-5-5", codeDefault: "claude-opus-5-5", effective: "claude-sonnet-5-5",
+      reasoningEffort: { override: null, effective: null },
+    },
   },
   specialists: [
     { id: "kanban-dev-executor", name: "Dev Crafter", tier: "smart" },
@@ -45,6 +58,33 @@ describe("kanban model tier client helpers", () => {
     expect(resolveStepDefaultModel(null, "kanban-dev-executor", "dsh")).toBeUndefined();
     expect(resolveStepDefaultModel(data, "kanban-dev-executor", "codex")).toBeUndefined();
     expect(resolveStepDefaultModel(data, "custom-unknown", "dsh")).toBeUndefined();
+  });
+
+  it("resolves where a follow-default step's reasoning effort comes from", () => {
+    expect(resolveStepDefaultReasoningEffort(data, "kanban-done-reporter", "dsh"))
+      .toEqual({ kind: "global", effort: "medium", tier: "balanced" });
+    expect(resolveStepDefaultReasoningEffort(data, "kanban-dev-executor", "dsh")).toEqual({ kind: "acp" });
+    expect(resolveStepDefaultReasoningEffort(data, undefined, "dsh")).toEqual({ kind: "acp" });
+    expect(resolveStepDefaultReasoningEffort(data, "kanban-dev-executor", "codex")).toBeUndefined();
+    expect(resolveStepDefaultReasoningEffort(null, "kanban-dev-executor", "dsh")).toBeUndefined();
+    expect(resolveStepDefaultReasoningEffort(data, "custom-unknown", "dsh")).toBeUndefined();
+  });
+
+  it("hover text names both the model source and the reasoning effort source", () => {
+    const zhCopy = zh.kanbanModelTiers;
+    expect(buildStepDefaultHint(zhCopy, data, "kanban-done-reporter", "dsh"))
+      .toBe("跟随默认：这一步会用 claude-opus-5-5（平衡档，代码默认）；推理档位 medium（平衡档，看板施工者默认）");
+    expect(buildStepDefaultHint(zhCopy, data, "kanban-dev-executor", "dsh"))
+      .toBe("跟随默认：这一步会用 claude-sonnet-5-5（智能档，看板施工者默认模型）；推理档位用施工者配置默认");
+    expect(buildStepDefaultHint(zhCopy, data, undefined, "dsh"))
+      .toBe(`${zhCopy.followDefaultHintNoTier}${zhCopy.hintEffortDefault}`);
+
+    const enHint = buildStepDefaultHint(en.kanbanModelTiers, data, "kanban-done-reporter", "dsh")!;
+    expect(enHint).toContain("claude-opus-5-5");
+    expect(enHint).toContain("reasoning effort medium (Balanced tier");
+    expect(buildStepDefaultHint(en.kanbanModelTiers, data, "kanban-own", "dsh"))
+      .toContain("reasoning effort follows the agent profile default");
+    expect(buildStepDefaultHint(zhCopy, data, "kanban-dev-executor", "codex")).toBeUndefined();
   });
 
   it("maps the UI locale to the specialist locale", () => {

@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Settings card: global per-tier default models for DSH lane agents.
+ * Settings card: global per-tier default models and reasoning efforts for
+ * DSH lane agents.
  * Sits on top of Settings › Specialists; values are stored server side
  * (GET/PUT /api/kanban/model-tiers) and read when each lane agent starts.
  */
@@ -10,10 +11,12 @@ import { Cpu, Info } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
 import { useModelEffortChoices } from "@/client/model-effort/use-model-effort-choices";
+import { withStoredChoice, type ModelEffortChoice } from "@/client/model-effort/model-effort-choices";
 import {
   filterLaneModelChoices,
   KANBAN_MODEL_TIER_KEYS,
   saveKanbanModelTier,
+  saveKanbanModelTierEffort,
   toSpecialistLocale,
   useKanbanModelTiers,
   type KanbanModelTierKey,
@@ -41,12 +44,15 @@ export function KanbanModelTiersCard() {
     () => filterLaneModelChoices(choices[data?.providerId ?? "dsh"]?.models),
     [choices, data?.providerId],
   );
+  const efforts = choices[data?.providerId ?? "dsh"]?.reasoningEfforts;
   const [saveState, setSaveState] = useState<SaveState>(null);
 
-  const handleChange = async (tier: KanbanModelTierKey, value: string) => {
+  const handleChange = async (tier: KanbanModelTierKey, value: string, field: "model" | "effort") => {
     setSaveState({ tier, status: "saving" });
     try {
-      setData(await saveKanbanModelTier(tier, value || null, specialistLocale));
+      setData(field === "model"
+        ? await saveKanbanModelTier(tier, value || null, specialistLocale)
+        : await saveKanbanModelTierEffort(tier, value || null, specialistLocale));
       setSaveState({ tier, status: "saved" });
     } catch (reason) {
       setSaveState({ tier, status: "error", error: reason instanceof Error ? reason.message : String(reason) });
@@ -78,8 +84,10 @@ export function KanbanModelTiersCard() {
             tier={tier}
             data={data}
             laneModels={laneModels}
+            efforts={efforts}
             saveState={saveState?.tier === tier ? saveState : null}
-            onChange={(value) => void handleChange(tier, value)}
+            onChange={(value) => void handleChange(tier, value, "model")}
+            onEffortChange={(value) => void handleChange(tier, value, "effort")}
           />
         ))}
       </div>
@@ -95,14 +103,18 @@ function TierRow({
   tier,
   data,
   laneModels,
+  efforts,
   saveState,
   onChange,
+  onEffortChange,
 }: {
   tier: KanbanModelTierKey;
   data: KanbanModelTiersData | null;
   laneModels: Array<{ value: string; label: string }>;
+  efforts: ModelEffortChoice[] | undefined;
   saveState: SaveState;
   onChange: (value: string) => void;
+  onEffortChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
   const copy = t.kanbanModelTiers;
@@ -116,6 +128,10 @@ function TierRow({
     if (value && !list.some((option) => option.value === value)) list.unshift({ value, label: value });
     return list;
   }, [laneModels, value]);
+  const effortValue = state?.reasoningEffort?.override ?? "";
+  // Keep a stored effort visible even if the agent stops listing it.
+  const effortOptions = useMemo(() => withStoredChoice(efforts ?? [], effortValue), [efforts, effortValue]);
+  const effectiveEffort = state?.reasoningEffort?.effective ?? null;
 
   return (
     <div
@@ -138,19 +154,35 @@ function TierRow({
           </span>
         ) : null}
       </div>
-      <Select
-        value={value}
-        disabled={!data || saveState?.status === "saving"}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label={`${copy.title} · ${tierLabel}`}
-        className="mt-2 w-full px-2 py-1.5 text-[12px] font-mono"
-        data-testid={`kanban-model-tier-${tier}-select`}
-      >
-        <option value="">{copy.followCodeDefault.replace("{model}", state?.codeDefault ?? "…")}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </Select>
+      <div className="mt-2 flex gap-1.5">
+        <Select
+          value={value}
+          disabled={!data || saveState?.status === "saving"}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={`${copy.title} · ${tierLabel}`}
+          className="min-w-0 flex-1 px-2 py-1.5 text-[12px] font-mono"
+          data-testid={`kanban-model-tier-${tier}-select`}
+        >
+          <option value="">{copy.followCodeDefault.replace("{model}", state?.codeDefault ?? "…")}</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </Select>
+        <Select
+          value={effortValue}
+          disabled={!data || saveState?.status === "saving"}
+          onChange={(event) => onEffortChange(event.target.value)}
+          aria-label={`${copy.effortLabel} · ${tierLabel}`}
+          title={copy.effortLabel}
+          className="w-28 shrink-0 px-2 py-1.5 text-[12px] font-mono"
+          data-testid={`kanban-model-tier-${tier}-effort-select`}
+        >
+          <option value="">{copy.followEffortDefault}</option>
+          {effortOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </Select>
+      </div>
       {state ? (
         <p className="mt-1.5 text-[11px] text-desktop-text-secondary">
           <span className="font-mono font-semibold text-desktop-text-primary">
@@ -158,6 +190,16 @@ function TierRow({
           </span>
           <span className="ml-1 text-desktop-text-muted">
             ({state.override ? copy.sourceGlobal : copy.sourceCode})
+          </span>
+        </p>
+      ) : null}
+      {state ? (
+        <p className="mt-0.5 text-[11px] text-desktop-text-secondary" data-testid={`kanban-model-tier-${tier}-effort-effective`}>
+          <span className="font-mono font-semibold text-desktop-text-primary">
+            {copy.effectiveEffort.replace("{effort}", effectiveEffort ?? copy.followEffortDefault)}
+          </span>
+          <span className="ml-1 text-desktop-text-muted">
+            ({effectiveEffort ? copy.effortSourceGlobal : copy.effortSourceDefault})
           </span>
         </p>
       ) : null}

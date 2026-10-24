@@ -113,7 +113,7 @@ export const enRedesignSettings: RedesignSettingsTranslationDictionarySections =
   },
   kanbanModelTiers: {
     title: "Kanban lane agent default models",
-    description: "Shared by every board. When the card, the column step and the specialist name no model, a lane agent uses the model set here for its specialist tier. The next agent that starts picks up a change without a restart; running agents keep their model. DSH agents only.",
+    description: "Shared by every board. When the card, the column step and the specialist name no model, a lane agent uses the model set here for its specialist tier; when the card and the column step name no reasoning effort, it uses the effort set here. The next agent that starts picks up a change without a restart; running agents keep their settings. DSH agents only.",
     order: "Order: card › column step › specialist model › this setting › code default › agent profile fallback",
     tiers: { fast: "Fast", balanced: "Balanced", smart: "Smart" },
     followCodeDefault: "Follow code default ({model})",
@@ -133,5 +133,12 @@ export const enRedesignSettings: RedesignSettingsTranslationDictionarySections =
     hintSourceSpecialist: "specialist model",
     hintSourceGlobal: "{tier} tier, Kanban lane agent default",
     hintSourceCode: "{tier} tier, code default",
+    effortLabel: "Reasoning effort",
+    followEffortDefault: "Follow default (agent profile)",
+    effectiveEffort: "Reasoning: {effort}",
+    effortSourceGlobal: "from this setting",
+    effortSourceDefault: "follow default",
+    hintEffortGlobal: "; reasoning effort {effort} ({tier} tier, Kanban lane agent default)",
+    hintEffortDefault: "; reasoning effort follows the agent profile default",
   },
 };

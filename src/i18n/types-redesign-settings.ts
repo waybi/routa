@@ -140,5 +140,15 @@ export interface RedesignSettingsTranslationDictionarySections {
     hintSourceSpecialist: string;
     hintSourceGlobal: string;
     hintSourceCode: string;
+    /** Reasoning effort per tier (dropdown next to the model). */
+    effortLabel: string;
+    /** First effort option: clear the tier effort, the acp default applies. */
+    followEffortDefault: string;
+    effectiveEffort: string;
+    effortSourceGlobal: string;
+    effortSourceDefault: string;
+    /** Appended to the step "follow default" hover text; {effort}, {tier}. */
+    hintEffortGlobal: string;
+    hintEffortDefault: string;
   };
 }

@@ -113,7 +113,7 @@ export const zhRedesignSettings: RedesignSettingsTranslationDictionarySections =
   },
   kanbanModelTiers: {
     title: "看板施工者默认模型",
-    description: "所有看板共用。卡片、看板列步骤、岗位自己都没指定模型时，施工者按岗位档位用这里的模型。改完后下一个开工的施工者就用新模型，不用重启；正在跑的不受影响。只对 DSH 施工者生效。",
+    description: "所有看板共用。卡片、看板列步骤、岗位自己都没指定模型时，施工者按岗位档位用这里的模型；卡片和看板列步骤都没指定推理档位时，用这里的推理档位。改完后下一个开工的施工者就用新设置，不用重启；正在跑的不受影响。只对 DSH 施工者生效。",
     order: "生效顺序：卡片 › 看板列步骤 › 岗位自己的模型 › 这里 › 代码默认 › 施工者配置兜底",
     tiers: { fast: "快速", balanced: "平衡", smart: "智能" },
     followCodeDefault: "跟随代码默认（{model}）",
@@ -133,5 +133,12 @@ export const zhRedesignSettings: RedesignSettingsTranslationDictionarySections =
     hintSourceSpecialist: "岗位自己的模型",
     hintSourceGlobal: "{tier}档，看板施工者默认模型",
     hintSourceCode: "{tier}档，代码默认",
+    effortLabel: "推理档位",
+    followEffortDefault: "跟随默认（施工者配置）",
+    effectiveEffort: "推理档位：{effort}",
+    effortSourceGlobal: "来自这里",
+    effortSourceDefault: "跟随默认",
+    hintEffortGlobal: "；推理档位 {effort}（{tier}档，看板施工者默认）",
+    hintEffortDefault: "；推理档位用施工者配置默认",
   },
 };

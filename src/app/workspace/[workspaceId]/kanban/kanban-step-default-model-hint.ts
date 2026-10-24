@@ -2,13 +2,14 @@
 
 /**
  * Hover text for a lane step left on "follow default": the model the step
- * really runs (specialist model > global tier setting > code tier table).
+ * really runs (specialist model > global tier setting > code tier table) and
+ * where its reasoning effort comes from (global tier setting > acp default).
  */
 import { useCallback } from "react";
 
 import { useTranslation } from "@/i18n";
 import {
-  resolveStepDefaultModel,
+  buildStepDefaultHint,
   toSpecialistLocale,
   useKanbanModelTiers,
 } from "@/client/kanban-model-tiers/use-kanban-model-tiers";
@@ -18,14 +19,8 @@ export function useStepDefaultModelHint(): (specialistId: string | undefined, pr
   const { data } = useKanbanModelTiers(toSpecialistLocale(locale));
   const copy = t.kanbanModelTiers;
 
-  return useCallback((specialistId, providerId) => {
-    const resolved = resolveStepDefaultModel(data, specialistId, providerId);
-    if (!resolved) return undefined;
-    if (resolved.kind === "none") return copy.followDefaultHintNoTier;
-    const source = resolved.kind === "specialist"
-      ? copy.hintSourceSpecialist
-      : (resolved.kind === "global" ? copy.hintSourceGlobal : copy.hintSourceCode)
-        .replace("{tier}", copy.tiers[resolved.tier]);
-    return copy.followDefaultHint.replace("{model}", resolved.model).replace("{source}", source);
-  }, [copy, data]);
+  return useCallback(
+    (specialistId, providerId) => buildStepDefaultHint(copy, data, specialistId, providerId),
+    [copy, data],
+  );
 }

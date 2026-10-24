@@ -21,14 +21,29 @@ const configOptions = {
         ],
       },
     ],
+  }, {
+    id: "reasoning_effort",
+    currentValue: "high",
+    options: [
+      { value: "", name: "Default" },
+      { value: "low", name: "Low" },
+      { value: "medium", name: "Medium" },
+      { value: "high", name: "High" },
+    ],
   }],
 };
-const tiers = (smart: string | null) => ({
+const effort = (value: string | null) => ({ override: value, effective: value });
+const tiers = (smart: string | null, smartEffort: string | null = null, fastEffort: string | null = null) => ({
   providerId: "dsh",
   tiers: {
-    fast: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5" },
-    balanced: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5" },
-    smart: { override: smart, codeDefault: "claude-opus-5-5", effective: smart ?? "claude-opus-5-5" },
+    fast: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5", reasoningEffort: effort(fastEffort) },
+    balanced: { override: null, codeDefault: "claude-opus-5-5", effective: "claude-opus-5-5", reasoningEffort: effort(null) },
+    smart: {
+      override: smart,
+      codeDefault: "claude-opus-5-5",
+      effective: smart ?? "claude-opus-5-5",
+      reasoningEffort: effort(smartEffort),
+    },
   },
   specialists: [
     { id: "kanban-dev-executor", name: "Dev Crafter", tier: "smart" },
@@ -42,8 +57,10 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200
 
 describe("KanbanModelTiersCard", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
+  let stored: { smart: string | null; smartEffort: string | null; fastEffort: string | null };
 
   beforeEach(() => {
+    stored = { smart: null, smartEffort: null, fastEffort: null };
     resetKanbanModelTiersCache();
     resetModelEffortChoicesCache();
     fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -51,10 +68,15 @@ describe("KanbanModelTiersCard", () => {
       if (url.includes("/providers/dsh/config-options")) return json(configOptions);
       if (url.includes("/kanban/model-tiers")) {
         if (init?.method === "PUT") {
-          const body = JSON.parse(String(init.body)) as { smart?: string | null };
-          return json(tiers(body.smart ?? null));
+          const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+          const smart = body.smart;
+          if (smart && typeof smart === "object") {
+            stored.smartEffort = (smart as { reasoningEffort?: string | null }).reasoningEffort ?? null;
+          } else if ("smart" in body) {
+            stored.smart = (smart as string | null) ?? null;
+          }
         }
-        return json(tiers(null));
+        return json(tiers(stored.smart, stored.smartEffort, stored.fastEffort));
       }
       throw new Error(`unexpected ${url}`);
     });
@@ -100,5 +122,49 @@ describe("KanbanModelTiersCard", () => {
     await waitFor(() => expect(select.value).toBe(""));
     const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
     expect(JSON.parse(String((puts.at(-1)![1] as RequestInit).body))).toEqual({ smart: null });
+  });
+
+  it("renders a reasoning effort dropdown per tier with follow-default first", async () => {
+    render(<KanbanModelTiersCard />);
+    for (const tier of ["fast", "balanced", "smart"]) {
+      const select = await screen.findByTestId(`kanban-model-tier-${tier}-effort-select`) as HTMLSelectElement;
+      await waitFor(() => expect(select.options.length).toBe(4));
+      expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "low", "medium", "high"]);
+      expect(select.value).toBe("");
+      // The model dropdown and its effective line stay visible next to it.
+      expect(screen.getByTestId(`kanban-model-tier-${tier}-select`)).toBeTruthy();
+      expect(screen.getByTestId(`kanban-model-tier-${tier}-effort-effective`).textContent).toMatch(/follow default|跟随默认/i);
+    }
+  });
+
+  it("saves only the reasoning effort and clears it with follow-default", async () => {
+    stored.smart = "claude-sonnet-5-5";
+    render(<KanbanModelTiersCard />);
+    const select = await screen.findByTestId("kanban-model-tier-smart-effort-select") as HTMLSelectElement;
+    await waitFor(() => expect(select.options.length).toBe(4));
+
+    fireEvent.change(select, { target: { value: "high" } });
+    await waitFor(() => expect(select.value).toBe("high"));
+    let puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
+    expect(JSON.parse(String((puts.at(-1)![1] as RequestInit).body))).toEqual({ smart: { reasoningEffort: "high" } });
+    const effective = screen.getByTestId("kanban-model-tier-smart-effort-effective").textContent;
+    expect(effective).toContain("high");
+    expect(effective).toMatch(/from this setting|来自这里/);
+    // The model is untouched.
+    expect((screen.getByTestId("kanban-model-tier-smart-select") as HTMLSelectElement).value).toBe("claude-sonnet-5-5");
+
+    fireEvent.change(select, { target: { value: "" } });
+    await waitFor(() => expect(select.value).toBe(""));
+    puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
+    expect(JSON.parse(String((puts.at(-1)![1] as RequestInit).body))).toEqual({ smart: { reasoningEffort: null } });
+  });
+
+  it("keeps a stored reasoning effort visible when the agent no longer lists it", async () => {
+    stored.fastEffort = "xhigh";
+    render(<KanbanModelTiersCard />);
+    const select = await screen.findByTestId("kanban-model-tier-fast-effort-select") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("xhigh"));
+    expect(Array.from(select.options).map((option) => option.value)).toContain("xhigh");
+    expect(screen.getByTestId("kanban-model-tier-fast-effort-effective").textContent).toContain("xhigh");
   });
 });

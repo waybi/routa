@@ -2,7 +2,7 @@
 
 /**
  * Client side of GET/PUT /api/kanban/model-tiers: the global per-tier default
- * models for DSH lane agents. One request per page load is shared by the
+ * models and reasoning efforts for DSH lane agents. One request per page load is shared by the
  * settings card and the Kanban settings modal hints.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -21,6 +21,8 @@ export interface KanbanModelTierState {
   override: string | null;
   codeDefault: string;
   effective: string;
+  /** effective null = no global effort, the acp profile default applies. */
+  reasoningEffort: { override: string | null; effective: string | null };
 }
 
 export interface KanbanModelTiersData {
@@ -67,20 +69,34 @@ function loadKanbanModelTiers(locale: string): Promise<KanbanModelTiersData> {
   return request;
 }
 
-export async function saveKanbanModelTier(
-  tier: KanbanModelTierKey,
-  model: string | null,
-  locale: string,
-): Promise<KanbanModelTiersData> {
+async function putKanbanModelTiers(body: unknown, locale: string): Promise<KanbanModelTiersData> {
   const data = await desktopAwareFetch(tiersPath(locale), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [tier]: model }),
+    body: JSON.stringify(body),
   }).then(readJson);
   // Other locales only differ in names; drop them so they refetch the new values.
   sharedRequests.clear();
   sharedRequests.set(locale, Promise.resolve(data));
   return data;
+}
+
+/** Set (string) or clear (null) a tier's model; its reasoning effort is kept. */
+export function saveKanbanModelTier(
+  tier: KanbanModelTierKey,
+  model: string | null,
+  locale: string,
+): Promise<KanbanModelTiersData> {
+  return putKanbanModelTiers({ [tier]: model }, locale);
+}
+
+/** Set (string) or clear (null) a tier's reasoning effort; its model is kept. */
+export function saveKanbanModelTierEffort(
+  tier: KanbanModelTierKey,
+  reasoningEffort: string | null,
+  locale: string,
+): Promise<KanbanModelTiersData> {
+  return putKanbanModelTiers({ [tier]: { reasoningEffort } }, locale);
 }
 
 export function useKanbanModelTiers(locale: string): {
@@ -146,4 +162,63 @@ export function resolveStepDefaultModel(
   return tier.override
     ? { kind: "global", model: tier.override, tier: specialist.tier }
     : { kind: "code", model: tier.codeDefault, tier: specialist.tier };
+}
+
+export type StepDefaultReasoningEffort =
+  | { kind: "global"; effort: string; tier: KanbanModelTierKey }
+  | { kind: "acp" };
+
+/**
+ * The reasoning effort a lane step left on "follow default" runs with (card
+ * and step blank): its specialist tier's global effort, else the acp default.
+ * Undefined when unknown (data not loaded, a provider other than DSH, or an
+ * unknown specialist).
+ */
+export function resolveStepDefaultReasoningEffort(
+  data: KanbanModelTiersData | null,
+  specialistId: string | undefined,
+  providerId: string | undefined,
+): StepDefaultReasoningEffort | undefined {
+  if (!data || (providerId && providerId !== data.providerId)) return undefined;
+  const specialist = specialistId
+    ? data.specialists.find((entry) => entry.id === specialistId.toLowerCase())
+    : undefined;
+  if (!specialist) return specialistId ? undefined : { kind: "acp" };
+  const effort = data.tiers[specialist.tier].reasoningEffort?.effective;
+  return effort ? { kind: "global", effort, tier: specialist.tier } : { kind: "acp" };
+}
+
+export interface StepDefaultHintCopy {
+  tiers: Record<KanbanModelTierKey, string>;
+  followDefaultHint: string;
+  followDefaultHintNoTier: string;
+  hintSourceSpecialist: string;
+  hintSourceGlobal: string;
+  hintSourceCode: string;
+  hintEffortGlobal: string;
+  hintEffortDefault: string;
+}
+
+/**
+ * Hover text for a lane step on "follow default": where its model and its
+ * reasoning effort come from. Undefined when the model source is unknown.
+ */
+export function buildStepDefaultHint(
+  copy: StepDefaultHintCopy,
+  data: KanbanModelTiersData | null,
+  specialistId: string | undefined,
+  providerId: string | undefined,
+): string | undefined {
+  const resolved = resolveStepDefaultModel(data, specialistId, providerId);
+  if (!resolved) return undefined;
+  const effort = resolveStepDefaultReasoningEffort(data, specialistId, providerId);
+  const effortText = effort?.kind === "global"
+    ? copy.hintEffortGlobal.replace("{effort}", effort.effort).replace("{tier}", copy.tiers[effort.tier])
+    : copy.hintEffortDefault;
+  if (resolved.kind === "none") return `${copy.followDefaultHintNoTier}${effortText}`;
+  const source = resolved.kind === "specialist"
+    ? copy.hintSourceSpecialist
+    : (resolved.kind === "global" ? copy.hintSourceGlobal : copy.hintSourceCode)
+      .replace("{tier}", copy.tiers[resolved.tier]);
+  return `${copy.followDefaultHint.replace("{model}", resolved.model).replace("{source}", source)}${effortText}`;
 }
