@@ -485,6 +485,7 @@ mod tests {
             last_activity_at: Some("2026-03-21T00:00:00Z".to_string()),
             recovered_from_session_id: Some("old-session".to_string()),
             recovery_reason: Some(TaskLaneSessionRecoveryReason::AgentFailed),
+            retry_after_at: None,
             status: TaskLaneSessionStatus::Completed,
             started_at: "2026-03-21T00:00:00Z".to_string(),
             completed_at: Some("2026-03-21T00:05:00Z".to_string()),
@@ -565,7 +566,11 @@ mod tests {
 
         let loaded = load_with_raw_lane_sessions(&store, "task-c8", raw).await;
 
-        assert_eq!(loaded.lane_sessions.len(), 3, "no lane record may be dropped");
+        assert_eq!(
+            loaded.lane_sessions.len(),
+            3,
+            "no lane record may be dropped"
+        );
         // Each reason parsed into its own enum variant (checked by the
         // variant's serialized name, so this test also compiles without them).
         let reasons: Vec<String> = loaded
@@ -589,6 +594,56 @@ mod tests {
             serde_json::to_string(&loaded.lane_sessions).expect("serialize"),
             raw
         );
+    }
+
+    /// Card 79804de2 (C8): the Next.js backend writes `rate_limited` with
+    /// `retryAfterAt`. Every lane record survives a read, and the write-back
+    /// keeps both fields; records without `retryAfterAt` stay without the key.
+    #[tokio::test]
+    async fn lane_sessions_with_rate_limited_and_retry_after_at_survive_a_read() {
+        let store = setup().await;
+        let raw = concat!(
+            r#"[{"sessionId":"s-429","columnId":"done","stepIndex":0,"recoveryReason":"rate_limited","retryAfterAt":"2026-10-23T09:56:07.846Z","status":"failed","startedAt":"2026-10-23T09:40:00.000Z"},"#,
+            r#"{"sessionId":"s-env","columnId":"done","stepIndex":0,"recoveryReason":"environment_failure","status":"failed","startedAt":"2026-10-23T09:41:00.000Z"},"#,
+            r#"{"sessionId":"s-cancel","columnId":"done","stepIndex":0,"recoveryReason":"turn_cancelled","status":"failed","startedAt":"2026-10-23T09:42:00.000Z"},"#,
+            r#"{"sessionId":"s-restart","columnId":"done","stepIndex":0,"recoveryReason":"restart_interrupted","status":"timed_out","startedAt":"2026-10-23T09:43:00.000Z"},"#,
+            r#"{"sessionId":"s-plain","columnId":"done","stepIndex":1,"status":"completed","startedAt":"2026-10-23T09:44:00.000Z"}]"#,
+        );
+
+        let loaded = load_with_raw_lane_sessions(&store, "task-c8-429", raw).await;
+
+        assert_eq!(
+            loaded.lane_sessions.len(),
+            5,
+            "no lane record may be dropped"
+        );
+        assert_eq!(
+            serde_json::to_string(&loaded.lane_sessions[0].recovery_reason).expect("serialize"),
+            "\"rate_limited\""
+        );
+        assert_eq!(
+            loaded.lane_sessions[0].retry_after_at.as_deref(),
+            Some("2026-10-23T09:56:07.846Z")
+        );
+        assert_eq!(loaded.lane_sessions[4].retry_after_at, None);
+
+        let written = serde_json::to_value(&loaded.lane_sessions).expect("serialize");
+        assert_eq!(written[0]["recoveryReason"], "rate_limited");
+        assert_eq!(written[0]["retryAfterAt"], "2026-10-23T09:56:07.846Z");
+        assert!(written[4].get("retryAfterAt").is_none());
+        assert_eq!(
+            serde_json::to_string(&loaded.lane_sessions).expect("serialize"),
+            raw
+        );
+
+        // Written back through the store, read again: still identical.
+        store.save(&loaded).await.expect("save should succeed");
+        let reread = store
+            .get("task-c8-429")
+            .await
+            .expect("get should succeed")
+            .expect("task should exist");
+        assert_eq!(reread.lane_sessions, loaded.lane_sessions);
     }
 
     /// F2: lane JSON with only the older reasons reads and writes back byte for byte.

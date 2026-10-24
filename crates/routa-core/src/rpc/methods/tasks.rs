@@ -761,6 +761,7 @@ mod tests {
             last_activity_at: None,
             recovered_from_session_id: None,
             recovery_reason: None,
+            retry_after_at: None,
             status: TaskLaneSessionStatus::Running,
             started_at: "2026-03-27T00:00:00Z".to_string(),
             completed_at: None,

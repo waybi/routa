@@ -58,6 +58,9 @@ pub enum TaskLaneSessionRecoveryReason {
     /// Routa restarted while the step was running; the startup sweep or
     /// revive ended its record.
     RestartInterrupted,
+    /// The model was rate limited (HTTP 429). Retryable: not counted against
+    /// any retry budget; the Next.js backend re-runs it at `retry_after_at`.
+    RateLimited,
 }
 
 /// Session associated with a task lane transition
@@ -108,6 +111,9 @@ pub struct TaskLaneSession {
     pub recovered_from_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_reason: Option<TaskLaneSessionRecoveryReason>,
+    /// ISO time a rate-limited run is planned to be re-run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_at: Option<String>,
     pub status: TaskLaneSessionStatus,
     pub started_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]

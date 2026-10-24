@@ -653,6 +653,7 @@ fn apply_trigger_result(
         last_activity_at: Some(now.clone()),
         recovered_from_session_id: None,
         recovery_reason: None,
+        retry_after_at: None,
         status: TaskLaneSessionStatus::Running,
         started_at: now,
         completed_at: None,
