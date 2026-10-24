@@ -229,6 +229,12 @@ describe("executeMcpTool", () => {
     );
   });
 
+  it("exposes the read-only get_task tool in every mode and profile", () => {
+    for (const [mode, profile] of [["essential"], ["full"], ["essential", "kanban-planning"], ["full", "kanban-planning"], ["full", "team-coordination"]] as const) {
+      expect(getMcpToolDefinitions(mode, profile).map((tool) => tool.name)).toContain("get_task");
+    }
+  });
+
   it("surfaces the task-adaptive harness tool in essential allowlisted profiles", () => {
     expect(
       getMcpToolDefinitions("essential", "kanban-planning").some((tool) => tool.name === "assemble_task_adaptive_harness"),

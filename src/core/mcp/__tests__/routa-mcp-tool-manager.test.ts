@@ -232,6 +232,13 @@ function createToolsMock() {
 }
 
 describe("RoutaMcpToolManager", () => {
+  it("registers get_task in essential mode", () => {
+    const manager = new RoutaMcpToolManager(createToolsMock() as never, "ws-1");
+    const { registrations, server } = createServerRecorder();
+    manager.registerTools(server as never);
+    expect(registrations.map((entry) => entry.name)).toContain("get_task");
+  });
+
   it("registers only essential tools in essential mode and honors allowedTools", () => {
     const tools = createToolsMock();
     const manager = new RoutaMcpToolManager(tools as never, "ws-1");
@@ -297,6 +304,7 @@ describe("RoutaMcpToolManager", () => {
     expect(registrations.some((entry) => entry.name === "save_feature_retrospective_memory")).toBe(true);
     expect(registrations.some((entry) => entry.name === "search_reasoning_memories")).toBe(true);
     expect(registrations.some((entry) => entry.name === "save_reasoning_memory")).toBe(true);
+    expect(registrations.some((entry) => entry.name === "get_task")).toBe(true);
 
     const createTaskTool = registrations.find((entry) => entry.name === "create_task");
     const noteTool = registrations.find((entry) => entry.name === "create_note");

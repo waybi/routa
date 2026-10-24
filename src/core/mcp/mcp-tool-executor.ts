@@ -39,6 +39,7 @@ import {
   TASK_ADAPTIVE_MCP_TOOL_DEFINITIONS,
   TASK_ADAPTIVE_MCP_TOOL_NAMES,
 } from "./task-adaptive-mcp-tools";
+import { executeGetTaskTool, GET_TASK_TOOL_DEFINITION, GET_TASK_TOOL_NAME } from "./get-task-tool";
 
 async function resolveSessionProvider(sessionId: string | undefined): Promise<string | undefined> {
   if (!sessionId) return undefined;
@@ -156,6 +157,7 @@ const ESSENTIAL_TOOL_NAMES = new Set([
   // Kanban tools - needed for card-assigned agents to update their cards
   "update_card",
   "move_card",
+  GET_TASK_TOOL_NAME,
   "request_previous_lane_handoff",
   "submit_lane_handoff",
   // Artifact tools - needed for Kanban evidence gates
@@ -221,7 +223,6 @@ export async function executeMcpTool(
   kanbanTools?: KanbanTools,
   mcpProfile?: McpServerProfile,
 ) {
-  // ── Tools that don't require workspaceId ─────────────────────────────
   // ── Tools that don't require workspaceId ─────────────────────────────
   // set_agent_name is a lightweight identity setter — no workspace context needed
   if (name === "set_agent_name") {
@@ -732,6 +733,8 @@ export async function executeMcpTool(
           labels: args.labels as string[] | undefined,
         })
       );
+    case GET_TASK_TOOL_NAME:
+      return formatResult(await executeGetTaskTool(kanbanTools, args, workspace));
     case "delete_card":
       if (!kanbanTools) return formatResult({ success: false, error: "Kanban tools not available." });
       return formatResult(await kanbanTools.deleteCard(args.cardId as string));
@@ -823,10 +826,7 @@ function formatResult(result: { success: boolean; data?: unknown; error?: string
   };
 }
 
-/**
- * Get MCP tool definitions, optionally filtered by tool mode.
- * @param toolMode - "essential" for 7 core tools, "full" for all tools (default: "essential")
- */
+/** Get MCP tool definitions filtered by tool mode ("essential" by default) and optional MCP profile. */
 export function getMcpToolDefinitions(
   toolMode: ToolMode = "essential",
   mcpProfile?: McpServerProfile,
@@ -1584,6 +1584,7 @@ export function getMcpToolDefinitions(
       inputSchema: CONFIRM_FEATURE_TREE_STORY_CONTEXT_INPUT_SCHEMA,
     },
     ...MEMORY_MCP_TOOL_DEFINITIONS,
+    GET_TASK_TOOL_DEFINITION,
   ];
 
   // Filter tools based on mode

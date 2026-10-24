@@ -43,6 +43,7 @@ import {
   registerSummarizeTaskHistoryContextTool,
 } from "./task-adaptive-mcp-tools";
 import type { McpServerProfile } from "./mcp-server-profiles";
+import { GET_TASK_TOOL_NAME, registerGetTaskTool } from "./get-task-tool";
 import { protectedUpdateTaskFieldNote, resolveBlockedUpdateTaskFields, updateTaskBoundaryError } from "./mcp-task-write-boundary";
 
 /**
@@ -178,10 +179,8 @@ export class RoutaMcpToolManager {
     };
 
     if (this.toolMode === "essential") {
-      // Essential mode: 14 core coordination tools
       // Task tools (1) - needed so delegate_task_to_agent has a taskId to work with
       register("create_task", () => this.registerCreateTask(server));
-      // Agent tools (7)
       register("list_agents", () => this.registerListAgents(server));
       register("read_agent_conversation", () => this.registerReadAgentConversation(server));
       register("create_agent", () => this.registerCreateAgent(server));
@@ -199,9 +198,9 @@ export class RoutaMcpToolManager {
       // Kanban tools (2) - needed for card-assigned agents to update their cards
       register("update_card", () => this.registerUpdateCard(server));
       register("move_card", () => this.registerMoveCard(server));
+      register(GET_TASK_TOOL_NAME, () => registerGetTaskTool(server, () => this.kanbanTools, this.workspaceId, () => this.sessionId, (result) => this.toMcpResult(result)));
       register("request_previous_lane_handoff", () => this.registerRequestPreviousLaneHandoff(server));
       register("submit_lane_handoff", () => this.registerSubmitLaneHandoff(server));
-      // Artifact tools (6) - critical for multi-agent coordination and desk check workflow
       register("request_artifact", () => this.registerRequestArtifact(server));
       register("provide_artifact", () => this.registerProvideArtifact(server));
       register("list_artifacts", () => this.registerListArtifacts(server));
@@ -272,6 +271,7 @@ export class RoutaMcpToolManager {
     register("create_card", () => this.registerCreateCard(server));
     register("move_card", () => this.registerMoveCard(server));
     register("update_card", () => this.registerUpdateCard(server));
+    register(GET_TASK_TOOL_NAME, () => registerGetTaskTool(server, () => this.kanbanTools, this.workspaceId, () => this.sessionId, (result) => this.toMcpResult(result)));
     register("delete_card", () => this.registerDeleteCard(server));
     register("create_column", () => this.registerCreateColumn(server));
     register("delete_column", () => this.registerDeleteColumn(server));

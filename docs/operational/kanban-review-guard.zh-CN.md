@@ -25,11 +25,12 @@
 
 ### 命令从哪里取
 
-评审守卫的会话提示词里只有 `verificationCommands=present`，看不到命令原文。MCP 的 `search_cards`、`list_cards_by_column` 返回的卡片也不带这个字段。取法按顺序：
+评审守卫的会话提示词里只有 `verificationCommands=present`，看不到命令原文。MCP 的 `search_cards`、`list_cards_by_column` 返回的卡片也不带这个字段（它们只多了 `verificationVerdict`）。取法按顺序：
 
-1. `curl -s http://127.0.0.1:3000/api/tasks/<cardId>`，取 `.task.verificationCommands`。这个 GET 只读（`src/app/api/tasks/[taskId]/route.ts`）。3000 是本机 routa-prod 的端口。
-2. 取不到时：`sqlite3 -readonly <routa 仓库>/routa.db "select verification_commands from tasks where id='<cardId>'"`。
-3. 两种都取不到：判 `BLOCKED`，写明原因，不得判 APPROVED。
+1. 调 MCP `get_task`（只读；`taskId` 可省，省略时读当前会话绑定的卡），取返回里的 `verificationCommands`。同一次返回还带评论（按时间升序）、`verificationVerdict`、`verificationReport` 和各步骤摘要；默认回复不超过 32 KB，要更多正文时传 `commentLimit`、`maxCommentChars`。Web（`src/core/mcp/get-task-tool.ts`）和桌面（`crates/routa-server/src/api/mcp_routes/tool_executor/get_task.rs`）两个后端都有，kanban-planning 工具集也包含它。
+2. MCP 调不到时兜底：`curl -s http://127.0.0.1:3000/api/tasks/<cardId>`，取 `.task.verificationCommands`。这个 GET 只读（`src/app/api/tasks/[taskId]/route.ts`）。3000 是本机 routa-prod 的端口。
+3. 再取不到时：`sqlite3 -readonly <routa 仓库>/routa.db "select verification_commands from tasks where id='<cardId>'"`。
+4. 都取不到：判 `BLOCKED`，写明原因，不得判 APPROVED。
 
 ### 怎么跑、怎么记
 
@@ -63,3 +64,4 @@ local-tools 的 pre-push 会跑 `bash scripts/validate-changed.sh --strict --bas
 | 日期 | 改了什么 | 对应复盘 | 提交号 |
 |---|---|---|---|
 | 2026-10-21 | 新增逐条复跑 verificationCommands 规则（硬拒绝第 7 条、Findings 复跑记录、Exit Gate 自检行、命令取法、基线失败判 BLOCKED）；新增三路径提示词单测断言 | L256 | 见本提交 |
+| 2026-10-24 | 新增 MCP `get_task` 只读工具（Web 与桌面两个后端，含 kanban-planning 与 team-coordination 工具集），verificationCommands 改为优先用 `get_task` 读取，curl 与 sqlite3 降为兜底；taskToCard（`search_cards`、`list_cards_by_column`）补 `verificationVerdict` | L296 | 见本提交 |
