@@ -292,7 +292,7 @@ describe("F2④/AC4: ordinary failures keep consuming the budget", () => {
     await waitEnded(h, sessionId);
     await vi.advanceTimersByTimeAsync(2 * 60 * 60_000);
     expect(h.createSession).toHaveBeenCalledTimes(3);
-    expect(h.scheduler().size).toBe(0);
+    expect(h.scheduler()?.size ?? 0).toBe(0);
     h.orchestrator.stop();
   });
 
@@ -318,22 +318,33 @@ describe("F2④/AC4: ordinary failures keep consuming the budget", () => {
     h.orchestrator.stop();
   });
 
-  it.each(["todo", "review", "done"] as const)("%s lane agent_failed: run count +1, no automatic rerun", async (lane) => {
+  it.each([
+    { lane: "backlog" as const, stepIndex: 0, label: "Backlog" },
+    { lane: "todo" as const, stepIndex: 0, label: "Todo" },
+    { lane: "review" as const, stepIndex: 0, label: "Review QA Frontend" },
+    { lane: "review" as const, stepIndex: 1, label: "Review Guard" },
+    { lane: "done" as const, stepIndex: 0, label: "Done pusher" },
+    { lane: "done" as const, stepIndex: 1, label: "Done reporter (board with pusher)" },
+    { lane: "done-no-pusher" as const, stepIndex: 0, label: "Done reporter (board without pusher)" },
+  ])("$label agent_failed: run count +1, no automatic rerun", async ({ lane, stepIndex }) => {
     const h = await createHarness(lane);
-    const before = getNonDevAutomationRunCount(await h.card(), lane, STAGE[lane]);
-    const sessionId = await enterLane(h);
+    const sessionId = await runToStep(h, stepIndex);
     emit(h, AgentEventType.AGENT_FAILED, sessionId, { success: false, error: "boom" });
     expect(await waitEnded(h, sessionId)).toMatchObject({ status: "failed", recoveryReason: "agent_failed" });
     const card = await h.card();
-    expect(getNonDevAutomationRunCount(card, lane, STAGE[lane])).toBe(before + 1);
+    // The lane's completed earlier steps plus this failed run.
+    expect(getNonDevAutomationRunCount(card, lane, STAGE[lane])).toBe(stepIndex + 1);
     expect(card.lastSyncError).toBe("boom");
+    expect((await h.record(sessionId))?.retryAfterAt).toBeUndefined();
+    const calls = h.createSession.mock.calls.length;
     await vi.advanceTimersByTimeAsync(2 * 60 * 60_000);
-    expect(h.createSession).toHaveBeenCalledTimes(1);
-    // Two more real runs reach the limit of 3.
-    card.laneSessions!.push(
-      { sessionId: "x1", columnId: lane, status: "failed", recoveryReason: "agent_failed", startedAt: NOW.toISOString() },
-      { sessionId: "x2", columnId: lane, status: "failed", recoveryReason: "agent_failed", startedAt: NOW.toISOString() },
-    );
+    expect(h.createSession).toHaveBeenCalledTimes(calls);
+    // Optional chaining: this F2 case also runs unchanged on the pre-change orchestrator.
+    expect(h.scheduler()?.size ?? 0).toBe(0);
+    // More real runs reach the limit of 3.
+    for (let extra = stepIndex + 1; extra < 3; extra += 1) {
+      card.laneSessions!.push({ sessionId: `x${extra}`, columnId: lane, status: "failed", recoveryReason: "agent_failed", startedAt: NOW.toISOString() });
+    }
     expect(hasExceededNonDevAutomationRepeatLimit(card, lane, STAGE[lane])).toBe(true);
     h.orchestrator.stop();
   });
