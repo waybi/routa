@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createKanbanBoard } from "../../models/kanban";
+import { createKanbanBoard, type KanbanAutomationStep } from "../../models/kanban";
 import { EventBus, AgentEventType } from "../../events/event-bus";
 import { createTask, VerificationVerdict } from "../../models/task";
 import { createInMemorySystem } from "../../routa-system";
@@ -638,77 +638,39 @@ describe("KanbanTools", () => {
     expect(savedTask?.laneHandoffs[0].responseSummary).toContain("Unable to deliver handoff request");
   });
 
-  it("blocks cross-column moves while the current lane still has a later automation step pending", async () => {
+  /** Card in `columnId` whose trigger session runs the first of that lane's steps. */
+  async function seedPendingLaneCard(columnId: string, title: string, steps: Array<Record<string, string>>) {
     const boardStore = new InMemoryKanbanBoardStore();
     const taskStore = new InMemoryTaskStore();
     const tools = new KanbanTools(boardStore, taskStore);
-
     const board = createKanbanBoard({
-      id: "board-multistep-1",
-      workspaceId: "default",
-      name: "Default Board",
-      isDefault: true,
-      columns: [
-        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
-        {
-          id: "todo",
-          name: "Todo",
-          position: 1,
-          stage: "todo",
-          automation: {
-            enabled: true,
-            steps: [
-              {
-                id: "step-1",
-                providerId: "codex",
-                role: "CRAFTER",
-                specialistId: "kanban-todo-orchestrator",
-                specialistName: "Todo Orchestrator",
-              },
-              {
-                id: "step-2",
-                role: "GATE",
-                specialistId: "gate",
-                specialistName: "Verifier",
-              },
-            ],
-          },
-        },
-        { id: "dev", name: "Dev", position: 2, stage: "dev" },
-      ],
+      id: "board-multistep-1", workspaceId: "default", name: "Default Board", isDefault: true,
+      columns: ["backlog", "todo", "dev", "done", "blocked"].map((id, position) => ({
+        id, name: id[0].toUpperCase() + id.slice(1), position, stage: id as "todo",
+        ...(id === columnId ? { automation: { enabled: true, steps: steps as unknown as KanbanAutomationStep[] } } : {}),
+      })),
     });
     await boardStore.save(board);
-
+    const first = steps[0];
     const task = createTask({
-      id: "task-multistep-1",
-      title: "Run todo pipeline",
-      objective: "Complete todo before dev",
-      workspaceId: "default",
-      boardId: board.id,
-      columnId: "todo",
-      triggerSessionId: "session-todo-1",
-      assignedProvider: "codex",
-      assignedRole: "CRAFTER",
-      assignedSpecialistId: "kanban-todo-orchestrator",
-      assignedSpecialistName: "Todo Orchestrator",
+      id: "task-multistep-1", title, objective: title, workspaceId: "default", boardId: board.id, columnId,
+      triggerSessionId: `session-${columnId}-1`, assignedProvider: "codex", assignedRole: "CRAFTER",
+      assignedSpecialistId: first.specialistId, assignedSpecialistName: first.specialistName,
     });
-    task.laneSessions = [
-      {
-        sessionId: "session-todo-1",
-        columnId: "todo",
-        columnName: "Todo",
-        stepId: "step-1",
-        stepIndex: 0,
-        stepName: "Todo Orchestrator",
-        provider: "codex",
-        role: "CRAFTER",
-        specialistId: "kanban-todo-orchestrator",
-        specialistName: "Todo Orchestrator",
-        status: "running",
-        startedAt: "2026-03-18T00:00:00.000Z",
-      },
-    ];
+    task.laneSessions = [{
+      sessionId: `session-${columnId}-1`, columnId, stepId: first.id, stepIndex: 0, stepName: first.specialistName,
+      provider: "codex", role: "CRAFTER", specialistId: first.specialistId, specialistName: first.specialistName,
+      status: "running", startedAt: "2026-03-18T00:00:00.000Z",
+    }];
     await taskStore.save(task);
+    return { tools, taskStore, task };
+  }
+
+  it("blocks cross-column moves while the current lane still has a later automation step pending", async () => {
+    const { tools, taskStore, task } = await seedPendingLaneCard("todo", "Run todo pipeline", [
+      { id: "step-1", providerId: "codex", role: "CRAFTER", specialistId: "kanban-todo-orchestrator", specialistName: "Todo Orchestrator" },
+      { id: "step-2", role: "GATE", specialistId: "gate", specialistName: "Verifier" },
+    ]);
 
     const result = await tools.moveCard({
       cardId: task.id,
@@ -724,6 +686,22 @@ describe("KanbanTools", () => {
       columnId: "todo",
       triggerSessionId: "session-todo-1",
     });
+  });
+
+  it("lets a Done card with pending steps move to blocked but not to todo (card 60f276e0)", async () => {
+    const { tools, taskStore, task } = await seedPendingLaneCard("done", "Push failed", [
+      { id: "step-1", role: "CRAFTER", specialistId: "kanban-done-pusher", specialistName: "推送员" },
+      { id: "step-2", role: "CRAFTER", specialistId: "kanban-done-reporter", specialistName: "完成汇报员" },
+    ]);
+
+    const toTodo = await tools.moveCard({ cardId: task.id, targetColumnId: "todo" });
+    expect(toTodo.success).toBe(false);
+    expect(toTodo.error).toContain("Cannot move");
+    expect((await taskStore.get(task.id))?.columnId).toBe("done");
+
+    const toBlocked = await tools.moveCard({ cardId: task.id, targetColumnId: "blocked" });
+    expect(toBlocked.success).toBe(true);
+    expect((await taskStore.get(task.id))?.columnId).toBe("blocked");
   });
 
   it("rejects description updates from dev onward and tells the agent to use comment", async () => {

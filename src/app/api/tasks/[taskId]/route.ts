@@ -37,7 +37,10 @@ import {
   excludeCurrentColumnSessions,
   markSessionsCompleted,
 } from "@/core/kanban/card-session-teardown";
-import { resolveRemainingLaneStepsMoveBlock } from "@/core/kanban/lane-automation-state";
+import {
+  isExemptFromRemainingLaneStepsGuard,
+  resolveRemainingLaneStepsMoveBlock,
+} from "@/core/kanban/lane-automation-state";
 import {
   buildTaskEvidenceSummary,
   buildTaskInvestValidation,
@@ -415,12 +418,13 @@ export async function PATCH(
 
   // Check required artifacts before allowing column transition
   if (isColumnTransition && targetColumnId !== undefined) {
-    const incomingVerificationVerdict = nextTask.verificationVerdict;
-    const allowReviewFallbackToDev = existing.columnId === "review"
-      && targetColumnId === "dev"
-      && incomingVerificationVerdict === VerificationVerdict.NOT_APPROVED;
     if (boardId && board) {
-        if (!allowReviewFallbackToDev) {
+        if (!isExemptFromRemainingLaneStepsGuard({
+          fromColumnId: existing.columnId,
+          targetColumnId,
+          verificationVerdict: nextTask.verificationVerdict,
+          boardColumns: board.columns,
+        })) {
           const moveBlockedMessage = resolveRemainingLaneStepsMoveBlock(existing, board.columns);
           if (moveBlockedMessage) {
             return NextResponse.json({ error: moveBlockedMessage }, { status: 400 });

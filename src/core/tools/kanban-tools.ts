@@ -42,7 +42,7 @@ import {
   upsertTaskLaneHandoff,
 } from "../kanban/task-lane-history";
 import { finalizeActiveTaskSession } from "../kanban/task-session-transition";
-import { resolveRemainingLaneStepsMoveBlock } from "../kanban/lane-automation-state";
+import { isExemptFromRemainingLaneStepsGuard, resolveRemainingLaneStepsMoveBlock } from "../kanban/lane-automation-state";
 import { getInternalApiOrigin } from "../kanban/agent-trigger";
 import {
   formatRequiredTaskFieldLabel,
@@ -343,10 +343,12 @@ export class KanbanTools {
 
     const fromColumnId = task.columnId ?? "backlog";
     const fromColumn = board.columns.find((c) => c.id === fromColumnId);
-    const allowReviewFallbackToDev = fromColumnId === "review"
-      && params.targetColumnId === "dev"
-      && task.verificationVerdict === "NOT_APPROVED";
-    if (fromColumnId !== params.targetColumnId && !allowReviewFallbackToDev) {
+    if (fromColumnId !== params.targetColumnId && !isExemptFromRemainingLaneStepsGuard({
+      fromColumnId,
+      targetColumnId: params.targetColumnId,
+      verificationVerdict: task.verificationVerdict,
+      boardColumns: board.columns,
+    })) {
       const moveBlockedMessage = resolveRemainingLaneStepsMoveBlock(task, board.columns);
       if (moveBlockedMessage) {
         return errorResult(moveBlockedMessage);

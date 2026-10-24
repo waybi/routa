@@ -1063,86 +1063,68 @@ describe("/api/tasks/[taskId]", () => {
     expect(data.task.triggerSessionId).toBe("session-new");
   });
 
-  it("rejects moving a card out of a lane while later automation steps are still pending", async () => {
+  /** Card in `columnId` whose trigger session runs the first of that lane's steps. */
+  function seedPendingLaneTask(columnId: string, title: string, steps: Array<Record<string, string>>) {
+    const first = steps[0];
     const existingTask = createTask({
-      id: "task-1",
-      title: "Run todo pipeline",
-      objective: "Complete todo before dev",
-      workspaceId: "workspace-1",
-      boardId: "board-1",
-      columnId: "todo",
-      status: TaskStatus.PENDING,
-      triggerSessionId: "session-todo-1",
-      assignedProvider: "codex",
-      assignedRole: "CRAFTER",
-      assignedSpecialistId: "kanban-todo-orchestrator",
-      assignedSpecialistName: "Todo Orchestrator",
+      id: "task-1", title, objective: title, workspaceId: "workspace-1", boardId: "board-1", columnId,
+      status: TaskStatus.PENDING, triggerSessionId: `session-${columnId}-1`, assignedProvider: "codex",
+      assignedRole: "CRAFTER", assignedSpecialistId: first.specialistId, assignedSpecialistName: first.specialistName,
     });
-    existingTask.laneSessions = [
-      {
-        sessionId: "session-todo-1",
-        columnId: "todo",
-        columnName: "Todo",
-        stepId: "step-1",
-        stepIndex: 0,
-        stepName: "Todo Orchestrator",
-        provider: "codex",
-        role: "CRAFTER",
-        specialistId: "kanban-todo-orchestrator",
-        specialistName: "Todo Orchestrator",
-        status: "running",
-        startedAt: "2026-03-18T00:00:00.000Z",
-      },
-    ];
+    existingTask.laneSessions = [{
+      sessionId: `session-${columnId}-1`, columnId, stepId: first.id, stepIndex: 0, stepName: first.specialistName,
+      provider: "codex", role: "CRAFTER", specialistId: first.specialistId, specialistName: first.specialistName,
+      status: "running", startedAt: "2026-03-18T00:00:00.000Z",
+    }];
     taskStore.get.mockResolvedValue(existingTask);
     system.kanbanBoardStore.get = vi.fn().mockResolvedValue({
       id: "board-1",
-      columns: [
-        { id: "backlog", name: "Backlog", position: 0, stage: "backlog" },
-        {
-          id: "todo",
-          name: "Todo",
-          position: 1,
-          stage: "todo",
-          automation: {
-            enabled: true,
-            steps: [
-              {
-                id: "step-1",
-                providerId: "codex",
-                role: "CRAFTER",
-                specialistId: "kanban-todo-orchestrator",
-                specialistName: "Todo Orchestrator",
-              },
-              {
-                id: "step-2",
-                role: "GATE",
-                specialistId: "gate",
-                specialistName: "Verifier",
-              },
-            ],
-          },
-        },
-        { id: "dev", name: "Dev", position: 2, stage: "dev" },
-      ],
+      columns: ["backlog", "todo", "dev", "done", "blocked"].map((id, position) => ({
+        id, name: id[0].toUpperCase() + id.slice(1), position, stage: id,
+        ...(id === columnId ? { automation: { enabled: true, steps } } : {}),
+      })),
     });
+  }
 
-    const request = new NextRequest("http://localhost/api/tasks/task-1", {
+  async function patchColumn(columnId: string) {
+    const response = await PATCH(new NextRequest("http://localhost/api/tasks/task-1", {
       method: "PATCH",
-      body: JSON.stringify({ columnId: "dev" }),
+      body: JSON.stringify({ columnId }),
       headers: { "Content-Type": "application/json" },
-    });
+    }), { params: Promise.resolve({ taskId: "task-1" }) });
+    return { response, data: await response.json() };
+  }
 
-    const response = await PATCH(request, {
-      params: Promise.resolve({ taskId: "task-1" }),
-    });
-    const data = await response.json();
+  it("rejects moving a card out of a lane while later automation steps are still pending", async () => {
+    seedPendingLaneTask("todo", "Run todo pipeline", [
+      { id: "step-1", providerId: "codex", role: "CRAFTER", specialistId: "kanban-todo-orchestrator", specialistName: "Todo Orchestrator" },
+      { id: "step-2", role: "GATE", specialistId: "gate", specialistName: "Verifier" },
+    ]);
+
+    const { response, data } = await patchColumn("dev");
 
     expect(response.status).toBe(400);
     expect(data.error).toContain("Todo Orchestrator");
     expect(data.error).toContain("Verifier");
     expect(taskStore.save).not.toHaveBeenCalled();
     expect(enqueueKanbanTaskSession).not.toHaveBeenCalled();
+  });
+
+  it("lets a Done card with pending steps move to blocked but not to todo (card 60f276e0)", async () => {
+    const doneSteps = [
+      { id: "step-1", role: "CRAFTER", specialistId: "kanban-done-pusher", specialistName: "推送员" },
+      { id: "step-2", role: "CRAFTER", specialistId: "kanban-done-reporter", specialistName: "完成汇报员" },
+    ];
+    seedPendingLaneTask("done", "Push failed", doneSteps);
+    const toTodo = await patchColumn("todo");
+    expect(toTodo.response.status).toBe(400);
+    expect(toTodo.data.error).toContain("Cannot move");
+
+    seedPendingLaneTask("done", "Push failed", doneSteps);
+    const toBlocked = await patchColumn("blocked");
+    expect(toBlocked.response.status).toBe(200);
+    expect(toBlocked.data.task.columnId).toBe("blocked");
+    expect(prepareTaskForColumnChange).toHaveBeenCalledWith("done", expect.objectContaining({ columnId: "blocked" }));
   });
 
   it("blocks moving a card to review when no committed changes are available", async () => {

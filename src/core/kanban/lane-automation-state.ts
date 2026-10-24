@@ -253,6 +253,32 @@ export function resolveRemainingLaneStepsMoveBlock(
 }
 
 /**
+ * Named exemptions from `resolveRemainingLaneStepsMoveBlock`, shared by
+ * PATCH /api/tasks/{id} and the move_card tool. Exactly two moves skip the guard:
+ * - review -> dev with verdict NOT_APPROVED (the review fallback);
+ * - any move into a blocked lane (column id `blocked`, or a board column whose
+ *   stage is `blocked`), so a failed card can leave e.g. Done before the Done
+ *   lane's later steps ran (card 60f276e0, retro L279).
+ * Each caller passes the verdict it already used: PATCH the incoming one,
+ * move_card the stored one.
+ */
+export function isExemptFromRemainingLaneStepsGuard(params: {
+  fromColumnId: string | undefined;
+  targetColumnId: string;
+  verificationVerdict?: string | null;
+  boardColumns: KanbanColumn[];
+}): boolean {
+  const { fromColumnId, targetColumnId, verificationVerdict, boardColumns } = params;
+  if (fromColumnId === "review" && targetColumnId === "dev" && verificationVerdict === "NOT_APPROVED") {
+    return true;
+  }
+  if (targetColumnId === "blocked") {
+    return true;
+  }
+  return boardColumns.find((column) => column.id === targetColumnId)?.stage === "blocked";
+}
+
+/**
  * Step a manual rerun of a lane starts at. The lane's latest run decides:
  * if it did not complete, rerun that step; if it completed, run the step
  * after it (that step was lost, e.g. its start failed); after the lane's last

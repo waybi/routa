@@ -3,9 +3,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { KanbanColumn } from "../../models/kanban";
+import { DEFAULT_KANBAN_COLUMNS, type KanbanColumn, type KanbanColumnStage } from "../../models/kanban";
 import { createTask, type Task } from "../../models/task";
 import {
+  isExemptFromRemainingLaneStepsGuard,
   resolveCurrentLaneAutomationState,
   resolveLaneResumeStep,
   resolveLaunchStepIndex,
@@ -103,5 +104,80 @@ describe("resolveLaneResumeStep after a finished step (unchanged by card 5fdaa68
       stepIndex: 1,
       step: expect.objectContaining({ specialistId: "kanban-review-guard" }),
     });
+  });
+});
+
+describe("isExemptFromRemainingLaneStepsGuard (card 60f276e0)", () => {
+  const stuck = (stage: KanbanColumnStage): KanbanColumn[] => [
+    ...DEFAULT_KANBAN_COLUMNS,
+    { id: "stuck", name: "Stuck", position: 6, stage },
+  ];
+  const D = DEFAULT_KANBAN_COLUMNS;
+
+  it.each([
+    ["done", "blocked", undefined, D, true],
+    ["dev", "blocked", undefined, D, true],
+    ["review", "blocked", undefined, D, true],
+    ["done", "stuck", undefined, stuck("blocked"), true],
+    ["review", "dev", "NOT_APPROVED", D, true],
+    ["review", "dev", undefined, D, false],
+    ["review", "dev", "APPROVED", D, false],
+    ["review", "dev", "BLOCKED", D, false],
+    ["dev", "todo", "NOT_APPROVED", D, false],
+    ["done", "todo", undefined, D, false],
+    ["done", "review", undefined, D, false],
+    ["todo", "dev", undefined, D, false],
+    ["done", "stuck", undefined, stuck("done"), false],
+    ["done", "unknown", undefined, D, false],
+  ] as const)("%s -> %s (verdict %s) is exempt: %#", (fromColumnId, targetColumnId, verificationVerdict, boardColumns, expected) => {
+    expect(isExemptFromRemainingLaneStepsGuard({
+      fromColumnId,
+      targetColumnId,
+      verificationVerdict,
+      boardColumns: [...boardColumns],
+    })).toBe(expected);
+  });
+
+  // F3 cross-check: an independent judge written from AC1, compared on the full
+  // enumeration plus 10,000 seeded random inputs.
+  function judge(from: string, to: string, verdict: string | undefined, columns: KanbanColumn[]): boolean {
+    if (from === "review" && to === "dev" && verdict === "NOT_APPROVED") return true;
+    if (to === "blocked") return true;
+    return columns.some((column) => column.id === to && column.stage === "blocked");
+  }
+
+  it("matches the AC1 judge on every enumerated and random input", () => {
+    const ids = ["backlog", "todo", "dev", "review", "done", "blocked", "stuck", "unknown"];
+    const verdicts = [undefined, "APPROVED", "NOT_APPROVED", "BLOCKED"];
+    const boards: KanbanColumn[][] = [
+      D,
+      stuck("blocked"),
+      stuck("done"),
+      D.filter((column) => column.stage !== "blocked"),
+    ];
+    const stages: KanbanColumnStage[] = ["backlog", "todo", "dev", "review", "blocked", "done"];
+    let seed = 0x60f276e0;
+    const rand = (n: number) => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return Math.floor((seed / 2 ** 32) * n);
+    };
+    const cases: Array<[string, string, string | undefined, KanbanColumn[]]> = [];
+    for (const from of ids) for (const to of ids) for (const verdict of verdicts) for (const board of boards) {
+      cases.push([from, to, verdict, board]);
+    }
+    const pool = [...ids, "col-a", "col-b", "BLOCKED", "Blocked"];
+    for (let i = 0; i < 10_000; i += 1) {
+      const board = Array.from({ length: 1 + rand(6) }, (_, position) => ({
+        id: pool[rand(pool.length)], name: "c", position, stage: stages[rand(stages.length)],
+      })).filter((column, index, all) => all.findIndex((other) => other.id === column.id) === index);
+      cases.push([pool[rand(pool.length)], pool[rand(pool.length)], verdicts[rand(verdicts.length)], board]);
+    }
+    const mismatches = cases.filter(([from, to, verdict, board]) => (
+      isExemptFromRemainingLaneStepsGuard({
+        fromColumnId: from, targetColumnId: to, verificationVerdict: verdict, boardColumns: board,
+      }) !== judge(from, to, verdict, board)
+    ));
+    console.info(`[F3] cases=${cases.length} mismatches=${mismatches.length}`);
+    expect(mismatches.slice(0, 3)).toEqual([]);
   });
 });
