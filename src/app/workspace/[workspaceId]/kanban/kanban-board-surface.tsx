@@ -505,7 +505,7 @@ export function KanbanBoardSurface({
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 min-w-0 flex-1">
               <ChatPanel
                 acp={acp}
                 activeSessionId={agentSessionId}

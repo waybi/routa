@@ -607,16 +607,16 @@ export function TiptapInput({
       }`;
   const toolbarClass = isHero
     ? "mt-2.5 flex min-w-0 items-center gap-2.5 overflow-visible"
-    : "mt-1.5 -mb-0.5 flex min-w-0 items-center gap-2 overflow-hidden";
+    : "mt-1.5 -mb-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5";
   const modelButtonClass = isHero
     ? "flex items-center gap-2 rounded-lg border border-default px-3 py-1.5 text-sm transition-colors hover:bg-accent-subtle"
     : "flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-default hover:bg-hover text-xs transition-colors";
   const sendButtonClass = isHero
     ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-accent text-on-accent shadow-[0_12px_26px_-14px_rgba(37,99,235,0.75)] transition-all hover:opacity-90 hover:shadow-[0_16px_30px_-16px_rgba(37,99,235,0.85)] disabled:opacity-40 disabled:cursor-not-allowed"
-    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-accent hover:opacity-90 text-on-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+    : "ml-auto shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-accent hover:opacity-90 text-on-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   const stopButtonClass = isHero
     ? "shrink-0 flex h-11 w-11 items-center justify-center rounded-[18px] bg-danger text-on-accent shadow-[0_12px_26px_-14px_rgba(220,38,38,0.7)] transition-all hover:opacity-90 hover:shadow-[0_16px_30px_-16px_rgba(220,38,38,0.82)]"
-    : "shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-danger hover:opacity-90 text-on-accent transition-colors";
+    : "ml-auto shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-danger hover:opacity-90 text-on-accent transition-colors";
 
   // Keep mode chips aligned with the current session mode when switching sessions.
   useEffect(() => {
@@ -991,7 +991,7 @@ export function TiptapInput({
   }, [editor, disabled]);
 
   return (
-    <div className="flex-1 flex flex-col gap-1.5">
+    <div className="min-w-0 flex-1 flex flex-col gap-1.5">
       {/* Editor wrapper */}
       <div className={wrapperClass} data-testid="tiptap-input">
         <EditorContent editor={editor} />
@@ -999,7 +999,7 @@ export function TiptapInput({
         {/* Bottom toolbar */}
         <div className={toolbarClass}>
           {/* Repo picker */}
-          <div className="min-w-0 flex-1">
+          <div className={isHero ? "min-w-0 flex-1" : "min-w-0 flex-1 basis-60"}>
             <RepoPicker
               value={repoSelection}
               onChange={onRepoChange}

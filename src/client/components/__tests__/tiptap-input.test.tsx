@@ -155,6 +155,36 @@ describe("TiptapInput beforeProviderSlot", () => {
   });
 });
 
+describe("TiptapInput compact toolbar wraps inside narrow sidebars", () => {
+  function parts(container: HTMLElement) {
+    const root = screen.getByTestId("tiptap-input").parentElement;
+    const toolbar = container.querySelector("[data-testid=\"provider-dropdown\"]")?.parentElement?.parentElement;
+    return { root, toolbar };
+  }
+
+  it("lets the default (compact) input shrink and wraps the toolbar instead of clipping it", () => {
+    const { container } = render(
+      <TiptapInput onSend={vi.fn()} selectedProvider="dsh" onRepoChange={vi.fn()} repoSelection={null} />,
+    );
+    const { root, toolbar } = parts(container);
+    expect(root?.className.split(/\s+/)).toContain("min-w-0");
+    const toolbarClasses = toolbar?.className.split(/\s+/) ?? [];
+    expect(toolbarClasses).toContain("flex-wrap");
+    expect(toolbarClasses).not.toContain("overflow-hidden");
+    expect(screen.getByTestId("tiptap-send-button").className.split(/\s+/)).toContain("ml-auto");
+  });
+
+  it("keeps the hero toolbar on a single unwrapped row", () => {
+    const { container } = render(
+      <TiptapInput variant="hero" onSend={vi.fn()} selectedProvider="dsh" onRepoChange={vi.fn()} repoSelection={null} />,
+    );
+    const toolbarClasses = parts(container).toolbar?.className.split(/\s+/) ?? [];
+    expect(toolbarClasses).not.toContain("flex-wrap");
+    expect(toolbarClasses).toContain("overflow-visible");
+    expect(screen.getByTestId("tiptap-send-button").className.split(/\s+/)).not.toContain("ml-auto");
+  });
+});
+
 describe("TiptapInput placeholder follows prop and locale changes", () => {
   function placeholderOf(container: HTMLElement): string | null {
     return container.querySelector(".is-editor-empty")?.getAttribute("data-placeholder") ?? null;

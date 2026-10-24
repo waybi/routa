@@ -957,7 +957,7 @@ export function ChatPanel({
               {(taskInfos.length > 0 || fileChangesSummary) && (
                 <TaskProgressBar tasks={taskInfos} fileChanges={fileChangesSummary} />
               )}
-              <div className="flex gap-2 items-end">
+              <div className="flex min-w-0 gap-2 items-end">
                 {onPrepareCanvasPrompt && canvasPromptLabel && canvasPromptShortLabel && (
                   <button
                     type="button"
