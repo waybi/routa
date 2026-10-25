@@ -32,3 +32,23 @@ export function subscribeToComposerProviderPick(onChange: () => void): () => voi
   window.addEventListener("storage", onChange);
   return () => window.removeEventListener("storage", onChange);
 }
+
+/**
+ * Provider the composer shows before the user picks one: the caller's
+ * preferred provider while it is listed and not known to be unavailable
+ * (available / checking / no status), otherwise `selectedProvider` (use-acp
+ * already falls back to the first available provider there). Pure: callers
+ * pass `hasPickedProvider` from `hasPickedComposerProvider()`.
+ */
+export function resolveComposerProviderId(args: {
+  preferredDefaultProvider?: string | null;
+  hasPickedProvider: boolean;
+  providers?: ReadonlyArray<{ id: string; status?: string }>;
+  selectedProvider: string;
+}): string {
+  const { preferredDefaultProvider, hasPickedProvider, providers, selectedProvider } = args;
+  if (!preferredDefaultProvider || hasPickedProvider) return selectedProvider;
+  const preferred = providers?.find((provider) => provider.id === preferredDefaultProvider);
+  if (!preferred || preferred.status === "unavailable") return selectedProvider;
+  return preferredDefaultProvider;
+}

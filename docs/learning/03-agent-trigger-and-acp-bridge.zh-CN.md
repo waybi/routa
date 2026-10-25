@@ -611,3 +611,4 @@ prompt 本身就是 Agent 的行为约束边界。
 |---|---|---|---|
 | 2026-10-23 | 新增「看板施工者默认模型」全局档位设置，插在岗位 model 和 PROVIDER_MODEL_TIERS 之间 | 换施工者默认模型不用再改代码、重新构建 | （见本次提交） |
 | 2026-10-25 | session/new 建会话前同步检查静态 preset 命令是否存在；`_providers/list` 和 `/api/providers?check=true` 改用同一个判定函数并返回 unavailableReason | 没装的 provider 当场返回 -32002（带命令名），不再假成功、不起子进程 | （见本次提交） |
+| 2026-10-25 | Provider 下拉里状态为 unavailable 的项保留显示但禁用（disabled + aria-disabled、置灰，悬停显示 unavailableReason），当前选中项变不可用时不自动切换；首页输入框的 preferredDefaultProvider 不可用时回退到 use-acp 选好的 provider（resolveComposerProviderId） | 用户点不中没装的 provider，输入框也不会默认选中它 | （见本次提交） |

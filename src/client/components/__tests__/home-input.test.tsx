@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeInput, resolveHomeInputSpecialistId } from "../home-input";
 import { resetModelEffortChoicesCache } from "../../model-effort/use-model-effort-choices";
+import { COMPOSER_PROVIDER_PICKED_KEY } from "../../hooks/acp-provider-choice";
 
 const {
   pushMock,
@@ -37,7 +38,10 @@ const {
   collectAccessibleRepoPathsMock: vi.fn(),
   loadProviderConnectionConfigMock: vi.fn(),
   getModelDefinitionByAliasMock: vi.fn(),
-  acpState: { selectedProvider: "provider-default" },
+  acpState: {
+    selectedProvider: "provider-default",
+    providers: [{ id: "provider-x", name: "Provider X" }] as Array<{ id: string; name: string; status?: string }>,
+  },
   tiptapProps: [] as Array<Record<string, unknown>>,
 }));
 
@@ -96,7 +100,7 @@ vi.mock("../../hooks/use-acp", () => ({
   useAcp: () => ({
     connected: true,
     loading: false,
-    providers: [{ id: "provider-x", name: "Provider X" }],
+    providers: acpState.providers,
     selectedProvider: acpState.selectedProvider,
     setProvider: setProviderMock,
     connect: vi.fn(),
@@ -186,6 +190,8 @@ describe("HomeInput", () => {
     tiptapProps.length = 0;
     resetModelEffortChoicesCache();
     acpState.selectedProvider = "provider-default";
+    acpState.providers = [{ id: "provider-x", name: "Provider X" }];
+    window.localStorage.removeItem(COMPOSER_PROVIDER_PICKED_KEY);
 
     useWorkspacesMock.mockReturnValue({
       workspaces: [
@@ -510,6 +516,42 @@ describe("HomeInput", () => {
         expect(desktopAwareFetchMock.mock.calls.some(([url]) => String(url).includes("/api/providers/provider-broken/config-options"))).toBe(true);
       });
       expect(screen.queryByTestId("home-model-effort-picker")).toBeNull();
+    });
+  });
+
+  describe("preferred default provider (card f1bc30c7 AC7 / contract C7)", () => {
+    async function renderWithPreferred(status: "available" | "checking" | "unavailable") {
+      acpState.providers = [
+        { id: "codex", name: "Codex", status },
+        { id: "opencode", name: "OpenCode", status: "available" },
+      ];
+      acpState.selectedProvider = "opencode";
+      render(<HomeInput workspaceId="ws-1" preferredDefaultProvider="codex" />);
+      await waitFor(() => expect(screen.getByTestId("repo-selection").textContent).toBe("/repo/main"));
+    }
+
+    it("falls back to use-acp's provider when the preferred one is unavailable", async () => {
+      await renderWithPreferred("unavailable");
+
+      expect(tiptapProps.at(-1)?.selectedProvider).toBe("opencode");
+      fireEvent.click(screen.getByRole("button", { name: "Send default toolbar" }));
+      await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
+      expect(createSessionMock.mock.calls[0][1]).toBe("opencode");
+    });
+
+    it("keeps the preferred provider while its status is checking", async () => {
+      await renderWithPreferred("checking");
+
+      expect(tiptapProps.at(-1)?.selectedProvider).toBe("codex");
+      fireEvent.click(screen.getByRole("button", { name: "Send default toolbar" }));
+      await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
+      expect(createSessionMock.mock.calls[0][1]).toBe("codex");
+    });
+
+    it("keeps the preferred provider when it is available", async () => {
+      await renderWithPreferred("available");
+
+      expect(tiptapProps.at(-1)?.selectedProvider).toBe("codex");
     });
   });
 });

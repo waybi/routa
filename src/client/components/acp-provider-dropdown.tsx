@@ -285,18 +285,29 @@ export function AcpProviderDropdown({
                 )}
                 {visibleProviders.length > 0 ? (
                   <div className="space-y-1">
-                    {visibleProviders.map((provider) => (
+                    {visibleProviders.map((provider) => {
+                      // Unavailable stays listed (with its reason on hover) but cannot be picked;
+                      // a selected one keeps its highlight so the user sees what is selected.
+                      const isUnavailable = provider.status === "unavailable";
+                      return (
                       <button
                         key={provider.id}
                         type="button"
-                        onClick={() => handleSelect(provider.id)}
+                        disabled={isUnavailable}
+                        aria-disabled={isUnavailable}
+                        onClick={() => {
+                          if (isUnavailable) return;
+                          handleSelect(provider.id);
+                        }}
                         title={provider.unavailableReason ?? provider.description}
                         className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors ${
                           provider.id === selectedProvider
-                            ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
-                            : provider.status === "available"
-                              ? "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
-                              : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50"
+                            ? `bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300${isUnavailable ? " cursor-not-allowed" : ""}`
+                            : isUnavailable
+                              ? "cursor-not-allowed text-slate-400 opacity-50 dark:text-slate-500"
+                              : provider.status === "available"
+                                ? "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                                : "text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/50"
                         }`}
                       >
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -311,7 +322,8 @@ export function AcpProviderDropdown({
                           {provider.command}
                         </span>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">

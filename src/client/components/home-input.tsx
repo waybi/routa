@@ -16,7 +16,12 @@ import { TiptapInput, type InputContext, type InsertTextRequest } from "./tiptap
 import { ModelEffortPicker, type ModelEffortPickerProps } from "./model-effort-picker";
 import { useModelEffortChoices } from "../model-effort/use-model-effort-choices";
 import { useAcp } from "../hooks/use-acp";
-import { hasPickedComposerProvider, markComposerProviderPicked, subscribeToComposerProviderPick } from "../hooks/acp-provider-choice";
+import {
+  hasPickedComposerProvider,
+  markComposerProviderPicked,
+  resolveComposerProviderId,
+  subscribeToComposerProviderPick,
+} from "../hooks/acp-provider-choice";
 import { useSkills } from "../hooks/use-skills";
 import { useWorkspaces, useCodebases } from "../hooks/use-workspaces";
 import type { RepoSelection } from "./repo-picker";
@@ -384,12 +389,15 @@ export function HomeInput({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Until the user picks a provider in a composer: the caller's preferred provider (when available).
+  // Until the user picks a provider in a composer: the caller's preferred provider,
+  // unless it is known to be unavailable (then use-acp's first available one).
   const hasPickedProvider = useSyncExternalStore(subscribeToComposerProviderPick, hasPickedComposerProvider, () => true);
-  const selectedProviderId = preferredDefaultProvider && !hasPickedProvider
-    && acp.providers?.some((provider) => provider.id === preferredDefaultProvider)
-    ? preferredDefaultProvider
-    : acp.selectedProvider;
+  const selectedProviderId = resolveComposerProviderId({
+    preferredDefaultProvider,
+    hasPickedProvider,
+    providers: acp.providers,
+    selectedProvider: acp.selectedProvider,
+  });
   const { setProvider } = acp;
   const handleProviderChange = useCallback((providerId: string) => {
     markComposerProviderPicked();
