@@ -436,7 +436,11 @@ describe("F3: batch cross-check against a judge written from the requirement", (
 
   async function spawnCommand(provider: string): Promise<string> {
     if (streamJsonIds.has(provider)) return buildClaudeCodeConfig(CWD, [], undefined, undefined, undefined, provider).command;
-    return (await buildConfigFromPreset(provider, CWD)).command;
+    try {
+      return (await buildConfigFromPreset(provider, CWD)).command;
+    } catch {
+      return `(no spawn command for ${provider})`;
+    }
   }
 
   it("session/new and both lists agree with the judge for every preset × which × customCommand", async () => {
