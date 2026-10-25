@@ -103,6 +103,13 @@ vi.mock("@/core/acp/runner-routing", () => ({
   runnerUnavailableResponse,
 }));
 
+// session/new checks the preset command before creating a session; keep these
+// cases independent of which CLIs the test machine has installed.
+vi.mock("@/core/acp/provider-availability", () => ({
+  resolveProviderAvailability: vi.fn(async () => ({ status: "available", command: "mock-cli" })),
+  resolvePresetAvailability: vi.fn(async () => ({ status: "available", command: "mock-cli" })),
+}));
+
 vi.mock("@/core/acp/session-db-persister", async () => {
   const actual = await vi.importActual<typeof import("@/core/acp/session-db-persister")>(
     "@/core/acp/session-db-persister",

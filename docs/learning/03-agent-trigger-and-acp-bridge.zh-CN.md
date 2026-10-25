@@ -241,6 +241,13 @@ POST /api/acp
 - 加载 specialist 的提示词（人设）
 - 还没启动 AI CLI 进程！
 
+**不可用 provider 同步报错**（`src/app/api/acp/acp-session-create.ts`，2026-10-25 起）：
+- 检查位置：参数校验和 idempotency 缓存命中之后、生成 sessionId 和取 store/manager 之前。缓存命中的旧成功照常返回；报错不进缓存，用户装好 CLI 后同一个 key 重试就能建会话。
+- 判定：`resolveProviderAvailability(provider)`（`src/core/acp/provider-availability.ts`），即 `which(resolveCommand(preset))`，和真正启动时用的是同一个命令（`buildConfigFromPreset` / `buildClaudeCodeConfig`）。
+- 不可用时直接返回 JSON-RPC error：`code: -32002`，message 形如 `Provider "codex" is unavailable: codex-acp is not installed or not in PATH`。不注册会话、不起子进程。
+- 跳过检查的分支（保留各自原有检查和错误码）：带 `customCommand` 的请求、workspace 类（`workspace` / `workspace-agent` / `routa-native`）、`claude-code-sdk`、`opencode-sdk`、`docker-opencode`。只在 ACP Registry 里的 id（如 `codex-acp`、`*-registry`）不是静态 preset，照旧放行。
+- 两个列表接口用同一个函数：`_providers/list` 和 `GET /api/providers?check=true` 里不可用的静态 preset 带 `unavailableReason`（`<命令> is not installed or not in PATH`）。
+
 ### session/prompt：真正启动 AI CLI 进程
 
 ~~~plaintext
@@ -603,3 +610,4 @@ prompt 本身就是 Agent 的行为约束边界。
 | 日期 | 改了什么 | 效果 | 提交 |
 |---|---|---|---|
 | 2026-10-23 | 新增「看板施工者默认模型」全局档位设置，插在岗位 model 和 PROVIDER_MODEL_TIERS 之间 | 换施工者默认模型不用再改代码、重新构建 | （见本次提交） |
+| 2026-10-25 | session/new 建会话前同步检查静态 preset 命令是否存在；`_providers/list` 和 `/api/providers?check=true` 改用同一个判定函数并返回 unavailableReason | 没装的 provider 当场返回 -32002（带命令名），不再假成功、不起子进程 | （见本次提交） |

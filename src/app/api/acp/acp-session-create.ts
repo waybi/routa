@@ -6,6 +6,7 @@ import { isOpencodeServerConfigured } from "@/core/acp/opencode-sdk-adapter";
 import { getDockerDetector, DEFAULT_DOCKER_AGENT_IMAGE } from "@/core/acp/docker";
 import { isClaudeCodeSdkConfigured } from "@/core/acp/claude-code-sdk-adapter";
 import { isClaudeStreamJsonProvider } from "@/core/acp/acp-presets";
+import { resolveProviderAvailability } from "@/core/acp/provider-availability";
 import { resolveClaudeGatewayModel } from "@/core/acp/claude-code-process";
 import type { AgentInstanceConfig } from "@/core/acp/agent-instance-factory";
 import type { WorkspaceAgentConfig, WorkspaceAgentProvider } from "@/core/acp/workspace-agent/workspace-agent-config";
@@ -369,6 +370,27 @@ export async function handleSessionNew({
         ownerInstanceId: cachedSession?.ownerInstanceId,
         leaseExpiresAt: cachedSession?.leaseExpiresAt,
         cached: true,
+      });
+    }
+  }
+
+  // Refuse a static preset whose command is missing before any session exists
+  // (retro L298: the old path answered success, then failed in the background).
+  // Skipped branches must match the spawn chain below: customCommand, workspace,
+  // opencode-sdk, docker-opencode and claude-code-sdk keep their own checks.
+  // Registry-only ids resolve to null and pass through.
+  if (
+    !customCommand
+    && !isWorkspaceProvider(provider)
+    && provider !== "claude-code-sdk"
+    && provider !== "opencode-sdk"
+    && provider !== "docker-opencode"
+  ) {
+    const availability = await resolveProviderAvailability(provider);
+    if (availability?.status === "unavailable") {
+      return jsonrpcResponse(id ?? null, null, {
+        code: -32002,
+        message: `Provider "${provider}" is unavailable: ${availability.reason}`,
       });
     }
   }

@@ -20,8 +20,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAcpProcessManager } from "@/core/acp/processer";
 import { getHttpSessionStore } from "@/core/acp/http-session-store";
-import { getStandardPresets, getPresetById, resolveCommand } from "@/core/acp/acp-presets";
+import { getStandardPresets, getPresetById } from "@/core/acp/acp-presets";
 import { which } from "@/core/acp/utils";
+import { resolvePresetAvailability } from "@/core/acp/provider-availability";
 import { fetchRegistry, detectPlatformTarget } from "@/core/acp/acp-registry";
 import { ensureMcpForProvider } from "@/core/acp/mcp-setup";
 import { getDefaultRoutaMcpConfig } from "@/core/acp/mcp-config-generator";
@@ -923,20 +924,22 @@ export async function POST(request: NextRequest) {
         command: string;
         status: "available" | "unavailable";
         source: "static" | "registry";
+        unavailableReason?: string;
       };
 
       // Check which static preset commands are installed in parallel
+      // (shared check with session/new and GET /api/providers?check=true).
       const staticProviders: ProviderEntry[] = await Promise.all(
         allPresets.map(async (p): Promise<ProviderEntry> => {
-          const cmd = resolveCommand(p);
-          const resolved = await which(cmd);
+          const availability = await resolvePresetAvailability(p);
           return {
             id: p.id,
             name: p.name,
             description: p.description,
             command: p.command,
-            status: resolved ? "available" : "unavailable",
+            status: availability.status,
             source: "static",
+            ...(availability.reason ? { unavailableReason: availability.reason } : {}),
           };
         })
       );

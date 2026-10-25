@@ -12,8 +12,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getStandardPresets, getPresetById, resolveCommand } from "@/core/acp/acp-presets";
+import { getStandardPresets, getPresetById } from "@/core/acp/acp-presets";
 import { which } from "@/core/acp/utils";
+import { resolvePresetAvailability } from "@/core/acp/provider-availability";
 import { fetchRegistry, detectPlatformTarget } from "@/core/acp/acp-registry";
 import { isServerlessEnvironment } from "@/core/acp/api-based-providers";
 import { isOpencodeServerConfigured } from "@/core/acp/opencode-sdk-adapter";
@@ -161,18 +162,18 @@ async function getLocalProviders(shouldCheck = false): Promise<ProviderInfo[]> {
   }
 
   if (shouldCheck) {
-    // Check availability in parallel
+    // Check availability in parallel (shared check with session/new and _providers/list)
     const checkedProviders = await Promise.all(
       allPresets.map(async (p): Promise<ProviderInfo> => {
-        const cmd = resolveCommand(p);
-        const resolved = await which(cmd);
+        const availability = await resolvePresetAvailability(p);
         return {
           id: p.id,
           name: p.name,
           description: p.description,
           command: p.command,
-          status: resolved ? "available" : "unavailable",
+          status: availability.status,
           source: "static",
+          ...(availability.reason ? { unavailableReason: availability.reason } : {}),
         };
       })
     );
