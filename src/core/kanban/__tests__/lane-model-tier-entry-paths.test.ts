@@ -28,6 +28,11 @@ const { processManager, systemRef } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/acp/processer", () => ({ getAcpProcessManager: () => processManager }));
+// session/new refuses providers whose CLI is missing (ad74af68); do not depend on `dsh` in PATH.
+vi.mock("@/core/acp/provider-availability", () => ({
+  resolveProviderAvailability: vi.fn(async () => ({ status: "available", command: "dsh" })),
+  resolvePresetAvailability: vi.fn(async () => ({ status: "available", command: "dsh" })),
+}));
 // Never open the real routa.db: revive hydrates the session store first.
 vi.mock("@/core/acp/http-session-store", async () => {
   const actual = await vi.importActual<typeof import("@/core/acp/http-session-store")>("@/core/acp/http-session-store");
