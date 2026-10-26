@@ -55,6 +55,7 @@ interface SessionRecord {
   modeId?: string;
   mcpProfile?: string;
   model?: string;
+  reasoningEffort?: string;
   specialistId?: string;
   acpStatus?: "connecting" | "ready" | "error";
   parentSessionId?: string;
@@ -612,7 +613,7 @@ export function SessionPageClient() {
   }, [buildSessionHref, isResolved, resolveSessionNavigationTarget, router, searchParams, sessionId]);
 
   const handleCreateSession = useCallback(
-    async (provider: string) => {
+    async (provider: string, reasoningEffort?: string) => {
       await ensureConnected();
 
       // Delete previous empty session before creating new one
@@ -631,7 +632,7 @@ export function SessionPageClient() {
         apiKey,
       } = resolveAgentConfig(role, provider, undefined, selectedSpec);
       console.log(`[handleCreateSession] Creating session: provider=${effectiveProvider}, model=${resolvedModel}, role=${role}, specialistId=${selectedSpecialistId}`);
-      const result = await acp.createSession(cwd, effectiveProvider, undefined, role, workspaceId, resolvedModel, undefined, selectedSpecialistId ?? undefined, undefined, baseUrl, apiKey, branch);
+      const result = await acp.createSession(cwd, effectiveProvider, undefined, role, workspaceId, resolvedModel, undefined, selectedSpecialistId ?? undefined, undefined, baseUrl, apiKey, branch, undefined, undefined, undefined, undefined, undefined, undefined, undefined, reasoningEffort || undefined);
       if (result?.sessionId) {
         router.push(`/workspace/${workspaceId}/sessions/${result.sessionId}`);
       }
@@ -674,9 +675,12 @@ export function SessionPageClient() {
       }
 
       const transcript = await fetchSessionTranscript(displaySessionId);
+      // Rebuild with the original provider/model/effort. "codex" was hard-coded
+      // when only codex sessions were recreated (caef6745); records without a
+      // provider still fall back to the current selection.
       const recreated = await acp.createSession(
         activeSessionRecord.cwd,
-        "codex",
+        activeSessionRecord.provider ?? acp.selectedProvider,
         activeSessionRecord.modeId,
         activeSessionRecord.role,
         workspaceId,
@@ -687,6 +691,14 @@ export function SessionPageClient() {
         undefined,
         undefined,
         activeSessionRecord.branch,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        activeSessionRecord.reasoningEffort || undefined,
       );
 
       if (!recreated?.sessionId) {
@@ -711,7 +723,7 @@ export function SessionPageClient() {
     workspaceId,
   ]);
 
-  const ensureSessionForChat = useCallback(async (cwd?: string, provider?: string, modeId?: string, model?: string): Promise<string | null> => {
+  const ensureSessionForChat = useCallback(async (cwd?: string, provider?: string, modeId?: string, model?: string, reasoningEffort?: string): Promise<string | null> => {
     await ensureConnected();
     // Always use the current session from URL
     if (sessionId) return sessionId;
@@ -729,7 +741,7 @@ export function SessionPageClient() {
     } = resolveAgentConfig(role, provider, model, selectedSpec);
     const branch = repoSelection?.branch || undefined;
     console.log(`[ensureSessionForChat] Creating session: provider=${effectiveProvider}, role=${role}, model=${effectiveModel}, specialistId=${selectedSpecialistId}`);
-    const result = await acp.createSession(cwd, effectiveProvider, modeId, role, workspaceId, effectiveModel, undefined, selectedSpecialistId ?? undefined, undefined, baseUrl, apiKey, branch);
+    const result = await acp.createSession(cwd, effectiveProvider, modeId, role, workspaceId, effectiveModel, undefined, selectedSpecialistId ?? undefined, undefined, baseUrl, apiKey, branch, undefined, undefined, undefined, undefined, undefined, undefined, undefined, reasoningEffort || undefined);
     if (result?.sessionId) {
       router.push(`/workspace/${workspaceId}/sessions/${result.sessionId}`);
       return result.sessionId;

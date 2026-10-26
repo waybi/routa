@@ -45,6 +45,7 @@ import { useKanbanLiveTails } from "./use-kanban-live-tails";
 import { useKanbanRetryPending } from "./use-kanban-retry-feedback";
 import { useKanbanWorktreeCache } from "./use-kanban-worktree-cache";
 import { useKanbanAgentInput } from "./use-kanban-agent-input";
+import { useEnsureKanbanAgentSession } from "./use-ensure-kanban-agent-session";
 import { useKanbanDetailSplit } from "./use-kanban-detail-split";
 import { useKanbanTaskDetailHydration } from "./use-kanban-task-detail-hydration";
 
@@ -777,44 +778,9 @@ export function KanbanTab({
     };
   }, [defaultCodebase]);
 
-  const ensureKanbanAgentSession = useCallback(async (
-    cwd?: string,
-    provider?: string,
-    _modeId?: string,
-    model?: string,
-  ) => {
-    if (!acp) return null;
-    if (agentSessionId) {
-      return agentSessionId;
-    }
-
-    const result = await acp.createSession(
-      cwd ?? defaultCodebase?.repoPath,
-      provider ?? boardAutoProviderId,
-      undefined,
-      "DEVELOPER",
-      workspaceId,
-      model,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      "full",
-      [],
-      undefined,
-      undefined,
-      true,
-    );
-
-    if (!result?.sessionId) {
-      return null;
-    }
-
-    openAgentPanel(result.sessionId);
-    return result.sessionId;
-  }, [acp, agentSessionId, boardAutoProviderId, defaultCodebase?.repoPath, openAgentPanel, workspaceId]);
+  const ensureKanbanAgentSession = useEnsureKanbanAgentSession({
+    acp, agentSessionId, boardAutoProviderId, defaultRepoPath: defaultCodebase?.repoPath, workspaceId, openAgentPanel,
+  });
 
   useEffect(() => {
     activeTaskIdRef.current = activeTaskId;

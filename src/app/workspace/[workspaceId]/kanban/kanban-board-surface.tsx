@@ -185,6 +185,7 @@ export function KanbanBoardSurface({
     provider?: string,
     modeId?: string,
     model?: string,
+    reasoningEffort?: string,
   ) => Promise<string | null>;
   kanbanRepoSelection: RepoSelection | null;
   fileChangesOpen?: boolean;

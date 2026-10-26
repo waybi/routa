@@ -85,6 +85,24 @@ function formatRestoreTranscriptLine(message: SessionRestoreTranscriptMessage): 
   }
 }
 
+/**
+ * createSession arguments that rebuild a lost session like the original:
+ * same provider (else the board/selected one), model and reasoning effort.
+ */
+export function buildKanbanSessionReplacementArgs(
+  session: SessionInfo,
+  fallbackProvider: string | undefined,
+  workspaceId: string,
+): Parameters<UseAcpActions["createSession"]> {
+  return [
+    session.cwd, session.provider ?? fallbackProvider, session.modeId, session.role,
+    session.workspaceId || workspaceId, session.model, undefined, session.specialistId,
+    undefined, undefined, undefined, session.branch,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    session.reasoningEffort || undefined,
+  ];
+}
+
 export function buildKanbanSessionRestorePrompt(
   task: TaskInfo | null,
   session: SessionInfo,
@@ -456,18 +474,7 @@ export function KanbanTaskDetailOverlay({
 
     const transcript = await fetchSessionTranscriptForRestore(activeSessionId);
     const replacement = await acp.createSession(
-      targetSessionInfo.cwd,
-      targetSessionInfo.provider ?? boardAutoProviderId ?? acp.selectedProvider,
-      targetSessionInfo.modeId,
-      targetSessionInfo.role,
-      targetSessionInfo.workspaceId || workspaceId,
-      targetSessionInfo.model,
-      undefined,
-      targetSessionInfo.specialistId,
-      undefined,
-      undefined,
-      undefined,
-      targetSessionInfo.branch,
+      ...buildKanbanSessionReplacementArgs(targetSessionInfo, boardAutoProviderId ?? acp.selectedProvider, workspaceId),
     );
 
     if (!replacement?.sessionId) return;
