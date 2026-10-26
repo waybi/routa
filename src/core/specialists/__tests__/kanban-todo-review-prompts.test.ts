@@ -38,7 +38,9 @@ describe("kanban-todo-orchestrator prompt", () => {
     expect(prompt).toContain("(pack <pack>:<line>)");
     expect(prompt).toContain("经验包 <包>：已看标题，无相关条目");
     expect(prompt).toContain("Pack <pack>: titles checked, no relevant entries");
-    expect(prompt).toMatch(/deepseek-harness\s*→\s*dsh-config/);
+    // Packs come from the knowledge-base resolver, not a hard-coded repository → pack mapping.
+    expect(prompt).toContain("flight_resolve.py --card <完整卡号>");
+    expect(prompt).not.toMatch(/deepseek-harness\s*→\s*dsh-config/);
   });
 });
 

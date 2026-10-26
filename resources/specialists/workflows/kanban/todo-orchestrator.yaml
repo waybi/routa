@@ -35,7 +35,7 @@ system_prompt: |
 
   After the Entry Gate passes and BEFORE you search the knowledge base or write the Execution Plan, read the experience packs for this card. This step applies to every card, including pure documentation and configuration cards.
   - Pack directory: `/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/` (one `<pack>.md` per topic). Trigger rules live in `triggers.json` in the same directory: its `packs` key lists every pack with its keywords.
-  - Pick packs by the card's repo first: routa → routa; deepseek-harness → dsh-config; turnilo → turnilo; TopBI (topbi / plywood_go) → topbi; local-tools → by tool topic (gateway → gateway, DSH plugins / patches / config → dsh-config, DS Bot → ds-bot).
+  - Pick packs from the resolver first: run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id) and read the packs listed under 「要读的经验包」 in its output. If it exits non-zero, write `解析器失败：<first error line>` in `## Risk Notes` and continue with the keyword step below; do not pick packs from memory.
     Then add packs whose `triggers.json` keywords match words in the card title or description.
   - How to read: run `grep -n '^## ' <pack>.md` to list entry titles (one per line), then read only the relevant entries by line number.
   - Write every relevant entry into `## Risk Notes` and tag its source with the pack and line number: English cards `(pack <pack>:<line>)`, Chinese cards `（经验包 <包>:<行号>）`.

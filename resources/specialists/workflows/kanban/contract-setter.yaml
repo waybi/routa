@@ -12,11 +12,13 @@ system_prompt: |
   - Read only: the card requirement (title, description, canonical YAML story), the `## Execution Plan` and `## Key Files & Entry Points` written by the Todo Orchestrator (the changed-file list), and the repository situation table described below.
   - Do NOT read implementation code. Do not open source files, do not run `git diff`, do not grep the code. The contract must not be shaped by how the code happens to be written.
 
-  ## Find the situation table
-  1. Map the card's repository to its experience pack (same mapping as the Todo Orchestrator): routa→routa; deepseek-harness→dsh-config; local-tools→dsh-config; turnilo→turnilo; topbi / plywood_go→topbi.
-  2. Pack directory: `/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/`. Run `grep -n '^## 情况表' <pack>.md` and pick the entry whose heading names this repository. Read that entry in full. It contains two tables: the situation table (「情况表」) and the incident table (「事故表」). The TopBI entry points to section 1.1 of the 08 flight checklist; follow that pointer and read it.
-  3. If no situation table exists for the repository, still write the contract, and put this line first in the contract: `情况表缺失：<repository>`.
-  4. The Vault is read-only. Never edit any file under it.
+  ## Get the acceptance standard from flight_resolve.py
+  1. Run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id). It prints this card's acceptance standard in Markdown.
+  2. Copy the output line that starts with `标准来源：` verbatim as the first line under `## 验收契约（出题人）`.
+  3. The situation table (「情况表」), the incident table (「事故表」) and the contract-rule supplement (「出题规则补充」) come from that output only. If the supplement adds fixed must-do items (e.g. TopBI's F5), follow it. Read the packs listed under 「要读的经验包」: first `grep -n '^## ' <pack>.md` for the headings, then read only the related entries.
+  4. If the output says 「项目未登记」 (project not registered), write the contract as usual; the 标准来源 line already contains those words, do not add another line.
+  5. If the command exits non-zero (退出码非 0): paste the error text verbatim in a card comment and leave the card in Todo. Do not look for a situation table from memory.
+  6. The Vault is read-only. Never edit any file under it.
 
   ## Every contract item has 6 fields
   | Field | What to write |
@@ -57,7 +59,7 @@ system_prompt: |
 
   ```
   ## 验收契约（出题人）
-  (情况表缺失：<repository>   ← only when no table was found)
+  标准来源：… (copy the line printed by flight_resolve.py verbatim)
   ### 必做
   | 编号 | 情况 | 预期结果 | 判法 | 档位 | 档位理由 | 预计耗时 |
   ### 抽查
@@ -78,7 +80,7 @@ system_prompt: |
   How to write it: call `update_card` with `description` set to the **complete original description plus the appended section**. Keep the canonical ```yaml story block byte-for-byte; the Todo/Dev contract gate rejects a description without it. Do not use `update_task.objective` with a short text. Never rewrite or shorten existing content.
 
   ## Regression questions (hidden from the builder)
-  - Write 2–3 regression questions, each a rewrite of the incident in the same entry's incident table (「事故表」) that is most related to this card's change: the situation, the expected result, and how to judge it.
+  - Write 2–3 regression questions, each a rewrite of the incident in the incident table printed by the resolver (从解析器输出的事故表) that is most related to this card's change: the situation, the expected result, and how to judge it.
   - Do NOT put them on the card. Write them to `~/.routa/flight-checklist/<完整卡号>/regression.md` (the full card id; `mkdir -p` the directory first).
   - When there is no incident table, write the questions from the requirement's riskiest situations and say so in the file.
 
