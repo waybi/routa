@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 
@@ -12,6 +12,8 @@ vi.mock("next/navigation", () => ({
 import { KanbanOverview } from "../kanban-overview";
 import { __resetKanbanOverviewCacheForTests } from "../use-kanban-overview-data";
 import en from "@/i18n/locales/en";
+import zh from "@/i18n/locales/zh";
+import { I18nContext } from "@/i18n/context";
 import { KanbanTabContent } from "../kanban-tab-content";
 
 class MockEventSource {
@@ -122,7 +124,7 @@ async function renderOverview(onShowBoard = vi.fn()) {
 
 type TabContentProps = ComponentProps<typeof KanbanTabContent>;
 
-function renderTabContent() {
+function renderTabContent(wrap: (node: ReactNode) => ReactNode = (node) => node) {
   const props = {
     headerProps: {
       tasksCount: 0,
@@ -136,7 +138,7 @@ function renderTabContent() {
     headerActionProps: {} as TabContentProps["headerActionProps"],
     codebaseModalProps: {} as TabContentProps["codebaseModalProps"],
   } as unknown as TabContentProps;
-  return render(<KanbanTabContent {...props} />);
+  return render(<>{wrap(<KanbanTabContent {...props} />)}</>);
 }
 
 describe("view toggle (AC1)", () => {
@@ -162,6 +164,41 @@ describe("view toggle (AC1)", () => {
     expect(window.location.search).toBe("?boardId=b1&taskId=t9");
     expect(screen.queryByTestId("kanban-overview")).toBeNull();
     await waitFor(() => expect(MockEventSource.instances.every((source) => source.close.mock.calls.length > 0)).toBe(true));
+  });
+});
+
+describe("view toggle order: all projects first, this board second", () => {
+  const toggleOrder = () => within(screen.getByTestId("kanban-view-toggle")).getAllByRole("button");
+  const expectAllFirst = () => {
+    expect(toggleOrder().map((b) => b.getAttribute("data-testid"))).toEqual(["kanban-view-toggle-all", "kanban-view-toggle-board"]);
+  };
+
+  it.each([["en", en], ["zh", zh]] as const)("renders all before board in DOM order with %s labels", (lang, dict) => {
+    window.history.replaceState(null, "", "/workspace/w1/kanban");
+    renderTabContent((node) => (
+      <I18nContext.Provider value={{ locale: lang, setLocale: () => {}, t: dict }}>{node}</I18nContext.Provider>
+    ));
+    expectAllFirst();
+    expect(toggleOrder().map((b) => b.textContent)).toEqual([dict.kanbanOverview.viewAll, dict.kanbanOverview.viewBoard]);
+    // Default view is still this board.
+    expect(screen.getByTestId("kanban-view-toggle-board").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("kanban-view-toggle-all").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps all projects first on every path: no view, after clicking all, direct ?view=all", () => {
+    window.history.replaceState(null, "", "/workspace/w1/kanban?boardId=b1");
+    const first = renderTabContent();
+    expectAllFirst();
+    fireEvent.click(screen.getByTestId("kanban-view-toggle-all"));
+    expect(screen.getByTestId("kanban-view-toggle-all").getAttribute("aria-pressed")).toBe("true");
+    expectAllFirst();
+    first.unmount();
+
+    window.history.replaceState(null, "", "/workspace/w1/kanban?view=all");
+    renderTabContent();
+    expect(screen.getByTestId("kanban-overview")).toBeTruthy();
+    expect(screen.getByTestId("kanban-view-toggle-all").getAttribute("aria-pressed")).toBe("true");
+    expectAllFirst();
   });
 });
 

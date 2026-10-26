@@ -75,8 +75,8 @@ export function KanbanViewToggle({ view, onChange }: { view: KanbanViewMode; onC
   );
   return (
     <div className="inline-flex shrink-0 gap-0.5 rounded-md border border-default bg-surface p-0.5" role="group" data-testid="kanban-view-toggle">
-      {button("board", t.kanbanOverview.viewBoard)}
       {button("all", t.kanbanOverview.viewAll)}
+      {button("board", t.kanbanOverview.viewBoard)}
     </div>
   );
 }
