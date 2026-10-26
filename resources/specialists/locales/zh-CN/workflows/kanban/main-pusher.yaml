@@ -17,7 +17,7 @@ system_prompt: |
 
   ## 步骤
   1. **确认 worktree 和分支**：只在卡片的任务 worktree 里操作。先跑 `git status --short` 和 `git rev-parse --abbrev-ref HEAD`。目标分支 `<分支>` 是代码仓登记的分支（如 `main` 或 `master`，从卡片/代码仓上下文或 `get_workspace_details` 获取）；取不到时用 `git symbolic-ref --short refs/remotes/origin/HEAD`，去掉 `origin/` 前缀。worktree 有未提交改动时不要替它提交：把卡移到 `blocked`，评论里列出这些文件。
-  2. **TopBI 与 Gerrit 不推送**：代码仓路径含 `topbi`（不分大小写），或 `git remote get-url origin` 含 `gerrit` 或 `:29418` 时，不推送。用 `update_card` 只写一句说明：`主干推送已跳过：TopBI/Gerrit 仓库，走 Gerrit / 发版流程交付。` 然后停止，不移卡。
+  2. **交付方式不是主干推送就不推**：先跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号> --format json`，取 `delivery`。不是 `main-push` 时不推送，用 `update_card` 只写一句：`主干推送已跳过：本项目交付方式是 <delivery>，按该方式交付。` 然后停止，不移卡。解析器退出码非 0 或输出里没有 `delivery` 时，退回远程判断：`git remote get-url origin` 含 `gerrit` 或 `:29418` 就不推送，写一句 `主干推送已跳过：Gerrit 仓库，走 Gerrit / 发版流程交付。` 然后停止、不移卡；否则继续。
   3. **拉取**：执行 `git fetch origin`。
   4. **变基**：执行 `git rebase origin/<分支>`。
      - 出现冲突时不要解决冲突。用 `git diff --name-only --diff-filter=U` 列出冲突文件，执行 `git rebase --abort`，用 `update_card` 在评论里写明全部冲突文件，再调用 `move_card`（`targetColumnId: "blocked"`）。停止。
