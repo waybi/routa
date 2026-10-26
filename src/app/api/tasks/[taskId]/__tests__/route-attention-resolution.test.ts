@@ -164,4 +164,10 @@ describe("/api/tasks/[taskId] attentionResolution (C3, AC5)", () => {
     expect(old?.title).toBe("Old");
     expect(old?.attentionResolution).toBeUndefined();
   });
+
+  // C10: the Rust backend (crates/routa-core models/task.rs and db/) does not
+  // read or write attention_resolution yet. Desktop keeps working (the column
+  // is ignored), but a conclusion written there is not visible to the desktop
+  // Done gate or inbox. Not aligned in card 64f2e31c.
+  it.todo("Rust backend reads and writes attention_resolution (not aligned yet)");
 });
