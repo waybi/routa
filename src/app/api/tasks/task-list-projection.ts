@@ -12,6 +12,7 @@
  * full record ask for it explicitly (`?view=full`, or `GET /api/tasks/:id`).
  */
 
+import { latestAutoResolutionRecordText } from "@/core/kanban/auto-resolution-record";
 import { summarizeTaskCompletionReport } from "@/core/kanban/completion-report";
 import { hydrateTaskComments, type TaskCommentEntry } from "@/core/models/task";
 
@@ -93,12 +94,13 @@ export function projectTaskForList<T extends Record<string, unknown>>(task: T): 
 
   // Comments are dropped below; keep a one-line summary of the newest
   // completion report so the board can show it without hydrating the card.
-  projected.completionReport = summarizeTaskCompletionReport(
-    hydrateTaskComments(
-      Array.isArray(task.comments) ? (task.comments as TaskCommentEntry[]) : undefined,
-      typeof task.comment === "string" ? task.comment : undefined,
-    ),
+  const comments = hydrateTaskComments(
+    Array.isArray(task.comments) ? (task.comments as TaskCommentEntry[]) : undefined,
+    typeof task.comment === "string" ? task.comment : undefined,
   );
+  projected.completionReport = summarizeTaskCompletionReport(comments);
+  // The inbox's "Handled by AI" section opens the resolver's newest record (card 64f2e31c).
+  if (task.attentionResolution) projected.autoResolutionRecord = latestAutoResolutionRecordText(comments);
 
   for (const field of LIST_OMITTED_FIELDS) {
     delete projected[field];

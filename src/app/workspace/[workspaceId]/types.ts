@@ -9,6 +9,7 @@ import type {
   TaskJitContextSnapshot,
 } from "@/core/models/task";
 import type { TaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
+import type { TaskAttentionResolution } from "@/core/models/task-attention-resolution";
 import type { TaskDeliveryLanding } from "@/core/kanban/task-delivery-landing";
 
 export interface SessionInfo {
@@ -231,6 +232,10 @@ export interface TaskInfo {
   githubState?: string;
   githubSyncedAt?: string;
   lastSyncError?: string;
+  /** Blocked resolver's conclusion (card 64f2e31c). */
+  attentionResolution?: TaskAttentionResolution;
+  /** Newest "## 自动处理记录" text; only on the list projection, when attentionResolution is set. */
+  autoResolutionRecord?: string | null;
   isPullRequest?: boolean;
   sessionId?: string;
   dependencies?: string[];

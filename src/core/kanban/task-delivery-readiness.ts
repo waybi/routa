@@ -9,6 +9,7 @@ import type { KanbanDeliveryRules } from "@/core/models/kanban";
 import type { Codebase } from "@/core/models/codebase";
 import type { Task } from "@/core/models/task";
 import type { Worktree } from "@/core/models/worktree";
+import { DONE_WITHOUT_OWN_COMMITS_CATEGORIES } from "@/core/models/task-attention-resolution";
 import { resolveTaskWorktreeTruth } from "./task-worktree-truth";
 
 interface DeliverySystemLike {
@@ -48,6 +49,12 @@ export interface TaskDeliveryReadiness {
    * and `hasCommitsSinceBase === false`; otherwise `false`/absent.
    */
   hasLandedOwnCommits?: boolean;
+  /**
+   * The Blocked resolver concluded the card's work is already on base
+   * (attentionResolution landed / superseded, card 64f2e31c): it may enter
+   * Done without commits of its own. Other targets ignore it.
+   */
+  resolvedAsDelivered?: boolean;
   reason?: string;
 }
 
@@ -169,6 +176,8 @@ export async function buildTaskDeliveryReadiness(
     }),
   );
 
+  readiness.resolvedAsDelivered = DONE_WITHOUT_OWN_COMMITS_CATEGORIES.has(task.attentionResolution?.category ?? "");
+
   if (readiness.landedOnBase === true && !readiness.hasCommitsSinceBase) {
     readiness.hasLandedOwnCommits = hasBranchAuthoredCommitsOnHead(
       context.repoPath,
@@ -199,6 +208,7 @@ export function buildTaskDeliveryTransitionErrorFromRules(
   readiness: TaskDeliveryReadiness,
   targetColumnName: string,
   rules: KanbanDeliveryRules | undefined,
+  targetStage?: string,
 ): string | null {
   if (!hasDeliveryRules(rules)) {
     return null;
@@ -214,7 +224,9 @@ export function buildTaskDeliveryTransitionErrorFromRules(
 
   // A branch that already fast-forwarded into base has zero commits left
   // since base, yet its own work is delivered; accept it as committed.
-  const landedOwnCommits = readiness.landedOnBase === true && readiness.hasLandedOwnCommits === true;
+  // Only the Done stage accepts the resolver's landed / superseded conclusion.
+  const landedOwnCommits = (readiness.landedOnBase === true && readiness.hasLandedOwnCommits === true)
+    || (targetStage === "done" && readiness.resolvedAsDelivered === true);
 
   if (rules.requireCommittedChanges && !readiness.hasCommitsSinceBase && !landedOwnCommits) {
     return `Cannot move task to "${targetColumnName}": no committed changes detected on branch "${readiness.branch ?? "unknown"}" relative to "${formatBaseReference(readiness)}". Commit your implementation before requesting review.`;
@@ -258,5 +270,5 @@ export function buildTaskDeliveryTransitionError(
       }
     : undefined;
 
-  return buildTaskDeliveryTransitionErrorFromRules(readiness, targetColumnName, rules);
+  return buildTaskDeliveryTransitionErrorFromRules(readiness, targetColumnName, rules, targetColumnId);
 }

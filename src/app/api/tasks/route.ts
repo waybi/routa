@@ -571,6 +571,7 @@ async function serializeTask(
     githubState: task.githubState,
     githubSyncedAt: task.githubSyncedAt?.toISOString(),
     lastSyncError: task.lastSyncError,
+    ...(task.attentionResolution != null && { attentionResolution: task.attentionResolution }),
     isPullRequest: task.isPullRequest,
     dependencies: task.dependencies,
     parallelGroup: task.parallelGroup,

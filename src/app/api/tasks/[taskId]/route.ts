@@ -81,6 +81,8 @@ import {
   formatKanbanTransitionGateWarning,
 } from "@/core/kanban/transition-gates";
 
+import { parseTaskAttentionResolution } from "@/core/models/task-attention-resolution";
+
 export const dynamic = "force-dynamic";
 
 async function serializeTask(task: Task, system: ReturnType<typeof getRoutaSystem>) {
@@ -240,7 +242,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
 
-  let body: Omit<Partial<Task>, "assignedModel" | "assignedReasoningEffort"> & {
+  let body: Omit<Partial<Task>, "assignedModel" | "assignedReasoningEffort" | "attentionResolution"> & {
+    attentionResolution?: unknown;
     assignedModel?: string | null;
     assignedReasoningEffort?: string | null;
     repoPath?: string;
@@ -282,6 +285,12 @@ export async function PATCH(
   if (body.testCases !== undefined) nextTask.testCases = body.testCases;
   if (body.assignedTo !== undefined) nextTask.assignedTo = body.assignedTo;
   if (body.boardId !== undefined) nextTask.boardId = body.boardId;
+  if (body.attentionResolution !== undefined) {
+    // Set before the gates below so one PATCH can conclude and move (card 64f2e31c).
+    const parsed = parseTaskAttentionResolution(body.attentionResolution);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    nextTask.attentionResolution = parsed.value ?? undefined;
+  }
   if (body.codebaseIds !== undefined && Array.isArray(body.codebaseIds)) {
     nextTask.codebaseIds = body.codebaseIds.filter((id): id is string => typeof id === "string");
   }
@@ -500,6 +509,7 @@ export async function PATCH(
             deliveryReadiness,
             targetColumn.name ?? targetColumnId,
             targetColumn.automation.deliveryRules,
+            targetColumn.stage,
           );
           if (deliveryError) {
             return NextResponse.json(
