@@ -52,9 +52,12 @@ pub enum TaskLaneSessionRecoveryReason {
     /// Session could not run because of the host environment (for example an
     /// unregistered provider). Not counted as a retry and never auto-retried.
     EnvironmentFailure,
-    /// The turn ended with stopReason=cancelled (Routa restart, manual
-    /// cancel). The step failed and waits for a manual rerun.
+    /// The turn ended with stopReason=cancelled, not by the user (Routa
+    /// restart or kill). Retryable: the Next.js backend re-runs the step.
     TurnCancelled,
+    /// The user cancelled the turn (session/cancel). Never re-run
+    /// automatically.
+    UserCancelled,
     /// Routa restarted while the step was running; the startup sweep or
     /// revive ended its record.
     RestartInterrupted,

@@ -646,6 +646,40 @@ mod tests {
         assert_eq!(reread.lane_sessions, loaded.lane_sessions);
     }
 
+    /// Card 14de4800 (C7): the Next.js backend records a user's own cancel as
+    /// `user_cancelled`. It reads into its own variant and writes back unchanged.
+    #[tokio::test]
+    async fn lane_sessions_with_user_cancelled_survive_a_read_and_write() {
+        let store = setup().await;
+        let raw = concat!(
+            r#"[{"sessionId":"s-user","columnId":"dev","stepIndex":0,"recoveryReason":"user_cancelled","status":"failed","startedAt":"2026-10-26T17:50:00.000Z","completedAt":"2026-10-26T17:51:00.000Z"},"#,
+            r#"{"sessionId":"s-cancel","columnId":"dev","stepIndex":0,"recoveryReason":"turn_cancelled","retryAfterAt":"2026-10-26T17:53:00.000Z","status":"failed","startedAt":"2026-10-26T17:52:00.000Z"}]"#,
+        );
+
+        let loaded = load_with_raw_lane_sessions(&store, "task-user-cancel", raw).await;
+
+        assert_eq!(loaded.lane_sessions.len(), 2, "no lane record may be dropped");
+        assert_eq!(
+            loaded.lane_sessions[0].recovery_reason,
+            Some(TaskLaneSessionRecoveryReason::UserCancelled)
+        );
+        assert_eq!(
+            serde_json::to_string(&TaskLaneSessionRecoveryReason::UserCancelled).expect("serialize"),
+            "\"user_cancelled\""
+        );
+        assert_eq!(
+            serde_json::to_string(&loaded.lane_sessions).expect("serialize"),
+            raw
+        );
+        store.save(&loaded).await.expect("save should succeed");
+        let reread = store
+            .get("task-user-cancel")
+            .await
+            .expect("get should succeed")
+            .expect("task should exist");
+        assert_eq!(reread.lane_sessions, loaded.lane_sessions);
+    }
+
     /// F2: lane JSON with only the older reasons reads and writes back byte for byte.
     #[tokio::test]
     async fn lane_sessions_with_older_recovery_reasons_round_trip_unchanged() {
