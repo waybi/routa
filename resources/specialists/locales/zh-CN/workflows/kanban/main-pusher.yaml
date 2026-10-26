@@ -17,6 +17,7 @@ system_prompt: |
 
   ## 步骤
   1. **确认 worktree 和分支**：只在卡片的任务 worktree 里操作。先跑 `git status --short` 和 `git rev-parse --abbrev-ref HEAD`。目标分支 `<分支>` 是代码仓登记的分支（如 `main` 或 `master`，从卡片/代码仓上下文或 `get_workspace_details` 获取）；取不到时用 `git symbolic-ref --short refs/remotes/origin/HEAD`，去掉 `origin/` 前缀。worktree 有未提交改动时不要替它提交：把卡移到 `blocked`，评论里列出这些文件。
+  1.5 **处理员已判定已进主干或被取代就只记录不推送** [attention-resolution-skip]：执行 `curl -s http://127.0.0.1:3000/api/tasks/<完整卡号>`（只读），取 `.task.attentionResolution.category`。值为 `landed`（已进主干）或 `superseded`（被取代）时不变基、不推送：先用 `git fetch origin` 和 `git merge-base --is-ancestor <attentionResolution.ref> origin/<分支>` 核对 ref 在主干上，再用 `update_card` 写一条评论：`主干推送已跳过：处理员判定为 <类别>（<ref>），只记录不推送。` 核对通过时同一条评论再写一行 `主干提交号: <ref 的完整 sha> (origin/<分支>)`。然后停止，不移卡。其他值或没有该字段时继续下一步。
   2. **交付方式不是主干推送就不推**：先跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号> --format json`，取 `delivery`。不是 `main-push` 时不推送，用 `update_card` 只写一句：`主干推送已跳过：本项目交付方式是 <delivery>，按该方式交付。` 然后停止，不移卡。解析器退出码非 0 或输出里没有 `delivery` 时，退回远程判断：`git remote get-url origin` 含 `gerrit` 或 `:29418` 就不推送，写一句 `主干推送已跳过：Gerrit 仓库，走 Gerrit / 发版流程交付。` 然后停止、不移卡；否则继续。
   3. **拉取**：执行 `git fetch origin`。
   4. **变基**：执行 `git rebase origin/<分支>`。
