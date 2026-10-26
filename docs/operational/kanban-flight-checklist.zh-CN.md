@@ -2,7 +2,7 @@
 
 起飞检查单要解决一个问题：AI 只测常见情况就说做完了。它在看板上加了四道关：
 
-1. 出题人：不看代码，按需求和情况表写验收契约。
+1. 出题人：不看代码，按需求和知识库解析器给出的情况表写验收契约。
 2. 开发执行员：按契约施工，并留下证据。
 3. 评审守卫：自己重跑全部测试，撤掉实现看测试是否变红，再跑回归题和抽查。
 4. 高风险复核员：遇到高风险改动时独立再审一遍。
@@ -17,7 +17,7 @@
 | `kanban-flight-dev-executor` | 开发执行员（起飞检查单） | Flight Dev Crafter | `CRAFTER` | `smart` | Dev 列，替换 `kanban-dev-executor` |
 | `kanban-flight-review-guard` | 评审守卫（起飞检查单） | Flight Review Guard | `GATE` | `smart` | Review 列第 2 步，替换 `kanban-review-guard` |
 | `kanban-high-risk-reviewer` | 高风险复核员 | High-Risk Reviewer | `GATE` | `smart` | Review 列第 3 步（最后一步） |
-| `kanban-topbi-porter` | TopBI 移植员 | TopBI Porter | `DEVELOPER` | `smart` | Done 列第 1 步（只限 TopBI Board `312b1f5a`） |
+| `kanban-topbi-porter` | TopBI 移植员 | TopBI Porter | `DEVELOPER` | `smart` | Done 列第 1 步（解析器给出 `done_steps` 含它的项目，现为 TopBI） |
 
 每个岗位有三份文件，分别放在三个目录里：
 
@@ -46,6 +46,31 @@
 | `可合 master：是/否` | TopBI 移植员 | 上面两种评论的最后一行（失败时固定为 `可合 master：否（<原因>）`） | 完成汇报员（原样抄进 `## 完成汇报`） |
 
 开发执行员的证据输出文件放在 `/tmp/routa-evidence/<卡号前 8 位>/`，不进仓库。
+
+### 项目标准从哪来：flight_resolve.py
+
+「这张卡属于哪个项目、用哪张情况表、读哪些经验包、Done 列挂谁」都由知识库里的统一解析器决定，Routa 的岗位提示词和脚本里不再写「仓库 → 经验包」对照表，也不再写死看板号。解析器在 Vault 里，Routa 只读调用，不改它。
+
+```bash
+# 岗位用：给出这张卡的验收标准（Markdown），第一行是「标准来源：…」
+python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>
+# 推送员用：同一份标准的 JSON，取 delivery
+python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号> --format json
+# 挂岗位脚本用：按仓库路径取 JSON，取 done_steps
+python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --repo <仓库路径> --format json
+```
+
+| 岗位 | 怎么用解析器 | 解析器失败（退出码非 0）时 |
+|---|---|---|
+| 出题人 | 跑 `--card`；「标准来源：…」那一行原样写成契约第一行；情况表、事故表、出题规则补充、要读的经验包都以输出为准 | 在评论贴报错原文，卡留在 Todo，不凭记忆找情况表 |
+| Todo 编排员 | 跑 `--card`，按「要读的经验包」读；再按 `triggers.json` 关键词补包 | Risk Notes 写一行「解析器失败」，只按关键词补包 |
+| 评审守卫 | 跑 `--card`，按「要读的经验包」里的护栏条目和 Vault AGENTS.md「高危护栏」判高风险；契约首行与现在的「标准来源」不一致时在 Review Findings 写「标准来源变了：契约 X，现在 Y」（只记录，不打回）；「本项目固定验收命令」逐条复跑 | Review Findings 写「解析器失败」，只按 AGENTS.md 判 |
+| 高风险复核员 | 跑 `--card`，按「要读的经验包」读 | 结论里写「解析器失败」，接着读 AGENTS.md |
+| 主干推送员 | 跑 `--card --format json` 取 `delivery`，不是 `main-push` 就写一句跳过、不移卡 | 退回 origin 含 `gerrit` / `:29418` 判断（见 `kanban-main-pusher.zh-CN.md`） |
+
+认不出的仓库，解析器退到通用标准，「标准来源」行末尾带「项目未登记」，退出码仍为 0，岗位照常干活。
+
+**加新项目只改知识库，不改 Routa**：在 `~/Desktop/my/knowledge-system/项目索引/验收档案/` 登记项目档案（说明见同目录 `README.md`），写清交付方式、`done_steps`、要读的经验包和情况表。岗位提示词和脚本都不用改，也不用重启 Routa。只有档案里出现了新的 Done 列岗位 id（不在下文模板表里）时，才要改脚本的模板表。
 
 ### Review 列的出口动作
 
@@ -76,7 +101,9 @@ Todo 列的情况类似。挂上出题人以后，Todo 编排员按原提示词�
 ### 用法
 
 ```bash
-# 只读检查：打印改前/改后步骤和探针结果，不写库
+# 解析器路径取环境变量 FLIGHT_RESOLVE，默认 ~/Desktop/my/knowledge-system/tools/flight_resolve.py
+
+# 只读检查：打印改前/改后步骤、每块看板的项目标准一行和探针结果，不写库
 node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> --check --boards f635c1de,2c17ef3e,d13eba6a,312b1f5a
 
 # 挂岗位：先探针，全部 200 才备份并写库
@@ -95,6 +122,7 @@ node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> -
 | `--base-url` | 探针地址，默认 `http://127.0.0.1:3000` |
 | `--backup-dir` | 备份目录，默认与 db 同目录 |
 | `--force` | 只对 `--rollback` 生效：当前配置和备份对不上时也强写 |
+| 环境变量 `FLIGHT_RESOLVE` | 解析器路径，默认 `~/Desktop/my/knowledge-system/tools/flight_resolve.py`（`~/` 按 `HOME` 展开）。测试里指向桩，不依赖 Vault |
 
 ### 改成什么样
 
@@ -103,9 +131,9 @@ node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> -
 | todo | `[kanban-todo-orchestrator]` | `[kanban-todo-orchestrator, kanban-contract-setter]` |
 | dev | `[kanban-dev-executor]` | `[kanban-flight-dev-executor]` |
 | review | `[kanban-qa-frontend, kanban-review-guard]` | `[kanban-qa-frontend, kanban-flight-review-guard, kanban-high-risk-reviewer]` |
-| done（只限 TopBI Board `312b1f5a`） | `[kanban-done-reporter]` | `[kanban-topbi-porter, kanban-done-reporter]` |
+| done | 原样 | 按解析器 `done_steps` 的顺序排（见下） |
 
-其他看板的 done 列不改。脚本按列的 `stage` 找列，规则如下：
+脚本按列的 `stage` 找列，规则如下：
 
 - 原有步骤（todo-orchestrator、qa-frontend、done-reporter）原样保留。
 - 新步骤从被替换的步骤带过来这几个字段：`providerId`、`model`、`reasoningEffort`、`specialistLocale`、`transport`。新增的步骤（出题人、复核员、移植员）从同列相邻的原步骤带。脚本不会另选模型。
@@ -114,12 +142,23 @@ node --import tsx scripts/kanban/configure-flight-checklist.ts --db <routa.db> -
 - automation 顶层的 `role`、`specialistId`、`specialistName` 跟着第一步同步。
 - 要替换的原步骤找不到时，脚本报错退出（退出码 1），不会硬塞新步骤。
 
+Done 列的规则：
+
+- 每块看板按所在工作区在 `codebases` 表登记的代码仓取仓库路径（`repo_path` 去重）。不是恰好 1 个时（0 个或 2 个以上，如 Default Workspace Board 登记了 topbi 和 routa），这块看板的 Done 列不动，`--check` 打印「Done 列不动：工作区有 N 个代码仓」。Todo、Dev、Review 列照常挂。
+- 恰好 1 个时，调用 `python3 <解析器> --repo <仓库路径> --format json`，Done 列步骤按输出 `done_steps` 的顺序排：列里已有同 `specialistId` 的步骤原样保留（模型、档位等字段一个不动）；没有的按模板表新建；列里有、`done_steps` 里没有的步骤会被移除。
+- 模板表 `DONE_STEP_TEMPLATES` 是 Done 列步骤的唯一登记处，现在登记 `kanban-topbi-porter`（字段规则同上，从完成汇报员带字段）和 `kanban-main-pusher`（与 `configure-done-main-pusher.ts` 的 `MAIN_PUSHER_STEP` 相同）。`kanban-done-reporter` 不进模板表，沿用列里原来那一步。
+- `done_steps` 里有模板表没登记的 id，或解析器失败（退出码非 0、输出不是 JSON、没有 `done_steps` 数组），脚本报错退出（退出码 1），一块看板都不写。所有看板先全部解析和校验完，才进入写库。
+- `--check` 和 `--apply` 每块看板多打印一行，例如：
+  - `312b1f5a TopBI Board | 项目 topbi | 已登记 | 交付 port-dev-alpha | Done → kanban-topbi-porter, kanban-done-reporter | 无变化`
+  - `d13eba6a turnilo Board | 项目 turnilo | 项目未登记 | 交付 none | Done → kanban-done-reporter | 有变化（移除 kanban-main-pusher）`
+  - `a754459a Default Workspace Board | Done 列不动：工作区有 2 个代码仓（…）`
+
 ### 退出码
 
 | 退出码 | 含义 |
 |---|---|
 | 0 | `--check` 只读检查完成（探针 404 也是 0）；或 `--apply` / `--rollback` 成功；或已是目标状态，什么都没写 |
-| 1（非 0 报错） | 参数错误（缺 `--boards`、缺 `--db`、模式不是三选一、未知参数），或数据错误（看板匹配不到或有歧义、Routa Board 未放行、原步骤缺失、备份文件同名已存在、回滚时对不上） |
+| 1（非 0 报错） | 参数错误（缺 `--boards`、缺 `--db`、模式不是三选一、未知参数），或数据错误（看板匹配不到或有歧义、Routa Board 未放行、原步骤缺失、备份文件同名已存在、回滚时对不上），或解析器失败、`done_steps` 有模板表未登记的 id（`--check` 也一样报错） |
 | 3 | `--apply` 的探针没通过：有岗位返回 404，或连不上 Routa。打印「Routa 进程还没加载新岗位文件（岗位文件按进程缓存，要重启 Routa 才读到）」，不写库，也不建备份 |
 
 ### 新岗位文件要重启 Routa 才生效
@@ -139,7 +178,7 @@ done
 - 全部 200：可以 `--apply`。
 - 有 404：先重启 Routa，再探一次。
 
-`GET /api/specialists` 在生产模式下只读缓存，不写库。不带 `locale` 参数时查的是 en 缓存。重启会让 en 和 zh-CN 两份缓存都重读文件，所以用 en 探测就够了。脚本只在 `--boards` 含 TopBI Board 时，才探测 `kanban-topbi-porter`。
+`GET /api/specialists` 在生产模式下只读缓存，不写库。不带 `locale` 参数时查的是 en 缓存。重启会让 en 和 zh-CN 两份缓存都重读文件，所以用 en 探测就够了。脚本探测的岗位 = 四个起飞检查单岗位，加上各看板 `done_steps` 里模板表登记的 id（如 `kanban-topbi-porter`、`kanban-main-pusher`）。
 
 ### 备份与回滚
 
@@ -169,6 +208,10 @@ done
 
 真实挂岗位不在本次范围。要等以下几件事都完成：本卡与 `kanban-topbi-porter` 卡都进主干，Routa 重启，探针全部 200。之后再执行 `--apply`。
 
+## 真实库只读检查结果（2026-10-26，按 done_steps 挂 Done 列之后）
+
+对同一个库跑 `--check --boards 312b1f5a,2c17ef3e,f635c1de,d13eba6a,a754459a,361d06fd --allow-routa-board`（真实解析器）：退出码 0；TopBI 为 `port-dev-alpha`，Done → `kanban-topbi-porter, kanban-done-reporter`；deepseek-harness、local-tools、turnilo、Routa 为 `main-push`，Done → `kanban-main-pusher, kanban-done-reporter`；这 5 块都是「无变化」；Default Workspace Board 是「Done 列不动：工作区有 2 个代码仓」。6 个岗位探针都是 200。运行前后 `kanban_boards` 的 `id, updated_at, columns` 哈希一致。
+
 ## 变更记录
 
 | 日期 | 改了什么 | 效果 | 提交号 |
@@ -178,3 +221,4 @@ done
 | 2026-10-24 | 移列闸门放行 blocked：`lane-automation-state.ts` 新增 `isExemptFromRemainingLaneStepsGuard`（review→dev 且 NOT_APPROVED，或目标列 id/stage 为 blocked），`route.ts` 与 `kanban-tools.ts` 两处内联 `allowReviewFallbackToDev` 改为调用它；新增两个测试文件覆盖三种来源列 × 两种 blocked 列 × 两个入口 | 6 个测试文件 111 条：改前 79 过 32 败，改后 111 全过；只撤三个实现文件后 32 条变红（route.test.ts、kanban-tools.test.ts 的 blocked 用例都是断言失败）；豁免函数对拍 11,024 组不一致 0 | 本行所在提交（卡 60f276e0） |
 | 2026-10-24 | 评审打回 R2 修复：卡离开某列（列转移事件的来源列不等于目标列）时，编排器在 `handleColumnTransitionData` 开头（第一个 await 之前）丢掉该列的自动化；修复前 `move_card` 把推送员在跑的 Done 卡移进 Blocked 后，推送员结束会在 Blocked 卡上起完成汇报员，失败时记 failed + agent_failed。新增 `workflow-orchestrator-blocked-exit.test.ts`（真实编排器 + EventBus，另放一张留在 Done 的对照卡） | kanban/tools/tasks/kanban 路由 81 个测试文件：撤掉修复 738 过 3 败（`expected 2 to be 1`、`expected 'boom' to be undefined`），修复后 741 全过 | 本行所在提交（卡 60f276e0） |
 | 2026-10-24 | 评审打回 R1 修复（第 3 轮）：R2 修复丢旧列自动化时连带丢了该列在跑会话的收尾，导致 `update_task` 收敛后 Review Guard 车道记录停在 running、进程不再结束，`move_card` 进 Blocked 后推送员进程无人结束。编排器改为离列时把在跑会话记进 `departedLaneSessions`，该会话结束时只标 completed 并结束进程（合成完成事件等回合结束），不起下一步、不恢复、不重跑；`workflow-orchestrator-blocked-exit.test.ts` 加 3 条（推送员完成/失败各 1 条、Review Guard 收敛 1 条） | 同一组 81 个测试文件 744 条：撤掉本次修复 3 败 741 过（`expected +0 to be 1`、`expected 'running' to be 'completed'`），修复后 744 全过；Review Guard 用例在 46e6bad9（本卡之前）的编排器上也通过 | 本行所在提交（卡 60f276e0） |
+| 2026-10-26 | 起飞检查单按项目定标准：出题人、Todo 编排员、评审守卫、高风险复核员、主干推送员（各三份 yaml）去掉写死的「仓库 → 经验包」对照和「路径认 TopBI」，改调知识库 `flight_resolve.py`；挂岗位脚本删掉 `TOPBI_BOARD_ID`，Done 列按解析器 `done_steps` 排（模板表 `DONE_STEP_TEMPLATES`、`FLIGHT_RESOLVE` 环境变量、`--check` 每板多一行项目标准）；脚本测试 16→33 条（解析器桩、三种交付方式、多仓库跳过、未登记 id 与解析器失败不写库、1 万组随机对拍） | 加新项目只改知识库档案，不改 Routa、不重启；真实库只读检查 5 块无变化、Default 不动；撤掉脚本实现后 20 条测试断言失败 | 本行所在提交（卡 1b31e133） |
