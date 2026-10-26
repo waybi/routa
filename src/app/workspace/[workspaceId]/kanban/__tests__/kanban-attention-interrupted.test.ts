@@ -22,6 +22,18 @@ vi.mock("@/core/kanban/agent-trigger", () => ({
   getInternalApiOrigin: vi.fn(() => "http://localhost"),
 }));
 
+// No agent process is alive here. The cancelled turn makes the orchestrator
+// end the session process; the real process manager is a cold dynamic import
+// (0.5-0.7 s under load) inside waitForStepEnd's 1 s vi.waitFor, which made
+// this file time out in full-suite runs.
+vi.mock("@/core/acp/processer", () => ({
+  getAcpProcessManager: () => ({ killSession: vi.fn(async () => {}), hasActiveSession: () => false }),
+}));
+
+// Keep turn-end history in memory: the sqlite driver writes ./routa.db in the
+// cwd, which is the live database when run from the main checkout.
+vi.stubEnv("ROUTA_DB_DRIVER", "memory");
+
 import { endStaleRunningLaneSessions } from "@/core/kanban/restart-recovery";
 import { resetWorkflowOrchestrator } from "@/core/kanban/workflow-orchestrator-singleton";
 import {
@@ -87,6 +99,7 @@ afterEach(() => {
 
 afterAll(() => {
   cleanupSessionCwd();
+  vi.unstubAllEnvs();
 });
 
 describe("needs-attention for an interrupted Done pusher", () => {
