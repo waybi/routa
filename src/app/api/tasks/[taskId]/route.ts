@@ -74,6 +74,7 @@ import {
   resolveCurrentOrNextContractGate,
 } from "@/core/kanban/task-contract-readiness";
 import { resolveTaskWorktreeTruth } from "@/core/kanban/task-worktree-truth";
+import { claimLaneRerun, hasLaneRunStartedSince } from "@/core/kanban/lane-rerun-claim";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 import {
   evaluateKanbanTransitionGates,
@@ -231,7 +232,20 @@ async function getTask(
 
 export async function PATCH(
   request: NextRequest,
+  context: { params: Promise<{ taskId: string }> },
+) {
+  const rerunClaim: { release?: () => void } = {};
+  try {
+    return await patchTask(request, context, rerunClaim);
+  } finally {
+    rerunClaim.release?.();
+  }
+}
+
+async function patchTask(
+  request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> },
+  rerunClaim: { release?: () => void },
 ) {
   const { taskId } = await params;
   const system = getRoutaSystem();
@@ -255,6 +269,17 @@ export async function PATCH(
     body = await request.json() as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (body.retryTrigger) {
+    // Card 14de4800: one rerun per card lane. While the startup resume or
+    // revive starts this lane, or when one of them started it after this
+    // request read the card, the retry is dropped and the card returned as is.
+    rerunClaim.release = claimLaneRerun(taskId, existing.columnId);
+    const stored = (await system.taskStore.get(taskId)) ?? existing;
+    if (!rerunClaim.release || hasLaneRunStartedSince(existing, stored, existing.columnId ?? "")) {
+      return NextResponse.json({ task: await serializeTask(stored, system), retrySkipped: true });
+    }
   }
 
   let nextTask: Task = { ...existing, updatedAt: new Date() };

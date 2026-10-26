@@ -309,11 +309,16 @@ Agent 完成/失败/超时
 
 **被取消或被重启打断的步骤（卡 5fdaa681）**：回合以 stopReason=cancelled 结束时，会话库仍发 AGENT_COMPLETED
 （看板队列靠它释放名额），但带 `success:false`，会话终态记 failed。编排器把这一步记 failed + `turn_cancelled`，
-不起下一步、不走 fallback、不恢复、不 autoAdvance，卡留在本列，等人点「重新运行」或 POST revive。
+不起下一步、不走 fallback、不恢复、不 autoAdvance，卡留在本列。
+**卡 14de4800 起会自动重跑**：Routa 没重启时，编排器给这条记录写 `retryAfterAt`（本列连续第 1 / 2 / ≥3 次取消等 1 / 2 / 5 分钟，±20%），
+交给限流同一个进程内计时器，到点从同一步重跑（见 5e）；Routa 重启过的，由启动续跑接上（见 5d）。
 pm2 重启时施工者先收到 SIGINT、以 cancelled 回复，所以重启打断的步骤主要走这条路；
 Routa 先死、没收到回合结束的，由启动清扫和 revive 记 timed_out + `restart_interrupted`（见 5d）。
-两种都是 failed / timed_out，Done 列的这类卡在「需要你处理」里显示为 Done 岗位失败。
-**用户在网页上手动取消某张卡在跑的会话，同样以 cancelled 结束：卡会停在本列，不再自动接下一步。**
+两种都是 failed / timed_out，Done 列的这类卡在「需要你处理」里显示为 Done 岗位失败，直到自动重跑起来。
+**用户在网页上手动取消某张卡在跑的会话（`POST /api/acp` 的 `session/cancel`）记 failed + `user_cancelled`**：
+接口先给该会话打「用户取消」标记（进程内，10 分钟过期，`lane-cancel-origin.ts`），编排器看到标记就记 `user_cancelled`，
+卡停在本列，不自动重跑、不进熔断计数，也不扣非开发列 3 次预算；要再跑就点「重新运行」。
+桌面版（Rust `acp_routes.rs`）的手动取消没有打标记，仍记 `turn_cancelled`，会被自动重跑。
 之前这一步被记成 completed 并推进：卡 a0b2b4fa 的 Done 推送员（会话 4a14cb98）2026-10-23 20:25:46 被取消，
 Routa 接着起了完成汇报员，提交没进主干。
 
@@ -347,6 +352,10 @@ enqueueKanbanTaskSession(resumeLane: true)
    ▼
 接口从库里重读卡再返回，不用请求开头复制的旧卡覆盖新 lane 记录
 ~~~
+
+**同卡只起一个（卡 14de4800）**：重新运行、revive、启动续跑（含它的到点重跑）起会话前都先「认领」这张卡的本列
+（键 cardId + columnId，进程内，`lane-rerun-claim.ts`）。认领被占着，或认领后重读卡发现本列已有新的 running 记录 /
+新 triggerSessionId，就放弃：重新运行返回 200 和当前卡（`retrySkipped: true`），revive 跳过这张卡。
 
 看板前端（`use-kanban-retry-feedback.ts`）：卡片和详情的「运行/重新运行」按钮一点下去就禁用并显示「启动中…」，
 请求结束前连点无效，请求失败弹看板错误提示（「重新运行失败」）并恢复按钮。请求成功后，卡片在新运行露面前
@@ -405,6 +414,18 @@ revive 拉起的步骤失败（如迟到的限流报错）时同样由编排器�
 Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-production-build`）都跳过；
 `ROUTA_SKIP_RUNTIME_SERVICES=1` 也跳过。pm2 日志打一行 `[RestartRecovery] Startup sweep ended N …`。
 
+**启动续跑（卡 14de4800，`interrupted-lane-resume.ts`）**：清扫之后，不挡启动（`setTimeout 0`，不等它就开始接请求），
+先 hydrate 会话库，再扫所有工作区所有卡，对「卡的最后一条 lane 记录在当前列、failed / timed_out、
+recoveryReason 是 `turn_cancelled` 或 `restart_interrupted`」的卡，用 `resolveLaneResumeStep` 求原步骤，
+`enqueueKanbanTaskSession(step, stepIndex, adoptLaneRun: true)` 从同一步重跑（第 0 步也一样，不走整列重进）。
+重启前就停着的卡也算，不看 completedAt。Done 列推送员被打断就重跑推送员，不跳到完成汇报员。
+跳过：本列有 running、卡上有别的活会话、可重试环境失败连续 5 次（熔断）、非开发列 3 次上限、Done 已跑完、
+`user_cancelled` / `watchdog_inactivity` / `environment_failure` / `agent_failed` / 限流（限流仍由 revive 到点重跑）。
+记录上有还没到的 `retryAfterAt`（重启前排好的取消重跑）就挂进程内计时器，到点再判一次再起。
+看板名额满时进看板队列，不记失败、不算熔断。跳过条件与清扫相同（runner、Postgres、next build）。
+pm2 日志打一行 `[RestartRecovery] Startup resume enqueued N interrupted lane step(s): <卡:列:岗位>, …`。
+遗留：重启时被杀、却被记成 completed 的步骤（经验包 routa:290）看起来像做完了，启动续跑不处理。
+
 ### 5e. 环境失败与重试预算（卡 79804de2）
 
 模型限流（429）和 Routa 重启打断都不是卡自己的错，以前却照样扣重试次数：
@@ -415,7 +436,8 @@ Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-pr
 |---|---|---|---|---|
 | 等人修的环境失败 | `environment_failure` | 报错含 `Not registered in ProviderRegistry` / `Unknown provider:` | 不扣 | 永不自动重跑，`isAwaitingEnvironmentFix`=true，revive 也跳过 |
 | 可重试：限流 | `rate_limited` | 报错（`event.data.error`、会话 `acpError`；看门狗超时再加会话最后一条消息）含 `usage_limit_reached`、`rate_limit_error`、`trial_rate_limited`，或明确的 HTTP 429 写法（`HTTP 429`、`HTTP/1.1 429`、`"status":429`、`status 429`、`429 Too Many Requests`）。裸数字 429（如 `processed 429 rows`）不算 | 不扣 | 到 `retryAfterAt` 自动从同一步（同 stepIndex）重跑 |
-| 可重试：重启打断 | `turn_cancelled`、`restart_interrupted` | 回合 stopReason=cancelled；启动清扫 / revive 收尾的 running 记录（见 5b、5d） | 不扣 | 不定时重跑，仍由 revive 或人点「重新运行」从该步重跑 |
+| 可重试：重启打断 | `turn_cancelled`、`restart_interrupted` | 回合 stopReason=cancelled 且不是用户取消；启动清扫 / revive 收尾的 running 记录（见 5b、5d） | 不扣 | Routa 没重启：`turn_cancelled` 等 1 / 2 / 5 分钟（±20%）写进 `retryAfterAt`，到点同一步自动重跑；重启后由启动续跑接上（5d）；revive、人点「重新运行」也照旧能重跑 |
+| 用户手动取消 | `user_cancelled` | `session/cancel` 接口打过标记的会话回合以 cancelled 结束（5b） | 不扣 | 不自动重跑（退避和启动续跑都跳过），也不算熔断；人点「重新运行」或 revive 才跑 |
 
 「不扣预算」指两处：非开发列 3 次上限（`getNonDevAutomationRunCount` 跳过 failed / timed_out 的可重试记录），
 和开发列 `recoveryAttempts`（限流不进 `shouldRecover` / `recoverAutomation`，重跑沿用失败前的 attempt 与 recoveryAttempts）。
@@ -444,7 +466,7 @@ Postgres（可能多实例共库）、`next build` 阶段（`NEXT_PHASE=phase-pr
 中间出现一次 completed 或一次普通失败，连续计数清零；换列重新计数。
 
 已知限制：
-- 计时器只在进程内。Routa 重启后不会自己到点重跑，要有人（或调度会话）POST revive；revive 在 `retryAfterAt` 之前跳过、之后从同一步重跑。
+- 计时器只在进程内。限流记录在 Routa 重启后不会自己到点重跑，要有人（或调度会话）POST revive；revive 在 `retryAfterAt` 之前跳过、之后从同一步重跑。取消（`turn_cancelled`）的记录重启后由启动续跑按 `retryAfterAt` 重挂计时器；revive 对它不等 `retryAfterAt`，立即重跑，旧计时器到点发现最新记录已变就放弃。
 - 异常结束收尾记下的 `rate_limited` 不起计时器：Routa 不重启时，也要等有人 POST revive 才会到点重跑。
 - Done 推送员 429 后也会被延后重跑同一步。推送幂等不在本卡范围：如果推送员在报 429 前已经推了一部分，重跑可能重复推送。
 - 同一个 RunAI 账号限流时多张卡会拿到同一个 `resets_at`，在 60 秒内一起重跑，可能再撞 429；靠看板并发上限和熔断兜底，没有跨卡共享限流状态。
@@ -658,3 +680,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-24 | 启动清扫和 revive 对已结束会话的 running 记录按会话持久化历史补登真实结果（end_turn → completed、错误/取消/回合中退出 → failed，completedAt 取会话结束时间），没有结束记录的保持原规则；revive 遇真实 completed 的步骤接本列下一步（5d） | 新增 16 个用例和 224 组全组合对拍（不一致 0 组；埋错 1 格被抓到），撤掉实现后清扫用例 10 个变红、对拍 96 格不一致 | 本提交 fix(kanban): the restart sweep records ended sessions by their real outcome |
 | 2026-10-24 | revive 遇到「卡的最后一条 lane 记录是本列末步且 completed」时什么都不起（Dev、Review、Todo、Done 同规则；卡离开又回来仍从第一步重进）；卡已离开某列后，该列未跟踪会话的迟到结束事件按收尾记 completed / transitioned，不记 failed（5d） | 新增 25 个用例；修复前 11 个变红（末步 3 个：Dev 重起施工者、Review 从 QA Frontend 整列重跑、Todo 从第一步重跑；离列迟到事件 8 个记 failed / timed_out），撤掉本次修复同样 11 个变红 | 本提交 fix(kanban): revive starts nothing once a lane's last step really completed |
 | 2026-10-24 | 异常结束收尾（`settleUnhandledLaneEnd` mode=event）和重启清扫 / revive 补登（`resolveSessionOutcome`）遇 429 也记 failed + `rate_limited` 并写 `retryAfterAt`，复用主路径判定与时间计算；补登从会话结束时间起算，离列记录不写 `retryAfterAt`；三份旧测试里把 429 文本当普通失败的夹具改成 `turn failed: boom`（5e） | 新增 45 个用例（含 10,000 组随机对拍：不一致 0；埋错「取退出时间」被抓 586 组、「熔断阈值改 6」被抓 247 组）；撤掉实现后 20 个用例变红，全是断言失败；kanban 全套 689 → 734 个用例全过 | 本提交 fix(kanban): settle and sweep paths record 429 as rate_limited with retryAfterAt |
+| 2026-10-26 | 重启打断的步骤自动续跑：启动清扫后异步扫所有卡，最后一条记录是本列 failed/timed_out + `turn_cancelled`/`restart_interrupted` 的从同一步重跑（adoptLaneRun，Done 推送员重跑推送员）；Routa 没重启时被取消的回合按 1/2/5 分钟退避写 `retryAfterAt` 用限流计时器重跑；用户经 `session/cancel` 取消的记新值 `user_cancelled`（TS 与 Rust 同步），不重跑、不扣预算；重新运行、revive、启动续跑按 cardId+columnId 认领，同卡只起一个（5b、5c、5d、5e） | 新增 46 个用例（启动续跑 30、取消退避 13、10,000 组随机对拍 2：不一致 0，埋错「看门狗可续跑」被抓到；acp 路由 1）与 1 个 Rust 用例；kanban/tasks/acp/kanban 路由 90 个文件 1009 个用例全过；修复前 2026-10-26 17:57 一次 rebuild 让 3 张卡停 12 分钟等手动 retryTrigger | 本提交 feat(kanban): resume restart-interrupted lane steps automatically |
