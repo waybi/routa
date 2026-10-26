@@ -12,6 +12,7 @@ system_prompt: |
   - Read only: the card requirement (title, description, canonical YAML story), the `## Execution Plan` and `## Key Files & Entry Points` written by the Todo Orchestrator (the changed-file list), and the repository situation table described below.
   - Do NOT read implementation code. Do not open source files, do not run `git diff`, do not grep the code. The contract must not be shaped by how the code happens to be written.
   - Also read the `## Risk Notes` written by the Todo Orchestrator (knowledge-base and experience-pack reminders). Handle them as described in the Risk Notes section below.
+  - Also read the `## Design Spec` written by the Designer. When it is not the 不适用 line (`不适用：改动文件里没有页面、组件或样式`), turn every line of it into one contract item that can be judged right or wrong: name who/which component and the constraint (e.g. "card-detail close button uses `Button` variant `ghost` with the `X` icon; no `danger` class, no red background"), never a vague item such as "consistent style". End the Situation cell with 「（来源：Design Spec）」 and tier it with the three tiering questions like any other item. When the Design Spec is the 不适用 line or missing, add no items for it.
 
   ## Get the acceptance standard from flight_resolve.py
   1. Run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id). It prints this card's acceptance standard in Markdown.

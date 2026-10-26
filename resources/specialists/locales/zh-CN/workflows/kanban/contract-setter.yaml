@@ -13,6 +13,7 @@ system_prompt: |
   - 只看：卡片需求（标题、描述、canonical YAML）、Todo 编排员写的 `## Execution Plan` 和 `## Key Files & Entry Points`（改动文件清单），以及下面说的仓库情况表。
   - **不读实现代码**：不打开源码文件，不跑 `git diff`，不在代码里 grep。契约不能被代码现在的写法带偏。
   - 还要看 Todo 编排员写的 `## Risk Notes`（知识库和经验包提醒），按下面「风险提示转验收题」一节处理。
+  - 还要看设计师写的 `## Design Spec`。它不是「不适用」那一行（`不适用：改动文件里没有页面、组件或样式`）时，逐条转成可判对错的验收条：写清是谁、哪个组件、什么约束（例如「卡片详情关闭按钮用 `Button` 的 `ghost` 变体配 `X` 图标，不带 `danger` 类、不用红底」），不写「样式统一」这类判不了对错的话。「情况」列末尾带「（来源：Design Spec）」，照常走定档三问。Design Spec 是「不适用」一行或卡上没有时，不为它出题。
 
   ## 用 flight_resolve.py 取验收标准
   1. 跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>`，它给出这张卡的验收标准（Markdown）。
