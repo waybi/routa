@@ -81,7 +81,7 @@ import {
   formatKanbanTransitionGateWarning,
 } from "@/core/kanban/transition-gates";
 
-import { parseTaskAttentionResolution } from "@/core/models/task-attention-resolution";
+import { attentionResolutionAfterMove, parseTaskAttentionResolution } from "@/core/models/task-attention-resolution";
 
 export const dynamic = "force-dynamic";
 
@@ -424,6 +424,10 @@ export async function PATCH(
 
   const targetColumnId = nextTask.columnId;
   const isColumnTransition = targetColumnId !== existing.columnId;
+  if (isColumnTransition && body.attentionResolution === undefined) {
+    // Leaving Blocked drops the resolver's conclusion (card 64f2e31c), before the gates read it.
+    nextTask.attentionResolution = attentionResolutionAfterMove(nextTask.attentionResolution, existing.columnId, targetColumnId);
+  }
 
   // Check required artifacts before allowing column transition
   if (isColumnTransition && targetColumnId !== undefined) {

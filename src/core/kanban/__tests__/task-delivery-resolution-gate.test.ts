@@ -14,7 +14,7 @@ import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createKanbanBoard, type KanbanColumn } from "@/core/models/kanban";
-import { createTask, TaskStatus, type Task } from "@/core/models/task";
+import { createTask, TaskStatus, type Task, type TaskLaneSession } from "@/core/models/task";
 import { InMemoryKanbanBoardStore } from "@/core/store/kanban-board-store";
 import { InMemoryTaskStore } from "@/core/store/task-store";
 
@@ -54,6 +54,8 @@ vi.mock("@/core/kanban/workflow-orchestrator-singleton", () => ({
 import { PATCH } from "@/app/api/tasks/[taskId]/route";
 import { KanbanTools } from "@/core/tools/kanban-tools";
 import { buildTaskDeliveryReadiness, buildTaskDeliveryTransitionErrorFromRules } from "../task-delivery-readiness";
+import { collectTaskAttentionItems } from "../attention-rules";
+import { decideAttentionRouting, toAttentionTask } from "../attention-to-blocked";
 
 const git = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, stdio: "pipe" }).toString().trim();
 const DELIVERY = { requireCommittedChanges: true, requireCleanWorktree: true, requirePullRequestReady: true };
@@ -61,6 +63,9 @@ const COLUMNS: KanbanColumn[] = [
   { id: "review", name: "Review", stage: "review", position: 0, automation: { enabled: false, deliveryRules: { requireCommittedChanges: true, requireCleanWorktree: true } } },
   { id: "done", name: "Done", stage: "done", position: 1, automation: { enabled: false, deliveryRules: DELIVERY } },
   { id: "blocked", name: "Blocked", stage: "blocked", position: 2 },
+  { id: "dev", name: "Dev", stage: "dev", position: 3 },
+  // A plain lane: moving into Dev would also create a worktree, which is not under test here.
+  { id: "todo", name: "Todo", stage: "todo", position: 4 },
 ];
 
 let caseNo = 0;
@@ -130,6 +135,8 @@ describe("Done gate with attentionResolution (C5)", () => {
     expect(status).toBe(200);
     expect((await taskStore.get(task.id))?.columnId).toBe("done");
     expect(emitColumnTransition).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ fromColumnId: "blocked", toColumnId: "done" }));
+    // Done keeps the conclusion: the Done gate and the main pusher read it.
+    expect((await taskStore.get(task.id))?.attentionResolution?.category).toBe(resolution.category);
   });
 
   it.each([["landed", landed], ["superseded", superseded]])("0 commits + %s: move_card passes", async (_label, resolution) => {
@@ -137,6 +144,7 @@ describe("Done gate with attentionResolution (C5)", () => {
     const result = await viaMoveCard(task.id, "done");
     expect(result.success).toBe(true);
     expect((await taskStore.get(task.id))?.columnId).toBe("done");
+    expect((await taskStore.get(task.id))?.attentionResolution?.category).toBe(resolution.category);
     expect(emitColumnTransition).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toColumnId: "done" }));
   });
 
@@ -163,6 +171,20 @@ describe("Done gate with attentionResolution (C5)", () => {
       expect((await viaMoveCard(task.id, "done")).success).toBe(false);
     }
   });
+
+  it.each([["landed", landed], ["superseded", superseded]])(
+    "a stale %s conclusion (card left Blocked for Dev) no longer opens the gate, via both entries",
+    async (_label, resolution) => {
+      const task = await seedCard({ columnId: "dev", status: TaskStatus.IN_PROGRESS, attentionResolution: resolution });
+      const patched = await viaPatch(task.id, { columnId: "done" });
+      expect(patched.status).toBe(400);
+      expect(patched.data.error).toMatch(/no committed changes/);
+      const moved = await viaMoveCard(task.id, "done");
+      expect(moved.success).toBe(false);
+      expect(moved.error).toMatch(/no committed changes/);
+      expect((await taskStore.get(task.id))?.columnId).toBe("dev");
+    },
+  );
 
   it("landed but a dirty worktree is still rejected", async () => {
     writeFileSync(path.join(repoPath, "dirty.txt"), "x\n");
@@ -200,5 +222,28 @@ describe("Done gate with attentionResolution (C5)", () => {
     git(repoPath, "commit", "-m", "own work");
     const task = await seedCard();
     expect((await viaPatch(task.id, { columnId: "done" })).status).toBe(200);
+  });
+});
+
+describe("a conclusion stops holding once the card leaves Blocked (high-risk review, 2nd rejection)", () => {
+  const failedRun = (id: string, minutesAgo: number): TaskLaneSession => ({
+    sessionId: id, columnId: "todo", status: "failed", startedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+  });
+  const waiting = { category: "waiting" as const, conclusion: "等修基线卡", resolvedAt: new Date(Date.now() - 60 * 60_000).toISOString(), ref: "fix-1" };
+
+  it.each([
+    ["PATCH columnId", (id: string) => viaPatch(id, { columnId: "todo" }).then((r) => r.status === 200)],
+    ["MCP move_card", (id: string) => viaMoveCard(id, "todo").then((r) => r.success)],
+  ] as const)("waiting card moved out of Blocked via %s and failing twice is reported and routed again", async (_label, move) => {
+    const task = await seedCard({ attentionResolution: waiting });
+    expect(await move(task.id)).toBe(true);
+    const moved = (await taskStore.get(task.id))!;
+    expect(moved.columnId).toBe("todo");
+    expect(moved.attentionResolution).toBeUndefined();
+    moved.laneSessions = [failedRun("d1", 20), failedRun("d2", 5)];
+    moved.triggerSessionId = "d2";
+    const now = Date.now();
+    expect(collectTaskAttentionItems(toAttentionTask(moved), { hasMainPusher: false, now }).map((item) => item.kind)).toEqual(["interrupted"]);
+    expect(decideAttentionRouting(moved, { columns: COLUMNS }, { now }).action).toBe("block");
   });
 });

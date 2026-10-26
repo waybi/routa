@@ -41,9 +41,17 @@ describe("collectTaskAttentionItems with attentionResolution (C4)", () => {
   const failed = (overrides: Partial<TaskInfo> = {}) => doneCard("x", "failed", overrides);
   const opts = { hasMainPusher: true, now: NOW };
 
-  it.each(["landed", "superseded", "handed_off", "waiting"])("%s leaves the attention list", (category) => {
-    expect(collectTaskAttentionItems(failed({ attentionResolution: resolution(category) }), opts)).toEqual([]);
+  it.each(["landed", "superseded", "handed_off", "waiting"])("%s in Blocked leaves the attention list", (category) => {
     expect(collectTaskAttentionItems(card("b", { columnId: "blocked", attentionResolution: resolution(category) }), opts)).toEqual([]);
+  });
+
+  it.each(["landed", "superseded"])("%s in Done leaves the attention list", (category) => {
+    expect(collectTaskAttentionItems(failed({ attentionResolution: resolution(category) }), opts)).toEqual([]);
+  });
+
+  it.each(["handed_off", "waiting"])("%s no longer holds once the card left Blocked", (category) => {
+    expect(collectTaskAttentionItems(failed({ attentionResolution: resolution(category) }), opts).map((item) => item.kind))
+      .toEqual(["doneFailed"]);
   });
 
   it("needs_owner stays", () => {
@@ -83,6 +91,8 @@ describe("collectTaskAttentionItems with attentionResolution (C4)", () => {
       card("b", { columnId: "blocked", attentionResolution: resolution("waiting", { resolvedAt: iso(NOW - HOUR) }) }),
       card("c", { columnId: "blocked", attentionResolution: resolution("needs_owner") }),
       card("d", { columnId: "blocked", attentionResolution: resolution("landed", { resolvedAt: iso(NOW - 9 * DAY) }) }),
+      // Stale: the waiting card was moved back to Review, so it is not "handled" any more.
+      card("e", { columnId: "review", attentionResolution: resolution("waiting", { resolvedAt: iso(NOW - HOUR) }) }),
     ];
     const rows = buildResolvedRows([WS], { w1: { tasks, boards: [board] } }, NOW);
     expect(rows.map((row) => [row.task.id, row.category])).toEqual([["b", "waiting"], ["a", "landed"]]);

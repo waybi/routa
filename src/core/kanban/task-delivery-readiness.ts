@@ -9,7 +9,7 @@ import type { KanbanDeliveryRules } from "@/core/models/kanban";
 import type { Codebase } from "@/core/models/codebase";
 import type { Task } from "@/core/models/task";
 import type { Worktree } from "@/core/models/worktree";
-import { DONE_WITHOUT_OWN_COMMITS_CATEGORIES } from "@/core/models/task-attention-resolution";
+import { DONE_WITHOUT_OWN_COMMITS_CATEGORIES, isAttentionResolutionInEffect } from "@/core/models/task-attention-resolution";
 import { resolveTaskWorktreeTruth } from "./task-worktree-truth";
 
 interface DeliverySystemLike {
@@ -176,7 +176,9 @@ export async function buildTaskDeliveryReadiness(
     }),
   );
 
-  readiness.resolvedAsDelivered = DONE_WITHOUT_OWN_COMMITS_CATEGORIES.has(task.attentionResolution?.category ?? "");
+  // Stale conclusions (the card left Blocked / Done since) do not count.
+  readiness.resolvedAsDelivered = DONE_WITHOUT_OWN_COMMITS_CATEGORIES.has(task.attentionResolution?.category ?? "")
+    && isAttentionResolutionInEffect(task.attentionResolution, task);
 
   if (readiness.landedOnBase === true && !readiness.hasCommitsSinceBase) {
     readiness.hasLandedOwnCommits = hasBranchAuthoredCommitsOnHead(

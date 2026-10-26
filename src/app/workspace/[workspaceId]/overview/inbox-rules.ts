@@ -20,7 +20,8 @@ import {
 import { DONE_LANE_ID, getDoneEnteredAt, getTrailingDoneSessions } from "../kanban/kanban-done-time";
 import { KANBAN_DETAIL_TAB_QUERY_KEY } from "../kanban/kanban-detail-tab-request";
 import {
-  isAttentionResolved,
+  isAttentionResolutionInEffect,
+  isAttentionResolvedInEffect,
   type TaskAttentionResolutionCategory,
 } from "@/core/models/task-attention-resolution";
 import {
@@ -182,7 +183,8 @@ export function buildWorkspaceInbox(
       eventAt: inboxEventAt(entry.item, entry.task),
       dismissKey,
     };
-    if (entry.task.attentionResolution?.category === "needs_owner") row.needsOwner = true;
+    const resolution = entry.task.attentionResolution;
+    if (resolution?.category === "needs_owner" && isAttentionResolutionInEffect(resolution, entry.task)) row.needsOwner = true;
     if (entry.item.kind === "interrupted") {
       const interruptedRun = findInterruptedLaneSession(entry.task) ?? undefined;
       row.interruptedRun = interruptedRun;
@@ -312,7 +314,7 @@ export function buildResolvedRows(
     const fallbackBoardId = pickFallbackBoard(data.boards)?.id ?? null;
     for (const task of data.tasks) {
       const resolution = task.attentionResolution;
-      if (!resolution || !isAttentionResolved(resolution)) continue;
+      if (!resolution || !isAttentionResolvedInEffect(resolution, task)) continue;
       const resolvedAt = parseTime(resolution.resolvedAt);
       if (resolvedAt > 0 && now - resolvedAt > RESOLVED_ROWS_WINDOW_MS) continue;
       rows.push({

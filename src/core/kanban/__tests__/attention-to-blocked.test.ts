@@ -26,7 +26,8 @@ import { createTask, TaskStatus, type Task, type TaskLaneSession } from "../../m
 import { InMemoryKanbanBoardStore } from "../../store/kanban-board-store";
 import { InMemoryTaskStore } from "../../store/task-store";
 import { KanbanTools } from "../../tools/kanban-tools";
-import { decideAttentionRouting, isInterruptedRetrySpent, routeAttentionToBlocked } from "../attention-to-blocked";
+import { collectTaskAttentionItems } from "../attention-rules";
+import { decideAttentionRouting, isInterruptedRetrySpent, routeAttentionToBlocked, toAttentionTask } from "../attention-to-blocked";
 import { KanbanWorkflowOrchestrator } from "../workflow-orchestrator";
 
 const NOW = Date.UTC(2026, 9, 26, 12);
@@ -82,9 +83,6 @@ describe("decideAttentionRouting (C2)", () => {
     ["resolved as landed", card("done", [lane("done", "failed", NOW - 5 * MIN)], {
       attentionResolution: { category: "landed", conclusion: "ok", resolvedAt: iso(NOW) },
     })],
-    ["handed to the owner", card("done", [lane("done", "failed", NOW - 5 * MIN)], {
-      attentionResolution: { category: "needs_owner", conclusion: "ask", resolvedAt: iso(NOW) },
-    })],
   ];
 
   it.each(controls)("does not move: %s", (_label, task) => {
@@ -104,6 +102,47 @@ describe("decideAttentionRouting (C2)", () => {
   it("a board without a Blocked column never routes", () => {
     const board = { columns: BOARD.columns.filter((column) => column.stage !== "blocked") };
     expect(decideAttentionRouting(blocking[0][1], board, { now: NOW }).action).toBe("none");
+  });
+});
+
+describe("a conclusion stops holding once the card left Blocked (high-risk review, 2nd rejection)", () => {
+  // A Review card whose run failed twice after the resolver's conclusion an hour ago.
+  const reviewCard = (category?: "waiting" | "handed_off" | "needs_owner") => card("review", [
+    lane("review", "failed", NOW - 20 * MIN),
+    lane("review", "failed", NOW - 5 * MIN),
+  ], category ? { attentionResolution: { category, conclusion: "c", resolvedAt: iso(NOW - 60 * MIN) } } : {});
+  const board = { columns: [...BOARD.columns, { id: "review", name: "Review", stage: "review", position: 3 } as KanbanColumn] };
+
+  it.each([undefined, "waiting", "handed_off", "needs_owner"] as const)(
+    "resolution %s: the card is back in the inbox and routed to Blocked",
+    (category) => {
+      const task = reviewCard(category);
+      expect(collectTaskAttentionItems(toAttentionTask(task), { hasMainPusher: true, now: NOW }).map((item) => item.kind)).toEqual(["interrupted"]);
+      expect(decideAttentionRouting(task, board, { now: NOW }).action).toBe("block");
+    },
+  );
+
+  it.each(["waiting", "handed_off", "needs_owner"] as const)("resolution %s still holds while the card is in Blocked", (category) => {
+    const task = card("blocked", [lane("done", "failed", NOW - 90 * MIN)], {
+      attentionResolution: { category, conclusion: "c", resolvedAt: iso(NOW - 60 * MIN) },
+    });
+    const kinds = collectTaskAttentionItems(toAttentionTask(task), { hasMainPusher: true, now: NOW }).map((item) => item.kind);
+    expect(kinds).toEqual(category === "needs_owner" ? ["blocked"] : []);
+  });
+
+  it("an escalation that still holds is not rewritten on the next lane end", async () => {
+    const taskStore = new InMemoryTaskStore();
+    const boardStore = new InMemoryKanbanBoardStore();
+    await boardStore.save(createKanbanBoard({ id: "board-1", workspaceId: "default", name: "B", columns: BOARD.columns }));
+    const earlier = { category: "needs_owner" as const, conclusion: "first escalation", resolvedAt: iso(NOW - MIN) };
+    const task = card("done", [lane("done", "failed", NOW - 5 * MIN)], {
+      comments: [record("attention:doneFailed"), record("attention:doneFailed")],
+      attentionResolution: earlier,
+    });
+    await taskStore.save(task);
+    const decision = await routeAttentionToBlocked({ taskStore, kanbanBoardStore: boardStore, moveCard: vi.fn(), now: () => NOW }, task.id);
+    expect(decision.action).toBe("escalate");
+    expect((await taskStore.get(task.id))?.attentionResolution).toEqual(earlier);
   });
 });
 

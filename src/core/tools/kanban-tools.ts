@@ -30,6 +30,7 @@ import {
   TaskPriority,
 } from "../models/task";
 import { ArtifactType } from "../models/artifact";
+import { attentionResolutionAfterMove } from "../models/task-attention-resolution";
 import { ToolResult, successResult, errorResult } from "./tool-result";
 import { EventBus } from "../events/event-bus";
 import { emitColumnTransition } from "../kanban/column-transition";
@@ -405,9 +406,15 @@ export class KanbanTools {
       return errorResult(contractError);
     }
 
+    // Leaving Blocked drops the resolver's conclusion (card 64f2e31c); the
+    // Done gate below judges the conclusion the card keeps after this move.
+    const resolutionAfterMove = attentionResolutionAfterMove(task.attentionResolution, fromColumnId, params.targetColumnId);
     let deliveryReadiness: TaskDeliveryReadiness | undefined;
     if (this.isAutomationSystemCompatible()) {
-      deliveryReadiness = await buildTaskDeliveryReadiness(task, this.automationSystem!);
+      deliveryReadiness = await buildTaskDeliveryReadiness(
+        { ...task, attentionResolution: resolutionAfterMove },
+        this.automationSystem!,
+      );
       const deliveryError = buildTaskDeliveryTransitionErrorFromRules(
         deliveryReadiness,
         targetColumn.name,
@@ -453,6 +460,7 @@ export class KanbanTools {
       finalizeActiveTaskSession(task);
     }
 
+    task.attentionResolution = resolutionAfterMove;
     task.columnId = params.targetColumnId;
     task.status = columnIdToTaskStatus(params.targetColumnId);
     task.position = params.position ?? task.position;

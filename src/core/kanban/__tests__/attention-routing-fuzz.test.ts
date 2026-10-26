@@ -41,6 +41,7 @@ interface Generated {
   doneAgeMs: number;
   hasReport: boolean;
   category: Category;
+  resolvedAtMs: number;
   roundsByReason: Record<string, number>;
 }
 
@@ -69,6 +70,7 @@ function generate(random: () => number, index: number): Generated {
   }
   const hasReport = random() < 0.3;
   const category = pick([undefined, undefined, undefined, "landed", "superseded", "handed_off", "waiting", "needs_owner"] as const);
+  const resolvedAtMs = pick([NOW, NOW - 2 * DAY, NOW - 7 * DAY]);
   const roundsByReason: Record<string, number> = {};
   const comments: Task["comments"] = [];
   for (const reason of ["attention:doneFailed", "attention:noReport", "attention:unmerged", "attention:interrupted"]) {
@@ -83,19 +85,39 @@ function generate(random: () => number, index: number): Generated {
     laneSessions: runs,
     comments,
     updatedAt: new Date(start),
-    ...(category ? { attentionResolution: { category, conclusion: "c", resolvedAt: new Date(NOW).toISOString() } } : {}),
+    ...(category ? { attentionResolution: { category, conclusion: "c", resolvedAt: new Date(resolvedAtMs).toISOString() } } : {}),
   };
-  return { task, landing, hasPusher: random() < 0.5, column, runs, doneAgeMs, hasReport, category, roundsByReason };
+  return { task, landing, hasPusher: random() < 0.5, column, runs, doneAgeMs, hasReport, category, resolvedAtMs, roundsByReason };
 }
 
 const RESOLVED = new Set(["landed", "superseded", "handed_off", "waiting"]);
 const failedStatus = (status: string) => status === "failed" || status === "timed_out";
 
+/**
+ * Where a conclusion still holds (high-risk review, 2nd rejection): landed /
+ * superseded in Blocked or Done; handed_off / waiting in Blocked; needs_owner
+ * in Blocked or until a lane run starts after it.
+ */
+function conclusionHolds(state: Generated): boolean {
+  switch (state.category) {
+    case "landed":
+    case "superseded":
+      return state.column === "blocked" || state.column === "done";
+    case "handed_off":
+    case "waiting":
+      return state.column === "blocked";
+    case "needs_owner":
+      return state.column === "blocked" || state.runs.every((run) => Date.parse(run.startedAt) <= state.resolvedAtMs);
+    default:
+      return false;
+  }
+}
+
 /** The card's table, written independently of the implementation. */
 function oracle(state: Generated, resolved: Set<string> = RESOLVED) {
   const inColumn = state.runs.filter((run) => run.columnId === state.column);
   const kinds: Array<Kind | "blocked"> = [];
-  if (!(state.category && resolved.has(state.category))) {
+  if (!(state.category && resolved.has(state.category) && conclusionHolds(state))) {
     if (state.column === "blocked") kinds.push("blocked");
     else if (state.column !== "done") {
       const newest = inColumn[inColumn.length - 1];
@@ -110,7 +132,7 @@ function oracle(state: Generated, resolved: Set<string> = RESOLVED) {
   const inInbox = kinds.length > 0;
   let action: "none" | "block" | "escalate" = "none";
   const routed = kinds.find((kind): kind is Kind => kind !== "blocked");
-  if (state.column !== "blocked" && state.category !== "needs_owner" && routed) {
+  if (state.column !== "blocked" && routed) {
     let retrySpent = true;
     if (routed === "interrupted") {
       const latest = inColumn[inColumn.length - 1]!;

@@ -18,7 +18,7 @@
 import type { KanbanBoard } from "../models/kanban";
 import type { Task } from "../models/task";
 import { hydrateTaskComments } from "../models/task";
-import type { TaskAttentionResolution } from "../models/task-attention-resolution";
+import { isAttentionResolutionInEffect, type TaskAttentionResolution } from "../models/task-attention-resolution";
 import {
   boardHasMainPusher,
   collectTaskAttentionItems,
@@ -95,7 +95,6 @@ export function decideAttentionRouting(
 ): AttentionRoutingDecision {
   const blockedColumnId = blockedColumnOf(board);
   if (!blockedColumnId || task.columnId === blockedColumnId) return { action: "none" };
-  if (task.attentionResolution?.category === "needs_owner") return { action: "none" };
   const items = collectTaskAttentionItems(toAttentionTask(task, options.landing), {
     hasMainPusher: boardHasMainPusher(board),
     now: options.now,
@@ -139,6 +138,11 @@ export async function routeAttentionToBlocked(
     if (decision.action === "none") return decision;
 
     if (decision.action === "escalate") {
+      // Already escalated and no lane run since: keep the original conclusion.
+      if (task.attentionResolution?.category === "needs_owner"
+        && isAttentionResolutionInEffect(task.attentionResolution, task)) {
+        return decision;
+      }
       const resolution: TaskAttentionResolution = {
         category: "needs_owner",
         conclusion: `${decision.reason} 已自动处理 ${MAX_AUTO_RESOLUTION_ROUNDS} 轮仍未解决，转老板处理`,

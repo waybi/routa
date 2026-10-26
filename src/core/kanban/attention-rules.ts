@@ -4,13 +4,15 @@
  * `now` is passed in so the 7-day window is testable. `interrupted` (a
  * non-Done, non-Blocked card whose current lane run failed or timed out) has
  * no time window. A card the Blocked resolver concluded as landed /
- * superseded / handed off / waiting is not reported; needs_owner still is.
+ * superseded / handed off / waiting is not reported while that conclusion is
+ * still in effect for the card's column (isAttentionResolutionInEffect);
+ * needs_owner still is.
  *
  * Moved from src/app/workspace/[workspaceId]/kanban/kanban-attention-rules.ts
  * (which re-exports it) so server code can use the same judgement.
  */
 
-import { isAttentionResolved } from "../models/task-attention-resolution";
+import { isAttentionResolvedInEffect } from "../models/task-attention-resolution";
 
 export const DONE_LANE_ID = "done";
 export const ATTENTION_DONE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -48,7 +50,7 @@ export interface AttentionTask<S extends AttentionLaneSession = AttentionLaneSes
   completionSummary?: string;
   deliveryLanding?: { landedOnBase: boolean | null; commitsSinceBase: number };
   deliveryReadiness?: { checked: boolean; landedOnBase?: boolean | null; hasCommitsSinceBase: boolean };
-  attentionResolution?: { category: string } | null;
+  attentionResolution?: { category: string; resolvedAt?: string } | null;
 }
 
 export type KanbanCardMergeState = "merged" | "unmerged" | "unknown";
@@ -155,7 +157,7 @@ export function collectTaskAttentionItems(
   options: { hasMainPusher: boolean; now: number },
 ): KanbanAttentionItem[] {
   const items: KanbanAttentionItem[] = [];
-  if (isAttentionResolved(task.attentionResolution)) return items;
+  if (isAttentionResolvedInEffect(task.attentionResolution, task)) return items;
   if (task.columnId === "blocked") {
     items.push({ taskId: task.id, kind: "blocked", ahead: 0 });
     return items;
