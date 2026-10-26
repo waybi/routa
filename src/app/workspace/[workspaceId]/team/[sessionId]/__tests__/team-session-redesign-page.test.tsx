@@ -106,11 +106,17 @@ function install(routes: Routes = {}) {
 }
 
 const callsTo = (url: string) => mockFetch.mock.calls.filter(([input]) => String(input) === url).length;
-const selectedTab = () => screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
+// Role queries skip the visibility check ({ hidden: true }): it runs
+// getComputedStyle up the tree for every element and, with css: true, one
+// default getAllByRole("tab") took 0.1-3 s under load, longer than waitFor's
+// 1 s window (the cause of this file's flaky failures). With hidden: true the
+// same query takes 0-26 ms. Nothing here asserts visibility through roles.
+const tabs = () => screen.getAllByRole("tab", { hidden: true });
+const selectedTab = () => tabs().find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
 
 async function renderLoaded() {
   render(<TeamRunPageClient />);
-  await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(3));
+  await waitFor(() => expect(tabs()).toHaveLength(3));
 }
 
 beforeEach(() => {
@@ -149,12 +155,12 @@ describe("AC9 team session header", () => {
 describe("AC10 three tabs and right column", () => {
   it("defaults to 对话, arrow keys move to 事件, events are Chinese and open the member modal", async () => {
     await renderLoaded();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["对话", "事件", "证据"]);
+    expect(tabs().map((tab) => tab.textContent)).toEqual(["对话", "事件", "证据"]);
     expect(selectedTab()).toBe("对话");
     expect(screen.queryByText(/lg:grid-cols-\[248px/)).toBeNull();
     expect(document.querySelector('[class*="lg:grid-cols-[248px_minmax"]')).toBeNull();
 
-    const conversationTab = screen.getAllByRole("tab")[0];
+    const conversationTab = tabs()[0];
     conversationTab.focus();
     fireEvent.keyDown(conversationTab, { key: "ArrowRight" });
     expect(selectedTab()).toBe("事件");
@@ -188,7 +194,7 @@ describe("AC10 three tabs and right column", () => {
       createdAt: "2026-10-20T00:00:00.000Z", updatedAt: "2026-10-20T00:00:00.000Z",
     }];
     await renderLoaded();
-    fireEvent.click(screen.getAllByRole("tab")[2]);
+    fireEvent.click(tabs()[2]);
     expect(selectedTab()).toBe("证据");
     const node = await screen.findByTestId("team-task-node");
     expect(within(node).getByText("进行中")).toBeTruthy();
@@ -198,7 +204,7 @@ describe("AC10 three tabs and right column", () => {
 
   it("clicking a team member returns to 对话", async () => {
     await renderLoaded();
-    fireEvent.click(screen.getAllByRole("tab")[1]);
+    fireEvent.click(tabs()[1]);
     expect(selectedTab()).toBe("事件");
     await waitFor(() => expect(screen.getAllByTestId("team-member-item").length).toBeGreaterThan(0));
     const enabled = screen.getAllByTestId("team-member-item").find((item) => !(item as HTMLButtonElement).disabled)!;
@@ -221,7 +227,7 @@ describe("AC11 load and error states", () => {
     const error = await screen.findByTestId("ui-error-state");
     expect(error.textContent).toContain("团队会话读取失败");
     const before = callsTo("/api/sessions/session-1");
-    fireEvent.click(within(error).getByRole("button", { name: "重新读取" }));
+    fireEvent.click(within(error).getByRole("button", { name: "重新读取", hidden: true }));
     await waitFor(() => expect(callsTo("/api/sessions/session-1")).toBe(before + 1));
   });
 
@@ -233,7 +239,7 @@ describe("AC11 load and error states", () => {
     await screen.findByTestId("ui-error-state");
     expect(within(screen.getByTestId("team-run-page-header")).getByText("Original run")).toBeTruthy();
     expect(screen.getByTestId("team-run-model").textContent).toBe("模型未记录");
-    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(tabs()).toHaveLength(3);
   });
 
   it("other endpoints failing does not show the page error", async () => {
@@ -243,7 +249,7 @@ describe("AC11 load and error states", () => {
       return { ok: false, status: 500, json: async () => ({}) } as Response;
     });
     render(<TeamRunPageClient />);
-    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(3));
+    await waitFor(() => expect(tabs()).toHaveLength(3));
     expect(screen.queryByTestId("ui-error-state")).toBeNull();
   });
 });
@@ -268,7 +274,7 @@ describe("AC16 keyboard on the team session page", () => {
       screen.getByTestId("team-run-switcher"),
       screen.getByTestId("team-run-refresh"),
       screen.getByTestId("team-run-open-session"),
-      screen.getAllByRole("tab")[0],
+      tabs()[0],
       screen.getByTestId("team-run-link-traces"),
       screen.getByTestId("team-run-link-replay"),
     ];
@@ -277,12 +283,12 @@ describe("AC16 keyboard on the team session page", () => {
       expect(document.activeElement).toBe(element);
       expect(element.getAttribute("tabindex")).not.toBe("-1");
     }
-    fireEvent.click(screen.getAllByRole("tab")[1]);
+    fireEvent.click(tabs()[1]);
     await waitFor(() => expect(screen.getAllByTestId("team-run-event-open").length).toBeGreaterThan(0));
     const action = screen.getAllByTestId("team-run-event-open")[0];
     action.focus();
     expect(document.activeElement).toBe(action);
-    const tablist = screen.getByRole("tablist");
+    const tablist = screen.getByRole("tablist", { hidden: true });
     fireEvent.keyDown(tablist, { key: "ArrowLeft" });
     expect(selectedTab()).toBe("对话");
   });
