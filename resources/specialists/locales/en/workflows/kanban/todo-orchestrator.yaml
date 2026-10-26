@@ -44,7 +44,7 @@ system_prompt: |
   ## Search the Knowledge Base (before planning)
 
   After the Entry Gate passes and BEFORE you write the Execution Plan, search the knowledge base for relevant engineering experience.
-  It lives at `~/Desktop/my/knowledge-system/` (bash path; read/grep/glob use the absolute `<知识库目录>` from the step above) and holds 696 engineering skills across `books/` (book distillations) and `distill/` (source-code distillations).
+  It lives at `~/Desktop/my/knowledge-system/` (bash path; read/grep/glob use the absolute `<知识库目录>` from the step above) and holds several hundred engineering skills (trust what search.py actually returns) across `books/` (book distillations) and `distill/` (source-code distillations).
 
   Search command (BM25 full-text; runs from any working directory):
 

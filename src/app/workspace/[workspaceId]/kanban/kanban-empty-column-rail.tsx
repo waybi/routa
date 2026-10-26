@@ -2,6 +2,7 @@
 
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "@/i18n";
+import { KanbanLaneMarker } from "./kanban-lane-marker";
 
 /**
  * Width of a narrow column (empty column, collapsed Done): ~88px, enough for
@@ -19,7 +20,7 @@ export const EMPTY_COLUMN_RAIL_WIDTH_CLASS = `${EMPTY_COLUMN_RAIL_WIDTH} items-c
  * Body of an empty column: horizontal column name and a 0 count. The caller
  * keeps it inside the same droppable column so cards can still be dropped in.
  */
-export function KanbanEmptyColumnRail({ columnId, name }: { columnId: string; name: string }) {
+export function KanbanEmptyColumnRail({ columnId, name, stage }: { columnId: string; name: string; stage?: string }) {
   const { t } = useTranslation();
   return (
     <div
@@ -28,7 +29,10 @@ export function KanbanEmptyColumnRail({ columnId, name }: { columnId: string; na
       data-testid="kanban-empty-column-rail"
       data-column-id={columnId}
     >
-      <span className="whitespace-nowrap" data-testid="kanban-rail-column-name">{name}</span>
+      <span className="flex max-w-full items-center gap-1">
+        <KanbanLaneMarker stage={stage} />
+        <span className="whitespace-nowrap" data-testid="kanban-rail-column-name">{name}</span>
+      </span>
       <span className="font-mono text-[10px] font-normal tabular-nums text-secondary" data-testid={`kanban-column-count-${columnId}`}>0</span>
     </div>
   );
@@ -44,6 +48,7 @@ export function KanbanEmptyColumnRail({ columnId, name }: { columnId: string; na
 export function KanbanDoneCollapsedRail({
   columnId,
   name,
+  stage = "done",
   total,
   unmergedCount,
   onExpand,
@@ -52,6 +57,8 @@ export function KanbanDoneCollapsedRail({
 }: {
   columnId: string;
   name: string;
+  /** Column stage; picks the status marker color. */
+  stage?: string;
   total: number;
   unmergedCount: number;
   onExpand: () => void;
@@ -78,7 +85,8 @@ export function KanbanDoneCollapsedRail({
         onClick={onExpand}
         className="flex flex-row items-center gap-0.5 rounded px-1 py-1 text-primary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="whitespace-nowrap" data-testid="kanban-rail-column-name">{name}</span>
+        <KanbanLaneMarker stage={stage} />
+        <span className="ml-0.5 whitespace-nowrap" data-testid="kanban-rail-column-name">{name}</span>
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-secondary" aria-hidden="true" />
       </button>
       <span className="font-mono text-[10px] font-normal tabular-nums text-secondary" data-testid={`kanban-column-count-${columnId}`}>

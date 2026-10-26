@@ -55,6 +55,53 @@ function getWorktreeBaseDir(): string {
   return path.join(os.homedir(), ".routa", "worktrees");
 }
 
+/**
+ * Make git hooks run inside a freshly added worktree.
+ *
+ * A relative `core.hooksPath` (husky's `.husky/_`) resolves against each
+ * worktree's top level, but the husky-generated directory is gitignored, so a
+ * new worktree has no hooks and git silently skips pre-commit/pre-push.
+ * Copy the generated directory from the main checkout (copy, not symlink, so
+ * removing the worktree can never touch the main checkout). The copied
+ * wrappers locate hook scripts relative to themselves, so the worktree runs
+ * its own branch's `.husky/<hook>`. Never writes git config (it is shared by
+ * every worktree). Failures are logged and do not fail worktree creation.
+ */
+export async function ensureWorktreeHooks(repoPath: string, worktreePath: string): Promise<void> {
+  try {
+    let hooksPath = "";
+    try {
+      hooksPath = (await execGit(["config", "--get", "core.hooksPath"], repoPath)).stdout.trim();
+    } catch {
+      return; // not set
+    }
+    if (!hooksPath || path.isAbsolute(hooksPath) || hooksPath.startsWith("~")) return;
+
+    const source = path.join(repoPath, hooksPath);
+    const target = path.join(worktreePath, hooksPath);
+    if (await pathExists(target)) return;
+    if (!(await pathExists(source))) {
+      console.warn(
+        `[GitWorktreeService] hooks not prepared for ${worktreePath}: core.hooksPath "${hooksPath}" is missing in ${repoPath} (run the hook installer there); git will skip hooks in this worktree`
+      );
+      return;
+    }
+    await fs.cp(source, target, { recursive: true, preserveTimestamps: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[GitWorktreeService] hooks not prepared for ${worktreePath}: ${msg}`);
+  }
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.lstat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class GitWorktreeService {
   /** Per-repository Promise chain for serializing worktree operations. */
   private repoLocks = new Map<string, Promise<void>>();
@@ -187,6 +234,8 @@ export class GitWorktreeService {
             repoPath
           );
         }
+
+        await ensureWorktreeHooks(repoPath, worktreePath);
 
         // Mark as active
         await this.worktreeStore.updateStatus(worktree.id, "active");

@@ -29,6 +29,16 @@ if ! command -v entrix >/dev/null 2>&1 && [ -x "./target/debug/entrix" ]; then
   export PATH="$(pwd)/target/debug:$PATH"
 fi
 
+# Checks run through `node --import tsx`; without dependencies they cannot run.
+# Fail loudly instead of letting a push through unchecked (card worktrees have
+# no node_modules unless one is installed or linked).
+if [ ! -d node_modules/tsx ]; then
+  echo "❌ pre-push: 缺 node_modules（找不到 node_modules/tsx），无法运行推送前检查，推送已拒绝。" >&2
+  echo "   请在 $(pwd) 执行 pnpm install，或软链主检出的 node_modules：ln -s <主检出>/node_modules node_modules" >&2
+  echo "❌ pre-push: node_modules is missing, checks cannot run; push rejected. Run pnpm install here." >&2
+  exit 1
+fi
+
 # ─── Run Standard Checks ───────────────────────────────────────────
 # Run hook runtime directly for full pre-push checks.
 # On macOS (lockf + taskpolicy available) queue checks machine-wide behind one

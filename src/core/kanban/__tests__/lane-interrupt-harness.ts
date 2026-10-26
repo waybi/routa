@@ -47,6 +47,12 @@ const LANE_LAYOUT: Record<LaneShape, { before: string; after?: string }> = {
 
 export const WORKSPACE_ID = "default";
 
+/**
+ * vi.waitFor's default 1 s timeout is too short under load: cold module
+ * loads inside the orchestrator take 2.3-2.6 s on a busy machine.
+ */
+const WAIT_OPTS = { timeout: 10_000, interval: 50 };
+
 export function stepSpecialistId(shape: LaneShape, stepIndex: number): string {
   return STEP_IDS[shape][stepIndex];
 }
@@ -186,7 +192,7 @@ export async function createLaneHarness(
     waitForStep: async (stepIndex, count = 1) => {
       await vi.waitFor(() => {
         if ((sessionsByStep.get(stepIndex)?.length ?? 0) < count) throw new Error(`step ${stepIndex} not started`);
-      });
+      }, WAIT_OPTS);
       return sessionsByStep.get(stepIndex)!.at(-1)!;
     },
   };
@@ -253,7 +259,7 @@ export async function waitForStepEnd(h: LaneHarness, sessionId: string): Promise
   await vi.waitFor(async () => {
     const record = await h.laneRecord(sessionId);
     if (!record || record.status === "running") throw new Error(`${sessionId} still running`);
-  });
+  }, WAIT_OPTS);
   await settle();
 }
 

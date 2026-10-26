@@ -181,6 +181,53 @@ html.light {
   --shadow: 0 24px 80px #1a24452b;
 }
 
+/*
+ * Kanban lane status colors and column / card / overview-block surfaces.
+ * Light borrows Attio's columns (light-grey column, square status dot,
+ * 10px card with a soft shadow); dark borrows Linear's (no column box,
+ * status ring, translucent card). :root carries the light set as a
+ * fallback before the theme script adds html.light / html.dark.
+ * Buttons and accent tokens are intentionally not touched here.
+ */
+:root,
+html.light {
+  --lane-backlog: #9aa3ae;
+  --lane-todo: #266df0;
+  --lane-dev: #f5a623;
+  --lane-review: #9b69ff;
+  --lane-done: #25c17c;
+  --lane-blocked: #e5484d;
+  --kanban-col-bg: #f7f8f9;
+  --kanban-col-border: transparent;
+  --kanban-card-bg: #ffffff;
+  --kanban-card-hover: var(--hover);
+  --kanban-card-border: #eef0f2;
+  --kanban-card-radius: 10px;
+  --kanban-card-shadow: 0 1px 2px rgba(28, 29, 31, 0.06), 0 0 0 1px rgba(28, 29, 31, 0.06);
+  --kanban-block-bg: #f7f8f9;
+  --kanban-block-border: transparent;
+  --kanban-block-border-width: 0px;
+}
+
+html.dark {
+  --lane-backlog: #62666d;
+  --lane-todo: #d0d6e0;
+  --lane-dev: #f7bf8b;
+  --lane-review: #8fa6ff;
+  --lane-done: #6366f1;
+  --lane-blocked: #f34f52;
+  --kanban-col-bg: transparent;
+  --kanban-col-border: transparent;
+  --kanban-card-bg: rgba(255, 255, 255, 0.03);
+  --kanban-card-hover: rgba(255, 255, 255, 0.05);
+  --kanban-card-border: rgba(255, 255, 255, 0.07);
+  --kanban-card-radius: 6px;
+  --kanban-card-shadow: 0 0 #0000;
+  --kanban-block-bg: rgba(255, 255, 255, 0.02);
+  --kanban-block-border: rgba(255, 255, 255, 0.07);
+  --kanban-block-border-width: 1px;
+}
+
 @theme inline {
   --color-canvas: var(--bg);
   --color-sidebar: var(--side);
