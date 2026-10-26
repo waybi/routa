@@ -33,6 +33,13 @@ import { ArtifactType } from "../models/artifact";
 import { ToolResult, successResult, errorResult } from "./tool-result";
 import { EventBus } from "../events/event-bus";
 import { emitColumnTransition } from "../kanban/column-transition";
+import {
+  buildReviewLaneRerunLimitMessage,
+  countLaneRerunRequests,
+  isReviewLaneRerunMove,
+  markLaneRerunRequest,
+  REVIEW_LANE_RERUN_LIMIT,
+} from "../kanban/review-lane-rerun";
 import { getKanbanEventBroadcaster } from "../kanban/kanban-event-broadcaster";
 import {
   createTaskLaneHandoff,
@@ -442,11 +449,27 @@ export class KanbanTools {
       });
     }
 
+    // A move into the card's own Review column reruns that lane from step 1
+    // (see review-lane-rerun.ts); the previous round's verdict no longer counts.
+    const laneRerun = isReviewLaneRerunMove(fromColumnId, targetColumn);
+    if (laneRerun) {
+      const rerunCount = countLaneRerunRequests(task, targetColumn.id);
+      if (rerunCount >= REVIEW_LANE_RERUN_LIMIT) {
+        const limitMessage = buildReviewLaneRerunLimitMessage(targetColumn.name, rerunCount);
+        task.lastSyncError = limitMessage;
+        await this.recordTaskMoveBlockComment(task, limitMessage, task.triggerSessionId);
+        return errorResult(limitMessage);
+      }
+      markLaneRerunRequest(task, targetColumn.id);
+      task.verificationVerdict = undefined;
+    }
+
     // Preserve the current active session in history before clearing
     // This allows the next column's automation to create a fresh session.
     // A move into the card's current column keeps that column's own running
     // session (e.g. the Done lane pusher started by update_task convergence).
-    const keepsCurrentLaneSession = fromColumnId === params.targetColumnId
+    const keepsCurrentLaneSession = !laneRerun
+      && fromColumnId === params.targetColumnId
       && getTaskLaneSession(task, task.triggerSessionId)?.columnId === params.targetColumnId;
     if (!keepsCurrentLaneSession) {
       finalizeActiveTaskSession(task);
@@ -460,8 +483,8 @@ export class KanbanTools {
     await this.taskStore.save(task);
     this.notifyWorkspaceChanged(task.workspaceId, "task", fromColumnId !== params.targetColumnId ? "moved" : "updated", task.id);
 
-    // Emit column transition event if column actually changed
-    if (this.eventBus && fromColumnId !== params.targetColumnId) {
+    // Emit column transition event if column actually changed, or for a Review lane rerun
+    if (this.eventBus && (fromColumnId !== params.targetColumnId || laneRerun)) {
       emitColumnTransition(this.eventBus, {
         cardId: task.id,
         cardTitle: task.title,
@@ -471,6 +494,7 @@ export class KanbanTools {
         toColumnId: params.targetColumnId,
         fromColumnName: fromColumn?.name,
         toColumnName: targetColumn.name,
+        ...(laneRerun ? { laneRerun: true as const } : {}),
       });
     }
 

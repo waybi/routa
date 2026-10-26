@@ -159,7 +159,7 @@ export function getNonDevAutomationRunCount(
 
   for (let index = laneSessions.length - 1; index >= 0; index -= 1) {
     const entry = laneSessions[index];
-    if (entry.columnId !== columnId) {
+    if (entry.columnId !== columnId || entry.laneRerunRequestedAt) { // a rerun request ends the previous round
       break;
     }
     // Environment failures (including retryable ones: rate limits, restart
@@ -533,12 +533,12 @@ export class KanbanWorkflowOrchestrator {
 
   private async handleColumnTransitionData(data: ColumnTransitionData): Promise<void> {
     // The card left the column of its pending rate-limit rerun.
-    this.rateLimitRetries.cancel(data.cardId, data.toColumnId);
+    this.rateLimitRetries.cancel(data.cardId, data.laneRerun ? undefined : data.toColumnId);
     // The card left the column its automation runs in: that lane is over even
     // when the new column has no automation (e.g. move_card into Blocked), so
     // a late end of its session must not start, fail or recover a step there.
-    // Runs before any await so it is in place when the emitter returns.
-    if (data.fromColumnId !== data.toColumnId) {
+    // Runs before any await; a Review lane rerun (laneRerun) leaves its own lane.
+    if (data.fromColumnId !== data.toColumnId || data.laneRerun) {
       this.leaveLane(data.cardId, data.fromColumnId);
     }
     const board = await this.kanbanBoardStore.get(data.boardId);

@@ -168,6 +168,12 @@ export interface TaskLaneSession {
   recoveryReason?: TaskLaneSessionRecoveryReason;
   /** ISO time a rate-limited run is planned to be re-run (recoveryReason "rate_limited"). */
   retryAfterAt?: string;
+  /**
+   * ISO time this session asked its Review lane to run again from step 1
+   * (move_card into the card's own Review column). The lane's earlier runs
+   * belong to the previous round and no longer count toward its repeat limit.
+   */
+  laneRerunRequestedAt?: string;
   status: TaskLaneSessionStatus;
   startedAt: string;
   completedAt?: string;
