@@ -28,6 +28,7 @@ import type {
   TaskLaneHandoff,
   TaskLaneSession,
 } from "../models/task";
+import type { TaskAttentionResolution } from "../models/task-attention-resolution";
 
 // ─── Workspaces ─────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ export const tasks = pgTable("tasks", {
   githubState: text("github_state"),
   githubSyncedAt: timestamp("github_synced_at", { withTimezone: true }),
   lastSyncError: text("last_sync_error"),
+  attentionResolution: jsonb("attention_resolution").$type<TaskAttentionResolution>(),
   isPullRequest: boolean("is_pull_request"),
   dependencies: jsonb("dependencies").$type<string[]>().default([]),
   parallelGroup: text("parallel_group"),

@@ -223,6 +223,7 @@ function initializeSqliteTables(db: SqliteDatabase): void {
       github_state TEXT,
       github_synced_at INTEGER,
       last_sync_error TEXT,
+      attention_resolution TEXT,
       is_pull_request INTEGER,
       dependencies TEXT DEFAULT '[]',
       parallel_group TEXT,
@@ -263,6 +264,7 @@ function initializeSqliteTables(db: SqliteDatabase): void {
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN github_state TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN github_synced_at INTEGER`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN last_sync_error TEXT`);
+  runAddColumn(sql`ALTER TABLE tasks ADD COLUMN attention_resolution TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN is_pull_request INTEGER`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN test_cases TEXT`);
   runAddColumn(sql`ALTER TABLE tasks ADD COLUMN session_id TEXT`);

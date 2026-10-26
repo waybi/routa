@@ -7,6 +7,7 @@
 import type { ArtifactType } from "./artifact";
 import type { KanbanRequiredTaskField } from "./task-requirements";
 import type { TaskCreationSource } from "../kanban/task-creation-policy";
+import type { TaskAttentionResolution } from "./task-attention-resolution";
 
 export enum TaskStatus {
   PENDING = "PENDING",
@@ -897,6 +898,8 @@ export interface Task {
   githubState?: string;
   githubSyncedAt?: Date;
   lastSyncError?: string;
+  /** Blocked resolver's conclusion (card 64f2e31c); resolved cards leave "Needs you". */
+  attentionResolution?: TaskAttentionResolution;
   isPullRequest?: boolean;
   dependencies: string[];
   parallelGroup?: string;
@@ -959,6 +962,7 @@ export function createTask(params: {
   githubState?: string;
   githubSyncedAt?: Date;
   lastSyncError?: string;
+  attentionResolution?: TaskAttentionResolution;
   isPullRequest?: boolean;
   status?: TaskStatus;
   codebaseIds?: string[];
@@ -1004,6 +1008,7 @@ export function createTask(params: {
     githubState: params.githubState,
     githubSyncedAt: params.githubSyncedAt,
     lastSyncError: params.lastSyncError,
+    attentionResolution: params.attentionResolution,
     isPullRequest: params.isPullRequest,
     dependencies: params.dependencies ?? [],
     parallelGroup: params.parallelGroup,

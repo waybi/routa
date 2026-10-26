@@ -30,6 +30,7 @@ import type {
   TaskLaneHandoff,
   TaskLaneSession,
 } from "../models/task";
+import type { TaskAttentionResolution } from "../models/task-attention-resolution";
 
 // ─── Workspaces ─────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ export const tasks = sqliteTable("tasks", {
   githubState: text("github_state"),
   githubSyncedAt: integer("github_synced_at", { mode: "timestamp_ms" }),
   lastSyncError: text("last_sync_error"),
+  attentionResolution: text("attention_resolution", { mode: "json" }).$type<TaskAttentionResolution>(),
   isPullRequest: integer("is_pull_request", { mode: "boolean" }),
   dependencies: text("dependencies", { mode: "json" }).$type<string[]>().default([]),
   parallelGroup: text("parallel_group"),
