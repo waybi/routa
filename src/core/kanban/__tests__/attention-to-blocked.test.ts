@@ -165,7 +165,7 @@ describe("rounds per reason (C15)", () => {
 });
 
 describe("lane end → Blocked through move_card (C1, C2, F4)", () => {
-  async function setup(blockedAutomation?: KanbanColumn["automation"]) {
+  async function setup(blockedAutomation?: KanbanColumn["automation"], afterLaneEnd?: (cardId: string) => Promise<unknown>) {
     const eventBus = new EventBus();
     const boardStore = new InMemoryKanbanBoardStore();
     const taskStore = new InMemoryTaskStore();
@@ -199,9 +199,9 @@ describe("lane end → Blocked through move_card (C1, C2, F4)", () => {
     eventBus.on("test-transitions", (event) => {
       if (event.type === AgentEventType.COLUMN_TRANSITION) transitions.push({ from: event.data?.fromColumnId as string, to: event.data?.toColumnId as string });
     });
-    orchestrator.setAfterLaneEnd((cardId) => routeAttentionToBlocked({
+    orchestrator.setAfterLaneEnd(afterLaneEnd ?? ((cardId) => routeAttentionToBlocked({
       taskStore, kanbanBoardStore: boardStore, moveCard: (params) => tools.moveCard(params),
-    }, cardId));
+    }, cardId)));
     orchestrator.start();
 
     await taskStore.save(createTask({
@@ -231,6 +231,26 @@ describe("lane end → Blocked through move_card (C1, C2, F4)", () => {
     expect((await taskStore.get("c"))?.columnId).toBe("blocked");
     expect(startsIn("blocked")).toBe(1);
     orchestrator.stop();
+  });
+
+  it("a failing after-lane-end hook is caught: no unhandled rejection, the card stays put", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on("unhandledRejection", onUnhandled);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const hook = vi.fn(async () => { throw new Error("hook exploded"); });
+    try {
+      const { orchestrator, taskStore } = await setup(undefined, hook);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(hook).toHaveBeenCalledWith("c");
+      expect(unhandled).toEqual([]);
+      expect(warn).toHaveBeenCalledWith("[WorkflowOrchestrator] afterLaneEnd failed", "c", expect.any(Error));
+      expect((await taskStore.get("c"))?.columnId).toBe("done");
+      orchestrator.stop();
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      warn.mockRestore();
+    }
   });
 
   it("a Blocked column with enabled=false stays manual", async () => {

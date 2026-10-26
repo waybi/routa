@@ -56,6 +56,9 @@ import {
   buildTaskStoryReadiness,
 } from "./task-derived-summary";
 import { ensureCompletionFallbackArtifact } from "./completion-fallback-artifact";
+import { routeAttentionToBlocked } from "./attention-to-blocked";
+import { KanbanTools } from "../tools/kanban-tools";
+import { buildTaskDeliveryLanding } from "./task-delivery-landing";
 
 // Use globalThis to survive HMR in Next.js dev mode
 const GLOBAL_KEY = "__routa_workflow_orchestrator__";
@@ -624,12 +627,8 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
     );
   });
   // Card 64f2e31c: after a lane ends, route attention cards to Blocked through move_card.
+  // Static imports: a lazy import here could run after a test environment was torn down.
   orchestrator.setAfterLaneEnd(async (cardId) => {
-    const [{ routeAttentionToBlocked }, { KanbanTools }, { buildTaskDeliveryLanding }] = await Promise.all([
-      import("./attention-to-blocked"),
-      import("../tools/kanban-tools"),
-      import("./task-delivery-landing"),
-    ]);
     const tools = new KanbanTools(system.kanbanBoardStore, system.taskStore);
     tools.setEventBus(system.eventBus);
     tools.setAutomationSystem(system);

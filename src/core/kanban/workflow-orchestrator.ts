@@ -945,7 +945,7 @@ export class KanbanWorkflowOrchestrator {
 
       // The step is over whatever its outcome: end its process now (a retry gets a new session).
       await this.endFinishedStepSession(eventSessionId, event);
-      if (task && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId);
+      if (task && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId)?.catch((error: unknown) => console.warn("[WorkflowOrchestrator] afterLaneEnd failed", cardId, error));
 
       const completedAutomation = automation;
       setTimeout(() => {
