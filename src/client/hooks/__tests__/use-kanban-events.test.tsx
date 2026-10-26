@@ -10,14 +10,40 @@ import {
 class MockEventSource {
   static instances: MockEventSource[] = [];
 
+  onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
+  readyState = 0;
   readonly url: string;
-  readonly close = vi.fn();
+  readonly listeners = new Map<string, Set<(event: Event) => void>>();
+  readonly close = vi.fn(() => {
+    this.readyState = 2;
+  });
 
   constructor(url: string) {
     this.url = url;
     MockEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: Event) => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(listener);
+  }
+
+  removeEventListener(type: string, listener: (event: Event) => void) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  open() {
+    this.readyState = 1;
+    this.onopen?.(new Event("open"));
+  }
+
+  /** A named `event: ping` frame: goes to listeners, never to onmessage. */
+  ping() {
+    for (const listener of this.listeners.get("ping") ?? []) {
+      listener({ type: "ping", data: "{}" } as unknown as Event);
+    }
   }
 
   emit(payload: unknown, lastEventId = "") {
@@ -50,6 +76,34 @@ function HookHarness({
   return null;
 }
 
+let visibilityOverride: DocumentVisibilityState | null = null;
+const originalVisibility = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+
+/** jsdom's visibilityState is a read-only getter; override it per test. */
+function setVisibility(state: DocumentVisibilityState | null) {
+  visibilityOverride = state;
+  if (state === null) {
+    delete (document as unknown as Record<string, unknown>).visibilityState;
+    return;
+  }
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => visibilityOverride ?? originalVisibility?.get?.call(document),
+  });
+}
+
+function goVisible() {
+  setVisibility("visible");
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+function mount(onInvalidate = vi.fn()) {
+  vi.useFakeTimers();
+  vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+  const view = render(<HookHarness workspaceId="workspace-1" onInvalidate={onInvalidate} />);
+  return { ...view, onInvalidate };
+}
+
 function taskChanged(resourceId = "task-1") {
   return { type: "kanban:changed", entity: "task", action: "updated", resourceId, source: "agent" };
 }
@@ -59,6 +113,7 @@ describe("useKanbanEvents", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     MockEventSource.reset();
+    setVisibility(null);
   });
 
   it("ignores the initial connected event but invalidates on actual kanban changes", () => {
@@ -308,6 +363,233 @@ describe("useKanbanEvents", () => {
       source.emit(taskChanged());
       vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
       expect(onInvalidate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("self-healing reconnect", () => {
+    // Literal values from the requirement, not the exported constants, so a
+    // regression in the constants is caught too.
+    const EXPECTED_BACKOFF = [3000, 6000, 12000, 24000, 48000, 60000, 60000];
+    const WATCHDOG = 60_000;
+
+    it("backs off 3s, 6s, 12s, 24s, 48s, 60s, 60s across consecutive errors", () => {
+      mount();
+      const delays: number[] = [];
+      for (let attempt = 0; attempt < EXPECTED_BACKOFF.length; attempt += 1) {
+        const count = MockEventSource.instances.length;
+        MockEventSource.instances[count - 1].fail();
+        let waited = 0;
+        while (MockEventSource.instances.length === count && waited < 120_000) {
+          vi.advanceTimersByTime(1000);
+          waited += 1000;
+        }
+        delays.push(waited);
+      }
+      expect(delays).toEqual(EXPECTED_BACKOFF);
+    });
+
+    it("never reconnects one millisecond early", () => {
+      mount();
+      for (const delay of EXPECTED_BACKOFF) {
+        const count = MockEventSource.instances.length;
+        MockEventSource.instances[count - 1].fail();
+        vi.advanceTimersByTime(delay - 1);
+        expect(MockEventSource.instances).toHaveLength(count);
+        vi.advanceTimersByTime(1);
+        expect(MockEventSource.instances).toHaveLength(count + 1);
+      }
+    });
+
+    it("resets the backoff to 3s once a connection opens", () => {
+      mount();
+      for (const delay of [3000, 6000, 12000]) {
+        MockEventSource.instances.at(-1)!.fail();
+        vi.advanceTimersByTime(delay);
+      }
+      const reopened = MockEventSource.instances.at(-1)!;
+      reopened.open();
+      const count = MockEventSource.instances.length;
+      reopened.fail();
+      vi.advanceTimersByTime(2999);
+      expect(MockEventSource.instances).toHaveLength(count);
+      vi.advanceTimersByTime(1);
+      expect(MockEventSource.instances).toHaveLength(count + 1);
+    });
+
+    it("reconnects at once when a tab that lost its connection in the background comes back", () => {
+      const { onInvalidate } = mount();
+      const first = MockEventSource.instances[0];
+      first.open();
+      first.emit({ type: "connected" });
+      first.emit({ type: "kanban:changed" }, "evt-77");
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      onInvalidate.mockClear();
+
+      setVisibility("hidden");
+      first.fail();
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      goVisible();
+      expect(MockEventSource.instances).toHaveLength(2);
+      const second = MockEventSource.instances[1];
+      expect(new URL(second.url, "http://localhost").searchParams.get("lastEventId")).toBe("evt-77");
+
+      second.open();
+      second.emit({ type: "connected" });
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).toHaveBeenCalledTimes(1);
+
+      // The backoff timer from the background error was dropped.
+      vi.advanceTimersByTime(10_000);
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("keeps retrying with backoff while hidden instead of giving up", () => {
+      mount();
+      setVisibility("hidden");
+      MockEventSource.instances[0].fail();
+      vi.advanceTimersByTime(2999);
+      expect(MockEventSource.instances).toHaveLength(1);
+      vi.advanceTimersByTime(1);
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("leaves a live connection alone when the tab comes back", () => {
+      mount();
+      const source = MockEventSource.instances[0];
+      source.open();
+      setVisibility("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+      goVisible();
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(source.close).not.toHaveBeenCalled();
+    });
+
+    it("closes and reconnects after 60s with no message at all", () => {
+      mount();
+      const source = MockEventSource.instances[0];
+      source.open();
+      vi.advanceTimersByTime(WATCHDOG - 1);
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(source.close).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(source.close).toHaveBeenCalled();
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it.each([
+      ["a ping", (source: MockEventSource) => source.ping()],
+      ["a message", (source: MockEventSource) => source.emit({ type: "kanban:session-activity", sessionId: "s" })],
+    ])("restarts the watchdog on %s", (_label, deliver) => {
+      mount();
+      const source = MockEventSource.instances[0];
+      source.open();
+      vi.advanceTimersByTime(40_000);
+      deliver(source);
+      vi.advanceTimersByTime(WATCHDOG - 1);
+      expect(MockEventSource.instances).toHaveLength(1);
+      vi.advanceTimersByTime(1);
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("never reconnects a healthy connection that keeps receiving pings", () => {
+      mount();
+      const source = MockEventSource.instances[0];
+      source.open();
+      for (let elapsed = 0; elapsed < 5 * 60_000; elapsed += 25_000) {
+        vi.advanceTimersByTime(25_000);
+        source.ping();
+      }
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(source.close).not.toHaveBeenCalled();
+    });
+
+    it("does not deliver a ping to onmessage", () => {
+      const { onInvalidate } = mount();
+      const source = MockEventSource.instances[0];
+      const onmessage = vi.spyOn(source, "onmessage" as never);
+      source.ping();
+      expect(onmessage).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(INVALIDATE_COALESCE_MS);
+      expect(onInvalidate).not.toHaveBeenCalled();
+    });
+
+    it("ignores late callbacks from a replaced connection", () => {
+      mount();
+      const old = MockEventSource.instances[0];
+      old.fail();
+      vi.advanceTimersByTime(3000);
+      const current = MockEventSource.instances[1];
+      current.open();
+
+      // Stale error and stale open from the old connection.
+      old.fail();
+      old.open();
+      old.ping();
+      vi.advanceTimersByTime(10_000);
+      expect(MockEventSource.instances).toHaveLength(2);
+      expect(current.close).not.toHaveBeenCalled();
+
+      // The old connection's watchdog was cleared; only the current one runs.
+      vi.advanceTimersByTime(WATCHDOG - 10_000 - 1);
+      expect(MockEventSource.instances).toHaveLength(2);
+      vi.advanceTimersByTime(1);
+      expect(MockEventSource.instances).toHaveLength(3);
+    });
+
+    it("matches the requirement judge on 200 random error/open sequences", () => {
+      // Judge from the requirement: after n consecutive errors with no open in
+      // between, the wait is 3000 * 2^(n-1) ms capped at 60000.
+      const judge = (streak: number) => Math.min(3000 * 2 ** (streak - 1), 60_000);
+      let seed = 20261026;
+      const rand = () => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return seed / 2 ** 31;
+      };
+      for (let run = 0; run < 200; run += 1) {
+        MockEventSource.reset();
+        const { unmount } = mount();
+        let streak = 0;
+        const steps = 1 + Math.floor(rand() * 12);
+        for (let step = 0; step < steps; step += 1) {
+          const current = MockEventSource.instances.at(-1)!;
+          if (rand() < 0.3) {
+            current.open();
+            streak = 0;
+          }
+          current.fail();
+          streak += 1;
+          const expected = judge(streak);
+          const count = MockEventSource.instances.length;
+          vi.advanceTimersByTime(expected - 1);
+          expect(MockEventSource.instances, `run ${run} step ${step}`).toHaveLength(count);
+          vi.advanceTimersByTime(1);
+          expect(MockEventSource.instances, `run ${run} step ${step}`).toHaveLength(count + 1);
+        }
+        unmount();
+        vi.useRealTimers();
+      }
+    });
+
+    it("cleans up every timer and listener on unmount", () => {
+      const removeSpy = vi.spyOn(document, "removeEventListener");
+      const addSpy = vi.spyOn(document, "addEventListener");
+      const { unmount } = mount();
+      const source = MockEventSource.instances[0];
+      source.fail();
+      const added = addSpy.mock.calls.find(([type]) => type === "visibilitychange");
+      expect(added).toBeTruthy();
+
+      unmount();
+      expect(removeSpy).toHaveBeenCalledWith("visibilitychange", added![1]);
+      expect(vi.getTimerCount()).toBe(0);
+
+      source.fail();
+      goVisible();
+      vi.advanceTimersByTime(120_000);
+      expect(MockEventSource.instances).toHaveLength(1);
+      removeSpy.mockRestore();
+      addSpy.mockRestore();
     });
   });
 });

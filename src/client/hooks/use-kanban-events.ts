@@ -21,6 +21,27 @@ export const TASK_INVALIDATE_DEBOUNCE_MS = 400;
 export const TASK_INVALIDATE_MAX_WAIT_MS = 1500;
 /** On a fresh page load, ask the server for this much recent history. */
 export const FRESH_LOAD_REPLAY_WINDOW_MS = 60 * 60 * 1000;
+/**
+ * Reconnect backoff after an error: 3 s, doubling, capped at 60 s; reset on
+ * open. No jitter on purpose: one browser tab talks to one local server, so
+ * there is no herd to spread out.
+ */
+export const RECONNECT_BASE_MS = 3000;
+export const RECONNECT_MAX_MS = 60_000;
+/**
+ * The server writes a `ping` event every 25 s. If nothing at all arrives for
+ * this long, the connection died silently (sleep, proxy idle timeout) without
+ * an onerror; close it and reconnect. Must stay above twice the ping interval.
+ */
+export const SSE_WATCHDOG_MS = 60_000;
+
+/** EventSource.CLOSED; literal so test doubles without the static still work. */
+const EVENT_SOURCE_CLOSED = 2;
+
+/** Delay before reconnect attempt `attempt` (0-based). */
+export function reconnectDelayMs(attempt: number): number {
+  return Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS);
+}
 
 /** Mirrors KanbanTaskLifecycleEvent from the server broadcaster. */
 export interface KanbanTaskLifecyclePayload {
@@ -104,6 +125,8 @@ export function useKanbanEvents({
 }: UseKanbanEventsOptions): void {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fitnessInvalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFitnessInvalidateAtRef = useRef(0);
   const tearingDownRef = useRef(false);
@@ -181,7 +204,24 @@ export function useKanbanEvents({
     onSessionActivityRef.current = onSessionActivity;
   }, [onSessionActivity]);
 
+  const clearWatchdog = useCallback(() => {
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  }, []);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
   const connectSSE = useCallback(() => {
+    if (tearingDownRef.current) return;
+    clearReconnectTimer();
+    clearWatchdog();
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -198,7 +238,36 @@ export function useKanbanEvents({
     const es = new EventSource(resolveApiPath(`api/kanban/events?${params.toString()}`, base));
     eventSourceRef.current = es;
 
+    // Every callback first checks it still belongs to the current connection:
+    // a late callback from a replaced connection must not touch the new one.
+    const isCurrent = () => eventSourceRef.current === es && !tearingDownRef.current;
+
+    const armWatchdog = () => {
+      if (!isCurrent()) return;
+      clearWatchdog();
+      watchdogTimerRef.current = setTimeout(() => {
+        watchdogTimerRef.current = null;
+        if (!isCurrent()) return;
+        // Silent death: no error, no data. Reconnect now, not via backoff.
+        es.close();
+        eventSourceRef.current = null;
+        connectSseRef.current();
+      }, SSE_WATCHDOG_MS);
+    };
+    armWatchdog();
+
+    es.onopen = () => {
+      if (!isCurrent()) return;
+      reconnectAttemptRef.current = 0;
+      armWatchdog();
+    };
+
+    // Server keep-alive (named event, never reaches onmessage). Optional
+    // call: minimal EventSource test doubles do not implement listeners.
+    es.addEventListener?.("ping", armWatchdog);
+
     es.onmessage = (event) => {
+      armWatchdog();
       if (event.lastEventId) lastEventIdRef.current = event.lastEventId;
       try {
         const data = JSON.parse(event.data) as { type?: string; entity?: string; resourceId?: string };
@@ -260,17 +329,29 @@ export function useKanbanEvents({
     };
 
     es.onerror = () => {
-      if (tearingDownRef.current || document.visibilityState === "hidden") {
-        es.close();
-        eventSourceRef.current = null;
-        return;
-      }
       es.close();
+      if (!isCurrent()) return;
       eventSourceRef.current = null;
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = setTimeout(() => connectSseRef.current(), 3000);
+      clearWatchdog();
+      // Keep retrying while hidden too; the browser throttles timers, and
+      // visibilitychange reconnects at once when the tab comes back.
+      const delay = reconnectDelayMs(reconnectAttemptRef.current);
+      reconnectAttemptRef.current += 1;
+      clearReconnectTimer();
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connectSseRef.current();
+      }, delay);
     };
-  }, [workspaceId, replayOnFreshLoad, scheduleInvalidate, scheduleTasksInvalidate, cancelTasksInvalidate]);
+  }, [
+    workspaceId,
+    replayOnFreshLoad,
+    scheduleInvalidate,
+    scheduleTasksInvalidate,
+    cancelTasksInvalidate,
+    clearWatchdog,
+    clearReconnectTimer,
+  ]);
 
   useEffect(() => {
     connectSseRef.current = connectSSE;
@@ -283,10 +364,23 @@ export function useKanbanEvents({
     hasConnectedOnceRef.current = false;
     lastFitnessInvalidateAtRef.current = 0;
     lastEventIdRef.current = null;
+    reconnectAttemptRef.current = 0;
     connectSSE();
+
+    // Back in front: if the connection is gone, reconnect now instead of
+    // waiting out the backoff. A live connection is left alone.
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible" || tearingDownRef.current) return;
+      const current = eventSourceRef.current;
+      if (current && current.readyState !== EVENT_SOURCE_CLOSED) return;
+      connectSseRef.current();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       tearingDownRef.current = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearWatchdog();
       hasConnectedOnceRef.current = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -306,5 +400,5 @@ export function useKanbanEvents({
         reconnectTimerRef.current = null;
       }
     };
-  }, [connectSSE, workspaceId, cancelTasksInvalidate]);
+  }, [connectSSE, workspaceId, cancelTasksInvalidate, clearWatchdog]);
 }
