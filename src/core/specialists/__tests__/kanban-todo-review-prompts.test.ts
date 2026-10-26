@@ -31,7 +31,8 @@ describe("kanban-todo-orchestrator prompt", () => {
   it.each(loadPaths)("reads experience packs before planning (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, "kanban-todo-orchestrator");
 
-    expect(prompt).toContain("/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/");
+    expect(prompt).toContain("项目索引/经验包/");
+    expect(prompt).toMatch(/知识库目录|~\/Desktop\/my\/knowledge-system/);
     expect(prompt).toContain("triggers.json");
     expect(prompt).toContain("grep -n '^## '");
     expect(prompt).toContain("（经验包 <包>:<行号>）");

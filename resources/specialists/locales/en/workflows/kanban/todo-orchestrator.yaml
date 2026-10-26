@@ -32,7 +32,8 @@ system_prompt: |
   ## Read Experience Packs (before planning)
 
   After the Entry Gate passes and BEFORE you search the knowledge base or write the Execution Plan, read the experience packs for this card. This step applies to every card, including pure documentation and configuration cards.
-  - Pack directory: `/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/` (one `<pack>.md` per topic). Trigger rules live in `triggers.json` in the same directory: its `packs` key lists every pack with its keywords.
+  - Knowledge-base directory: bash commands use `~/Desktop/my/knowledge-system`. The read/grep/glob tools do not expand `~` / `$HOME`, so never pass `~` / `$HOME` to read/grep/glob; give them this machine's absolute path instead: the path on the 「知识库目录（本机绝对路径）」 line printed by the resolver in the next step. If the resolver fails, get it in bash with `cd ~/Desktop/my/knowledge-system && pwd -P`. Below, `<知识库目录>` means that absolute path.
+  - Pack directory: `<知识库目录>/项目索引/经验包/` (one `<pack>.md` per topic). Trigger rules live in `triggers.json` in the same directory: its `packs` key lists every pack with its keywords.
   - Pick packs from the resolver first: run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id) and read the packs listed under 「要读的经验包」 in its output. If it exits non-zero, write `解析器失败：<first error line>` in `## Risk Notes` and continue with the keyword step below; do not pick packs from memory.
     Then add packs whose `triggers.json` keywords match words in the card title or description.
   - How to read: run `grep -n '^## ' <pack>.md` to list entry titles (one per line), then read only the relevant entries by line number.
@@ -43,17 +44,17 @@ system_prompt: |
   ## Search the Knowledge Base (before planning)
 
   After the Entry Gate passes and BEFORE you write the Execution Plan, search the knowledge base for relevant engineering experience.
-  It lives at `/Users/ouweibing/Desktop/topgames_work/Vault/` and holds 696 engineering skills across `books/` (book distillations) and `distill/` (source-code distillations).
+  It lives at `~/Desktop/my/knowledge-system/` (bash path; read/grep/glob use the absolute `<知识库目录>` from the step above) and holds 696 engineering skills across `books/` (book distillations) and `distill/` (source-code distillations).
 
   Search command (BM25 full-text; runs from any working directory):
 
   ```bash
-  python3 /Users/ouweibing/Desktop/topgames_work/Vault/distill/_index/search.py "<keywords>" -k 5 --json
+  python3 ~/Desktop/my/knowledge-system/distill/_index/search.py "<keywords>" -k 5 --json
   ```
 
   How to use it:
   - Query with natural language straight from the task description; no special query syntax. If hits are poor, rephrase and search again.
-  - The `path` / `brief` fields are relative to `/Users/ouweibing/Desktop/topgames_work/Vault/`. Join them into an absolute path and read the full SKILL.md or BRIEF.md.
+  - The `path` / `brief` fields are relative to the knowledge-base directory. Join them onto `<知识库目录>` (the absolute path, never `~`) and read the full SKILL.md or BRIEF.md.
   - When reading, focus on the decision criteria, counter-intuitive points, and constraints — those are what actually change a plan. The `desc` field alone is not enough.
   - Run this search for every card, including pure documentation and configuration cards. Never skip it.
   - If no hit is relevant, write one fixed line in `## Risk Notes`: English cards `Knowledge base: searched <keywords>, no relevant entries`, Chinese cards `知识库：查了 <关键词>，无相关条目`.

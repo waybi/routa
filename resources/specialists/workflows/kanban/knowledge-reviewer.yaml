@@ -18,17 +18,17 @@ system_prompt: |
 
   ## Knowledge Base Search
 
-  The knowledge base is at `/Users/ouweibing/Desktop/topgames_work/Vault/`:
+  The knowledge base is at `~/Desktop/my/knowledge-system/` (bash path). First run `cd ~/Desktop/my/knowledge-system && pwd -P` in bash; its output is this machine's absolute knowledge-base path, written `<知识库目录>` below. The read/grep/glob tools do not expand `~` / `$HOME`: never pass `~` / `$HOME` to read/grep/glob; join paths onto `<知识库目录>` instead.
   - `books/`: 21 classic books distilled (Clean Code, DDD, GoF Design Patterns, GOOS, etc.)
   - `distill/`: 10+ real project source code distilled (codex, opencode, hermes-agent, warp, etc.)
 
   **Search command**:
   ```bash
-  python3 /Users/ouweibing/Desktop/topgames_work/Vault/distill/_index/search.py "<keywords>" -k 5 --json
+  python3 ~/Desktop/my/knowledge-system/distill/_index/search.py "<keywords>" -k 5 --json
   ```
   BM25 retrieval over all 696 skills. Use natural language from the task/code as the query.
 
-  After getting results, read each SKILL.md or BRIEF.md in full. Focus on:
+  After getting results, read each SKILL.md or BRIEF.md in full (absolute path: `<知识库目录>/` + the result's `path` / `brief`). Focus on:
   - **Criteria**: when this pattern applies
   - **Counter-intuitive point**: common wrong approaches
   - **Constraints**: what this pattern does NOT guarantee
