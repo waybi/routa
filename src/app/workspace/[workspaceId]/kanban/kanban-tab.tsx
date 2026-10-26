@@ -16,7 +16,7 @@ import type {
   SessionInfo,
   TaskInfo,
 } from "../types";
-import { EMPTY_DRAFT, type TaskDraft } from "../kanban-create-modal";
+import { EMPTY_DRAFT, draftModelEffortFields, type TaskDraft } from "../kanban-create-modal";
 import { type ColumnAutomationConfig, type KanbanSettingsModalProps } from "./kanban-settings-modal";
 import { scheduleKanbanRefreshBurst } from "./kanban-agent-input";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
@@ -1008,6 +1008,7 @@ export function KanbanTab({
             ? codebases.find((codebase) => codebase.id === effectiveCodebaseIds[0])?.repoPath
             : defaultCodebase?.repoPath,
           codebaseIds: effectiveCodebaseIds,
+          ...draftModelEffortFields(draft),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1400,6 +1401,7 @@ export function KanbanTab({
     },
     creating: isCreatingTask,
     createError: createTaskError,
+    modelOptionsProviderId: boardAutoProviderId,
     githubAvailable,
     codebases,
     allCodebaseIds,

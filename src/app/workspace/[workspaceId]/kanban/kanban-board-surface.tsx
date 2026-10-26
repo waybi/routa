@@ -539,6 +539,7 @@ export function KanbanCreateTaskModal({
   githubAvailable,
   codebases,
   allCodebaseIds,
+  modelOptionsProviderId,
 }: {
   showCreateModal: boolean;
   draft: TaskDraft;
@@ -550,6 +551,7 @@ export function KanbanCreateTaskModal({
   githubAvailable: boolean;
   codebases: CodebaseData[];
   allCodebaseIds: string[];
+  modelOptionsProviderId?: string;
 }) {
   if (!showCreateModal) return null;
 
@@ -564,6 +566,7 @@ export function KanbanCreateTaskModal({
       githubAvailable={githubAvailable}
       codebases={codebases}
       allCodebaseIds={allCodebaseIds}
+      modelOptionsProviderId={modelOptionsProviderId}
     />
   );
 }

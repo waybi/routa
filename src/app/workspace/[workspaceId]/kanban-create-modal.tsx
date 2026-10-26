@@ -7,6 +7,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Loader2 } from "lucide-react";
 import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { useTranslation } from "@/i18n";
+import { ModelEffortPicker } from "@/client/components/model-effort-picker";
+import { useModelEffortChoices } from "@/client/model-effort/use-model-effort-choices";
 
 export type TaskDraft = {
   title: string;
@@ -16,7 +18,19 @@ export type TaskDraft = {
   labels: string;
   createGitHubIssue: boolean;
   codebaseIds: string[];
+  /** "" = follow the lane step / tier configuration. */
+  assignedModel?: string;
+  /** "" = follow the lane step / tier configuration. */
+  assignedReasoningEffort?: string;
 };
+
+/** POST /api/tasks fields for the picked model / effort; empty picks are left out. */
+export function draftModelEffortFields(draft: TaskDraft): { assignedModel?: string; assignedReasoningEffort?: string } {
+  return {
+    ...(draft.assignedModel ? { assignedModel: draft.assignedModel } : {}),
+    ...(draft.assignedReasoningEffort ? { assignedReasoningEffort: draft.assignedReasoningEffort } : {}),
+  };
+}
 
 export const EMPTY_DRAFT: TaskDraft = {
   title: "",
@@ -40,6 +54,8 @@ interface KanbanCreateModalProps {
   githubAvailable: boolean;
   codebases: CodebaseData[];
   allCodebaseIds: string[];
+  /** Provider whose config-options list the model / effort choices (board auto provider). */
+  modelOptionsProviderId?: string;
 }
 
 function TipTapObjectiveEditor({
@@ -131,8 +147,10 @@ export function KanbanCreateModal({
   githubAvailable,
   codebases,
   allCodebaseIds: _allCodebaseIds,
+  modelOptionsProviderId = "dsh",
 }: KanbanCreateModalProps) {
   const { t } = useTranslation();
+  const modelChoices = useModelEffortChoices([modelOptionsProviderId]);
   const canCreate = Boolean(draft.title.trim()) && Boolean(draft.objectiveHtml.replace(/<[^>]*>/g, "").trim());
 
   return (
@@ -193,6 +211,21 @@ export function KanbanCreateModal({
               onChange={(e) => setDraft((d) => ({ ...d, labels: e.target.value }))}
               placeholder="labels,comma,separated"
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-[#0d1018] dark:text-slate-200"
+            />
+          </div>
+
+          <div className="space-y-1" data-testid="kanban-create-model-effort-field">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.kanbanModelSelection.modelAndEffort}</div>
+            <ModelEffortPicker
+              variant="form"
+              choices={modelChoices[modelOptionsProviderId]}
+              model={draft.assignedModel ?? ""}
+              reasoningEffort={draft.assignedReasoningEffort ?? ""}
+              emptyLabel={t.kanban.useLaneDefault}
+              effortEmptyLabel={t.kanban.useLaneDefault}
+              ariaLabel={t.kanbanModelSelection.modelAndEffort}
+              testIdPrefix="kanban-create-model-effort"
+              onChange={(next) => setDraft((d) => ({ ...d, assignedModel: next.model, assignedReasoningEffort: next.reasoningEffort }))}
             />
           </div>
 
