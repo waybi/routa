@@ -45,6 +45,12 @@ interface SessionConfigState {
 
 const EMPTY_STATE: SessionConfigState = { sessionId: null, configOptions: null, unavailable: false, pending: false };
 
+/**
+ * Wait before each retry of a failed GET (404 or 502 while the agent process
+ * starts). 6 retries over ~31s; at most 1 + length requests per refresh.
+ */
+export const CONFIG_OPTIONS_RETRY_DELAYS_MS: readonly number[] = [1000, 2000, 4000, 8000, 8000, 8000];
+
 export interface UseSessionConfigOptionsOptions {
   sessionId: string | null;
   /** Latest configOptions pushed by config_option_update for this session. */
@@ -75,7 +81,8 @@ export function useSessionConfigOptions({
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
-    void (async () => {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = async (retryIndex: number) => {
       const result = await requestConfigOptions(sessionId);
       if (cancelled) return;
       if (result.kind === "error") {
@@ -86,9 +93,18 @@ export function useSessionConfigOptions({
         if (result.kind === "ok") return { ...base, configOptions: result.configOptions, unavailable: false };
         return { ...base, unavailable: true };
       });
-    })();
+      // A just-created session has no agent process until session/new
+      // finishes, so the first GET fails (the kanban side panel asks at once).
+      // Retry with backoff, then stay unavailable until sessionId/refreshKey change.
+      const delay = CONFIG_OPTIONS_RETRY_DELAYS_MS[retryIndex];
+      if (result.kind !== "ok" && delay !== undefined) {
+        retryTimer = setTimeout(() => void attempt(retryIndex + 1), delay);
+      }
+    };
+    void attempt(0);
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [sessionId, refreshKey]);
 
