@@ -75,6 +75,21 @@ describe("/api/sessions/[sessionId]/config-options", () => {
     });
   });
 
+  it("GET returns 404 when the error comes from another bundle's copy of the class", async () => {
+    // Production: the globalThis manager throws the class from whichever
+    // route bundle created it, so instanceof fails across route bundles.
+    class ForeignSessionProcessNotFoundError extends Error {
+      readonly code = "SESSION_PROCESS_NOT_FOUND";
+    }
+    manager.getConfigOptions.mockImplementation(() => {
+      throw new ForeignSessionProcessNotFoundError("No live ACP process for session s-9");
+    });
+
+    const response = await GET(new NextRequest("http://localhost/api/sessions/s-9/config-options"), ctx("s-9"));
+
+    expect(response.status).toBe(404);
+  });
+
   it("POST forwards set_config_option, persists, and returns the new state", async () => {
     manager.setConfigOption.mockResolvedValue(options("claude-opus-4-6", "high"));
 

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { SessionProcessNotFoundError } from "@/core/acp/config-options";
+import { isSessionProcessNotFoundError } from "@/core/acp/config-options";
 import { getSessionConfig, setSessionConfig } from "@/core/acp/session-config-service";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
 function errorResponse(error: unknown, sessionId: string) {
-  if (error instanceof SessionProcessNotFoundError) {
+  if (isSessionProcessNotFoundError(error)) {
     return NextResponse.json(
       {
         error: "会话进程不在，需先恢复会话",

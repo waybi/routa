@@ -21,6 +21,20 @@ export class SessionProcessNotFoundError extends Error {
   }
 }
 
+/**
+ * Match by `code`, not `instanceof`: the process manager is a globalThis
+ * singleton created by whichever route bundle loads first, so it throws the
+ * class from that bundle's module copy, which `instanceof` in another route
+ * bundle does not recognise (GET config-options returned 502 instead of 404).
+ */
+export function isSessionProcessNotFoundError(error: unknown): error is SessionProcessNotFoundError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "SESSION_PROCESS_NOT_FOUND"
+  );
+}
+
 export interface AcpConfigSelectValue {
   value: string;
   name?: string;
