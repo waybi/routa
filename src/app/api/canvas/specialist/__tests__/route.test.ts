@@ -152,6 +152,36 @@ describe("/api/canvas/specialist", () => {
     }));
   });
 
+  it.each([
+    ["high", "high"],
+    [undefined, undefined],
+  ])("forwards reasoningEffort=%s to session creation (card 87810657 AC7)", async (effort, expected) => {
+    getConsolidatedHistoryMock.mockReturnValue([
+      {
+        sessionId: "sess-1",
+        update: {
+          sessionUpdate: "agent_message",
+          content: { type: "text", text: "```tsx\nexport default function Canvas() { return <div />; }\n```" },
+        },
+      },
+    ]);
+    const request = new NextRequest("http://localhost/api/canvas/specialist", {
+      method: "POST",
+      body: JSON.stringify({
+        specialistId: "crafter",
+        workspaceId: "ws-1",
+        prompt: "Card",
+        model: "claude-opus-5-5",
+        ...(effort ? { reasoningEffort: effort } : {}),
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    await POST(request);
+    const params = handleSessionNewMock.mock.calls.at(-1)?.[0]?.params;
+    expect(params.reasoningEffort).toBe(expected);
+    expect(params.model).toBe("claude-opus-5-5");
+  });
+
   it("validates required fields", async () => {
     const request = new NextRequest("http://localhost/api/canvas/specialist", {
       method: "POST",

@@ -799,6 +799,11 @@ export async function handleSessionNew({
         // > the specialist tier's global effort (dsh only) > acp default.
         // Independent of which layer chose the model.
         // A blank request value keeps its old meaning when no tier effort is set.
+        // dsh only on purpose: ~/.routa/kanban-model-tiers.json is the dsh
+        // lane tier table (KANBAN_MODEL_TIER_PROVIDER_ID), its efforts are
+        // picked from dsh's config-options, and the resolver returns
+        // undefined for any other provider. Other providers keep the request
+        // effort or their own default.
         const tierEffort = !reasoningEffort && provider === "dsh" && specialist?.defaultModelTier
           ? resolveTierReasoningEffortForProvider(provider, specialist.defaultModelTier)
           : undefined;

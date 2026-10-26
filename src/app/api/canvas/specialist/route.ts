@@ -28,6 +28,7 @@ interface CreateCanvasFromSpecialistBody {
   title?: string;
   provider?: string;
   model?: string;
+  reasoningEffort?: string;
   specialistLocale?: string;
   taskId?: string;
   codebaseId?: string;
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
       workspaceId,
       provider: body.provider,
       model: body.model,
+      reasoningEffort: body.reasoningEffort,
       specialistId,
       specialistLocale,
       cwd: body.cwd ?? body.repoPath,
