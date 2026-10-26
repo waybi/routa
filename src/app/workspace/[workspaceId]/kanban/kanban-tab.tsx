@@ -1259,7 +1259,7 @@ export function KanbanTab({
     kanbanTaskAgentCopy,
     agentInput,
     onAgentInputChange: setAgentInput,
-    onAgentSubmit: () => { void handleAgentSubmit(); },
+    onAgentSubmit: (modelEffort?: { model: string; reasoningEffort: string }) => { void handleAgentSubmit(modelEffort); },
     showCreateTaskModal: () => setShowCreateModal(true),
     agentLoading,
     agentError,

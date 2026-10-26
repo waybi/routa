@@ -49,7 +49,8 @@ export function useKanbanAgentInput({
   // Inline failure next to the input; the sticky toast says the same thing.
   const [agentError, setAgentError] = useState<string | null>(null);
 
-  const handleAgentSubmit = useCallback(async () => {
+  /** `modelEffort` is the dispatch bar pick; "" = follow the provider default. */
+  const handleAgentSubmit = useCallback(async (modelEffort?: { model: string; reasoningEffort: string }) => {
     if (!agentInput.trim() || !onAgentPrompt || agentLoading) return;
 
     setAgentLoading(true);
@@ -74,6 +75,8 @@ export function useKanbanAgentInput({
       const sessionId = await onAgentPrompt(agentInput, {
         boardId: selectedBoardId ?? defaultBoardId ?? undefined,
         provider: boardAutoProviderId,
+        model: modelEffort?.model || undefined,
+        reasoningEffort: modelEffort?.reasoningEffort || undefined,
         role: "CRAFTER",
         toolMode: "full",
         allowedNativeTools: ["Read", "Grep", "Glob"],

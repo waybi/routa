@@ -500,7 +500,7 @@ export function KanbanPageClient() {
       undefined,
       options?.role ?? "DEVELOPER",
       workspaceId,
-      undefined,
+      options?.model,
       undefined,
       undefined,
       undefined,
@@ -514,6 +514,7 @@ export function KanbanPageClient() {
       true,
       options?.taskAdaptiveHarness,
       options?.boardId,
+      options?.reasoningEffort,
     );
 
     if (!result?.sessionId) {

@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, type ComponentProps, type RefObject } from "react";
+import { useRef, useState, type ComponentProps, type RefObject } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Button, buttonClassName } from "@/client/components/ui/button";
 import { EmptyState, ErrorState } from "@/client/components/ui/states";
 import { useTranslation } from "@/i18n";
 import { AcpProviderDropdown } from "@/client/components/acp-provider-dropdown";
+import type { ModelEffortValue } from "@/client/components/model-effort-picker";
+import { EMPTY_DISPATCH_MODEL_EFFORT, KanbanDispatchModelEffort } from "./kanban-dispatch-model-effort";
 import type { KanbanAgentPromptHandler, KanbanBoardInfo } from "../types";
 import { KanbanTabHeader } from "./kanban-tab-header";
 import { KanbanStatusBar } from "./kanban-status-bar";
@@ -55,7 +57,8 @@ export interface KanbanTabHeaderActionProps {
   kanbanTaskAgentCopy: KanbanTaskAgentCopy;
   agentInput: string;
   onAgentInputChange: (value: string) => void;
-  onAgentSubmit: () => void;
+  /** Called with the dispatch bar's model · effort pick ("" = follow default). */
+  onAgentSubmit: (modelEffort?: ModelEffortValue) => void;
   showCreateTaskModal: () => void;
   agentLoading: boolean;
   /** Inline failure of the last dispatch; the typed text is kept. */
@@ -144,6 +147,14 @@ function KanbanTabHeaderActionSlot({
   inputRef,
 }: KanbanTabHeaderActionProps & { inputRef?: RefObject<HTMLInputElement | null> }) {
   const { t } = useTranslation();
+  const [modelEffort, setModelEffort] = useState<ModelEffortValue>(EMPTY_DISPATCH_MODEL_EFFORT);
+  // Model ids belong to one provider: switching provider resets the pick.
+  const [modelEffortProvider, setModelEffortProvider] = useState(selectedProviderId);
+  if (modelEffortProvider !== selectedProviderId) {
+    setModelEffortProvider(selectedProviderId);
+    setModelEffort(EMPTY_DISPATCH_MODEL_EFFORT);
+  }
+  const submit = () => onAgentSubmit(modelEffort);
 
   if (!board) {
     return null;
@@ -168,6 +179,13 @@ function KanbanTabHeaderActionSlot({
               labelClassName="max-w-[110px] truncate"
             />
           </div>
+          <KanbanDispatchModelEffort
+            providerId={selectedProviderId}
+            value={modelEffort}
+            onChange={setModelEffort}
+            disabled={agentLoading || disableBoardProvider}
+            copy={kanbanTaskAgentCopy}
+          />
           <input
             ref={inputRef}
             type="text"
@@ -176,7 +194,7 @@ function KanbanTabHeaderActionSlot({
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                onAgentSubmit();
+                submit();
               }
             }}
             placeholder={disableBoardProvider ? kanbanTaskAgentCopy.connectingPlaceholder : kanbanTaskAgentCopy.placeholder}
@@ -186,7 +204,7 @@ function KanbanTabHeaderActionSlot({
           />
           <Button
             size="sm"
-            onClick={onAgentSubmit}
+            onClick={submit}
             disabled={!agentInput.trim() || agentLoading || disableBoardProvider}
             data-testid="kanban-agent-submit"
           >

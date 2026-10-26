@@ -61,6 +61,10 @@ export interface TaskRunInfo {
 export interface KanbanAgentPromptOptions {
   boardId?: string;
   provider?: string;
+  /** Model value as listed by the provider's config-options; undefined = provider default. */
+  model?: string;
+  /** Reasoning effort; undefined = provider default. */
+  reasoningEffort?: string;
   role?: string;
   toolMode?: "essential" | "full";
   allowedNativeTools?: string[];

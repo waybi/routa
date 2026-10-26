@@ -13,6 +13,10 @@ export interface KanbanTaskAgentCopy {
   panelTitle: string;
   open: string;
   close: string;
+  modelEffortAriaLabel: string;
+  modelEffortDefault: string;
+  modelEffortHint: string;
+  modelEffortUnsupported: string;
 }
 
 const KANBAN_TASK_AGENT_COPY: Record<KanbanSpecialistLanguage, KanbanTaskAgentCopy> = {
@@ -27,6 +31,10 @@ const KANBAN_TASK_AGENT_COPY: Record<KanbanSpecialistLanguage, KanbanTaskAgentCo
     panelTitle: "KanbanTask Agent",
     open: "Open",
     close: "Close",
+    modelEffortAriaLabel: "KanbanTask Agent model and reasoning effort",
+    modelEffortDefault: "Default",
+    modelEffortHint: "Model and reasoning effort for the next KanbanTask Agent session; leave empty to follow the provider default.",
+    modelEffortUnsupported: "This provider lists no model or reasoning effort options; the session uses its default.",
   },
   "zh-CN": {
     providerAriaLabel: "看板任务代理 provider",
@@ -39,6 +47,10 @@ const KANBAN_TASK_AGENT_COPY: Record<KanbanSpecialistLanguage, KanbanTaskAgentCo
     panelTitle: "看板任务代理",
     open: "打开",
     close: "关闭",
+    modelEffortAriaLabel: "看板任务代理的模型与推理档位",
+    modelEffortDefault: "默认",
+    modelEffortHint: "下一次派单新建看板任务代理会话时用的模型和推理档位；留空跟随 provider 默认。",
+    modelEffortUnsupported: "这个 provider 没有提供模型或推理档位选项，会话按默认设置运行。",
   },
 };
 
