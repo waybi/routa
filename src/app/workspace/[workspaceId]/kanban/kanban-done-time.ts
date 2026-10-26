@@ -9,40 +9,10 @@
  */
 
 import type { TaskInfo } from "../types";
+import { getDoneEnteredAt } from "@/core/kanban/attention-rules";
 
-export const DONE_LANE_ID = "done";
-
-type LaneSession = NonNullable<TaskInfo["laneSessions"]>[number];
-
-function parseTime(value: string | undefined | null): number {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-/**
- * The trailing run of consecutive `columnId === "done"` sessions, oldest
- * first. Empty when the last session is not a Done session (e.g. the card was
- * just dragged back into Done and automation has not started yet).
- */
-export function getTrailingDoneSessions(task: Pick<TaskInfo, "laneSessions">): LaneSession[] {
-  const sessions = task.laneSessions ?? [];
-  let start = sessions.length;
-  while (start > 0 && sessions[start - 1]?.columnId === DONE_LANE_ID) {
-    start -= 1;
-  }
-  return sessions.slice(start);
-}
-
-/**
- * Epoch ms the card entered Done: first session of the trailing Done run,
- * else `updatedAt`, else `createdAt`, else 0.
- */
-export function getDoneEnteredAt(task: Pick<TaskInfo, "laneSessions" | "updatedAt" | "createdAt">): number {
-  const trailing = getTrailingDoneSessions(task);
-  const fromSession = trailing.length > 0 ? parseTime(trailing[0].startedAt) : 0;
-  return fromSession || parseTime(task.updatedAt) || parseTime(task.createdAt) || 0;
-}
+// Shared with the server-side attention rules (card 64f2e31c).
+export { DONE_LANE_ID, getDoneEnteredAt, getTrailingDoneSessions } from "@/core/kanban/attention-rules";
 
 export type DoneSegmentKey = "today" | "yesterday" | "thisWeek" | "older";
 
