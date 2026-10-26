@@ -371,6 +371,11 @@ markdown prompt
           "flight_resolve.py --card <完整卡号>",
           "标准来源：",
           "回归题已出",
+          "## Risk Notes",
+          "### 施工注意（来自风险提示）",
+          "（经验包 routa:62）",
+          "（来源：pattern-xxx）",
+          "风险提示转契约 N 条，施工注意 M 条",
         ],
       },
       {
@@ -389,6 +394,12 @@ markdown prompt
           /改线上|changing production/,
           /对外发消息|sending external messages/,
           "blocked",
+          "### 施工注意（来自风险提示）",
+          "### 送审前自查",
+          "行数预算",
+          "对齐主干",
+          "证据表全覆盖",
+          "照做 / 不适用+理由",
         ],
       },
       {
@@ -438,6 +449,27 @@ markdown prompt
           }
         }
       }
+    });
+
+    it.each(loadPaths)("places the Risk Notes and self-check headings correctly on the %s path", (_label, dir, locale) => {
+      const loaded = loadSpecialistsFromDirectory(dir, "bundled", locale);
+      const lines = (id: string) =>
+        (loaded.find((candidate) => candidate.id === id)?.behaviorPrompt ?? "").split("\n").map((line) => line.trim());
+
+      const setter = lines("kanban-contract-setter");
+      const notApplicable = setter.indexOf("### 不适用");
+      const riskNotes = setter.indexOf("### 施工注意（来自风险提示）");
+      const fixedItems = setter.indexOf("### F1–F4");
+      expect(notApplicable).toBeGreaterThan(-1);
+      expect(riskNotes).toBeGreaterThan(notApplicable);
+      expect(fixedItems).toBeGreaterThan(riskNotes);
+      const regression = setter.findIndex((line) => line.startsWith("回归题已出"));
+      expect(setter[regression - 1]).toContain("风险提示转契约 N 条，施工注意 M 条");
+
+      const executor = lines("kanban-flight-dev-executor");
+      const selfCheck = executor.indexOf("### 送审前自查");
+      expect(selfCheck).toBeGreaterThan(-1);
+      expect(executor.slice(selfCheck + 1, selfCheck + 4).map((line) => line[0])).toEqual(["a", "b", "c"]);
     });
   });
 });

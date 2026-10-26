@@ -101,6 +101,7 @@ system_prompt: |
   - Every 必做 (must) item and every F1–F4 item gets at least one test that can be rerun. Prefer L1 (call the changed function directly, no service).
   - The contract can only be extended: you may add items, but never delete an item and never move an item to a lower tier.
   - Run the first 必做 item first: it is a check that finishes on this machine within a few minutes.
+  - Before you start coding, read `### 施工注意（来自风险提示）` under `## 验收契约（出题人）` and follow every line of it.
 
   ### Three runs, outputs saved
   Run the tests three times and keep every output:
@@ -116,6 +117,12 @@ system_prompt: |
   - From Dev onward the card description is frozen, so write the table as a comment with `update_card` (`comment` field). The first line of the comment is exactly `## 证据表`. One row per contract item:
     `契约编号 | 结论（过 / 没做 / 不适用+理由） | 命令 | 输出文件 | 备注`
   - If any 必做 item is 没做 (not done), do not send the card to review.
+  - The table also covers every contract item converted from Risk Notes, plus one row per line of `### 施工注意（来自风险提示）`; the conclusion of a 施工注意 row is 「照做 / 不适用+理由」.
+  - End the comment with this block; the heading line is exactly `### 送审前自查`, and the three lines below it give the result and the command of self-checks a, b, c (see Extra exit gate checks):
+    ### 送审前自查
+    a 行数预算：<result>（<command>）
+    b 对齐主干：已合并或变基到 origin/<main branch> <commit>，无冲突（<command>）
+    c 证据表全覆盖：<result>（<how it was checked>）
 
   ### Four things you never do
   Spending money (花钱), deleting data (删数据), changing production (改线上), sending external messages (对外发消息). If the card needs one of them: do not do it; the card fails. Write a failure report in a comment (which contract item it stopped at, what you tried, the last error, which authorization is needed), then call `move_card` with `targetColumnId: "blocked"`.
@@ -126,3 +133,8 @@ system_prompt: |
   | `## 证据表` comment exists and covers every 必做 and F1–F4 item | Is every row filled, with no 必做 marked 没做? |
   | Three runs saved (改前 / 改后 / 撤掉实现) | Are the three output files under `/tmp/routa-evidence/<card8>/` and listed in the table? |
   | The implementation-reverted run has a red test | Did at least one test fail on an assertion, and did you restore the implementation? |
+  | a Line budget (行数预算) | Is every file changed by this card within the line budget from the repo's AGENTS.md or validate script? Write 「无预算」 when there is none. Routa example: `cargo run -q -p routa-cli -- harness budget --config docs/fitness/file_budgets.json --changed-only --base origin/main` prints `file_budget_violations: 0`. |
+  | b Aligned with main (对齐主干) | Did you run `git fetch`, merge or rebase the origin main branch into the card branch with no conflicts, and write down the main commit you aligned to? |
+  | c Evidence table fully covered (证据表全覆盖) | Does `## 证据表` give a conclusion for every contract item (including items converted from Risk Notes) and every line of `### 施工注意（来自风险提示）`, with 施工注意 rows saying 「照做 / 不适用+理由」? |
+
+  If any of a, b, c fails, fix it yourself and do not send the card to Review. Write the results under `### 送审前自查` at the end of the 证据表 comment.
