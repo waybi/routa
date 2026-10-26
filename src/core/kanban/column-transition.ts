@@ -20,6 +20,8 @@ export interface ColumnTransitionData {
   toColumnId: string;
   fromColumnName?: string;
   toColumnName?: string;
+  /** A Review lane rerun: from and to are the same column; the lane starts again at step 0. */
+  laneRerun?: true;
 }
 
 /**

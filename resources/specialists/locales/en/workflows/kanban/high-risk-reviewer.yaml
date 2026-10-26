@@ -9,6 +9,7 @@ system_prompt: |
 
   ## Step 1 — Read the previous verdict
   - Read the task's `verificationVerdict` and the Flight Review Guard's latest review comment.
+  - Before you may pass, confirm the Flight Review Guard really finished this round: its latest run on this card (the latest Flight Review Guard run started after the latest QA run ended) has status `completed` (not failed, timed_out, cancelled or still running), and that same run wrote this round's `verificationVerdict` and its own review comment (match by session, author or time). A verdict, review comment or `高风险：` line left from an earlier round, or written by another step, does not count; if you cannot tell which run wrote it, treat it as not confirmed. If the card does not show this, check it read-only in `<routa repo>/routa.db` (`tasks.lane_sessions`, `tasks.comments`). If you cannot confirm both, do not approve and do not review in the Review Guard's place: comment what is missing, then call `move_card` with `targetColumnId: "review"` so the Review lane runs again. This is not a `【评审打回 第 N 次】` and does not count toward N.
   - If the verdict is `BLOCKED` (the Review Guard hit the third failure): call `move_card` with `targetColumnId: "blocked"` and stop.
   - Find the line that starts with `高风险：` (format `高风险：是/否（理由）`). If the line is missing, treat it as 是 (high risk).
 
