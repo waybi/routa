@@ -10,6 +10,8 @@
  * - `kanban:changed` / `kanban:task-lifecycle` refetch only the event's
  *   workspace (tasks only for `entity: "task"`), debounced like
  *   use-kanban-events.ts. A reconnect (second `connected`) refetches all.
+ * - The connection heals itself like the board page's: backoff, 60 s
+ *   watchdog, reconnect when the tab comes back (use-resilient-event-source).
  * - The last ready snapshot per workspace (and the workspace list) lives in a
  *   module-level cache, so switching back to the overview shows it at once
  *   and refreshes in the background; only a never-loaded workspace shows
@@ -20,10 +22,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopAwareFetch, getDesktopApiBaseUrl } from "@/client/utils/diagnostics";
 import { resolveApiPath } from "@/client/config/backend";
 import { TASK_INVALIDATE_DEBOUNCE_MS, TASK_INVALIDATE_MAX_WAIT_MS } from "@/client/hooks/use-kanban-events";
+import { createResilientEventSource, RECONNECT_BASE_MS } from "@/client/hooks/use-resilient-event-source";
 import type { KanbanBoardInfo, TaskInfo } from "../types";
 import type { OverviewWorkspace } from "./kanban-overview-rules";
 
-export const OVERVIEW_RECONNECT_DELAY_MS = 3000;
+/** First reconnect delay; later ones back off (see use-resilient-event-source). */
+export const OVERVIEW_RECONNECT_DELAY_MS = RECONNECT_BASE_MS;
 
 export interface OverviewWorkspaceData {
   status: "loading" | "ready" | "error";
@@ -173,19 +177,15 @@ export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) 
   // One workspace-less SSE connection while mounted.
   useEffect(() => {
     mountedRef.current = true;
-    let source: EventSource | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let connectedCount = 0;
     const inflight = inflightRef.current;
     const pending = pendingRef.current;
     const started = startedRef.current;
 
-    const connect = () => {
-      if (!mountedRef.current) return;
-      const es = new EventSource(resolveApiPath("api/kanban/events", getDesktopApiBaseUrl()));
-      source = es;
-      es.onmessage = (event) => {
-        if (source !== es) return;
+    const connection = createResilientEventSource({
+      buildUrl: () => resolveApiPath("api/kanban/events", getDesktopApiBaseUrl()),
+      onMessage: (event) => {
+        if (!mountedRef.current) return;
         let payload: { type?: string; workspaceId?: string; entity?: string };
         try {
           payload = JSON.parse(event.data) as typeof payload;
@@ -203,26 +203,12 @@ export function useKanbanOverviewData(workspaces: readonly OverviewWorkspace[]) 
         const workspaceId = payload.workspaceId;
         if (!workspaceId || !workspaceIdsRef.current.has(workspaceId)) return;
         scheduleRefresh(workspaceId, !(payload.type === "kanban:changed" && payload.entity === "task"));
-      };
-      es.onerror = () => {
-        es.close();
-        if (source !== es) return;
-        source = null;
-        if (!mountedRef.current) return;
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          connect();
-        }, OVERVIEW_RECONNECT_DELAY_MS);
-      };
-    };
+      },
+    });
 
-    connect();
     return () => {
       mountedRef.current = false;
-      source?.close();
-      source = null;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      connection.dispose();
       for (const entry of pending.values()) clearTimeout(entry.timer);
       pending.clear();
       for (const entry of inflight.values()) entry.controller.abort();

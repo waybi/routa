@@ -20,6 +20,7 @@ import {
   resetAttentionDismissalsForTests,
 } from "../../kanban/use-kanban-attention-dismissals";
 import { __resetKanbanOverviewCacheForTests } from "../../kanban/use-kanban-overview-data";
+import { TASK_INVALIDATE_MAX_WAIT_MS } from "@/client/hooks/use-kanban-events";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -195,8 +196,10 @@ describe("loading, error and empty states", () => {
     act(() => {
       MockEventSource.instances[0].onmessage?.({ data: JSON.stringify({ type: "kanban:changed", workspaceId: "w1", entity: "task" }) } as MessageEvent);
     });
+    // Only the refresh debounce: runAllTimers would chase the SSE watchdog,
+    // which re-arms itself on every reconnect.
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(TASK_INVALIDATE_MAX_WAIT_MS);
     });
     vi.useRealTimers();
     await waitFor(() => expect(screen.getByTestId("ui-error-state")).toBeTruthy());

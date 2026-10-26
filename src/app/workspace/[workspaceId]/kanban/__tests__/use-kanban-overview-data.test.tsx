@@ -12,13 +12,32 @@ import type { OverviewWorkspace } from "../kanban-overview-rules";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
+  onopen: ((event: Event) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
+  readyState = 0;
   readonly url: string;
-  readonly close = vi.fn();
+  readonly listeners = new Map<string, Set<(event: Event) => void>>();
+  readonly close = vi.fn(() => {
+    this.readyState = 2;
+  });
   constructor(url: string) {
     this.url = url;
     MockEventSource.instances.push(this);
+  }
+  addEventListener(type: string, listener: (event: Event) => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(listener);
+  }
+  open() {
+    this.readyState = 1;
+    this.onopen?.(new Event("open"));
+  }
+  /** A named `event: ping` frame: goes to listeners, never to onmessage. */
+  ping() {
+    for (const listener of this.listeners.get("ping") ?? []) {
+      listener({ type: "ping", data: "{}" } as unknown as Event);
+    }
   }
   emit(payload: unknown) {
     this.onmessage?.({ data: JSON.stringify(payload), lastEventId: "" } as MessageEvent);
@@ -103,7 +122,36 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  setVisibility(null);
 });
+
+let visibilityOverride: DocumentVisibilityState | null = null;
+const originalVisibility = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+
+/** jsdom's visibilityState is a read-only getter; override it per test. */
+function setVisibility(state: DocumentVisibilityState | null) {
+  visibilityOverride = state;
+  if (state === null) {
+    delete (document as unknown as Record<string, unknown>).visibilityState;
+    return;
+  }
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => visibilityOverride ?? originalVisibility?.get?.call(document),
+  });
+}
+
+function goVisible() {
+  setVisibility("visible");
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+const ALL_WORKSPACES_REFETCH = [
+  "/api/kanban/boards?workspaceId=w1",
+  "/api/kanban/boards?workspaceId=w2",
+  "/api/tasks?workspaceId=w1",
+  "/api/tasks?workspaceId=w2",
+];
 
 describe("useKanbanOverviewData", () => {
   it("loads tasks and boards per workspace and opens one workspace-less SSE (AC2 / AC7)", async () => {
@@ -278,5 +326,146 @@ describe("useKanbanOverviewData", () => {
   it("starts with loading for a workspace that was never loaded", () => {
     render(<Harness workspaces={WORKSPACES} />);
     expect(latest.data.w1).toBeUndefined();
+  });
+  describe("self-healing reconnect", () => {
+    // Literal values from the requirement, not the exported constants.
+    const EXPECTED_BACKOFF = [3000, 6000, 12000, 24000, 48000, 60000, 60000];
+    const WATCHDOG = 60_000;
+
+    async function mountLive() {
+      vi.useFakeTimers();
+      const view = render(<Harness workspaces={WORKSPACES} />);
+      await flush();
+      const first = MockEventSource.instances[0];
+      act(() => first.open());
+      act(() => first.emit({ type: "connected" }));
+      return { view, first };
+    }
+
+    it("backs off 3s, 6s, 12s, 24s, 48s, 60s, 60s and resets after open (C4 / AC5)", async () => {
+      await mountLive();
+      for (const delay of EXPECTED_BACKOFF) {
+        const count = MockEventSource.instances.length;
+        act(() => MockEventSource.instances[count - 1].fail());
+        act(() => vi.advanceTimersByTime(delay - 1));
+        expect(MockEventSource.instances).toHaveLength(count);
+        act(() => vi.advanceTimersByTime(1));
+        expect(MockEventSource.instances).toHaveLength(count + 1);
+      }
+      // Never gives up: still 60 s after the 8th error.
+      let count = MockEventSource.instances.length;
+      act(() => MockEventSource.instances[count - 1].fail());
+      act(() => vi.advanceTimersByTime(59_999));
+      expect(MockEventSource.instances).toHaveLength(count);
+      act(() => vi.advanceTimersByTime(1));
+      expect(MockEventSource.instances).toHaveLength(count + 1);
+
+      // An open resets the next delay to 3 s.
+      act(() => MockEventSource.instances.at(-1)!.open());
+      count = MockEventSource.instances.length;
+      act(() => MockEventSource.instances.at(-1)!.fail());
+      act(() => vi.advanceTimersByTime(2999));
+      expect(MockEventSource.instances).toHaveLength(count);
+      act(() => vi.advanceTimersByTime(1));
+      expect(MockEventSource.instances).toHaveLength(count + 1);
+    });
+
+    it("reconnects at once when the tab comes back and refetches every workspace (C5 / AC6)", async () => {
+      const { first } = await mountLive();
+      setVisibility("hidden");
+      act(() => first.fail());
+      expect(first.readyState).toBe(2);
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => goVisible());
+      expect(MockEventSource.instances).toHaveLength(2);
+      const before = fetchUrls().length;
+      const second = MockEventSource.instances[1];
+      act(() => second.open());
+      act(() => second.emit({ type: "connected" }));
+      await flush();
+      expect(fetchUrls().slice(before).sort()).toEqual(ALL_WORKSPACES_REFETCH);
+
+      // The backoff timer from the background error was dropped.
+      act(() => vi.advanceTimersByTime(3000));
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("leaves a live connection alone when the tab comes back (C5 / AC6)", async () => {
+      const { first } = await mountLive();
+      const before = fetchUrls().length;
+      setVisibility("hidden");
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      act(() => goVisible());
+      await flush();
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(first.close).not.toHaveBeenCalled();
+      expect(fetchUrls()).toHaveLength(before);
+    });
+
+    it("closes and reconnects after 60s with no message at all (C6-A / AC7)", async () => {
+      const { first } = await mountLive();
+      act(() => vi.advanceTimersByTime(WATCHDOG - 1));
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(first.close).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1));
+      expect(first.close).toHaveBeenCalled();
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it("keeps a connection that receives a ping every 25s for 5 minutes, without refetching (C6-B / AC7)", async () => {
+      const { first } = await mountLive();
+      const before = fetchUrls().length;
+      const onmessage = vi.spyOn(first, "onmessage" as never);
+      for (let elapsed = 0; elapsed < 5 * 60_000; elapsed += 25_000) {
+        act(() => vi.advanceTimersByTime(25_000));
+        act(() => first.ping());
+      }
+      await flush();
+      expect(MockEventSource.instances).toHaveLength(1);
+      expect(first.close).not.toHaveBeenCalled();
+      expect(onmessage).not.toHaveBeenCalled();
+      expect(fetchUrls()).toHaveLength(before);
+    });
+
+    it("restarts the watchdog on a plain message (C6-C / AC7)", async () => {
+      const { first } = await mountLive();
+      act(() => vi.advanceTimersByTime(59_000));
+      act(() => first.emit({ type: "kanban:session-activity", workspaceId: "w1" }));
+      act(() => vi.advanceTimersByTime(59_999));
+      expect(MockEventSource.instances).toHaveLength(1);
+      act(() => vi.advanceTimersByTime(1));
+      expect(MockEventSource.instances).toHaveLength(2);
+    });
+
+    it.each([
+      ["waiting for a backoff", (source: MockEventSource) => source.fail()],
+      ["with the watchdog running", (source: MockEventSource) => source.ping()],
+    ])("cleans up every timer and listener on unmount while %s (C7 / AC8)", async (_label, setup) => {
+      const removeSpy = vi.spyOn(document, "removeEventListener");
+      const addSpy = vi.spyOn(document, "addEventListener");
+      const { view, first } = await mountLive();
+      act(() => setup(first));
+      const added = addSpy.mock.calls.find(([type]) => type === "visibilitychange");
+      expect(added).toBeTruthy();
+      // close() during unmount fires onerror synchronously, like a real one may.
+      // A closed source never fires again, so only the first close does.
+      first.close.mockImplementation(() => {
+        if (first.readyState === 2) return;
+        first.readyState = 2;
+        first.onerror?.(new Event("error"));
+      });
+
+      view.unmount();
+      expect(removeSpy).toHaveBeenCalledWith("visibilitychange", added![1]);
+      expect(vi.getTimerCount()).toBe(0);
+
+      act(() => first.fail());
+      act(() => goVisible());
+      act(() => vi.advanceTimersByTime(120_000));
+      expect(MockEventSource.instances).toHaveLength(1);
+      removeSpy.mockRestore();
+      addSpy.mockRestore();
+    });
   });
 });
