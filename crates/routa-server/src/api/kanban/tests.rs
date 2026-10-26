@@ -790,3 +790,107 @@ async fn revive_board_post_returns_not_found_for_unknown_board() {
         Err(crate::error::ServerError::NotFound(_))
     ));
 }
+
+// ─── SSE keep-alive (named ping) ──────────────────────────────────────────
+
+/// Next-side `KANBAN_SSE_PING_FRAME` (src/app/api/kanban/events/keep-alive.ts).
+const NEXT_PING_FRAME: &str = "event: ping\ndata: {}\n\n";
+
+async fn open_events_body(state: &AppState) -> axum::body::BodyDataStream {
+    use axum::response::IntoResponse;
+    let sse = super::kanban_events(
+        State(state.clone()),
+        Query(BoardsQuery { workspace_id: None }),
+    )
+    .await;
+    sse.into_response().into_body().into_data_stream()
+}
+
+async fn next_frame(body: &mut axum::body::BodyDataStream) -> String {
+    use tokio_stream::StreamExt;
+    let chunk = body
+        .next()
+        .await
+        .expect("stream should stay open")
+        .expect("frame should be readable");
+    String::from_utf8(chunk.to_vec()).expect("frame should be utf-8")
+}
+
+#[test]
+fn ping_interval_matches_next_and_stays_below_half_the_watchdog() {
+    assert_eq!(super::KANBAN_SSE_PING_INTERVAL.as_millis(), 25_000);
+    assert!(super::KANBAN_SSE_PING_INTERVAL < std::time::Duration::from_secs(30));
+}
+
+#[tokio::test(start_paused = true)]
+async fn event_stream_sends_named_ping_frame_after_one_interval() {
+    let state = setup_state().await;
+    let mut body = open_events_body(&state).await;
+
+    let connected = next_frame(&mut body).await;
+    assert!(connected.starts_with("data: {"), "first frame: {connected:?}");
+    assert!(connected.contains("\"type\":\"connected\""));
+
+    // Nothing within the first interval: no ping right after connected.
+    let early = tokio::time::timeout(std::time::Duration::from_millis(24_999), {
+        use tokio_stream::StreamExt;
+        body.next()
+    })
+    .await;
+    assert!(early.is_err(), "no frame expected before 25 s, got {early:?}");
+
+    let ping = next_frame(&mut body).await;
+    assert_eq!(ping, NEXT_PING_FRAME);
+    assert!(!ping.contains("id:"));
+    assert!(!ping.starts_with(':'), "ping must be a named event, not a comment");
+
+    // And it keeps coming every interval.
+    for _ in 0..2 {
+        assert_eq!(next_frame(&mut body).await, NEXT_PING_FRAME);
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn ping_bypasses_the_event_bus_and_business_events_still_flow() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let state = setup_state().await;
+    let seen = Arc::new(AtomicUsize::new(0));
+    let seen_by_handler = seen.clone();
+    state
+        .event_bus
+        .on("ping-observer", move |_event| {
+            seen_by_handler.fetch_add(1, Ordering::SeqCst);
+        })
+        .await;
+
+    let mut body = open_events_body(&state).await;
+    let _connected = next_frame(&mut body).await;
+    for _ in 0..3 {
+        assert_eq!(next_frame(&mut body).await, NEXT_PING_FRAME);
+    }
+    tokio::task::yield_now().await;
+    assert_eq!(seen.load(Ordering::SeqCst), 0, "pings must not reach the event bus");
+
+    state
+        .event_bus
+        .emit(AgentEvent {
+            event_type: AgentEventType::WorkspaceUpdated,
+            agent_id: "user-1".to_string(),
+            workspace_id: "default".to_string(),
+            data: json!({
+                "scope": "kanban",
+                "entity": "task",
+                "action": "moved",
+                "resourceId": "task-1",
+                "source": "user",
+            }),
+            timestamp: Utc::now(),
+        })
+        .await;
+    let business = next_frame(&mut body).await;
+    assert!(business.starts_with("data: {"), "business frame: {business:?}");
+    assert!(business.contains("\"type\":\"kanban:changed\""));
+    assert!(!business.contains("event: ping"));
+    tokio::task::yield_now().await;
+    assert_eq!(seen.load(Ordering::SeqCst), 1, "only the business event went through the bus");
+}

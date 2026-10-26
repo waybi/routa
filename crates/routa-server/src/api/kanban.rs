@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
-    response::sse::{Event, KeepAlive, Sse},
+    response::sse::{Event, Sse},
     routing::{get, post},
     Json, Router,
 };
@@ -574,7 +574,7 @@ async fn kanban_events(
         "type": "connected",
         "workspaceId": workspace_id,
     });
-    let (tx, mut rx) = mpsc::unbounded_channel::<serde_json::Value>();
+    let (tx, rx) = mpsc::unbounded_channel::<serde_json::Value>();
     let workspace_filter = workspace_id.clone();
     let handler_key = format!("kanban-events-{}", uuid::Uuid::new_v4());
 
@@ -595,11 +595,44 @@ async fn kanban_events(
         })
         .await;
 
-    let event_bus = state.event_bus.clone();
-    let stream = async_stream::stream! {
-        let _guard = EventBusSubscriptionGuard::new(event_bus, handler_key);
+    let guard = EventBusSubscriptionGuard::new(state.event_bus.clone(), handler_key);
+    // No comment keep-alive: browsers never dispatch comment frames, so the
+    // client watchdog cannot see them. The named ping keeps proxies awake too.
+    Sse::new(kanban_event_stream(
+        connected,
+        rx,
+        guard,
+        KANBAN_SSE_PING_INTERVAL,
+    ))
+}
+
+/// How often the event stream writes a named `ping`. Same value as
+/// `KANBAN_SSE_PING_INTERVAL_MS` in src/app/api/kanban/events/keep-alive.ts;
+/// must stay below half of the client watchdog (60 s).
+const KANBAN_SSE_PING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(25);
+
+/// Keep-alive frame, byte-identical to `KANBAN_SSE_PING_FRAME` on the Next
+/// side: `event: ping\ndata: {}\n\n`. Browsers dispatch it to
+/// `addEventListener("ping")`, never to `onmessage`. No id, so it never moves
+/// the replay cursor; it is not sent through the event bus.
+fn kanban_ping_event() -> Event {
+    Event::default().event("ping").data("{}")
+}
+
+fn kanban_event_stream<G: Send + 'static>(
+    connected: serde_json::Value,
+    mut rx: mpsc::UnboundedReceiver<serde_json::Value>,
+    guard: G,
+    ping_interval: std::time::Duration,
+) -> impl tokio_stream::Stream<Item = Result<Event, Infallible>> {
+    async_stream::stream! {
+        let _guard = guard;
         yield Ok(Event::default().data(connected.to_string()));
-        let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(15));
+        // First ping one full interval after connect, not right away.
+        let mut ping = tokio::time::interval_at(
+            tokio::time::Instant::now() + ping_interval,
+            ping_interval,
+        );
         loop {
             tokio::select! {
                 message = rx.recv() => {
@@ -608,12 +641,10 @@ async fn kanban_events(
                         None => break,
                     }
                 }
-                _ = heartbeat.tick() => yield Ok(Event::default().comment("heartbeat")),
+                _ = ping.tick() => yield Ok(kanban_ping_event()),
             }
         }
-    };
-
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    }
 }
 
 #[derive(Debug, Deserialize)]
