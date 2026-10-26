@@ -357,6 +357,7 @@ export class KanbanWorkflowOrchestrator {
    */
   private departedLaneSessions = new Map<string, string>();
   private doneWorktreeCleanup?: DoneWorktreeCleanup;
+  private afterLaneEnd?: (cardId: string) => Promise<unknown>; // card 64f2e31c: route to Blocked
   /**
    * Worktree removals waiting for a deferred teardown session to end, keyed by
    * that session id. In memory only: a restart in between keeps the copy.
@@ -452,6 +453,7 @@ export class KanbanWorkflowOrchestrator {
   setDoneWorktreeCleanup(fn: DoneWorktreeCleanup): void {
     this.doneWorktreeCleanup = fn;
   }
+  setAfterLaneEnd(fn: (cardId: string) => Promise<unknown>): void { this.afterLaneEnd = fn; }
 
   /** Get all active automations */
   getActiveAutomations(): ActiveAutomation[] {
@@ -762,8 +764,7 @@ export class KanbanWorkflowOrchestrator {
         });
       }
 
-      // A cancelled turn is final: no next step, recovery, or fallback; it
-      // waits for a manual rerun (card 5fdaa681).
+      // A cancelled turn is final: no next step, recovery or fallback; it waits for a manual rerun (5fdaa681).
       const cancelledTurn = isCancelledTurn(event);
       const successEvent =
         event.type !== AgentEventType.AGENT_FAILED
@@ -942,10 +943,9 @@ export class KanbanWorkflowOrchestrator {
         await this.endCardSessionsAfterDoneFailure(task);
       }
 
-      // The step is over whatever its outcome; a later step or a retry gets a
-      // new session, so its process is ended now instead of when the card
-      // reaches Done.
+      // The step is over whatever its outcome: end its process now (a retry gets a new session).
       await this.endFinishedStepSession(eventSessionId, event);
+      if (task && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId);
 
       const completedAutomation = automation;
       setTimeout(() => {

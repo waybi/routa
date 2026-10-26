@@ -45,6 +45,13 @@ vi.mock("@/core/kanban/restart-recovery", () => ({
   reviveMissingEntryAutomations: (...args: unknown[]) => reviveMissingEntryAutomations(...args),
 }));
 
+// Card 64f2e31c (C2): routing attention cards to Blocked must never run on a read.
+const routeAttentionToBlocked = vi.fn();
+vi.mock("@/core/kanban/attention-to-blocked", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/kanban/attention-to-blocked")>()),
+  routeAttentionToBlocked: (...args: unknown[]) => routeAttentionToBlocked(...args),
+}));
+
 vi.mock("@/core/kanban/workflow-orchestrator-singleton", () => ({
   getKanbanSessionQueue: () => ({ getBoardSnapshot }),
   processKanbanColumnTransition: (...args: unknown[]) => processKanbanColumnTransition(...args),
@@ -220,6 +227,46 @@ describe("/api/kanban/boards GET", () => {
     expect(processKanbanColumnTransition).toHaveBeenCalledTimes(0);
     expect(enqueueKanbanTaskSession).toHaveBeenCalledTimes(0);
     expect(taskStore.save).toHaveBeenCalledTimes(0);
+    expect(laneSessions).toHaveLength(1);
+  });
+
+  // Card 64f2e31c (C2): a Done card whose lane failed (it needs attention) is
+  // only read by GET; moving it to Blocked belongs to the lane-end hook.
+  it("does not route an attention card to Blocked when the board is read twice", async () => {
+    const laneSessions = [{
+      sessionId: "reporter-1",
+      columnId: "done",
+      stepIndex: 0,
+      status: "failed" as const,
+      recoveryReason: "agent_failed" as const,
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+      completedAt: new Date().toISOString(),
+    }];
+    const attentionTask = {
+      ...createTask({
+        id: "task-done-failed",
+        title: "Done reporter failed",
+        objective: "Done reporter failed",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        columnId: "done",
+        status: TaskStatus.COMPLETED,
+      }),
+      laneSessions,
+    };
+    const updatedAtBefore = attentionTask.updatedAt;
+    taskStore.listByWorkspace.mockResolvedValue([attentionTask]);
+
+    for (let read = 0; read < 2; read += 1) {
+      const response = await GET(new NextRequest("http://localhost/api/kanban/boards?workspaceId=workspace-1"));
+      expect(response.status).toBe(200);
+    }
+
+    expect(routeAttentionToBlocked).toHaveBeenCalledTimes(0);
+    expect(processKanbanColumnTransition).toHaveBeenCalledTimes(0);
+    expect(taskStore.save).toHaveBeenCalledTimes(0);
+    expect(attentionTask.columnId).toBe("done");
+    expect(attentionTask.updatedAt).toBe(updatedAtBefore);
     expect(laneSessions).toHaveLength(1);
   });
 });

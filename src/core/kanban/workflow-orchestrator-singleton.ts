@@ -623,6 +623,24 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
       new GitWorktreeService(system.worktreeStore, system.codebaseStore),
     );
   });
+  // Card 64f2e31c: after a lane ends, route attention cards to Blocked through move_card.
+  orchestrator.setAfterLaneEnd(async (cardId) => {
+    const [{ routeAttentionToBlocked }, { KanbanTools }, { buildTaskDeliveryLanding }] = await Promise.all([
+      import("./attention-to-blocked"),
+      import("../tools/kanban-tools"),
+      import("./task-delivery-landing"),
+    ]);
+    const tools = new KanbanTools(system.kanbanBoardStore, system.taskStore);
+    tools.setEventBus(system.eventBus);
+    tools.setAutomationSystem(system);
+    if (system.artifactStore) tools.setArtifactStore(system.artifactStore);
+    return routeAttentionToBlocked({
+      taskStore: system.taskStore,
+      kanbanBoardStore: system.kanbanBoardStore,
+      moveCard: (params) => tools.moveCard(params),
+      probeLanding: (task) => buildTaskDeliveryLanding(task, system),
+    }, cardId);
+  });
   orchestrator.start();
   queue.start();
   g[STARTED_KEY] = true;
