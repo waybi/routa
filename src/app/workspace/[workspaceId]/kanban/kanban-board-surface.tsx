@@ -48,6 +48,7 @@ import { DONE_COLUMN_ID, useDoneColumnWindow, windowDoneTasks } from "./kanban-d
 import { KanbanDoneCollapseToggle, KanbanDoneColumnFooter } from "./kanban-done-column-controls";
 import { KanbanDoneSegments } from "./kanban-done-segments";
 import { EMPTY_COLUMN_RAIL_WIDTH_CLASS, KanbanDoneCollapsedRail, KanbanEmptyColumnRail } from "./kanban-empty-column-rail";
+import { KanbanLaneMarker } from "./kanban-lane-marker";
 import { HighlightedText, matchTask, normalizeSearchQuery } from "./kanban-board-search";
 import { Badge } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
@@ -81,7 +82,7 @@ function KanbanDropColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-26.25 shrink-0 flex-col rounded-md bg-subtle transition-colors duration-150 motion-reduce:transition-none ${rail ? "py-3" : "p-2.5"} ${widthClass} ${isOver
+      className={`flex h-full min-h-26.25 shrink-0 flex-col rounded-md border-[color:var(--kanban-col-border)] bg-[color:var(--kanban-col-bg)] transition-colors duration-150 motion-reduce:transition-none ${rail ? "py-3" : "p-2.5"} ${widthClass} ${isOver
         ? "outline-2 outline-offset-[-2px] outline-accent"
         : hasActiveDrag
           ? "outline-1 outline-offset-[-1px] outline-default outline-dashed"
@@ -342,10 +343,11 @@ export function KanbanBoardSurface({
                         widthClass={widthClass}
                         rail={isEmptyColumn || doneRail}
                       >
-                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} /> : doneRail ? (
+                        {isEmptyColumn ? <KanbanEmptyColumnRail columnId={column.id} name={column.name} stage={column.stage} /> : doneRail ? (
                           <KanbanDoneCollapsedRail
                             columnId={column.id}
                             name={column.name}
+                            stage={column.stage}
                             total={columnTasks.length}
                             unmergedCount={unmergedCount}
                             onExpand={doneColumn.toggleCollapsed}
@@ -358,7 +360,10 @@ export function KanbanBoardSurface({
                         ) : <>
                         <div className="mb-2.5 space-y-1">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 truncate text-[12px] font-semibold text-primary" data-testid={`kanban-column-name-${column.id}`}>{column.name}</div>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <KanbanLaneMarker stage={column.stage} />
+                              <div className="min-w-0 truncate text-[12px] font-semibold text-primary" data-testid={`kanban-column-name-${column.id}`}>{column.name}</div>
+                            </div>
                             <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-secondary">
                               {unmergedCount > 0 && (
                                 <span data-testid="kanban-done-unmerged-count" className="inline-flex">

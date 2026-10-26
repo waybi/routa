@@ -413,11 +413,11 @@ function KanbanCardSurface({
       ? "border-success bg-success-subtle text-success"
       : "border-attention bg-attention-subtle text-attention";
   const borderClass = isTerminalCard || dragOverlay ? "" : cardStatusBorderClass(runStatus);
-  const cardClassName = `group relative flex flex-col gap-1.5 rounded-md border border-default bg-surface py-2.5 pl-7 pr-2.5 ${borderClass} transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none hover:bg-hover focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${dragOverlay
-    ? "pointer-events-none shadow-overlay ring-2 ring-accent will-change-transform"
+  const cardClassName = `group relative flex flex-col gap-1.5 rounded-[var(--kanban-card-radius)] border border-[color:var(--kanban-card-border)] bg-[color:var(--kanban-card-bg)] py-2.5 pl-7 pr-2.5 ${borderClass} transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none hover:bg-[color:var(--kanban-card-hover)] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${dragOverlay
+    ? "pointer-events-none !bg-surface shadow-overlay ring-2 ring-accent will-change-transform"
     : isDragging
-      ? "opacity-15"
-      : ""}`.trim();
+      ? "opacity-15 shadow-[var(--kanban-card-shadow)]"
+      : "shadow-[var(--kanban-card-shadow)]"}`.trim();
   const workspaceLabel = showWorkspace ? (workspaceName ?? pageCopy.unknownWorkspace) : null;
 
   void availableProviders;

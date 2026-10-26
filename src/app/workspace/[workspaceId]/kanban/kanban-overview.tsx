@@ -26,6 +26,7 @@ import {
 import { readAttentionDismissals } from "./use-kanban-attention-dismissals";
 import { useKanbanOverviewData, useRememberedOverviewWorkspaces, type OverviewWorkspaceData } from "./use-kanban-overview-data";
 import { buttonClassName } from "@/client/components/ui/button";
+import { KanbanLaneMarker } from "./kanban-lane-marker";
 
 export type KanbanViewMode = "board" | "all";
 export const KANBAN_VIEW_QUERY_KEY = "view";
@@ -105,15 +106,18 @@ const chipClass = "shrink-0 rounded bg-subtle px-1.5 text-[10px] text-secondary"
 
 interface BlockProps {
   title: string;
+  /** Lane stage whose status color marks the block title. */
+  tone: "dev" | "blocked" | "done";
   count: string;
   testId: string;
   children: React.ReactNode;
 }
 
-function Block({ title, count, testId, children }: BlockProps) {
+function Block({ title, tone, count, testId, children }: BlockProps) {
   return (
-    <section className="min-w-0 flex-1 rounded-md border border-default bg-surface p-1.5" data-testid={testId}>
+    <section className="min-w-0 flex-1 rounded-md border-[length:var(--kanban-block-border-width)] border-solid border-[color:var(--kanban-block-border)] bg-[color:var(--kanban-block-bg)] p-1.5" data-testid={testId}>
       <header className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-primary" data-testid={`${testId}-header`}>
+        <KanbanLaneMarker stage={tone} />
         {title}
         <span className="font-normal text-secondary">{count}</span>
       </header>
@@ -176,7 +180,7 @@ function WorkspaceRow({
   } else {
     body = (
       <div className="flex min-w-0 flex-1 gap-2">
-        <Block title={t.kanbanOverview.inProgress} count={count(row.inProgress.length)} testId="kanban-overview-in-progress">
+        <Block title={t.kanbanOverview.inProgress} tone="dev" count={count(row.inProgress.length)} testId="kanban-overview-in-progress">
           {row.inProgress.map((task) => openButton(task, (
             <>
               <span className={chipClass}>{columnName(task, data.boards)}</span>
@@ -184,7 +188,7 @@ function WorkspaceRow({
             </>
           )))}
         </Block>
-        <Block title={t.kanbanOverview.needsYou} count={count(row.attention.length)} testId="kanban-overview-attention">
+        <Block title={t.kanbanOverview.needsYou} tone="blocked" count={count(row.attention.length)} testId="kanban-overview-attention">
           {row.attention.map((entry) => (
             <span key={`${entry.task.id}|${entry.item.kind}`} className="block" data-kind={entry.item.kind}>
               {openButton(entry.task, (
@@ -197,6 +201,7 @@ function WorkspaceRow({
           ))}
         </Block>
         <Block
+          tone="done"
           title={searching ? t.kanbanOverview.recentDoneMatches.replace("{count}", String(row.recentDone.total)) : t.kanbanOverview.recentDone7d}
           count={searching ? "" : count(row.recentDone.total)}
           testId="kanban-overview-recent-done"

@@ -77,7 +77,7 @@ export function KanbanDoneCard({
       }}
       aria-label={`${t.kanban.openCard} ${task.title}`}
       style={isDragging ? { opacity: 0.16 } : undefined}
-      className={`group relative flex flex-col gap-1 rounded-md border border-default bg-surface pl-7 pr-2 transition-colors duration-150 motion-reduce:transition-none hover:bg-hover focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${showSecondLine ? "py-2" : "py-1.5"}`}
+      className={`group relative flex flex-col gap-1 rounded-[var(--kanban-card-radius)] border border-[color:var(--kanban-card-border)] bg-[color:var(--kanban-card-bg)] pl-7 pr-2 shadow-[var(--kanban-card-shadow)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[color:var(--kanban-card-hover)] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${showSecondLine ? "py-2" : "py-1.5"}`}
       data-testid="kanban-card"
       data-card-id={task.id}
       data-column-id={task.columnId}
