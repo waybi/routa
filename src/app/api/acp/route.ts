@@ -61,6 +61,7 @@ import { handleSessionNew, parseRequestedAcpMcpServers } from "./acp-session-cre
 import { getSessionWriteBuffer } from "./acp-session-history";
 import { handleSessionPrompt } from "./acp-session-prompt";
 import { resolveRequestServerUrl } from "./acp-request-server-url";
+import { markUserCancelledSession } from "@/core/kanban/lane-cancel-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -764,6 +765,8 @@ export async function POST(request: NextRequest) {
       if (sessionId) {
         const manager = getAcpProcessManager();
         const store = getHttpSessionStore();
+        // The user cancelled this turn: a lane step it ends is not re-run automatically.
+        markUserCancelledSession(sessionId);
 
         // Check if OpenCode SDK session
         if (manager.isOpencodeAdapterSession(sessionId)) {

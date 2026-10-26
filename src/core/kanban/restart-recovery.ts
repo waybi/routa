@@ -15,6 +15,7 @@ import { resolveReviewLaneConvergenceTarget } from "./review-lane-convergence";
 import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { isLaneAutomationComplete } from "./done-lane-teardown";
+import { runLaneRerunOnce } from "./lane-rerun-claim";
 import {
   hasTrippedRetryableEnvironmentFuse,
   isAwaitingEnvironmentFix,
@@ -386,15 +387,17 @@ export async function reviveMissingEntryAutomations(
       .find((entry) => entry.columnId === currentColumnId && typeof entry.stepIndex === "number");
     const latestRunEnded = latestRun?.status === "failed" || latestRun?.status === "timed_out";
     const resumeStep = latestRunEnded ? resolveLaneResumeStep(task, board.columns) : undefined;
+    // Every start below claims the card's lane first: a concurrent startup
+    // resume or retryTrigger already starting it makes revive skip the card.
     if (resumeStep && resumeStep.stepIndex > 0) {
-      await enqueueKanbanTaskSession(system, {
-        task,
+      await runLaneRerunOnce(system.taskStore, task, currentColumnId, (fresh) => enqueueKanbanTaskSession(system, {
+        task: fresh,
         expectedColumnId: currentColumnId,
         ignoreExistingTrigger: true,
         step: resumeStep.step,
         stepIndex: resumeStep.stepIndex,
         adoptLaneRun: true,
-      });
+      }));
       continue;
     }
 
@@ -410,18 +413,20 @@ export async function reviveMissingEntryAutomations(
       // Started outside a column transition, so the orchestrator must adopt
       // it: otherwise its end is never recorded (lane stays "running") and the
       // lane's following step never starts (Done Reporter a1d9bffc, 2026-10-23).
-      await enqueueKanbanTaskSession(system, {
-        task,
+      const nextStep = laneState.nextStep;
+      const nextStepIndex = laneState.currentStepIndex + 1;
+      await runLaneRerunOnce(system.taskStore, task, currentColumnId, (fresh) => enqueueKanbanTaskSession(system, {
+        task: fresh,
         expectedColumnId: currentColumnId,
         ignoreExistingTrigger: true,
-        step: laneState.nextStep,
-        stepIndex: laneState.currentStepIndex + 1,
+        step: nextStep,
+        stepIndex: nextStepIndex,
         adoptLaneRun: true,
-      });
+      }));
       continue;
     }
 
-    await processKanbanColumnTransition(system, {
+    await runLaneRerunOnce(system.taskStore, task, currentColumnId, () => processKanbanColumnTransition(system, {
       cardId: task.id,
       cardTitle: task.title,
       boardId,
@@ -430,6 +435,6 @@ export async function reviveMissingEntryAutomations(
       toColumnId: currentColumnId,
       fromColumnName: "Revive",
       toColumnName: column.name,
-    });
+    }));
   }
 }

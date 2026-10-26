@@ -205,6 +205,7 @@ export interface TaskInfo {
       | "completion_criteria_not_met"
       | "environment_failure"
       | "turn_cancelled"
+      | "user_cancelled"
       | "restart_interrupted"
       | "rate_limited";
     retryAfterAt?: string;

@@ -39,10 +39,10 @@ import {
 } from "./environment-failure";
 import {
   collectRateLimitEvidence,
-  planRateLimitRetry,
   RateLimitRetryScheduler,
   runRateLimitRetry,
 } from "./rate-limit-retry";
+import { isUserCancelledLaneSession, planLaneStepRetry, resolveCancelledTurnReason } from "./lane-cancel-origin";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
@@ -86,7 +86,7 @@ function isRecoveryMode(mode: KanbanDevSessionSupervisionMode): mode is "watchdo
   return mode === "watchdog_retry" || mode === "ralph_loop";
 }
 
-/** The turn ended with stopReason=cancelled: a failed step that waits for a manual rerun. */
+/** The turn ended with stopReason=cancelled: a failed step, re-run after a backoff unless the user cancelled it. */
 function isCancelledTurn(event: AgentEvent): boolean {
   return event.type === AgentEventType.AGENT_COMPLETED && event.data?.stopReason === "cancelled";
 }
@@ -109,7 +109,7 @@ function getRecoveryReason(
     return "rate_limited";
   }
   if (isCancelledTurn(event)) {
-    return "turn_cancelled";
+    return resolveCancelledTurnReason(event.data?.sessionId);
   }
   if (event.type === AgentEventType.AGENT_TIMEOUT) {
     return "watchdog_inactivity";
@@ -163,9 +163,9 @@ export function getNonDevAutomationRunCount(
       break;
     }
     // Environment failures (including retryable ones: rate limits, restart
-    // interruptions) are counted separately (see environment-failure.ts) and
-    // must not consume the normal repeat budget.
-    if (isEnvironmentFailureLaneSession(entry) || isRetryableEnvironmentFailureLaneSession(entry)) {
+    // interruptions) are counted separately (see environment-failure.ts); they
+    // and a user's own cancel must not consume the normal repeat budget.
+    if (isEnvironmentFailureLaneSession(entry) || isRetryableEnvironmentFailureLaneSession(entry) || isUserCancelledLaneSession(entry)) {
       continue;
     }
     runCount += 1;
@@ -764,7 +764,7 @@ export class KanbanWorkflowOrchestrator {
         });
       }
 
-      // A cancelled turn is final: no next step, recovery or fallback; it waits for a manual rerun (5fdaa681).
+      // Cancelled turns stop advancement; non-user cancellations retry after a backoff (14de4800).
       const cancelledTurn = isCancelledTurn(event);
       const successEvent =
         event.type !== AgentEventType.AGENT_FAILED
@@ -814,8 +814,8 @@ export class KanbanWorkflowOrchestrator {
           });
         }
       }
-      const rateLimitPlan = task && rateLimited
-        ? planRateLimitRetry({ task, columnId: automation.columnId, sessionId: eventSessionId, evidence: rateLimitEvidence })
+      const rateLimitPlan = task && (rateLimited || cancelledTurn)
+        ? planLaneStepRetry({ task, columnId: automation.columnId, sessionId: eventSessionId, evidence: rateLimitEvidence, rateLimited })
         : undefined;
 
       const nextStepIndex = automation.currentStepIndex + 1;
@@ -945,7 +945,7 @@ export class KanbanWorkflowOrchestrator {
 
       // The step is over whatever its outcome: end its process now (a retry gets a new session).
       await this.endFinishedStepSession(eventSessionId, event);
-      if (task && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId)?.catch((error: unknown) => console.warn("[WorkflowOrchestrator] afterLaneEnd failed", cardId, error));
+      if (task && !rateLimitPlan?.retryAt && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId)?.catch((error: unknown) => console.warn("[WorkflowOrchestrator] afterLaneEnd failed", cardId, error));
 
       const completedAutomation = automation;
       setTimeout(() => {

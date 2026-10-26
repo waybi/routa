@@ -1,11 +1,12 @@
 /**
- * Delayed rerun of a rate-limited lane step (card 79804de2).
+ * Delayed rerun of a rate-limited lane step (card 79804de2), or of a step
+ * whose turn was cancelled by something other than the user (card 14de4800).
  *
- * A step that failed because the model was rate limited is re-run at the
- * time recorded on its lane record (`retryAfterAt`), at the same step index,
- * without touching any retry budget. The timer lives in this process only:
- * after a Routa restart, POST revive reruns the step once `retryAfterAt` has
- * passed (see restart-recovery.ts).
+ * Such a step is re-run at the time recorded on its lane record
+ * (`retryAfterAt`), at the same step index, without touching any retry
+ * budget. The timer lives in this process only: after a Routa restart the
+ * startup resume (interrupted-lane-resume.ts) re-runs a cancelled step at
+ * that time, and POST revive reruns either once `retryAfterAt` has passed.
  */
 
 import type { Task } from "../models/task";
@@ -113,8 +114,8 @@ export class RateLimitRetryScheduler {
 
 /**
  * The rerun still applies: the card is in the same column, no step of that
- * column is running, and the rate-limited record is still the column's
- * latest run (nobody reran or moved the card meanwhile).
+ * column is running, and the rate-limited (or cancelled) record is still the
+ * column's latest run (nobody reran or moved the card meanwhile).
  */
 export function canRunRateLimitRetry(task: Pick<Task, "columnId" | "laneSessions"> | undefined, entry: RateLimitRetryEntry): boolean {
   if (!task || task.columnId !== entry.columnId) return false;
@@ -123,7 +124,8 @@ export function canRunRateLimitRetry(task: Pick<Task, "columnId" | "laneSessions
     return false;
   }
   const latest = [...laneSessions].reverse().find((session) => session.columnId === entry.columnId);
-  return latest?.sessionId === entry.failedSessionId && latest.recoveryReason === "rate_limited";
+  return latest?.sessionId === entry.failedSessionId
+    && (latest.recoveryReason === "rate_limited" || latest.recoveryReason === "turn_cancelled");
 }
 
 /**

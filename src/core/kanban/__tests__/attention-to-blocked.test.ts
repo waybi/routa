@@ -204,7 +204,7 @@ describe("rounds per reason (C15)", () => {
 });
 
 describe("lane end → Blocked through move_card (C1, C2, F4)", () => {
-  async function setup(blockedAutomation?: KanbanColumn["automation"], afterLaneEnd?: (cardId: string) => Promise<unknown>) {
+  async function setup(blockedAutomation?: KanbanColumn["automation"], afterLaneEnd?: (cardId: string) => Promise<unknown>, failure = { type: AgentEventType.AGENT_FAILED, data: { success: false, error: "boom" } as Record<string, unknown> }, priorFailures = 0) {
     const eventBus = new EventBus();
     const boardStore = new InMemoryKanbanBoardStore();
     const taskStore = new InMemoryTaskStore();
@@ -247,11 +247,41 @@ describe("lane end → Blocked through move_card (C1, C2, F4)", () => {
       id: "c", title: "Card c", objective: "o", workspaceId: "default", boardId: "board-1", columnId: "done", status: TaskStatus.COMPLETED,
     }));
     await orchestrator.processColumnTransition({ cardId: "c", cardTitle: "Card c", boardId: "board-1", workspaceId: "default", fromColumnId: "review", toColumnId: "done" });
-    eventBus.emit({ type: AgentEventType.AGENT_FAILED, agentId: "x", workspaceId: "default", data: { sessionId: "c-done-0", success: false, error: "boom" }, timestamp: new Date() });
+    if (priorFailures) {
+      const task = (await taskStore.get("c"))!;
+      task.laneSessions!.unshift(...Array.from({ length: priorFailures }, (_, i) => lane("done", "failed", Date.now() - (priorFailures - i) * MIN, { recoveryReason: "turn_cancelled" })));
+      await taskStore.save(task);
+    }
+    eventBus.emit({ type: failure.type, agentId: "x", workspaceId: "default", data: { sessionId: "c-done-0", ...failure.data }, timestamp: new Date() });
     await new Promise((resolve) => setTimeout(resolve, 80));
     const startsIn = (columnId: string) => createSession.mock.calls.filter(([params]) => params.columnId === columnId).length;
     return { orchestrator, taskStore, transitions, startsIn };
   }
+
+  it.each([
+    { label: "cancelled", type: AgentEventType.AGENT_COMPLETED, data: { success: false, stopReason: "cancelled" } },
+    { label: "rate-limited", type: AgentEventType.AGENT_FAILED, data: { success: false, error: "429 Too Many Requests" } },
+  ])("a $label Done step with a retry stays in Done instead of Blocked", async (failure) => {
+    const { orchestrator, taskStore, transitions, startsIn } = await setup(undefined, undefined, failure);
+    try {
+      const task = (await taskStore.get("c"))!;
+      expect(task.laneSessions?.at(-1)?.retryAfterAt).toBeTruthy();
+      expect(task.columnId).toBe("done");
+      expect(transitions).not.toContainEqual({ from: "done", to: "blocked" });
+      expect(startsIn("blocked")).toBe(0);
+    } finally { orchestrator.stop(); }
+  });
+
+  it("a cancelled Done step whose retry fuse is spent still goes to Blocked", async () => {
+    const { orchestrator, taskStore } = await setup(undefined, undefined, {
+      type: AgentEventType.AGENT_COMPLETED, data: { success: false, stopReason: "cancelled" },
+    }, 4);
+    try {
+      const task = (await taskStore.get("c"))!;
+      expect(task.laneSessions?.at(-1)?.retryAfterAt).toBeUndefined();
+      expect(task.columnId).toBe("blocked");
+    } finally { orchestrator.stop(); }
+  });
 
   it("a failed Done step moves the card to a manual Blocked column: no resolver starts", async () => {
     const { orchestrator, taskStore, transitions, startsIn } = await setup();
