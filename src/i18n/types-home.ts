@@ -139,5 +139,16 @@ export interface HomeTranslationDictionarySections {
     rerunSkipped: string;
     /** "{started}" / "{queued}" / "{skipped}" / "{failed}" = row counts. */
     bulkSummary: string;
+    resolvedTitle: string;
+    resolvedHint: string;
+    resolvedCategoryLanded: string;
+    resolvedCategorySuperseded: string;
+    resolvedCategoryHandedOff: string;
+    resolvedCategoryWaiting: string;
+    resolvedRef: string;
+    resolvedShowRecord: string;
+    resolvedHideRecord: string;
+    resolvedNoRecord: string;
+    needsOwnerBadge: string;
   };
 }

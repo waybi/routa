@@ -31,7 +31,8 @@ import {
   readAttentionDismissals,
   restoreAttentionItem,
 } from "../kanban/use-kanban-attention-dismissals";
-import { buildInboxRows, type InboxRow } from "./inbox-rules";
+import { buildInboxRows, buildResolvedRows, type InboxRow } from "./inbox-rules";
+import { InboxResolvedSection } from "./inbox-resolved-section";
 import { InboxRowItem, type InboxRowRetry } from "./inbox-row";
 import { useInboxScope, type InboxScope } from "./inbox-view-mode";
 import { InboxBulkBar, InboxRetrySummary } from "./inbox-bulk-bar";
@@ -96,6 +97,7 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
   // Read dismissals on every render: the board strip may have changed them.
   const rows = buildInboxRows(scoped, data, now, readAttentionDismissals);
   const allRows = scope === "all" ? rows : buildInboxRows(workspaces, data, now, readAttentionDismissals);
+  const resolvedRows = buildResolvedRows(scoped, data, now);
   const counts = [1, 2, 3].map((severity) => rows.active.filter((row) => row.severity === severity).length);
 
   const reloadAfterRetry = useCallback((ids: string[]) => {
@@ -254,6 +256,8 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
             {retries.summary && <InboxRetrySummary summary={retries.summary} />}
             {listBody}
           </section>
+
+          {!loading && <InboxResolvedSection rows={resolvedRows} now={now} />}
 
           {!loading && rows.dismissed.length > 0 && (
             <details className="rounded-lg border border-default bg-surface px-4 py-3 min-[801px]:px-5" data-testid="inbox-dismissed">

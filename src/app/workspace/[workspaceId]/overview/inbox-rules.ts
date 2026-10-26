@@ -20,6 +20,10 @@ import {
 import { DONE_LANE_ID, getDoneEnteredAt, getTrailingDoneSessions } from "../kanban/kanban-done-time";
 import { KANBAN_DETAIL_TAB_QUERY_KEY } from "../kanban/kanban-detail-tab-request";
 import {
+  isAttentionResolved,
+  type TaskAttentionResolutionCategory,
+} from "@/core/models/task-attention-resolution";
+import {
   collectWorkspaceAttention,
   overviewTaskHref,
   pickFallbackBoard,
@@ -50,6 +54,8 @@ export interface InboxRow {
   /** interrupted only: the failed / timed-out run and the lane's display name. */
   interruptedRun?: TaskLaneSessionInfo;
   columnName?: string;
+  /** The Blocked resolver handed this card to the owner (card 64f2e31c); sorted first. */
+  needsOwner?: boolean;
 }
 
 export interface InboxRows {
@@ -137,9 +143,10 @@ export function inboxColumnName(
   return fromBoard || run?.columnName?.trim() || task.columnId || "";
 }
 
-/** P1 → P3, then newest event first (unknown times last), then title. */
+/** Needs-the-owner first, then P1 → P3, then newest event first (unknown times last), then title. */
 export function compareInboxRows(a: InboxRow, b: InboxRow): number {
-  return a.severity - b.severity
+  return Number(Boolean(b.needsOwner)) - Number(Boolean(a.needsOwner))
+    || a.severity - b.severity
     || (b.eventAt ?? -1) - (a.eventAt ?? -1)
     || a.task.title.localeCompare(b.task.title);
 }
@@ -175,6 +182,7 @@ export function buildWorkspaceInbox(
       eventAt: inboxEventAt(entry.item, entry.task),
       dismissKey,
     };
+    if (entry.task.attentionResolution?.category === "needs_owner") row.needsOwner = true;
     if (entry.item.kind === "interrupted") {
       const interruptedRun = findInterruptedLaneSession(entry.task) ?? undefined;
       row.interruptedRun = interruptedRun;
@@ -269,4 +277,56 @@ export function latestCompletionResult(
 
 export function completionReportHref(result: Pick<LatestResult, "task" | "workspaceId" | "fallbackBoardId">): string {
   return `${overviewTaskHref(result.task, result.workspaceId, result.fallbackBoardId)}&${KANBAN_DETAIL_TAB_QUERY_KEY}=completion`;
+}
+
+/** "Handled by AI" rows are kept this long after the resolver's conclusion. */
+export const RESOLVED_ROWS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface InboxResolvedRow {
+  key: string;
+  workspaceId: string;
+  fallbackBoardId: string | null;
+  task: TaskInfo;
+  category: TaskAttentionResolutionCategory;
+  conclusion: string;
+  ref?: string;
+  resolvedAt: number;
+  /** Newest "## 自动处理记录" text, null when the card has none. */
+  record: string | null;
+}
+
+/**
+ * Cards the Blocked resolver concluded as landed / superseded / handed off /
+ * waiting in the last 7 days, newest first. These cards are not in the
+ * attention list (collectTaskAttentionItems skips them).
+ */
+export function buildResolvedRows(
+  workspaces: readonly OverviewWorkspace[],
+  dataByWorkspace: Readonly<Record<string, InboxWorkspaceInput | undefined>>,
+  now: number,
+): InboxResolvedRow[] {
+  const rows: InboxResolvedRow[] = [];
+  for (const workspace of workspaces) {
+    const data = dataByWorkspace[workspace.id];
+    if (!data) continue;
+    const fallbackBoardId = pickFallbackBoard(data.boards)?.id ?? null;
+    for (const task of data.tasks) {
+      const resolution = task.attentionResolution;
+      if (!resolution || !isAttentionResolved(resolution)) continue;
+      const resolvedAt = parseTime(resolution.resolvedAt);
+      if (resolvedAt > 0 && now - resolvedAt > RESOLVED_ROWS_WINDOW_MS) continue;
+      rows.push({
+        key: `${workspace.id}|${task.id}|resolved`,
+        workspaceId: workspace.id,
+        fallbackBoardId,
+        task,
+        category: resolution.category,
+        conclusion: resolution.conclusion,
+        ref: resolution.ref,
+        resolvedAt,
+        record: task.autoResolutionRecord ?? null,
+      });
+    }
+  }
+  return rows.sort((a, b) => b.resolvedAt - a.resolvedAt || a.task.title.localeCompare(b.task.title));
 }

@@ -145,6 +145,9 @@ export function InboxRowItem({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
+            {row.needsOwner && (
+              <span data-testid="inbox-row-needs-owner"><Badge tone="danger">{page.needsOwnerBadge}</Badge></span>
+            )}
             <Badge tone={SEVERITY_TONE[row.severity]}>{copy.severityLabel(row.severity)}</Badge>
             <Badge tone={row.reason === "interrupted" ? "danger" : "neutral"}>{copy.kindLabel(row)}</Badge>
             {retry?.state && (
