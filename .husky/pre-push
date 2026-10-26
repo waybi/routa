@@ -31,4 +31,29 @@ fi
 
 # ─── Run Standard Checks ───────────────────────────────────────────
 # Run hook runtime directly for full pre-push checks.
+# On macOS (lockf + taskpolicy available) queue checks machine-wide behind one
+# lock shared by the main checkout and every worktree, and run them at low
+# priority (nice 10 + utility QoS) so parallel pushes do not saturate the CPU.
+# Avoid `taskpolicy -b`: background QoS made timing-sensitive vitest flaky.
+if command -v lockf >/dev/null 2>&1 && command -v taskpolicy >/dev/null 2>&1; then
+  lock_file="${ROUTA_PREPUSH_LOCK_FILE:-/tmp/routa-prepush.lock}"
+  lock_timeout="${ROUTA_PREPUSH_LOCK_TIMEOUT:-1800}"
+  # Marker distinguishes lockf's own timeout (exit 75) from the checks' exit code.
+  started_marker="$(mktemp -t routa-prepush-started)" && rm -f "$started_marker"
+  if ! lockf -k -t 0 "$lock_file" true </dev/null >/dev/null 2>&1; then
+    echo "⏳ 另一个推送正在跑 pre-push 检查，排队等待（最多 ${lock_timeout} 秒）…"
+  fi
+  lockf -k -t "$lock_timeout" "$lock_file" \
+    sh -c 'touch "$0"; exec taskpolicy -c utility nice -n 10 "$@"' "$started_marker" \
+    node --import tsx tools/hook-runtime/src/cli.ts --profile pre-push "$@"
+  status=$?
+  if [ "$status" -eq 75 ] && [ ! -e "$started_marker" ]; then
+    echo "⚠️  等待 pre-push 检查锁超过 ${lock_timeout} 秒，不再排队，直接以低优先级运行检查"
+    taskpolicy -c utility nice -n 10 node --import tsx tools/hook-runtime/src/cli.ts --profile pre-push "$@"
+    status=$?
+  fi
+  rm -f "$started_marker"
+  exit "$status"
+fi
+
 node --import tsx tools/hook-runtime/src/cli.ts --profile pre-push "$@"
