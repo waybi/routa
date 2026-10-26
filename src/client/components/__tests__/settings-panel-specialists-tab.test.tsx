@@ -146,6 +146,31 @@ describe("SpecialistsTab", () => {
     expect(editorPanel.className).toContain("overflow-hidden");
     expect(editorPanel.className).toContain("bg-desktop-bg-primary");
 
+    // Card a4345457: in the lg split the grid row equals the grid height, so the
+    // 320/480px stacked minimums must not push the row past the status bar.
+    const classes = (element: Element | null) => (element?.getAttribute("class") ?? "").split(/\s+/);
+    const grid = root.querySelector(":scope > .grid");
+    expect(classes(grid)).toEqual(expect.arrayContaining(["min-h-0", "flex-1", "lg:grid-rows-[minmax(0,1fr)]"]));
+    expect(classes(catalogPanel)).toContain("lg:min-h-0");
+    expect(classes(editorPanel)).toContain("lg:min-h-0");
+
+    const statusBar = root.lastElementChild;
+    expect(classes(statusBar)).toEqual(expect.arrayContaining(["shrink-0", "bg-desktop-accent"]));
+
+    // Each inner scroller scrolls by itself: overflow-y-auto, and every ancestor up
+    // to the root is height-constrained (min-h-0 or overflow-hidden).
+    const editorForm = editorPanel.querySelector(".overflow-y-auto");
+    for (const scroller of [catalogList, editorForm]) {
+      expect(classes(scroller)).toEqual(expect.arrayContaining(["min-h-0", "overflow-y-auto"]));
+      for (let node = scroller?.parentElement ?? null; node && node !== root.parentElement; node = node.parentElement) {
+        const nodeClasses = classes(node);
+        expect(
+          nodeClasses.includes("min-h-0") || nodeClasses.includes("overflow-hidden") || nodeClasses.includes("lg:min-h-0"),
+          `ancestor ${node.className} must constrain its height`,
+        ).toBe(true);
+      }
+    }
+
     expect(screen.getByText("Execution roles")).not.toBeNull();
     expect(screen.getByText("Explorer")).not.toBeNull();
     expect(screen.getByPlaceholderText("Search specialists")).not.toBeNull();

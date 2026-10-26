@@ -256,9 +256,9 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
         <aside
-          className="flex min-h-[320px] min-w-0 flex-col overflow-hidden border-b border-desktop-border bg-desktop-bg-secondary lg:border-b-0 lg:border-r"
+          className="flex min-h-[320px] min-w-0 lg:min-h-0 flex-col overflow-hidden border-b border-desktop-border bg-desktop-bg-secondary lg:border-b-0 lg:border-r"
           data-testid="specialists-tab-catalog"
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-desktop-border px-3 py-2.5">
@@ -356,7 +356,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
         </aside>
 
         <section
-          className="flex min-h-[480px] min-w-0 flex-col overflow-hidden bg-desktop-bg-primary"
+          className="flex min-h-[480px] min-w-0 flex-col lg:min-h-0 overflow-hidden bg-desktop-bg-primary"
           data-testid="specialists-tab-editor"
         >
           <div className="flex shrink-0 items-end border-b border-desktop-border bg-desktop-bg-secondary/70 px-2 pt-2">

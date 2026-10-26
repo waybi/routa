@@ -26,7 +26,7 @@ export default function SpecialistsSettingsPage() {
     >
       <KanbanModelTiersCard />
       {/* Keep the specialist list usable when the tier card stacks on narrow screens; the page scrolls instead. */}
-      <div className="flex min-h-[20rem] flex-1 flex-col">
+      <div className="flex h-[max(640px,calc(100dvh-9rem))] shrink-0 flex-col max-lg:h-auto">
         <SpecialistsTab modelDefs={modelDefs} />
       </div>
     </SettingsRouteShell>
