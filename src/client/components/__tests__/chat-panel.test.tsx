@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UseAcpActions, UseAcpState } from "@/client/hooks/use-acp";
 import { ChatPanel } from "../chat-panel";
@@ -269,6 +269,26 @@ describe("ChatPanel session targeting", () => {
       expect(onSelectSession).toHaveBeenCalledWith("session-123");
       expect(acp.promptSession).toHaveBeenCalledWith("session-123", "continue", undefined);
     });
+  });
+
+  it("passes the composer's reasoning effort to onEnsureSession when no session is open", async () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const onEnsureSession = vi.fn(async () => "session-new");
+    // A visible message keeps the composer (not SetupView) while no session is open.
+    mockVisibleMessages.splice(0, mockVisibleMessages.length, { id: "m-1", role: "user", content: "x", timestamp: new Date() });
+    const acp = {
+      connected: true, sessionId: null, updates: [], providers: [], selectedProvider: "dsh",
+      setProvider: vi.fn(), setMode: vi.fn(), promptSession: vi.fn(async () => {}), listProviderModels: vi.fn(),
+    } as unknown as UseAcpState & UseAcpActions;
+    render(
+      <ChatPanel acp={acp} activeSessionId={null} onEnsureSession={onEnsureSession}
+        onSelectSession={vi.fn(async () => {})} repoSelection={null} onRepoChange={vi.fn()} />,
+    );
+    const onSend = mockTiptapProps.current?.onSend as (text: string, context: Record<string, unknown>) => Promise<void>;
+    await act(async () => {
+      await onSend("hi", { provider: "dsh", model: "claude-opus-5-5", reasoningEffort: "high" });
+    });
+    expect(onEnsureSession).toHaveBeenCalledWith(undefined, "dsh", undefined, "claude-opus-5-5", "high");
   });
 
   it("hides non-interactive process output cards from the chat stream", () => {

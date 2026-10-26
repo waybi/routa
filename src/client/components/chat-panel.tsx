@@ -108,7 +108,7 @@ interface ChatPanelProps {
   acp: UseAcpState & UseAcpActions;
   activeSessionId: string | null;
   traceSessionId?: string | null;
-  onEnsureSession: (cwd?: string, provider?: string, modeId?: string, model?: string) => Promise<string | null>;
+  onEnsureSession: (cwd?: string, provider?: string, modeId?: string, model?: string, reasoningEffort?: string) => Promise<string | null>;
   onSelectSession: (sessionId: string) => Promise<void>;
   skills?: SkillSummary[];
   repoSkills?: SkillSummary[];
@@ -462,8 +462,9 @@ export function ChatPanel({
       await onSelectSession(context.sessionId);
     }
 
-    // Ensure we have a session — pass cwd and provider
-    const sid = context.sessionId ?? activeSessionId ?? (await onEnsureSession(cwd, context.provider, context.mode, context.model));
+    // Ensure we have a session — pass cwd, provider, model and reasoning effort
+    const sid = context.sessionId ?? activeSessionId
+      ?? (await onEnsureSession(cwd, context.provider, context.mode, context.model, context.reasoningEffort));
     if (!sid) return;
     if (acp.sessionId !== sid) {
       await onSelectSession(sid);

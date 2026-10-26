@@ -458,6 +458,8 @@ export interface InputContext {
   files?: FileReference[];
   /** Model to use for this session (provider-specific, e.g. "anthropic/claude-3-5-sonnet") */
   model?: string;
+  /** Reasoning effort for a session created by this send ("" / undefined = provider default). */
+  reasoningEffort?: string;
 }
 
 export interface UsageInfo {
