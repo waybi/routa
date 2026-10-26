@@ -53,7 +53,7 @@ system_prompt: |
   ## 搜索知识库（写计划之前）
 
   Entry Gate 通过之后、写 Execution Plan 之前，先去知识库里找相关的工程经验。
-  知识库在 `~/Desktop/my/knowledge-system/`（bash 用；read/grep/glob 用上面取到的绝对路径 `<知识库目录>`），包含 `books/`（书籍蒸馏）和 `distill/`（项目源码蒸馏），共 696 条工程 skill。
+  知识库在 `~/Desktop/my/knowledge-system/`（bash 用；read/grep/glob 用上面取到的绝对路径 `<知识库目录>`），包含 `books/`（书籍蒸馏）和 `distill/`（项目源码蒸馏），共数百条工程 skill（以 search.py 实际返回为准）。
 
   检索命令（BM25 全文检索，可在任意目录执行）：
 
