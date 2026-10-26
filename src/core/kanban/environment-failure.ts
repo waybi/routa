@@ -68,8 +68,13 @@ export function getEnvironmentFailureCount(
 // not the card's fault either, but unlike `environment_failure` it clears by
 // itself. These runs do not consume the non-Dev repeat budget or the Dev
 // recovery budget. A rate-limited step is re-run automatically at
-// `retryAfterAt`; restart interruptions keep their rerun path (revive or a
-// manual rerun). Consecutive retryable failures in one lane trip a fuse.
+// `retryAfterAt`. A turn cancelled while Routa keeps running (turn_cancelled)
+// is re-run after a short backoff, also at `retryAfterAt`; after a restart the
+// startup resume re-runs turn_cancelled and restart_interrupted steps
+// (interrupted-lane-resume.ts, card 14de4800). A user's own cancel is
+// `user_cancelled`: not retryable, never re-run automatically, and it does
+// not consume the repeat budget either (lane-cancel-origin.ts). Consecutive
+// retryable failures in one lane trip a fuse.
 
 /** Recovery reasons that are retryable environment failures. */
 export const RETRYABLE_ENVIRONMENT_REASONS: readonly TaskLaneSessionRecoveryReason[] = [
@@ -225,7 +230,9 @@ export function hasTrippedRetryableEnvironmentFuse(
 
 /**
  * True while the latest run in `columnId` is a rate-limited failure whose
- * planned rerun time has not come yet. Revive must not run it early.
+ * planned rerun time has not come yet. Revive must not run it early. (A
+ * cancelled turn's planned rerun does not hold revive back: revive is an
+ * explicit rerun, and the pending timer then finds a newer run and skips.)
  */
 export function isWaitingForRateLimitRetry(
   task: Pick<Task, "laneSessions"> | undefined,

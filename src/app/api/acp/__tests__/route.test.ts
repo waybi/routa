@@ -648,6 +648,23 @@ describe("/api/acp POST", () => {
     );
   });
 
+  it("card 14de4800 C3: session/cancel marks the session as cancelled by the user", async () => {
+    const { clearUserCancelMarks, isUserCancelledSession, resolveCancelledTurnReason } = await import("@/core/kanban/lane-cancel-origin");
+    clearUserCancelMarks();
+    getSessionRoutingRecord.mockResolvedValue(undefined);
+    const response = await POST(
+      new NextRequest("http://localhost/api/acp", {
+        method: "POST",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "session/cancel", params: { sessionId: "lane-run-1" } }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(isUserCancelledSession("lane-run-1")).toBe(true);
+    expect(resolveCancelledTurnReason("lane-run-1")).toBe("user_cancelled");
+    expect(resolveCancelledTurnReason("other-run")).toBe("turn_cancelled");
+    clearUserCancelMarks();
+  });
+
   it("recreates prompt sessions using local session metadata when the in-memory store is empty", async () => {
     httpSessionStore.getSession.mockReturnValue(undefined);
     loadSessionFromLocalStorage.mockResolvedValue({
