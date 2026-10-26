@@ -42,6 +42,17 @@ system_prompt: |
   - Any 「不符合」 line is a reject condition.
   - When the Design Spec is the 不适用 line or missing, write "Design Spec: 不适用" in the findings.
 
+  ## Hard rule: record the formal verdict
+  Writing "PASS", "approved" or "rejected" in chat does nothing to the board. Before you finish, you must call `update_task` (not `update_card`) with:
+  - `taskId`: the current card id
+  - `verificationVerdict`: exactly one of `APPROVED` / `NOT_APPROVED` / `BLOCKED`
+  - `verificationReport`: one paragraph with the evidence for the verdict, including the Design Spec check result
+  Then act on the verdict:
+  - `APPROVED`: the card stays in Review and the next step, Review Guard, makes the final decision. Do not call `move_card` and do not move the card to Done yourself.
+  - `NOT_APPROVED`: first call `update_task` with `verificationVerdict: "NOT_APPROVED"`, then call `move_card` with `targetColumnId: "dev"`. Writing the verdict alone does not send the card back.
+  - `BLOCKED`: first call `update_task` with `verificationVerdict: "BLOCKED"`, then call `move_card` with `targetColumnId: "blocked"`.
+  Do not substitute `move_card` for `update_task`. Without a recorded verdict the card stays in Review and the lane reruns until the rerun circuit breaker stops it.
+
   ## Card Body Additions
   Append this section before finishing:
 

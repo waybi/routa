@@ -42,6 +42,60 @@ describe("kanban-qa-frontend checks screenshots against the Design Spec line by 
   });
 });
 
+// Card f15e33e0 (2026-10-26): QA Frontend must record a formal verdict with update_task.
+// The routing follows review-lane-convergence.ts (Review Guard runs after QA, so APPROVED
+// stays in Review) and isExemptFromRemainingLaneStepsGuard (review->dev with NOT_APPROVED,
+// and any move into blocked).
+const VERDICT_HEADING = /## Hard rule: record the formal verdict|## 硬性规则：必须写入正式审核结论/;
+
+describe("kanban-qa-frontend requires a formal verdict via update_task", () => {
+  it.each(loadPaths)("%s names update_task and all verdict fields", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-qa-frontend");
+    for (const token of ["update_task", "verificationVerdict", "verificationReport", "APPROVED", "NOT_APPROVED", "BLOCKED", "Review Guard", "taskId"]) {
+      expect(prompt, token).toContain(token);
+    }
+    expect(prompt).toMatch(/`update_task` \(not `update_card`\)|`update_task`（不是 `update_card`）/);
+    expect(prompt).toMatch(/Do not substitute `move_card` for `update_task`|不能只用 `move_card` 代替 `update_task`/);
+    expect(prompt).toMatch(/circuit breaker|熔断/);
+  });
+
+  it.each(loadPaths)("%s keeps APPROVED cards in Review for Review Guard", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-qa-frontend");
+    expect(prompt).toMatch(/`APPROVED`[^\n]*(stays in Review|卡留在 Review)[^\n]*Review Guard/);
+    expect(prompt).toMatch(/`APPROVED`[^\n]*(Do not call `move_card`|不调用 `move_card`)/);
+    expect(prompt).not.toMatch(/自动进 Done|auto-moves to Done|automatically (moves|goes) to Done/);
+  });
+
+  it.each(loadPaths)("%s sends NOT_APPROVED to dev and BLOCKED to blocked in two steps", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-qa-frontend");
+    expect(prompt).toMatch(/- `NOT_APPROVED`[^\n]*`update_task`[^\n]*`move_card`[^\n]*targetColumnId: "dev"/);
+    expect(prompt).toMatch(/- `BLOCKED`[^\n]*`update_task`[^\n]*`move_card`[^\n]*targetColumnId: "blocked"/);
+    expect(prompt).not.toMatch(/自动退回|automatically (sent|moved) back/);
+  });
+
+  it.each(loadPaths)("%s places the rule after the Design Spec check in the right language", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-qa-frontend");
+    const heading = locale === "zh-CN" ? "## 硬性规则：必须写入正式审核结论" : "## Hard rule: record the formal verdict";
+    const headingAt = prompt.indexOf(heading);
+    expect(headingAt).toBeGreaterThan(-1);
+    expect(prompt.search(VERDICT_HEADING)).toBe(headingAt);
+    expect(headingAt).toBeGreaterThan(prompt.search(/## Design Spec Check|Design Spec check:|Design Spec 核对：/));
+    const closingAt = prompt.search(/## Completion|Keep all output in the original task language|所有输出保持需求原始语言/);
+    expect(headingAt).toBeLessThan(closingAt);
+  });
+
+  it.each(loadPaths)("%s keeps the existing rejection wording", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-qa-frontend");
+    if (locale === "zh-CN") {
+      expect(prompt).toContain('无法证明视觉正确时，先调用 `update_task` 设置 `verificationVerdict: "NOT_APPROVED"`，再调用 `move_card` 退回 `dev`');
+    } else if (locale === "en") {
+      expect(prompt).toContain("reject back to `dev` if visual evidence is missing or failed");
+    } else {
+      expect(prompt).toContain('To reject: append actionable feedback under `## Review Feedback`, then call `update_task` with `verificationVerdict: "NOT_APPROVED"` and call `move_card` with `targetColumnId: "dev"`.');
+    }
+  });
+});
+
 const DEV_IDS = ["kanban-dev-executor", "kanban-flight-dev-executor"];
 
 describe.each(loadPaths)("dev executors gate UI cards on the Design Spec (%s)", (_label, dir, locale) => {
