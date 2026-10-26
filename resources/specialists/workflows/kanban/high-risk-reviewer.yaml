@@ -16,7 +16,7 @@ system_prompt: |
   ## Step 2 — Decide how deep to look
   - `高风险：否` and the reason holds after a quick look at the diff (`git diff <base>..HEAD --stat` and the changed files): pass.
   - `高风险：是`, or the reason for 否 does not hold: review the change independently. Do not rely on the conclusions of the previous two steps.
-    1. Read the repository's experience pack (routa→routa; deepseek-harness→dsh-config; local-tools→dsh-config; turnilo→turnilo; topbi / plywood_go→topbi; pack directory `/Users/ouweibing/Desktop/topgames_work/Vault/项目索引/经验包/`): `grep -n '^## ' <pack>.md`, then read the guardrail and incident entries that touch the changed files.
+    1. Run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id) and read the packs listed under 「要读的经验包」 in its output (pack directory as printed): `grep -n '^## ' <pack>.md`, then read the guardrail and incident entries that touch the changed files. If it exits non-zero, write `解析器失败：<first error line>` in your conclusion and go on with step 2; do not pick packs from memory.
     2. Read the repository root `AGENTS.md` and the "高危护栏" section of `/Users/ouweibing/Desktop/topgames_work/Vault/AGENTS.md`.
     3. Read the full diff. Check the risky paths yourself: data deletion or migration, production config, money, external messages, auth and permissions, shared entry points. Re-run the tests that cover them.
 
