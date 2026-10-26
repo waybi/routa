@@ -32,14 +32,6 @@ fn lane_session_uses_in_memory_runtime(transport: Option<&str>) -> bool {
     transport != Some("a2a")
 }
 
-fn normalize_column_automation(column: &mut KanbanColumn) {
-    if let Some(automation) = column.automation.as_mut() {
-        if column.stage == "blocked" {
-            automation.enabled = false;
-        }
-    }
-}
-
 fn imported_board_id(
     workspace_id: &str,
     board_id: &str,
@@ -865,17 +857,14 @@ async fn export_config(
                     is_default: board.is_default,
                     columns: columns
                         .into_iter()
-                        .map(|mut column| {
-                            normalize_column_automation(&mut column);
-                            KanbanColumnConfig {
-                                id: column.id,
-                                name: column.name,
-                                color: column.color,
-                                stage: column.stage,
-                                automation: column.automation,
-                                visible: column.visible,
-                                width: column.width,
-                            }
+                        .map(|column| KanbanColumnConfig {
+                            id: column.id,
+                            name: column.name,
+                            color: column.color,
+                            stage: column.stage,
+                            automation: column.automation,
+                            visible: column.visible,
+                            width: column.width,
                         })
                         .collect(),
                 }
@@ -983,19 +972,15 @@ async fn import_config(
             .columns
             .iter()
             .enumerate()
-            .map(|(idx, col)| {
-                let mut column = KanbanColumn {
-                    id: col.id.clone(),
-                    name: col.name.clone(),
-                    color: col.color.clone(),
-                    position: idx as i64,
-                    stage: col.stage.clone(),
-                    automation: col.automation.clone(),
-                    visible: col.visible,
-                    width: col.width.clone(),
-                };
-                normalize_column_automation(&mut column);
-                column
+            .map(|(idx, col)| KanbanColumn {
+                id: col.id.clone(),
+                name: col.name.clone(),
+                color: col.color.clone(),
+                position: idx as i64,
+                stage: col.stage.clone(),
+                automation: col.automation.clone(),
+                visible: col.visible,
+                width: col.width.clone(),
             })
             .collect();
 

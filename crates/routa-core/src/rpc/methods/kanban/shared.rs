@@ -193,11 +193,6 @@ pub(super) fn normalize_columns(columns: Vec<KanbanColumn>) -> Result<Vec<Kanban
                 column.id
             )));
         }
-        if column.stage == "blocked" {
-            if let Some(automation) = column.automation.as_mut() {
-                automation.enabled = false;
-            }
-        }
         column.position = index as i64;
         normalized.push(column);
     }
@@ -306,3 +301,7 @@ mod tests {
         assert_eq!(tasks[0].id, "task-visible");
     }
 }
+
+#[cfg(test)]
+#[path = "blocked_lane_tests.rs"]
+mod blocked_lane_tests;

@@ -115,18 +115,14 @@ function getStepIdentity(step: ReturnType<typeof getKanbanAutomationSteps>[numbe
   ].join("::");
 }
 
+/**
+ * Blocked has no recommended automation, so a Blocked column without an
+ * `automation` stays manual. A board that configured the Blocked resolver
+ * keeps its own `enabled` value (card 64f2e31c; it was forced to false since
+ * 1e38ef79, which made kanban-blocked-resolver unable to run).
+ */
 function enforceManualOnlyStageRules(column: KanbanColumn): KanbanColumn {
-  if (column.stage !== "blocked" || !column.automation) {
-    return column;
-  }
-
-  return {
-    ...column,
-    automation: {
-      ...column.automation,
-      enabled: false,
-    },
-  };
+  return column;
 }
 
 export function applyRecommendedAutomationToColumns(columns: KanbanColumn[]): KanbanColumn[] {

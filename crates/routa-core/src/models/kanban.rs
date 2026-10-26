@@ -209,6 +209,38 @@ mod tests {
             "blocked lane should not receive default automation"
         );
     }
+
+    fn blocked_column_with(enabled: Option<bool>) -> super::KanbanColumn {
+        let mut column = default_kanban_columns()
+            .into_iter()
+            .find(|column| column.stage == "blocked")
+            .expect("blocked column should exist");
+        column.automation = enabled.map(|enabled| KanbanColumnAutomation {
+            enabled,
+            specialist_id: Some("kanban-blocked-resolver".to_string()),
+            transition_type: Some("entry".to_string()),
+            ..Default::default()
+        });
+        column
+    }
+
+    // Card 64f2e31c: a configured Blocked resolver keeps its own `enabled`;
+    // an unconfigured Blocked column stays manual.
+    #[test]
+    fn blocked_lane_keeps_configured_enabled_value() {
+        for (input, expected) in [
+            (None, None),
+            (Some(true), Some(true)),
+            (Some(false), Some(false)),
+        ] {
+            let columns = apply_recommended_automation_to_columns(vec![blocked_column_with(input)]);
+            let enabled = columns[0]
+                .automation
+                .as_ref()
+                .map(|automation| automation.enabled);
+            assert_eq!(enabled, expected, "input enabled={input:?}");
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -465,16 +497,6 @@ fn recommended_automation_for_stage(stage: &str) -> Option<KanbanColumnAutomatio
     }
 }
 
-fn enforce_manual_only_stage_rules(column: &mut KanbanColumn) {
-    if column.stage != "blocked" {
-        return;
-    }
-
-    if let Some(automation) = column.automation.as_mut() {
-        automation.enabled = false;
-    }
-}
-
 fn default_column_position_for_stage(stage: &str) -> usize {
     match stage {
         "backlog" => 0,
@@ -650,8 +672,9 @@ pub fn apply_recommended_automation_to_columns(columns: Vec<KanbanColumn>) -> Ve
                 column.automation = Some(with_default);
             }
 
-            enforce_manual_only_stage_rules(&mut column);
-
+            // Blocked gets no recommended automation (None above), so an
+            // unconfigured Blocked column stays manual; a configured one keeps
+            // its own `enabled` value (card 64f2e31c, mirrors boards.ts).
             column
         })
         .collect();

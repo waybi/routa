@@ -48,27 +48,40 @@ describe("applyRecommendedAutomationToColumns", () => {
     ]);
   });
 
-  it("keeps blocked as a manual-only lane even when legacy automation is present", () => {
-    const columns = applyRecommendedAutomationToColumns([
-      {
-        ...DEFAULT_KANBAN_COLUMNS.find((column) => column.id === "blocked")!,
-        automation: {
-          enabled: true,
-          steps: [{
-            id: "blocked-resolver",
-            role: "CRAFTER",
-            specialistId: "kanban-blocked-resolver",
-            specialistName: "Blocked Resolver",
-          }],
-          transitionType: "entry",
-        },
+  // Card 64f2e31c (C1): Blocked is no longer forced off. No automation stays
+  // manual; a configured resolver keeps its own enabled value.
+  const blockedWith = (enabled?: boolean) => ({
+    ...DEFAULT_KANBAN_COLUMNS.find((column) => column.id === "blocked")!,
+    ...(enabled === undefined ? {} : {
+      automation: {
+        enabled,
+        steps: [{
+          id: "blocked-resolver",
+          role: "CRAFTER" as const,
+          specialistId: "kanban-blocked-resolver",
+          specialistName: "Blocked Resolver",
+        }],
+        transitionType: "entry" as const,
       },
-    ]);
+    }),
+  });
 
-    expect(columns[0].automation).toEqual(expect.objectContaining({
-      enabled: false,
+  it("keeps a Blocked column without automation manual", () => {
+    const [column] = applyRecommendedAutomationToColumns([blockedWith()]);
+    expect(column.automation).toBeUndefined();
+  });
+
+  it("keeps a configured Blocked resolver enabled", () => {
+    const [column] = applyRecommendedAutomationToColumns([blockedWith(true)]);
+    expect(column.automation).toEqual(expect.objectContaining({
+      enabled: true,
       steps: [expect.objectContaining({ specialistId: "kanban-blocked-resolver" })],
     }));
+  });
+
+  it("keeps a disabled Blocked resolver disabled", () => {
+    const [column] = applyRecommendedAutomationToColumns([blockedWith(false)]);
+    expect(column.automation?.enabled).toBe(false);
   });
 
   it("normalizes the default board layout to keep blocked after done", () => {
