@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { getDesktopApiBaseUrl } from "../utils/diagnostics";
 import { resolveApiPath } from "../config/backend";
+import { useResilientEventSource } from "./use-resilient-event-source";
 
 const FITNESS_INVALIDATE_THROTTLE_MS = 750;
 /**
@@ -21,27 +22,9 @@ export const TASK_INVALIDATE_DEBOUNCE_MS = 400;
 export const TASK_INVALIDATE_MAX_WAIT_MS = 1500;
 /** On a fresh page load, ask the server for this much recent history. */
 export const FRESH_LOAD_REPLAY_WINDOW_MS = 60 * 60 * 1000;
-/**
- * Reconnect backoff after an error: 3 s, doubling, capped at 60 s; reset on
- * open. No jitter on purpose: one browser tab talks to one local server, so
- * there is no herd to spread out.
- */
-export const RECONNECT_BASE_MS = 3000;
-export const RECONNECT_MAX_MS = 60_000;
-/**
- * The server writes a `ping` event every 25 s. If nothing at all arrives for
- * this long, the connection died silently (sleep, proxy idle timeout) without
- * an onerror; close it and reconnect. Must stay above twice the ping interval.
- */
-export const SSE_WATCHDOG_MS = 60_000;
-
-/** EventSource.CLOSED; literal so test doubles without the static still work. */
-const EVENT_SOURCE_CLOSED = 2;
-
-/** Delay before reconnect attempt `attempt` (0-based). */
-export function reconnectDelayMs(attempt: number): number {
-  return Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS);
-}
+// Reconnect/watchdog constants live in the shared module; re-exported so
+// existing imports keep working.
+export { RECONNECT_BASE_MS, RECONNECT_MAX_MS, SSE_WATCHDOG_MS, reconnectDelayMs } from "./use-resilient-event-source";
 
 /** Mirrors KanbanTaskLifecycleEvent from the server broadcaster. */
 export interface KanbanTaskLifecyclePayload {
@@ -123,20 +106,14 @@ export function useKanbanEvents({
   onSessionActivity,
   replayOnFreshLoad = true,
 }: UseKanbanEventsOptions): void {
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptRef = useRef(0);
-  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fitnessInvalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFitnessInvalidateAtRef = useRef(0);
-  const tearingDownRef = useRef(false);
   const hasConnectedOnceRef = useRef(false);
   const onInvalidateRef = useRef(onInvalidate);
   const onTasksInvalidateRef = useRef(onTasksInvalidate);
   const onTaskLifecycleRef = useRef(onTaskLifecycle);
   const onSessionTailRef = useRef(onSessionTail);
   const onSessionActivityRef = useRef(onSessionActivity);
-  const connectSseRef = useRef<() => void>(() => {});
   // Last `id:` we saw. Native EventSource reconnects send it as
   // Last-Event-ID automatically; our manual reconnect (after onerror) opens
   // a fresh EventSource, which does not, so we pass it as a query param.
@@ -204,188 +181,17 @@ export function useKanbanEvents({
     onSessionActivityRef.current = onSessionActivity;
   }, [onSessionActivity]);
 
-  const clearWatchdog = useCallback(() => {
-    if (watchdogTimerRef.current) {
-      clearTimeout(watchdogTimerRef.current);
-      watchdogTimerRef.current = null;
-    }
-  }, []);
+  const connectionKey = workspaceId === "__placeholder__" ? null : `${workspaceId}\n${replayOnFreshLoad}`;
 
-  const clearReconnectTimer = useCallback(() => {
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-  }, []);
-
-  const connectSSE = useCallback(() => {
-    if (tearingDownRef.current) return;
-    clearReconnectTimer();
-    clearWatchdog();
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    const base = getDesktopApiBaseUrl();
-    const params = new URLSearchParams({ workspaceId });
-    if (lastEventIdRef.current) {
-      // Manual reconnect: resume where we left off.
-      params.set("lastEventId", lastEventIdRef.current);
-    } else if (replayOnFreshLoad && !hasConnectedOnceRef.current) {
-      // Fresh load: pull the last hour so the bell has something to show.
-      params.set("since", String(Date.now() - FRESH_LOAD_REPLAY_WINDOW_MS));
-    }
-    const es = new EventSource(resolveApiPath(`api/kanban/events?${params.toString()}`, base));
-    eventSourceRef.current = es;
-
-    // Every callback first checks it still belongs to the current connection:
-    // a late callback from a replaced connection must not touch the new one.
-    const isCurrent = () => eventSourceRef.current === es && !tearingDownRef.current;
-
-    const armWatchdog = () => {
-      if (!isCurrent()) return;
-      clearWatchdog();
-      watchdogTimerRef.current = setTimeout(() => {
-        watchdogTimerRef.current = null;
-        if (!isCurrent()) return;
-        // Silent death: no error, no data. Reconnect now, not via backoff.
-        es.close();
-        eventSourceRef.current = null;
-        connectSseRef.current();
-      }, SSE_WATCHDOG_MS);
-    };
-    armWatchdog();
-
-    es.onopen = () => {
-      if (!isCurrent()) return;
-      reconnectAttemptRef.current = 0;
-      armWatchdog();
-    };
-
-    // Server keep-alive (named event, never reaches onmessage). Optional
-    // call: minimal EventSource test doubles do not implement listeners.
-    es.addEventListener?.("ping", armWatchdog);
-
-    es.onmessage = (event) => {
-      armWatchdog();
-      if (event.lastEventId) lastEventIdRef.current = event.lastEventId;
-      try {
-        const data = JSON.parse(event.data) as { type?: string; entity?: string; resourceId?: string };
-        if (data.type === "connected") {
-          if (hasConnectedOnceRef.current) {
-            scheduleInvalidate();
-          } else {
-            hasConnectedOnceRef.current = true;
-          }
-          return;
-        }
-        if (data.type === "kanban:changed") {
-          if (data.entity === "task" && onTasksInvalidateRef.current) {
-            scheduleTasksInvalidate(typeof data.resourceId === "string" ? data.resourceId : undefined);
-          } else {
-            scheduleInvalidate();
-          }
-          return;
-        }
-        if (data.type === "kanban:task-lifecycle") {
-          const lifecycle = data as unknown as KanbanTaskLifecyclePayload;
-          onTaskLifecycleRef.current?.(lifecycle);
-          // A terminal phase also changed the card, so keep the board fresh.
-          scheduleInvalidate();
-          return;
-        }
-        if (data.type === "kanban:session-tail") {
-          // Caption-only: no card data changed, so no invalidate.
-          onSessionTailRef.current?.(data as unknown as KanbanSessionTailPayload);
-          return;
-        }
-        if (data.type === "kanban:session-activity") {
-          // Heartbeat only: patches the session in place, no board refetch.
-          onSessionActivityRef.current?.(data as unknown as KanbanSessionActivityPayload);
-          return;
-        }
-        if (data.type === "fitness:changed") {
-          const now = Date.now();
-          const elapsed = now - lastFitnessInvalidateAtRef.current;
-          if (elapsed >= FITNESS_INVALIDATE_THROTTLE_MS) {
-            lastFitnessInvalidateAtRef.current = now;
-            cancelTasksInvalidate();
-            onInvalidateRef.current();
-            return;
-          }
-          if (fitnessInvalidateTimerRef.current) {
-            return;
-          }
-          fitnessInvalidateTimerRef.current = setTimeout(() => {
-            fitnessInvalidateTimerRef.current = null;
-            lastFitnessInvalidateAtRef.current = Date.now();
-            cancelTasksInvalidate();
-            onInvalidateRef.current();
-          }, FITNESS_INVALIDATE_THROTTLE_MS - elapsed);
-        }
-      } catch {
-        // Ignore malformed payloads.
-      }
-    };
-
-    es.onerror = () => {
-      es.close();
-      if (!isCurrent()) return;
-      eventSourceRef.current = null;
-      clearWatchdog();
-      // Keep retrying while hidden too; the browser throttles timers, and
-      // visibilitychange reconnects at once when the tab comes back.
-      const delay = reconnectDelayMs(reconnectAttemptRef.current);
-      reconnectAttemptRef.current += 1;
-      clearReconnectTimer();
-      reconnectTimerRef.current = setTimeout(() => {
-        reconnectTimerRef.current = null;
-        connectSseRef.current();
-      }, delay);
-    };
-  }, [
-    workspaceId,
-    replayOnFreshLoad,
-    scheduleInvalidate,
-    scheduleTasksInvalidate,
-    cancelTasksInvalidate,
-    clearWatchdog,
-    clearReconnectTimer,
-  ]);
-
+  // Per-connection state. Declared before useResilientEventSource so it runs
+  // (and resets) before the first connect builds its URL.
   useEffect(() => {
-    connectSseRef.current = connectSSE;
-  }, [connectSSE]);
-
-  useEffect(() => {
-    if (workspaceId === "__placeholder__") return;
-
-    tearingDownRef.current = false;
+    if (connectionKey === null) return;
     hasConnectedOnceRef.current = false;
     lastFitnessInvalidateAtRef.current = 0;
     lastEventIdRef.current = null;
-    reconnectAttemptRef.current = 0;
-    connectSSE();
-
-    // Back in front: if the connection is gone, reconnect now instead of
-    // waiting out the backoff. A live connection is left alone.
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== "visible" || tearingDownRef.current) return;
-      const current = eventSourceRef.current;
-      if (current && current.readyState !== EVENT_SOURCE_CLOSED) return;
-      connectSseRef.current();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
     return () => {
-      tearingDownRef.current = true;
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      clearWatchdog();
       hasConnectedOnceRef.current = false;
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
       if (fitnessInvalidateTimerRef.current) {
         clearTimeout(fitnessInvalidateTimerRef.current);
         fitnessInvalidateTimerRef.current = null;
@@ -395,10 +201,81 @@ export function useKanbanEvents({
         invalidateCoalesceTimerRef.current = null;
       }
       cancelTasksInvalidate();
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
     };
-  }, [connectSSE, workspaceId, cancelTasksInvalidate, clearWatchdog]);
+  }, [connectionKey, cancelTasksInvalidate]);
+
+  const buildUrl = () => {
+    const params = new URLSearchParams({ workspaceId });
+    if (lastEventIdRef.current) {
+      // Manual reconnect: resume where we left off.
+      params.set("lastEventId", lastEventIdRef.current);
+    } else if (replayOnFreshLoad && !hasConnectedOnceRef.current) {
+      // Fresh load: pull the last hour so the bell has something to show.
+      params.set("since", String(Date.now() - FRESH_LOAD_REPLAY_WINDOW_MS));
+    }
+    return resolveApiPath(`api/kanban/events?${params.toString()}`, getDesktopApiBaseUrl());
+  };
+
+  const onMessage = (event: MessageEvent) => {
+    if (event.lastEventId) lastEventIdRef.current = event.lastEventId;
+    try {
+      const data = JSON.parse(event.data) as { type?: string; entity?: string; resourceId?: string };
+      if (data.type === "connected") {
+        if (hasConnectedOnceRef.current) {
+          scheduleInvalidate();
+        } else {
+          hasConnectedOnceRef.current = true;
+        }
+        return;
+      }
+      if (data.type === "kanban:changed") {
+        if (data.entity === "task" && onTasksInvalidateRef.current) {
+          scheduleTasksInvalidate(typeof data.resourceId === "string" ? data.resourceId : undefined);
+        } else {
+          scheduleInvalidate();
+        }
+        return;
+      }
+      if (data.type === "kanban:task-lifecycle") {
+        const lifecycle = data as unknown as KanbanTaskLifecyclePayload;
+        onTaskLifecycleRef.current?.(lifecycle);
+        // A terminal phase also changed the card, so keep the board fresh.
+        scheduleInvalidate();
+        return;
+      }
+      if (data.type === "kanban:session-tail") {
+        // Caption-only: no card data changed, so no invalidate.
+        onSessionTailRef.current?.(data as unknown as KanbanSessionTailPayload);
+        return;
+      }
+      if (data.type === "kanban:session-activity") {
+        // Heartbeat only: patches the session in place, no board refetch.
+        onSessionActivityRef.current?.(data as unknown as KanbanSessionActivityPayload);
+        return;
+      }
+      if (data.type === "fitness:changed") {
+        const now = Date.now();
+        const elapsed = now - lastFitnessInvalidateAtRef.current;
+        if (elapsed >= FITNESS_INVALIDATE_THROTTLE_MS) {
+          lastFitnessInvalidateAtRef.current = now;
+          cancelTasksInvalidate();
+          onInvalidateRef.current();
+          return;
+        }
+        if (fitnessInvalidateTimerRef.current) {
+          return;
+        }
+        fitnessInvalidateTimerRef.current = setTimeout(() => {
+          fitnessInvalidateTimerRef.current = null;
+          lastFitnessInvalidateAtRef.current = Date.now();
+          cancelTasksInvalidate();
+          onInvalidateRef.current();
+        }, FITNESS_INVALIDATE_THROTTLE_MS - elapsed);
+      }
+    } catch {
+      // Ignore malformed payloads.
+    }
+  };
+
+  useResilientEventSource({ connectionKey, buildUrl, onMessage });
 }
