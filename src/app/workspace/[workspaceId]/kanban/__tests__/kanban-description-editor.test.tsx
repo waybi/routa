@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   KanbanDescriptionEditor,
   htmlToMarkdown,
@@ -103,6 +103,17 @@ beforeAll(() => {
   });
 });
 
+// Unmounting useEditor does not destroy the Tiptap editor right away: it
+// schedules editor.destroy() on a 1 ms timer, and destroy() calls
+// window.removeEventListener. After the file's last test that timer could fire
+// after vitest removed the jsdom globals ("ReferenceError: window is not
+// defined"). Unmount here and let that timer run while window still exists;
+// a later timer always fires after the earlier-scheduled 1 ms one.
+afterEach(async () => {
+  cleanup();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+});
+
 afterAll(() => {
   delete ((HTMLElement.prototype as unknown) as Record<string, unknown>).getBoundingClientRect;
   delete ((HTMLElement.prototype as unknown) as Record<string, unknown>).getClientRects;
@@ -166,5 +177,8 @@ describe("KanbanDescriptionEditor markdown conversion", () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith(expectedMarkdown);
     });
+    // saveEdit leaves edit mode after onSave resolves; wait for that render
+    // so no React work is still queued when the jsdom environment is torn down.
+    await screen.findByRole("button", { name: "Edit" });
   });
 });
