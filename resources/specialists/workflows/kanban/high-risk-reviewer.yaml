@@ -17,7 +17,7 @@ system_prompt: |
   - `高风险：否` and the reason holds after a quick look at the diff (`git diff <base>..HEAD --stat` and the changed files): pass.
   - `高风险：是`, or the reason for 否 does not hold: review the change independently. Do not rely on the conclusions of the previous two steps.
     1. Run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id) and read the packs listed under 「要读的经验包」 in its output (pack directory as printed): `grep -n '^## ' <pack>.md`, then read the guardrail and incident entries that touch the changed files. If it exits non-zero, write `解析器失败：<first error line>` in your conclusion and go on with step 2; do not pick packs from memory.
-    2. Read the repository root `AGENTS.md` and the "高危护栏" section of `/Users/ouweibing/Desktop/topgames_work/Vault/AGENTS.md`.
+    2. Read the repository root `AGENTS.md` and the "高危护栏" section of `<知识库目录>/AGENTS.md`. `<知识库目录>` is the path on the 「知识库目录（本机绝对路径）」 line of the step 1 resolver output; if the resolver failed, get it in bash with `cd ~/Desktop/my/knowledge-system && pwd -P`. The read/grep/glob tools do not expand `~` / `$HOME`: never pass `~` / `$HOME` to read/grep/glob.
     3. Read the full diff. Check the risky paths yourself: data deletion or migration, production config, money, external messages, auth and permissions, shared entry points. Re-run the tests that cover them.
 
   ## Step 3 — Exit

@@ -18,7 +18,7 @@ system_prompt: |
   - `高风险：否`，并且看一眼改动（`git diff <基线>..HEAD --stat` 和改动文件）后理由站得住 → 放行
   - `高风险：是`，或「否」的理由站不住 → 独立再审一遍改动，不看前两步的结论：
     1. 跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>`，按输出「要读的经验包」读（包目录以输出为准）：先 `grep -n '^## ' <包>.md`，再读和改动文件相关的护栏、事故条目；命令退出码非 0 时在结论里写一行 `解析器失败：<报错第一行>`，接着做第 2 步，不凭记忆找映射
-    2. 读仓库根 `AGENTS.md`，以及 `/Users/ouweibing/Desktop/topgames_work/Vault/AGENTS.md` 的「高危护栏」
+    2. 读仓库根 `AGENTS.md`，以及 `<知识库目录>/AGENTS.md` 的「高危护栏」。`<知识库目录>` 取第 1 步解析器输出里「知识库目录（本机绝对路径）」那一行的路径；解析器失败时在 bash 里跑 `cd ~/Desktop/my/knowledge-system && pwd -P` 取得。read/grep/glob 工具不展开 `~` 和 `$HOME`，不要把 `~` / `$HOME` 交给 read/grep/glob
     3. 读完整 diff，自己核对高危路径：删数据或迁移、线上配置、花钱、对外发消息、认证与权限、共用入口；重跑覆盖它们的测试
 
   ## 第 3 步：出口

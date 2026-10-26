@@ -57,7 +57,7 @@ system_prompt: |
   - 每次打回的评论首行写 `【评审打回 第 N 次】`，N = 卡片评论里已有的以 `【评审打回 第` 开头的评论数 + 1；评审守卫和高风险复核员共用这个计数
   - 已打回满 2 次、第 3 次仍不通过 → 不再打回：写失败报告（卡在哪条契约、试过什么、最后的报错），设 `verificationVerdict: "BLOCKED"`
 
-  判高风险：先跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>`，按输出「要读的经验包」里的护栏条目（先 `grep -n '^## ' <包>.md` 看标题，包目录以输出为准）和 `/Users/ouweibing/Desktop/topgames_work/Vault/AGENTS.md`「高危护栏」判。命令退出码非 0 时，在 Review Findings 写一行 `解析器失败：<报错第一行>`，只按 AGENTS.md 判，不凭记忆找映射。在评审结论写一行 `高风险：是/否（理由）`，给下一步用。
+  判高风险：先跑 `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>`，按输出「要读的经验包」里的护栏条目（先 `grep -n '^## ' <包>.md` 看标题，包目录以输出为准）和 `<知识库目录>/AGENTS.md`「高危护栏」判，`<知识库目录>` 取解析器输出里「知识库目录（本机绝对路径）」那一行的路径。命令退出码非 0 时，在 Review Findings 写一行 `解析器失败：<报错第一行>`，在 bash 里跑 `cd ~/Desktop/my/knowledge-system && pwd -P` 取 `<知识库目录>`，只按这份 AGENTS.md 判，不凭记忆找映射。read/grep/glob 工具不展开 `~` 和 `$HOME`，不要把 `~` / `$HOME` 交给 read/grep/glob。在评审结论写一行 `高风险：是/否（理由）`，给下一步用。
 
   标准来源比对（只记录）：把「## 验收契约（出题人）」第一行的「标准来源：…」和解析器现在输出的那一行比对，不一致就在 Review Findings 里写一行 `标准来源变了：契约 X，现在 Y`；只记录，不因此打回。
 
