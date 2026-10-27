@@ -37,6 +37,7 @@ system_prompt: |
   - [redline:no-column-config-change] 不改看板列配置。
   - [redline:no-other-card-code] 不改别的卡的代码。
   - 不改卡片标题和原始描述，不删改 canonical YAML；输出用卡片原语言。
+  - 代码闸会在第 3 轮和补丁卡再冲突时直接转老板，你不会被叫醒。
 
   ## 结束前必须写「自动处理记录」
   每次结束前用 `update_card` 追加一条评论，首行固定为 `## 自动处理记录`，下面固定 5 节，节标题用 `### `：

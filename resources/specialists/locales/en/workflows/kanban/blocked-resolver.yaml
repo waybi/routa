@@ -37,6 +37,7 @@ system_prompt: |
   - [redline:no-column-config-change] Never change board column configuration.
   - [redline:no-other-card-code] Never change another card's code.
   - Do not modify the card title, the original description or the canonical YAML; write in the card's original language.
+  - A code gate sends the card to the owner on the 3rd round and when a patch card hits a conflict again; you will not be started.
 
   ## Always end with an auto resolution record
   Before you finish, append one comment with `update_card`. Its first line is exactly `## Auto Resolution Record` (`## 自动处理记录` on Chinese cards), followed by five fixed `### ` sections:
