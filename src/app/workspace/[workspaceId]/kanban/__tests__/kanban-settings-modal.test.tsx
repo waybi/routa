@@ -561,7 +561,7 @@ describe("KanbanSettingsModal", () => {
     expect(onClearAll).not.toHaveBeenCalled();
   });
 
-  it("treats blocked as a manual-only lane when saving", async () => {
+  it("keeps the Blocked lane automation as configured when saving (card 4877583c)", async () => {
     const onSave = vi.fn(async () => {});
     const blockedBoard: KanbanBoardInfo = {
       ...board,
@@ -588,7 +588,7 @@ describe("KanbanSettingsModal", () => {
       expect(onSave).toHaveBeenCalledWith(
         [expect.objectContaining({ id: "blocked", visible: true, position: 0 })],
         {
-          blocked: expect.objectContaining({ enabled: false }),
+          blocked: expect.objectContaining({ enabled: true, steps: [expect.objectContaining({ role: "ROUTA", providerId: "claude" })] }),
         },
         2,
         {

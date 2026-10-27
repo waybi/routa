@@ -26,6 +26,8 @@ import {
 import type { KanbanBoardInfo, KanbanDevSessionSupervisionInfo } from "../types";
 import { Select } from "@/client/components/select";
 import { ChevronDown } from "lucide-react";
+import { Badge } from "@/client/components/ui/badge";
+import { BLOCKED_STAGE } from "./blocked-resolver-automation";
 import { useTranslation, type TranslationDictionary } from "@/i18n";
 import {
   getTaskFieldHint,
@@ -59,7 +61,6 @@ export const DEFAULT_DEV_SESSION_SUPERVISION: KanbanDevSessionSupervisionInfo = 
 };
 
 const ROLE_OPTIONS = ["CRAFTER", "ROUTA", "GATE", "DEVELOPER"];
-const MANUAL_ONLY_STAGES = new Set(["blocked"]);
 export function createEmptyAutomationStep(index: number): KanbanAutomationStep {
   return {
     id: `step-${index + 1}`,
@@ -172,15 +173,19 @@ function formatAgentCardTarget(agentCardUrl?: string): string | undefined {
   }
 }
 
-export function isManualOnlyColumn(column: KanbanBoardInfo["columns"][0]): boolean {
-  return MANUAL_ONLY_STAGES.has(column.stage);
+/**
+ * The Blocked lane only takes the Blocked Resolver (card 4877583c): its
+ * "Automation" toggle writes getBlockedResolverAutomation / { enabled: false }
+ * and its editor shows a fixed explanation instead of the step editor.
+ */
+export function isBlockedStageColumn(column: KanbanBoardInfo["columns"][0]): boolean {
+  return column.stage === BLOCKED_STAGE;
 }
 
 export function getColumnWorkflowMode(
-  column: KanbanBoardInfo["columns"][0],
+  _column: KanbanBoardInfo["columns"][0],
   automation: ColumnAutomationConfig | undefined,
 ): "manual" | "automated" {
-  if (isManualOnlyColumn(column)) return "manual";
   return automation?.enabled ? "automated" : "manual";
 }
 
@@ -581,7 +586,7 @@ export function getColumnWorkflowSummary(
 ): string {
   const mode = getColumnWorkflowMode(column, automation);
   if (mode === "manual") {
-    return isManualOnlyColumn(column) ? t.kanban.manualLaneOnly : t.kanban.manualLane;
+    return isBlockedStageColumn(column) ? t.kanban.manualLaneOnly : t.kanban.manualLane;
   }
   return getAutomationSummary(
     automation ?? { enabled: false },
@@ -645,7 +650,7 @@ export function ColumnAutomationWorkspace({
 }) {
   const { t } = useTranslation();
   const artifactOptions = useMemo(() => getArtifactOptions(t), [t]);
-  const manualOnly = isManualOnlyColumn(column);
+  const blockedLane = isBlockedStageColumn(column);
   const automationSteps = useMemo(
     () => getEditableAutomationSteps(automation),
     [automation],
@@ -700,18 +705,23 @@ export function ColumnAutomationWorkspace({
     onUpdate(getDefaultAutomationForStage(column.stage, specialistLanguage));
   };
 
-  if (manualOnly) {
+  if (blockedLane) {
+    const resolverOn = Boolean(automation.enabled);
     return (
-      <div className="rounded-lg border border-default bg-subtle p-3">
+      <div className="rounded-lg border border-default bg-subtle p-3" data-testid="kanban-blocked-lane-note" data-resolver={resolverOn ? "on" : "off"}>
         <p className="text-sm font-semibold text-primary">
-          {t.kanban.blockedManualOnly}
+          {resolverOn ? t.kanban.blockedResolverOn : t.kanban.blockedManualOnly}
         </p>
         <p className="mt-1 text-sm leading-6 text-secondary">
-          {t.kanban.blockedManualOnlyDesc}
+          {resolverOn ? t.kanban.blockedResolverOnDesc : t.kanban.blockedManualOnlyDesc}
         </p>
-        <p className="mt-2 text-xs leading-5 text-secondary">
-          {t.kanban.automationUnavailable}
-        </p>
+        {resolverOn ? (
+          <div className="mt-2"><Badge tone="info">{t.kanban.blockedResolverName}</Badge></div>
+        ) : (
+          <p className="mt-2 text-xs leading-5 text-secondary">
+            {t.kanban.blockedResolverOffHint}
+          </p>
+        )}
       </div>
     );
   }

@@ -9,6 +9,7 @@ import {
   normalizeKanbanHistoryMemoryPolicy,
 } from "@/core/kanban/board-history-memory-policy";
 import { resolveSpecialistSelection, type KanbanSpecialistLanguage } from "./kanban-specialist-language";
+import { getBlockedResolverAutomation } from "./blocked-resolver-automation";
 import type {
   KanbanBoardInfo,
   KanbanDevSessionSupervisionInfo,
@@ -24,7 +25,7 @@ import {
   getEditableAutomationSteps,
   getStageTypeLabel,
   getStageTypeOptions,
-  isManualOnlyColumn,
+  isBlockedStageColumn,
   loadKanbanExportWorkspaceId,
   normalizeAutomationForDirtyCheck,
   normalizeColumns,
@@ -218,7 +219,12 @@ export function KanbanSettingsModal({
   }, [columnAutomation, selectedColumn]);
 
   const toggleColumnAutomation = (column: KanbanBoardInfo["columns"][0], enabled: boolean) => {
-    if (enabled && isManualOnlyColumn(column)) {
+    if (isBlockedStageColumn(column)) {
+      // Blocked only takes the Blocked Resolver; off clears the whole config.
+      setColumnAutomation((current) => ({
+        ...current,
+        [column.id]: enabled ? getBlockedResolverAutomation(specialistLanguage) : { enabled: false },
+      }));
       return;
     }
     setColumnAutomation((current) => {
@@ -358,15 +364,12 @@ export function KanbanSettingsModal({
   const handleSave = async ({ closeAfterSave = false }: { closeAfterSave?: boolean } = {}) => {
     setSaving(true);
     try {
+      // Blocked keeps an attached resolver as edited; Blocked off is saved
+      // as { enabled: false } with no leftover steps (card 4877583c).
       const sanitizedColumnAutomation = Object.fromEntries(
         sortedColumns.map((column) => {
           const current = columnAutomation[column.id] ?? { enabled: false };
-          return [
-            column.id,
-            isManualOnlyColumn(column)
-              ? { ...current, enabled: false }
-              : current,
-          ];
+          return [column.id, isBlockedStageColumn(column) && !current.enabled ? { enabled: false } : current];
         }),
       );
       const sanitizedColumns = sortedColumns.map((column) => ({
@@ -925,15 +928,20 @@ export function KanbanSettingsModal({
                       <ToggleChip
                         ariaLabel={`Toggle automation for ${selectedColumn.name}`}
                         checked={getColumnWorkflowMode(selectedColumn, columnAutomation[selectedColumn.id] ?? { enabled: false }) === "automated"}
-                        disabled={isManualOnlyColumn(selectedColumn)}
                         onChange={(checked) => toggleColumnAutomation(selectedColumn, checked)}
                       >
                         {t.kanban.automation}
                       </ToggleChip>
-                      {selectedColumn.stage === "blocked" ? (
-                        <div className="flex h-10 items-center rounded-md border border-attention bg-attention-subtle px-3 text-sm text-attention xl:ml-auto">
-                          {t.kanban.manualLaneOnly}
-                        </div>
+                      {isBlockedStageColumn(selectedColumn) ? (
+                        columnAutomation[selectedColumn.id]?.enabled ? (
+                          <div className="flex h-10 items-center rounded-md border border-success bg-success-subtle px-3 text-sm text-success xl:ml-auto" data-testid="kanban-blocked-lane-status">
+                            {t.kanban.blockedResolverOn}
+                          </div>
+                        ) : (
+                          <div className="flex h-10 items-center rounded-md border border-attention bg-attention-subtle px-3 text-sm text-attention xl:ml-auto" data-testid="kanban-blocked-lane-status">
+                            {t.kanban.manualLaneOnly}
+                          </div>
+                        )
                       ) : null}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">

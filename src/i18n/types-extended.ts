@@ -258,6 +258,11 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     behindCount: string;
     blockedManualOnly: string;
     blockedManualOnlyDesc: string;
+    /** Card 4877583c: Blocked lane with the Blocked Resolver attached. */
+    blockedResolverOn: string;
+    blockedResolverOnDesc: string;
+    blockedResolverOffHint: string;
+    blockedResolverName: string;
     bothDirections: string;
     changesApplyHint: string;
     clean: string;
