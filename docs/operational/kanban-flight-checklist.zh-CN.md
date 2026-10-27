@@ -14,7 +14,7 @@
 | ID | 中文名 | 英文名 | Role | Model Tier | 挂在哪 |
 |---|---|---|---|---|---|
 | `kanban-contract-setter` | 出题人 | Contract Setter | `CRAFTER` | `smart` | Todo 列第 2 步（最后一步） |
-| `kanban-flight-dev-executor` | 开发执行员（起飞检查单） | Flight Dev Crafter | `CRAFTER` | `smart` | Dev 列，替换 `kanban-dev-executor` |
+| `kanban-flight-dev-executor` | 开发执行员（起飞检查单） | Flight Dev Crafter | `CRAFTER` | `fast` | Dev 列，替换 `kanban-dev-executor` |
 | `kanban-flight-review-guard` | 评审守卫（起飞检查单） | Flight Review Guard | `GATE` | `smart` | Review 列第 2 步，替换 `kanban-review-guard` |
 | `kanban-high-risk-reviewer` | 高风险复核员 | High-Risk Reviewer | `GATE` | `smart` | Review 列第 3 步（最后一步） |
 | `kanban-topbi-porter` | TopBI 移植员 | TopBI Porter | `DEVELOPER` | `smart` | Done 列第 1 步（解析器给出 `done_steps` 含它的项目，现为 TopBI） |
@@ -249,3 +249,4 @@ done
 | 2026-10-24 | 评审打回 R1 修复（第 3 轮）：R2 修复丢旧列自动化时连带丢了该列在跑会话的收尾，导致 `update_task` 收敛后 Review Guard 车道记录停在 running、进程不再结束，`move_card` 进 Blocked 后推送员进程无人结束。编排器改为离列时把在跑会话记进 `departedLaneSessions`，该会话结束时只标 completed 并结束进程（合成完成事件等回合结束），不起下一步、不恢复、不重跑；`workflow-orchestrator-blocked-exit.test.ts` 加 3 条（推送员完成/失败各 1 条、Review Guard 收敛 1 条） | 同一组 81 个测试文件 744 条：撤掉本次修复 3 败 741 过（`expected +0 to be 1`、`expected 'running' to be 'completed'`），修复后 744 全过；Review Guard 用例在 46e6bad9（本卡之前）的编排器上也通过 | 本行所在提交（卡 60f276e0） |
 | 2026-10-26 | 起飞检查单按项目定标准：出题人、Todo 编排员、评审守卫、高风险复核员、主干推送员（各三份 yaml）去掉写死的「仓库 → 经验包」对照和「路径认 TopBI」，改调知识库 `flight_resolve.py`；挂岗位脚本删掉 `TOPBI_BOARD_ID`，Done 列按解析器 `done_steps` 排（模板表 `DONE_STEP_TEMPLATES`、`FLIGHT_RESOLVE` 环境变量、`--check` 每板多一行项目标准）；脚本测试 16→33 条（解析器桩、三种交付方式、多仓库跳过、未登记 id 与解析器失败不写库、1 万组随机对拍） | 加新项目只改知识库档案，不改 Routa、不重启；真实库只读检查 5 块无变化、Default 不动；撤掉脚本实现后 20 条测试断言失败 | 本行所在提交（卡 1b31e133） |
 | 2026-10-26 | 出题人（三份 yaml）读 `## Risk Notes`：能判对错的转契约、判不了的写进 `### 施工注意（来自风险提示）`，统计行补「风险提示转契约 N 条，施工注意 M 条」；开发执行员（三份 yaml）开工前读施工注意，送审前做 a 行数预算 / b 对齐主干 / c 证据表全覆盖三项自查，证据表末尾写 `### 送审前自查`；加载测试补两个标题的断言和位置检查 | 待统计，Vault routa_shiftleft 每晚评估 | 本行所在提交（卡 7d183d3d） |
+| 2026-10-27 | 开发执行员与起飞检查单开发执行员（`kanban-dev-executor`、`kanban-flight-dev-executor`，各三份 yaml）档位 `smart` → `fast`；`fast` 档默认模型由 `~/.routa/kanban-model-tiers.json` 设为 `claude-sonnet-5-5-pool`，评审等其他岗位仍是 `smart`（Opus） | Dev 岗位改用 Sonnet；此前真实大卡回放 dev 花费约为 Opus 的 24%，评审多打回 1 次 | 本行所在提交 |

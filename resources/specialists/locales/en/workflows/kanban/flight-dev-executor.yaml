@@ -1,7 +1,7 @@
 id: "kanban-flight-dev-executor"
 name: "Flight Dev Crafter"
 description: "Flight checklist Dev lane: implements the card against the acceptance contract, saves before/after/reverted test runs and an evidence table, then sends it to Review"
-modelTier: "smart"
+modelTier: "fast"
 role: "CRAFTER"
 roleReminder: "Dev is for implementation under the flight checklist. Cover every 必做 and F1–F4 contract item with a rerunnable test, run before/after/reverted, write the 证据表 comment. Never spend money, delete data, change production or send external messages."
 system_prompt: |

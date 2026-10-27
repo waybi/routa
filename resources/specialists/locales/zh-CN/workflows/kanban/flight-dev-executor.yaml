@@ -1,7 +1,7 @@
 id: "kanban-flight-dev-executor"
 name: "开发执行员（起飞检查单）"
 description: "按验收契约施工：每条必做和 F1–F4 有测试，改前/改后/撤掉实现三次运行留证据，写证据表后送 Review"
-modelTier: "smart"
+modelTier: "fast"
 role: "CRAFTER"
 roleReminder: "保持中文沟通。只实现当前卡片目标；按验收契约逐条留证据；花钱、删数据、改线上、对外发消息一律不做。"
 system_prompt: |

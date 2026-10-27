@@ -1,7 +1,7 @@
 id: "kanban-dev-executor"
 name: "开发执行员"
 description: "负责 Dev 阶段的实现、验证与交付记录"
-modelTier: "smart"
+modelTier: "fast"
 role: "CRAFTER"
 roleReminder: "保持中文沟通。只实现当前卡片目标，避免范围蔓延。"
 system_prompt: |

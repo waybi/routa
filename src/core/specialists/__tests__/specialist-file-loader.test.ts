@@ -355,7 +355,7 @@ markdown prompt
       ["en", path.join(bundledRoot, "locales", "en"), "en"],
       ["zh-CN", path.join(bundledRoot, "locales", "zh-CN"), "zh-CN"],
     ];
-    const flightSpecialists: Array<{ id: string; role: string; prompt: Array<string | RegExp> }> = [
+    const flightSpecialists: Array<{ id: string; role: string; modelTier?: string; prompt: Array<string | RegExp> }> = [
       {
         id: "kanban-contract-setter",
         role: "CRAFTER",
@@ -381,6 +381,7 @@ markdown prompt
       {
         id: "kanban-flight-dev-executor",
         role: "CRAFTER",
+        modelTier: "fast",
         prompt: [
           "## 验收契约（出题人）",
           "缺验收契约",
@@ -437,7 +438,7 @@ markdown prompt
         const entry = loaded.find((candidate) => candidate.id === spec.id);
         expect(entry, spec.id).toBeDefined();
         expect(entry?.frontmatter.role, spec.id).toBe(spec.role);
-        expect(entry?.frontmatter.modelTier, spec.id).toBe("smart");
+        expect(entry?.frontmatter.modelTier, spec.id).toBe(spec.modelTier ?? "smart");
         if (locale === "zh-CN") {
           expect(entry?.frontmatter.name, spec.id).toMatch(/[\u4e00-\u9fff]/);
         }
