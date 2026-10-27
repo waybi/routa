@@ -8,7 +8,11 @@
  * interrupted cards (single or selected, after an in-page confirmation):
  * one card at a time, GET /api/tasks/<id> to recheck it is still
  * interrupted, then PATCH /api/tasks/<id> { retryTrigger: true } — the same
- * request the board's "Rerun" sends. "Hide locally" writes the same
+ * request the board's "Rerun" sends. "Hand to AI" on Blocked cards (card
+ * 4877583c) sends the same GET + PATCH through the same queue, rechecking
+ * that the card is still in Blocked and the resolver is not running on it.
+ * Blocked rows without lastSyncError read their card once (GET
+ * /api/tasks/<id>) for the comment shown as the reason. "Hide locally" writes the same
  * localStorage key as the board's "Got it", so hiding in either place hides
  * in both.
  */
@@ -31,9 +35,10 @@ import {
   readAttentionDismissals,
   restoreAttentionItem,
 } from "../kanban/use-kanban-attention-dismissals";
-import { buildInboxRows, buildResolvedRows, type InboxRow } from "./inbox-rules";
+import { buildInboxRows, buildResolvedRows, handOffBlock, inboxRowView, type InboxRow } from "./inbox-rules";
 import { InboxResolvedSection } from "./inbox-resolved-section";
-import { InboxRowItem, type InboxRowRetry } from "./inbox-row";
+import { InboxRowItem, type InboxRowHandOff, type InboxRowRetry } from "./inbox-row";
+import { useInboxReasonComments } from "./use-inbox-reason-comments";
 import { useInboxScope, type InboxScope } from "./inbox-view-mode";
 import { InboxBulkBar, InboxRetrySummary } from "./inbox-bulk-bar";
 import { isRetryLocked, useInboxRetry, type InboxRetryTarget } from "./use-inbox-retry";
@@ -123,6 +128,31 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
     };
   };
 
+  const commentsOf = useInboxReasonComments([...rows.active, ...rows.dismissed]);
+  const viewFor = (row: InboxRow) => inboxRowView(row, boardOf(row), commentsOf(row.task));
+  const handOffFor = (row: InboxRow): InboxRowHandOff => {
+    const state = retries.rowStates.get(row.task.id);
+    const board = boardOf(row);
+    return {
+      disabled: retries.running || isRetryLocked(state),
+      state,
+      onHandOff: () => void retries.run([{ row, board, recheck: (task) => handOffBlock(task, board) === null }]),
+    };
+  };
+  const rowItem = (row: InboxRow, dismissed: boolean) => (
+    <InboxRowItem
+      key={row.key}
+      row={row}
+      now={now}
+      dismissed={dismissed}
+      showWorkspace={false}
+      onToggleDismiss={toggleDismiss}
+      retry={retryFor(row, dismissed)}
+      view={viewFor(row)}
+      handOff={handOffFor(row)}
+    />
+  );
+
   const toggleDismiss = useCallback((row: InboxRow) => {
     const isDismissed = readAttentionDismissals(row.boardId).includes(row.dismissKey);
     if (isDismissed) restoreAttentionItem(row.boardId, row.dismissKey);
@@ -132,9 +162,7 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
 
   const renderRows = (list: InboxRow[], dismissed: boolean) => {
     if (scope !== "all") {
-      return list.map((row) => (
-        <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} retry={retryFor(row, dismissed)} />
-      ));
+      return list.map((row) => rowItem(row, dismissed));
     }
     return scoped
       .map((workspace) => ({ workspace, items: list.filter((row) => row.workspaceId === workspace.id) }))
@@ -146,9 +174,7 @@ export function InboxPageClient({ now: fixedNow }: { now?: number } = {}) {
             <span className="font-normal text-secondary">{page.groupCount.replace("{count}", String(items.length))}</span>
             {statusOf(workspace.id) === "error" && <Badge tone="attention">{page.stale}</Badge>}
           </h3>
-          {items.map((row) => (
-            <InboxRowItem key={row.key} row={row} now={now} dismissed={dismissed} showWorkspace={false} onToggleDismiss={toggleDismiss} retry={retryFor(row, dismissed)} />
-          ))}
+          {items.map((row) => rowItem(row, dismissed))}
         </section>
       ));
   };

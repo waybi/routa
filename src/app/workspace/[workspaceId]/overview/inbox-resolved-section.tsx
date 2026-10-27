@@ -18,7 +18,7 @@ import type { TaskAttentionResolutionCategory } from "@/core/models/task-attenti
 import { overviewTaskHref } from "../kanban/kanban-overview-rules";
 import type { InboxResolvedRow } from "./inbox-rules";
 
-const CATEGORY_TONE: Record<TaskAttentionResolutionCategory, Tone> = {
+export const CATEGORY_TONE: Record<TaskAttentionResolutionCategory, Tone> = {
   landed: "success",
   superseded: "success",
   handed_off: "info",

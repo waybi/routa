@@ -6,15 +6,29 @@
  * next step, plus two actions — open the card and hide locally. Below 801px
  * the actions move under the body. Interrupted rows on the active list also
  * get a selection checkbox, a visible "Rerun" button and their rerun result.
+ * Every row also shows who handles it and how, and a "Hand to AI" button
+ * (card 4877583c); the judging lives in inbox-rules (inboxRowView).
  */
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
 import { Badge, type Tone } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
 import { formatRelativeTime } from "@/client/components/home/relative-time";
-import { inboxRowHref, lastDoneRunStatus, type InboxRow, type InboxSeverity } from "./inbox-rules";
+import type { TaskAttentionResolutionCategory } from "@/core/models/task-attention-resolution";
+import {
+  inboxRowHref,
+  inboxRowView,
+  lastDoneRunStatus,
+  type HandOffBlock,
+  type InboxHandler,
+  type InboxRow,
+  type InboxRowView,
+  type InboxSeverity,
+} from "./inbox-rules";
 import type { RetryRowState } from "./inbox-retry";
+import { CATEGORY_TONE } from "./inbox-resolved-section";
 
 /** Rerun controls; only passed for interrupted rows on the active list. */
 export interface InboxRowRetry {
@@ -25,6 +39,16 @@ export interface InboxRowRetry {
   onToggleSelect: () => void;
   onRerun: () => void;
 }
+
+/** "Hand to AI" controls; without them the button renders disabled. */
+export interface InboxRowHandOff {
+  /** True while any rerun / hand-off runs, or when this row's request was accepted. */
+  disabled: boolean;
+  state: RetryRowState | undefined;
+  onHandOff: () => void;
+}
+
+const HANDLER_TONE: Record<InboxHandler, Tone> = { owner: "attention", aiRunning: "info", aiQueued: "neutral" };
 
 const RETRY_TONE: Record<RetryRowState["phase"], Tone> = {
   starting: "info",
@@ -97,7 +121,24 @@ export function useInboxRowCopy() {
       default: return page.rerunFailed.replace("{error}", state.error);
     }
   };
-  return { t, severityLabel, kindLabel, reason, source, sourceFull, next, retryLabel };
+  const handlerLabel = (handler: InboxHandler) => ({
+    owner: page.handlerOwner,
+    aiRunning: page.handlerAiRunning,
+    aiQueued: page.handlerAiQueued,
+  })[handler];
+  const handlingLabel = (category: TaskAttentionResolutionCategory) => ({
+    landed: page.handlingCategoryLanded,
+    superseded: page.handlingCategorySuperseded,
+    handed_off: page.handlingCategoryHandedOff,
+    waiting: page.handlingCategoryWaiting,
+    needs_owner: page.handlingCategoryNeedsOwner,
+  })[category];
+  const handOffBlockedHint = (block: HandOffBlock) => ({
+    notBlocked: page.handOffNotBlocked,
+    noResolver: page.handOffNoResolver,
+    running: page.handOffRunning,
+  })[block];
+  return { t, severityLabel, kindLabel, reason, source, sourceFull, next, retryLabel, handlerLabel, handlingLabel, handOffBlockedHint };
 }
 
 export function InboxRowItem({
@@ -107,6 +148,8 @@ export function InboxRowItem({
   showWorkspace,
   onToggleDismiss,
   retry,
+  view: viewProp,
+  handOff,
 }: {
   row: InboxRow;
   now: number;
@@ -114,10 +157,17 @@ export function InboxRowItem({
   showWorkspace: boolean;
   onToggleDismiss: (row: InboxRow) => void;
   retry?: InboxRowRetry;
+  /** Precomputed by the page with the row's board; defaults to "no board known". */
+  view?: InboxRowView;
+  handOff?: InboxRowHandOff;
 }) {
   const copy = useInboxRowCopy();
   const page = copy.t.inboxPage;
-  const meta = (label: string, value: string, testId?: string, title?: string) => (
+  const view = viewProp ?? inboxRowView(row, undefined);
+  const retryState = retry?.state ?? handOff?.state;
+  const reasonText = view.reasonText;
+  const handOffHint = view.handOffBlock ? copy.handOffBlockedHint(view.handOffBlock) : undefined;
+  const meta = (label: string, value: ReactNode, testId?: string, title?: string) => (
     <div className="flex min-w-0 gap-2 text-xs leading-relaxed" data-testid={testId}>
       <dt className="shrink-0 text-secondary">{label}</dt>
       <dd className="m-0 min-w-0 break-words text-primary" title={title}>{value}</dd>
@@ -150,16 +200,31 @@ export function InboxRowItem({
             )}
             <Badge tone={SEVERITY_TONE[row.severity]}>{copy.severityLabel(row.severity)}</Badge>
             <Badge tone={row.reason === "interrupted" ? "danger" : "neutral"}>{copy.kindLabel(row)}</Badge>
-            {retry?.state && (
-              <span data-testid="inbox-row-retry-state" data-phase={retry.state.phase}>
-                <Badge tone={RETRY_TONE[retry.state.phase]}>{copy.retryLabel(retry.state)}</Badge>
+            {retryState && (
+              <span data-testid="inbox-row-retry-state" data-phase={retryState.phase}>
+                <Badge tone={RETRY_TONE[retryState.phase]}>{copy.retryLabel(retryState)}</Badge>
               </span>
             )}
           </div>
           <h3 className="mb-2 mt-1.5 break-words text-sm font-semibold leading-snug text-primary">{row.task.title}</h3>
           <dl className="m-0 grid gap-0.5">
             {showWorkspace && meta(page.labelWorkspace, row.workspaceTitle)}
-            {meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
+            {meta(page.labelHandler, (
+              <span data-handler={view.handler}><Badge tone={HANDLER_TONE[view.handler]}>{copy.handlerLabel(view.handler)}</Badge></span>
+            ), "inbox-row-handler")}
+            {meta(page.labelHandling, view.handling ? (
+              <span className="inline-flex flex-wrap items-center gap-1.5" data-category={view.handling.category}>
+                {/* needs_owner: the same red badge already heads the row. */}
+                {view.handling.category !== "needs_owner" && (
+                  <Badge tone={CATEGORY_TONE[view.handling.category]}>{copy.handlingLabel(view.handling.category)}</Badge>
+                )}
+                <span className="text-primary" title={view.handling.conclusion}>{truncate(view.handling.conclusion, INBOX_SOURCE_MAX_CHARS)}</span>
+                {view.handling.ref && <span className="text-secondary">{page.resolvedRef.replace("{ref}", view.handling.ref)}</span>}
+              </span>
+            ) : copy.next(row), "inbox-row-handling")}
+            {reasonText
+              ? meta(page.labelReason, truncate(reasonText.text, INBOX_SOURCE_MAX_CHARS), "inbox-row-reason", reasonText.full)
+              : meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
             {meta(page.labelSource, copy.source(row), "inbox-row-source", row.reason === "interrupted" ? copy.sourceFull(row) : undefined)}
             {meta(page.labelTime, formatRelativeTime(row.eventAt, now, copy.t.homeRedesign))}
             {meta(page.labelNext, copy.next(row), "inbox-row-next")}
@@ -178,6 +243,16 @@ export function InboxRowItem({
             {page.rerun}
           </button>
         )}
+        <button
+          type="button"
+          onClick={handOff?.onHandOff}
+          disabled={Boolean(view.handOffBlock) || !handOff || handOff.disabled}
+          title={handOffHint}
+          className={buttonClassName("secondary", "sm")}
+          data-testid="inbox-row-hand-off"
+        >
+          {page.handOff}
+        </button>
         <Link href={inboxRowHref(row)} className={buttonClassName("primary", "sm")} data-testid="inbox-row-open">
           {page.openCard}
         </Link>

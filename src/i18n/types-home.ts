@@ -150,5 +150,21 @@ export interface HomeTranslationDictionarySections {
     resolvedHideRecord: string;
     resolvedNoRecord: string;
     needsOwnerBadge: string;
+    /** Card 4877583c: who handles the row and how. */
+    labelHandler: string;
+    labelHandling: string;
+    handlerOwner: string;
+    handlerAiRunning: string;
+    handlerAiQueued: string;
+    handlingCategoryLanded: string;
+    handlingCategorySuperseded: string;
+    handlingCategoryHandedOff: string;
+    handlingCategoryWaiting: string;
+    handlingCategoryNeedsOwner: string;
+    handOff: string;
+    /** Hover text of the disabled "Hand to AI" button, one per reason. */
+    handOffNotBlocked: string;
+    handOffNoResolver: string;
+    handOffRunning: string;
   };
 }
