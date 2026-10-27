@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { RoutaSystem } from "../routa-system";
 import type {
   KanbanAutomationStep,
+  KanbanBoard,
   KanbanColumnAutomation,
   KanbanColumnStage,
 } from "../models/kanban";
@@ -56,7 +57,12 @@ import {
   buildTaskStoryReadiness,
 } from "./task-derived-summary";
 import { ensureCompletionFallbackArtifact } from "./completion-fallback-artifact";
-import { routeAttentionToBlocked } from "./attention-to-blocked";
+import { blockedColumnOf, routeAttentionToBlocked } from "./attention-to-blocked";
+import {
+  applyBlockedResolverGuard,
+  evaluateBlockedResolverGuard,
+  resolveBlockedAttentionReason,
+} from "./blocked-resolver-guard";
 import { KanbanTools } from "../tools/kanban-tools";
 import { buildTaskDeliveryLanding } from "./task-delivery-landing";
 
@@ -185,6 +191,11 @@ export async function enqueueKanbanTaskSession(
     return result;
   }
 
+  // Card 59f5b059: every resolver start passes this gate (after the
+  // resume/adopt branches, so a stopped start is never adopted).
+  const guardHit = await checkBlockedResolverGuard(system, task, params);
+  if (guardHit) return { queued: false, error: `blocked-resolver-guard:${guardHit}` };
+
   if (params.bypassQueue) {
     const result = await startKanbanTaskSession(system, task.id, params);
     return {
@@ -203,6 +214,33 @@ export async function enqueueKanbanTaskSession(
     columnId: params.expectedColumnId ?? task.columnId,
     start: async () => startKanbanTaskSession(system, task.id, params),
   });
+}
+
+/** Stops a Blocked resolver start the gate rejects; returns the gate name on a hit. */
+async function checkBlockedResolverGuard(
+  system: RoutaSystem,
+  task: NonNullable<Awaited<ReturnType<RoutaSystem["taskStore"]["get"]>>>,
+  params: { expectedColumnId?: string; step?: KanbanAutomationStep },
+): Promise<string | undefined> {
+  const board = task.boardId ? await system.kanbanBoardStore.get(task.boardId) : undefined;
+  const columnId = params.expectedColumnId ?? task.columnId;
+  if (!board || !columnId || blockedColumnOf(board) !== columnId) return undefined;
+  const current = (await system.taskStore.get(task.id)) ?? task;
+  // A card that already left the column cannot start there (startKanbanTaskSession refuses it).
+  if (current.columnId !== columnId) return undefined;
+  let specialistId = params.step?.specialistId;
+  if (!specialistId) {
+    const workspace = await system.workspaceStore.get(current.workspaceId);
+    specialistId = resolveEffectiveTaskAutomation(current, board.columns, resolveKanbanSpecialist, {
+      autoProviderId: getKanbanAutoProvider(workspace?.metadata, board.id),
+    }).specialistId;
+  }
+  const decision = evaluateBlockedResolverGuard({ task: current, board, specialistId });
+  if (decision.gate === "none") return undefined;
+  await applyBlockedResolverGuard(system.taskStore, current, decision);
+  // The column transition marked the lane "queued" before asking for a session: drop it.
+  forgetKanbanCard(system, task.id, { columnId });
+  return decision.gate;
 }
 
 async function resolveLaneResumeForTask(
@@ -395,6 +433,8 @@ async function startKanbanTaskSession(
       objective: params.supervision?.objective ?? nextTask.objective,
       recoveredFromSessionId: params.supervision?.recoveredFromSessionId,
       recoveryReason: params.supervision?.recoveryReason,
+      // Card 59f5b059: a Blocked run keeps its reason (lastSyncError is cleared below).
+      attentionReason: blockedRunAttentionReason(board, nextTask),
       status: "running",
     });
     refreshTaskLaneExperienceMemory(nextTask, { flowReport });
@@ -464,6 +504,16 @@ async function startKanbanTaskSession(
     sessionId: triggerResult.sessionId ?? null,
     error: triggerResult.error,
   };
+}
+
+/** The attention reason a run in the Blocked column is recorded with; undefined elsewhere. */
+function blockedRunAttentionReason(
+  board: { columns: KanbanBoard["columns"] } | undefined,
+  task: Pick<NonNullable<Awaited<ReturnType<RoutaSystem["taskStore"]["get"]>>>, "columnId" | "lastSyncError" | "laneSessions">,
+): string | undefined {
+  const blockedColumnId = board ? blockedColumnOf(board) : undefined;
+  if (!blockedColumnId || task.columnId !== blockedColumnId) return undefined;
+  return resolveBlockedAttentionReason(task, blockedColumnId);
 }
 
 async function getBoardConcurrencyLimit(system: RoutaSystem, workspaceId: string, boardId: string): Promise<number> {

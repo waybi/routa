@@ -25,10 +25,15 @@ import {
   type AttentionTask,
   type KanbanAttentionKind,
 } from "./attention-rules";
-import { MAX_AUTO_RESOLUTION_ROUNDS, shouldEscalateToOwner } from "./auto-resolution-record";
+import {
+  ATTENTION_SYNC_ERROR_PREFIX,
+  countResolverSessions,
+  resolutionRoundsOf,
+  shouldEscalateToOwner,
+} from "./auto-resolution-record";
 import { summarizeTaskCompletionReport } from "./completion-report";
 
-export const ATTENTION_SYNC_ERROR_PREFIX = "attention:";
+export { ATTENTION_SYNC_ERROR_PREFIX };
 export const BLOCKED_ROUTED_KINDS: readonly KanbanAttentionKind[] = ["doneFailed", "noReport", "unmerged", "interrupted"];
 
 export type AttentionLanding = { landedOnBase: boolean | null; commitsSinceBase: number };
@@ -36,7 +41,7 @@ export type AttentionLanding = { landedOnBase: boolean | null; commitsSinceBase:
 export type AttentionRoutingDecision =
   | { action: "none" }
   | { action: "block"; kind: KanbanAttentionKind; reason: string; blockedColumnId: string }
-  | { action: "escalate"; kind: KanbanAttentionKind; reason: string };
+  | { action: "escalate"; kind: KanbanAttentionKind; reason: string; rounds: number };
 
 function toIso(value: Date | string | undefined): string | undefined {
   if (!value) return undefined;
@@ -78,13 +83,18 @@ export function isInterruptedRetrySpent(task: Pick<Task, "columnId" | "laneSessi
   return trailing.filter((session) => session.status === "failed" || session.status === "timed_out").length >= 2;
 }
 
-function blockedColumnOf(board: Pick<KanbanBoard, "columns">): string | undefined {
+export function blockedColumnOf(board: Pick<KanbanBoard, "columns">): string | undefined {
   return board.columns.find((column) => column.stage === "blocked")?.id
     ?? board.columns.find((column) => column.id === "blocked")?.id;
 }
 
 export function attentionReason(kind: KanbanAttentionKind): string {
   return `${ATTENTION_SYNC_ERROR_PREFIX}${kind}`;
+}
+
+/** needs_owner conclusion of the rounds gate (attention routing and the resolver guard). */
+export function roundsGateConclusion(reason: string, rounds: number): string {
+  return `轮次闸：${reason} 已自动处理 ${rounds} 轮仍未解决，转老板处理`;
 }
 
 /** Pure decision for one card after a lane step ended. */
@@ -103,8 +113,11 @@ export function decideAttentionRouting(
   if (!item) return { action: "none" };
   if (item.kind === "interrupted" && !isInterruptedRetrySpent(task, options.now)) return { action: "none" };
   const reason = attentionReason(item.kind);
-  if (shouldEscalateToOwner(hydrateTaskComments(task.comments, task.comment), reason)) {
-    return { action: "escalate", kind: item.kind, reason };
+  // Card 59f5b059: resolver sessions count too (a crash before the record still spent a round).
+  const comments = hydrateTaskComments(task.comments, task.comment);
+  const sessionCount = countResolverSessions(task.laneSessions, blockedColumnId, reason);
+  if (shouldEscalateToOwner(comments, reason, sessionCount)) {
+    return { action: "escalate", kind: item.kind, reason, rounds: resolutionRoundsOf(comments, reason, sessionCount) };
   }
   return { action: "block", kind: item.kind, reason, blockedColumnId };
 }
@@ -138,6 +151,9 @@ export async function routeAttentionToBlocked(
     if (decision.action === "none") return decision;
 
     if (decision.action === "escalate") {
+      console.warn(
+        `[BlockedResolverGuard] card ${cardId} blocked by rounds (${decision.reason}, ${decision.rounds} rounds); not moved to Blocked`,
+      );
       // Already escalated and no lane run since: keep the original conclusion.
       if (task.attentionResolution?.category === "needs_owner"
         && isAttentionResolutionInEffect(task.attentionResolution, task)) {
@@ -145,7 +161,7 @@ export async function routeAttentionToBlocked(
       }
       const resolution: TaskAttentionResolution = {
         category: "needs_owner",
-        conclusion: `${decision.reason} 已自动处理 ${MAX_AUTO_RESOLUTION_ROUNDS} 轮仍未解决，转老板处理`,
+        conclusion: roundsGateConclusion(decision.reason, decision.rounds),
         resolvedAt: new Date(now).toISOString(),
       };
       task.attentionResolution = resolution;

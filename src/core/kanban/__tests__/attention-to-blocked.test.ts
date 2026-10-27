@@ -188,6 +188,37 @@ describe("rounds per reason (C15)", () => {
     expect(decideAttentionRouting(task, BOARD, { now: NOW }).action).toBe("block");
   });
 
+  it("card 59f5b059 (AC2, C2): no record but 2 resolver sessions of the reason → escalate with 轮次闸", () => {
+    const resolverRun = (at: number, reason = "attention:doneFailed") =>
+      lane("blocked", "completed", at, { specialistId: "kanban-blocked-resolver", attentionReason: reason });
+    const task = card("done", [
+      resolverRun(NOW - 60 * MIN), lane("done", "failed", NOW - 50 * MIN),
+      resolverRun(NOW - 40 * MIN), lane("done", "failed", NOW - 5 * MIN),
+    ]);
+    const decision = decideAttentionRouting(task, BOARD, { now: NOW });
+    expect(decision).toMatchObject({ action: "escalate", reason: "attention:doneFailed", rounds: 2 });
+    // Sessions of another reason do not count.
+    const other = card("done", [resolverRun(NOW - 60 * MIN, "attention:interrupted"), resolverRun(NOW - 40 * MIN, "attention:interrupted"), lane("done", "failed", NOW - 5 * MIN)]);
+    expect(decideAttentionRouting(other, BOARD, { now: NOW }).action).toBe("block");
+  });
+
+  it("card 59f5b059 (C2): the escalation conclusion names 轮次闸, the reason and the rounds", async () => {
+    const taskStore = new InMemoryTaskStore();
+    const boardStore = new InMemoryKanbanBoardStore();
+    await boardStore.save(createKanbanBoard({ id: "board-1", workspaceId: "default", name: "B", columns: BOARD.columns }));
+    const resolverRun = (at: number) =>
+      lane("blocked", "failed", at, { specialistId: "kanban-blocked-resolver", attentionReason: "attention:doneFailed" });
+    const task = card("done", [resolverRun(NOW - 60 * MIN), resolverRun(NOW - 40 * MIN), lane("done", "failed", NOW - 5 * MIN)]);
+    await taskStore.save(task);
+    const moveCard = vi.fn(async () => ({ success: true }));
+    await routeAttentionToBlocked({ taskStore, kanbanBoardStore: boardStore, moveCard, now: () => NOW }, task.id);
+    expect(moveCard).not.toHaveBeenCalled();
+    const conclusion = (await taskStore.get(task.id))?.attentionResolution?.conclusion ?? "";
+    expect(conclusion).toContain("轮次闸");
+    expect(conclusion).toContain("attention:doneFailed");
+    expect(conclusion).toContain("2 轮");
+  });
+
   it("a rejected move restores lastSyncError", async () => {
     const taskStore = new InMemoryTaskStore();
     const boardStore = new InMemoryKanbanBoardStore();

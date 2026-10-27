@@ -175,6 +175,8 @@ export interface TaskLaneSession {
    * belong to the previous round and no longer count toward its repeat limit.
    */
   laneRerunRequestedAt?: string;
+  /** Blocked resolver runs only: the `attention:<reason>` the card was blocked for when the run started. */
+  attentionReason?: string;
   status: TaskLaneSessionStatus;
   startedAt: string;
   completedAt?: string;

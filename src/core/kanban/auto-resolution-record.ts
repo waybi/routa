@@ -71,7 +71,7 @@ export function parseAutoResolutionRecord(body: string | undefined | null): Auto
   }
   flush();
   const missing = SECTION_ORDER.filter((key) => !sections[key]);
-  const reasons = Array.from(new Set((sections.stuck ?? "").match(/attention:[A-Za-z]+/gu) ?? []));
+  const reasons = Array.from(new Set((sections.stuck ?? "").match(/attention:[A-Za-z_]+/gu) ?? []));
   return { valid: missing.length === 0, sections, missing, reasons };
 }
 
@@ -87,9 +87,74 @@ export function countResolutionRounds(comments: ReadonlyArray<{ body: string }> 
   return listAutoResolutionRecords(comments).filter((record) => record.reasons.includes(reason)).length;
 }
 
+/**
+ * Rounds spent on `reason`: the larger of the record comments and the
+ * resolver sessions already started for it (card 59f5b059). A resolver that
+ * crashed before writing its record still counts through its session.
+ */
+export function resolutionRoundsOf(
+  comments: ReadonlyArray<{ body: string }> | undefined,
+  reason: string,
+  sessionCount = 0,
+): number {
+  return Math.max(countResolutionRounds(comments, reason), sessionCount);
+}
+
 /** True when the next round for `reason` must go to the owner instead. */
-export function shouldEscalateToOwner(comments: ReadonlyArray<{ body: string }> | undefined, reason: string): boolean {
-  return countResolutionRounds(comments, reason) >= MAX_AUTO_RESOLUTION_ROUNDS;
+export function shouldEscalateToOwner(
+  comments: ReadonlyArray<{ body: string }> | undefined,
+  reason: string,
+  sessionCount = 0,
+): boolean {
+  return resolutionRoundsOf(comments, reason, sessionCount) >= MAX_AUTO_RESOLUTION_ROUNDS;
+}
+
+export const ATTENTION_SYNC_ERROR_PREFIX = "attention:";
+/** Reason of a card blocked without an `attention:<kind>` prefix (moved in by hand, old resolver runs). */
+export const DEFAULT_ATTENTION_REASON = `${ATTENTION_SYNC_ERROR_PREFIX}blocked`;
+export const BLOCKED_RESOLVER_SPECIALIST_ID = "kanban-blocked-resolver";
+
+/** The `attention:<reason>` prefix of a card's lastSyncError; `attention:blocked` when it has none. */
+export function attentionReasonOf(lastSyncError?: string | null): string {
+  return /^attention:[A-Za-z_]+/u.exec((lastSyncError ?? "").trim())?.[0] ?? DEFAULT_ATTENTION_REASON;
+}
+
+type ResolverSessionLike = {
+  sessionId?: string;
+  columnId?: string;
+  specialistId?: string;
+  recoveryReason?: string;
+  attentionReason?: string;
+};
+
+/**
+ * Blocked resolver sessions already started for `reason` in the Blocked
+ * column (read from laneSessions, not comments). Runs that never started
+ * (rate_limited / environment_failure placeholders) do not count; failed or
+ * revived runs do. Runs without attentionReason count as `attention:blocked`.
+ */
+export function countResolverSessions(
+  laneSessions: ReadonlyArray<ResolverSessionLike> | undefined,
+  blockedColumnId: string | undefined,
+  reason: string,
+): number {
+  if (!blockedColumnId) return 0;
+  return (laneSessions ?? []).filter((session) =>
+    session.columnId === blockedColumnId
+    && session.specialistId === BLOCKED_RESOLVER_SPECIALIST_ID
+    && session.recoveryReason !== "rate_limited"
+    && session.recoveryReason !== "environment_failure"
+    && !/^(rate-limited|environment-failure)-/u.test(session.sessionId ?? "")
+    && (session.attentionReason || DEFAULT_ATTENTION_REASON) === reason
+  ).length;
+}
+
+/** A patch card: objective cherry-picks a commit, or the title says 补丁卡 / starts with 补丁. */
+export function isPatchCard(card: { title?: string | null; objective?: string | null }): boolean {
+  const title = (card.title ?? "").trim();
+  return /git cherry-pick\s+[0-9a-f]{7,40}\b/iu.test(card.objective ?? "")
+    || title.includes("补丁卡")
+    || title.startsWith("补丁");
 }
 
 /** Raw text of the newest record comment (valid or not), for the inbox. */
