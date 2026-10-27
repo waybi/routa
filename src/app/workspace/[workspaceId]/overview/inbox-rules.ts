@@ -22,8 +22,11 @@ import { KANBAN_DETAIL_TAB_QUERY_KEY } from "../kanban/kanban-detail-tab-request
 import {
   isAttentionResolutionInEffect,
   isAttentionResolvedInEffect,
+  TASK_ATTENTION_RESOLUTION_CATEGORIES,
   type TaskAttentionResolutionCategory,
 } from "@/core/models/task-attention-resolution";
+import { isAutoResolutionRecord } from "@/core/kanban/auto-resolution-record";
+import { BLOCKED_STAGE, hasBlockedResolver } from "../kanban/blocked-resolver-automation";
 import {
   collectWorkspaceAttention,
   overviewTaskHref,
@@ -144,6 +147,131 @@ export function inboxColumnName(
   return fromBoard || run?.columnName?.trim() || task.columnId || "";
 }
 
+/** The resolver handed the card to the owner and that conclusion still holds. */
+export function isNeedsOwnerInEffect(task: Pick<TaskInfo, "attentionResolution" | "columnId" | "laneSessions">): boolean {
+  const resolution = task.attentionResolution;
+  return resolution?.category === "needs_owner" && isAttentionResolutionInEffect(resolution, task);
+}
+
+// ── Who handles a row and how (card 4877583c) ───────────────────────────────
+
+type BoardColumns = Pick<KanbanBoardInfo, "columns">;
+type HandlerTask = Pick<TaskInfo, "columnId" | "laneSessions" | "attentionResolution">;
+
+/** The board's Blocked lane, found by stage (never by a hard-coded id). */
+export function blockedColumnOf(board: BoardColumns | null | undefined): KanbanBoardInfo["columns"][number] | undefined {
+  return board?.columns?.find((column) => column.stage === BLOCKED_STAGE);
+}
+
+/** The Blocked lane's automation is on and runs kanban-blocked-resolver. */
+export function isBlockedResolverEnabled(board: BoardColumns | null | undefined): boolean {
+  return hasBlockedResolver(blockedColumnOf(board)?.automation);
+}
+
+/** The card's newest run in the Blocked lane is running (array order, as lastDoneRunStatus). */
+export function isBlockedResolverRunning(task: Pick<TaskInfo, "laneSessions">, blockedColumnId: string | undefined): boolean {
+  if (!blockedColumnId) return false;
+  const runs = (task.laneSessions ?? []).filter((session) => session.columnId === blockedColumnId);
+  return runs[runs.length - 1]?.status === "running";
+}
+
+export type InboxHandler = "owner" | "aiRunning" | "aiQueued";
+
+/**
+ * Who handles the row: ① not in Blocked, or the board has no resolver → owner;
+ * ② the resolver's needs_owner conclusion still holds → owner; ③ the resolver
+ * runs on the card → aiRunning; ④ otherwise → aiQueued.
+ */
+export function inboxHandler(row: { task: HandlerTask }, board: BoardColumns | null | undefined): InboxHandler {
+  const column = blockedColumnOf(board);
+  if (!column || row.task.columnId !== column.id || !hasBlockedResolver(column.automation)) return "owner";
+  if (isNeedsOwnerInEffect(row.task)) return "owner";
+  return isBlockedResolverRunning(row.task, column.id) ? "aiRunning" : "aiQueued";
+}
+
+/** Why "Hand to AI" is disabled, or null when it can be clicked. */
+export type HandOffBlock = "notBlocked" | "noResolver" | "running";
+
+export function handOffBlock(task: HandlerTask, board: BoardColumns | null | undefined): HandOffBlock | null {
+  const column = blockedColumnOf(board);
+  if (!column || task.columnId !== column.id) return "notBlocked";
+  if (!hasBlockedResolver(column.automation)) return "noResolver";
+  return isBlockedResolverRunning(task, column.id) ? "running" : null;
+}
+
+/** In Blocked, the board runs the resolver, and the resolver is not running on it. */
+export function canHandOffToAi(row: { task: HandlerTask }, board: BoardColumns | null | undefined): boolean {
+  return handOffBlock(row.task, board) === null;
+}
+
+export interface InboxHandling {
+  category: TaskAttentionResolutionCategory;
+  conclusion: string;
+  /** Omitted when empty. */
+  ref?: string;
+}
+
+/** The resolver's conclusion while it holds; null (show the row's next step) otherwise or for an unknown category. */
+export function inboxHandling(row: { task: HandlerTask }): InboxHandling | null {
+  const resolution = row.task.attentionResolution;
+  if (!resolution) return null;
+  if (!(TASK_ATTENTION_RESOLUTION_CATEGORIES as readonly string[]).includes(resolution.category)) return null;
+  if (!isAttentionResolutionInEffect(resolution, row.task)) return null;
+  const ref = typeof resolution.ref === "string" ? resolution.ref.trim() : "";
+  return { category: resolution.category, conclusion: resolution.conclusion, ...(ref ? { ref } : {}) };
+}
+
+export interface InboxReasonText {
+  /** First paragraph (before the first blank line). */
+  text: string;
+  /** Whole comment, for the title attribute. */
+  full: string;
+}
+
+type CommentLike = { body?: string | null; createdAt?: string | null };
+
+/**
+ * Reason fallback for a Blocked card without lastSyncError: the newest
+ * comment by createdAt (array order is not time order) whose first line is
+ * not an "## 自动处理记录" heading. Null when lastSyncError is set or no such
+ * comment exists. Blank comments are skipped; unparseable times sort oldest.
+ */
+export function inboxReasonText(
+  task: Pick<TaskInfo, "lastSyncError" | "comments">,
+  comments: readonly CommentLike[] | null | undefined = task.comments,
+): InboxReasonText | null {
+  if (task.lastSyncError?.trim()) return null;
+  const candidates = (comments ?? [])
+    .map((comment, index) => ({ body: typeof comment?.body === "string" ? comment.body.trim() : "", at: parseTime(comment?.createdAt ?? undefined), index }))
+    .filter((comment) => comment.body && !isAutoResolutionRecord(comment.body))
+    .sort((a, b) => a.at - b.at || a.index - b.index);
+  const newest = candidates[candidates.length - 1];
+  if (!newest) return null;
+  return { text: newest.body.split(/\n\s*\n/u, 1)[0].trim(), full: newest.body };
+}
+
+export interface InboxRowView {
+  handler: InboxHandler;
+  handling: InboxHandling | null;
+  handOffBlock: HandOffBlock | null;
+  /** Only for blockedUnknown rows. */
+  reasonText: InboxReasonText | null;
+}
+
+/** Everything the row renders beyond the row itself; the component does no judging. */
+export function inboxRowView(
+  row: Pick<InboxRow, "task" | "reason">,
+  board: BoardColumns | null | undefined,
+  comments?: readonly CommentLike[] | null,
+): InboxRowView {
+  return {
+    handler: inboxHandler(row, board),
+    handling: inboxHandling(row),
+    handOffBlock: handOffBlock(row.task, board),
+    reasonText: row.reason === "blockedUnknown" ? inboxReasonText(row.task, comments ?? row.task.comments) : null,
+  };
+}
+
 /** Needs-the-owner first, then P1 → P3, then newest event first (unknown times last), then title. */
 export function compareInboxRows(a: InboxRow, b: InboxRow): number {
   return Number(Boolean(b.needsOwner)) - Number(Boolean(a.needsOwner))
@@ -183,8 +311,7 @@ export function buildWorkspaceInbox(
       eventAt: inboxEventAt(entry.item, entry.task),
       dismissKey,
     };
-    const resolution = entry.task.attentionResolution;
-    if (resolution?.category === "needs_owner" && isAttentionResolutionInEffect(resolution, entry.task)) row.needsOwner = true;
+    if (isNeedsOwnerInEffect(entry.task)) row.needsOwner = true;
     if (entry.item.kind === "interrupted") {
       const interruptedRun = findInterruptedLaneSession(entry.task) ?? undefined;
       row.interruptedRun = interruptedRun;

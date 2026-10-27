@@ -64,6 +64,8 @@ export function classifyRetryResponse(ok: boolean, json: unknown, status?: numbe
 export interface RetryTarget {
   taskId: string;
   board: RetryBoard | undefined;
+  /** Recheck on the fresh card; defaults to isTaskInterrupted ("Hand to AI" passes its own). */
+  recheck?: (task: TaskInfo) => boolean;
 }
 
 export interface RetrySummary {
@@ -94,7 +96,7 @@ async function retryOne(target: RetryTarget, deps: SerialRetryDeps): Promise<Ret
   if (!fresh.ok) return { phase: "failed", error: errorText(freshJson.error) ?? `HTTP ${fresh.status}` };
   const task = freshJson.task;
   // Recheck on the card as it is now, not as the page loaded it.
-  if (!task || !isTaskInterrupted(task)) return { phase: "skipped" };
+  if (!task || !(target.recheck ?? isTaskInterrupted)(task)) return { phase: "skipped" };
   const response = await deps.request(path, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

@@ -10,12 +10,15 @@
 import { useCallback, useRef, useState } from "react";
 import { desktopAwareFetch } from "@/client/utils/diagnostics";
 import { resolveApiPath } from "@/client/config/backend";
+import type { TaskInfo } from "../types";
 import type { InboxRow } from "./inbox-rules";
 import { runSerialRetries, type RetryBoard, type RetryRowState, type RetrySummary } from "./inbox-retry";
 
 export interface InboxRetryTarget {
   row: InboxRow;
   board: RetryBoard | undefined;
+  /** See RetryTarget.recheck. */
+  recheck?: (task: TaskInfo) => boolean;
 }
 
 /** Rows whose rerun is under way or accepted are not selectable again. */
@@ -52,7 +55,7 @@ export function useInboxRetry(onFinished: (workspaceIds: string[]) => void) {
     setSummary(null);
     try {
       const result = await runSerialRetries(
-        targets.map(({ row, board }) => ({ taskId: row.task.id, board })),
+        targets.map(({ row, board, recheck }) => ({ taskId: row.task.id, board, recheck })),
         {
           request: (path, init) => desktopAwareFetch(resolveApiPath(path), init),
           onRowState: (taskId, state) => setRowStates((current) => new Map(current).set(taskId, state)),
