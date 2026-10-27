@@ -49,9 +49,13 @@ export const PROVIDER_MODEL_TIERS: Record<string, Record<string, string>> = {
     smart: "smart",
   },
   dsh: {
-    // DSH via local AI Gateway: every lane role runs Claude Opus 5.5
-    // (the claude-opus-5-5-pool lane ran out of quota on 2026-10-16).
-    fast: "claude-opus-5-5",
+    // DSH via local AI Gateway (RunAI lane; the claude-opus-5-5-pool lane ran
+    // out of quota on 2026-10-16). fast runs Claude Sonnet 5.5 so dev roles
+    // (kanban-dev-executor etc., moved to fast in 54f0e89d) stay on Sonnet even
+    // when ~/.routa/kanban-model-tiers.json leaves fast blank: a real large-card
+    // replay cost $2.99 on Sonnet vs $12.49 on Opus
+    // (measured on the pool lane). balanced/smart keep Opus 5.5.
+    fast: "claude-sonnet-5-5",
     balanced: "claude-opus-5-5",
     smart: "claude-opus-5-5",
   },

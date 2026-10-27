@@ -67,6 +67,15 @@ describe("kanban global model tiers", () => {
     expect(resolveTierModelForProvider("dsh", ModelTier.SMART)).toBe(PROVIDER_MODEL_TIERS.dsh.smart);
   });
 
+  it("dsh code defaults: fast runs Sonnet 5.5 (dev roles), balanced/smart run Opus 5.5", () => {
+    expect(PROVIDER_MODEL_TIERS.dsh).toEqual({
+      fast: "claude-sonnet-5-5",
+      balanced: "claude-opus-5-5",
+      smart: "claude-opus-5-5",
+    });
+    expect(resolveTierModelForProvider("dsh", ModelTier.FAST)).toBe("claude-sonnet-5-5");
+  });
+
   it("never applies the dsh overrides to other providers", () => {
     writeKanbanModelTierOverrides({ smart: "claude-sonnet-5-5" });
     expect(resolveTierModelForProvider("claude", ModelTier.SMART)).toBe(PROVIDER_MODEL_TIERS.claude.smart);

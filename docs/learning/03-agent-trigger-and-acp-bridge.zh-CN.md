@@ -406,6 +406,7 @@ PROVIDER_MODEL_TIERS = {
   claude:        { fast: "haiku-4.5",     balanced: "sonnet-4.5",    smart: "opus-4.6"   },
   claudeCodeSdk: { fast: "haiku-...",     balanced: "sonnet-...",    smart: "opus-4-5"   },
   opencode:      { fast: "fast",          balanced: "balanced",      smart: "smart"       },
+  dsh:           { fast: "claude-sonnet-5-5", balanced: "claude-opus-5-5", smart: "claude-opus-5-5" },
 }
 ~~~
 
@@ -612,3 +613,4 @@ prompt 本身就是 Agent 的行为约束边界。
 | 2026-10-23 | 新增「看板施工者默认模型」全局档位设置，插在岗位 model 和 PROVIDER_MODEL_TIERS 之间 | 换施工者默认模型不用再改代码、重新构建 | （见本次提交） |
 | 2026-10-25 | session/new 建会话前同步检查静态 preset 命令是否存在；`_providers/list` 和 `/api/providers?check=true` 改用同一个判定函数并返回 unavailableReason | 没装的 provider 当场返回 -32002（带命令名），不再假成功、不起子进程 | （见本次提交） |
 | 2026-10-25 | Provider 下拉里状态为 unavailable 的项保留显示但禁用（disabled + aria-disabled、置灰，悬停显示 unavailableReason），当前选中项变不可用时不自动切换；首页输入框的 preferredDefaultProvider 不可用时回退到 use-acp 选好的 provider（resolveComposerProviderId） | 用户点不中没装的 provider，输入框也不会默认选中它 | （见本次提交） |
+| 2026-10-28 | `PROVIDER_MODEL_TIERS.dsh.fast` 代码默认 `claude-opus-5-5` → `claude-sonnet-5-5`（RunAI 线路），balanced/smart 仍是 Opus 5.5 | 开发岗位（fast 档）在全局档位文件没填 fast 时也跑 Sonnet；真实大卡回放 dev 花费 $2.99（Sonnet）对 $12.49（Opus）（Pool 线路回放测得） | （见本次提交） |
