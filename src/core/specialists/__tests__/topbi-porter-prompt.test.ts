@@ -136,6 +136,91 @@ describe("kanban-topbi-porter prompt", () => {
   });
 });
 
+// Alpha replay on every card (topbi_alpha_replay.py capture/compare) and the frontend
+// rebuild of build/public on dev (topbi_dev_build_client.sh), card 537676a9.
+const REPLAY_AND_REBUILD_STRINGS = [
+  "topbi_alpha_replay.py capture",
+  "topbi_alpha_replay.py compare",
+  "topbi_dev_build_client.sh",
+  "回放脚本未部署",
+  "alpha 回放：未做（回放脚本未部署）",
+  "alpha 发版前回放失败，见 index.json",
+  "前端重编",
+  "alpha-before",
+  "alpha-after",
+  "alpha-requests.json",
+  "--requests",
+  "git diff --name-only origin/dev..HEAD",
+  "src/client/",
+  "src/common/",
+  "assets/",
+  "config/webpack",
+  "package.json",
+  "package-lock.json",
+  "git add build/public",
+  "build: 重编前端产物",
+  "前端产物无变化",
+  "build/public/",
+  "预期变化",
+  "前端重编：",
+  "alpha 回放：",
+  "缺 alpha 回放",
+  "^..HEAD",
+];
+
+/**
+ * Line-based check: TOPBI_ALPHA_BASE_URL may only appear as an optional override of the
+ * alpha address, never as a precondition for replaying. A line mentioning it is a violation
+ * unless the same line (lower-cased) contains 覆盖 or override.
+ */
+function findBaseUrlPreconditionLines(prompt: string): string[] {
+  return prompt.split(/\r?\n/).filter((line) => {
+    if (!line.includes("TOPBI_ALPHA_BASE_URL")) return false;
+    const lower = line.toLowerCase();
+    return !lower.includes("覆盖") && !lower.includes("override");
+  });
+}
+
+describe("kanban-topbi-porter alpha replay and frontend rebuild", () => {
+  it.each(loadPaths)("contains the replay and rebuild commands and fixed strings (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    for (const text of REPLAY_AND_REBUILD_STRINGS) {
+      expect(prompt).toContain(text);
+    }
+  });
+
+  it.each(loadPaths)("no longer requires TOPBI_ALPHA_BASE_URL before replaying (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    expect(findBaseUrlPreconditionLines(prompt)).toEqual([]);
+    expect(prompt).not.toContain("TOPBI_ALPHA_BASE_URL` 已配置");
+    expect(prompt).not.toContain("is set and reachable");
+    expect(prompt).not.toContain("含回放做了且一致");
+    expect(prompt).not.toContain("including a replay that was done and matched");
+  });
+
+  it("flags TOPBI_ALPHA_BASE_URL used as a precondition (negative self-check)", () => {
+    expect(findBaseUrlPreconditionLines("环境变量 TOPBI_ALPHA_BASE_URL 已配置才回放")).toHaveLength(1);
+    expect(findBaseUrlPreconditionLines("TOPBI_ALPHA_BASE_URL 仅用于覆盖 alpha 地址")).toEqual([]);
+    expect(findBaseUrlPreconditionLines("TOPBI_ALPHA_BASE_URL may Override the alpha URL")).toEqual([]);
+  });
+
+  it.each(loadPaths)("places the frontend rebuild inside step 3, before the step 4 push (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    const step3 = prompt.search(/^\s*3\. /m);
+    const step4 = prompt.search(/^\s*4\. /m);
+    const rebuild = prompt.search(/^\s+- \*\*前端重编/m);
+    expect(step3).toBeGreaterThanOrEqual(0);
+    expect(rebuild).toBeGreaterThan(step3);
+    expect(rebuild).toBeLessThan(step4);
+  });
+
+  it.each(loadPaths)("never force-adds build/public (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    expect(prompt).not.toContain("git add -f");
+    expect(prompt).not.toContain("git add --force");
+  });
+});
+
 describe("kanban-done-reporter TopBI port failure rule", () => {
   it.each(loadPaths)("copies the `## 移植失败` verdict line into the report (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, "kanban-done-reporter");
