@@ -32,7 +32,6 @@ import {
   collectWorkspaceAttention,
   overviewTaskHref,
   pickFallbackBoard,
-  sortInProgress,
   type OverviewWorkspace,
 } from "../kanban/kanban-overview-rules";
 
@@ -365,7 +364,8 @@ export function summarizeWorkspace(
     if (at > 0 && (!recent || at > recent.at)) recent = { task, at };
   }
   return {
-    inProgress: sortInProgress(tasks).length,
+    // Every non-Done card, Blocked included (the all-projects list no longer shows Blocked, this count keeps it).
+    inProgress: tasks.filter((task) => task.columnId !== DONE_LANE_ID).length,
     needsYou: buildWorkspaceInbox(workspace, tasks, boards, now, dismissedByBoard).active.length,
     recent,
   };

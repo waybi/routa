@@ -18,7 +18,7 @@ import {
 import { DONE_LANE_ID, getDoneEnteredAt } from "./kanban-done-time";
 import { matchTask, normalizeSearchQuery } from "./kanban-board-search";
 
-export const OVERVIEW_IN_PROGRESS_ORDER: readonly string[] = ["backlog", "todo", "dev", "review", "blocked"];
+export const OVERVIEW_IN_PROGRESS_ORDER: readonly string[] = ["backlog", "todo", "dev", "review"];
 export const OVERVIEW_RECENT_DONE_LIMIT = 3;
 
 export interface OverviewWorkspace {
@@ -35,7 +35,10 @@ export interface OverviewAttentionEntry {
 export interface OverviewRecentDone {
   /** Cards in the block before the 3-card cap (all hits while searching). */
   total: number;
+  /** The shown cards: first 3 (every hit while searching). */
   items: TaskInfo[];
+  /** Every card of the block (7 days, or all hits while searching), newest first. */
+  all: TaskInfo[];
 }
 
 export interface OverviewRow {
@@ -50,6 +53,12 @@ export interface OverviewRow {
   showsNoUnmergedBadge: boolean;
   /** Board used for cards without a (known) boardId. */
   fallbackBoardId: string | null;
+  /** Cards waiting in the workspace's boards' session queues (sum of queue.queuedCount). */
+  queuedCount: number;
+  /** Every card of the workspace (not narrowed by the search). */
+  tasks: readonly TaskInfo[];
+  /** Needs-you entries not narrowed by the search (status bar). */
+  attentionAll: OverviewAttentionEntry[];
 }
 
 function parseTime(value: string | undefined): number {
@@ -63,10 +72,13 @@ function laneRank(columnId: string | undefined): number {
   return index === -1 ? OVERVIEW_IN_PROGRESS_ORDER.length : index;
 }
 
-/** Non-Done cards: backlog → todo → dev → review → blocked → others; newest first per lane. */
+/**
+ * Non-Done, non-Blocked cards: backlog → todo → dev → review → others; newest
+ * first per lane. Blocked cards are shown only in "needs you" (card f8fcc22b).
+ */
 export function sortInProgress(tasks: readonly TaskInfo[]): TaskInfo[] {
   return tasks
-    .filter((task) => task.columnId !== DONE_LANE_ID)
+    .filter((task) => task.columnId !== DONE_LANE_ID && task.columnId !== "blocked")
     .map((task, index) => ({ task, index }))
     .sort((a, b) => laneRank(a.task.columnId) - laneRank(b.task.columnId)
       || parseTime(b.task.updatedAt) - parseTime(a.task.updatedAt)
@@ -127,7 +139,7 @@ export function collectRecentDone(tasks: readonly TaskInfo[], now: number, query
       ? matchTask(task, query)
       : now - getDoneEnteredAt(task) <= ATTENTION_DONE_WINDOW_MS))
     .sort((a, b) => getDoneEnteredAt(b) - getDoneEnteredAt(a));
-  return { total: done.length, items: searching ? done : done.slice(0, OVERVIEW_RECENT_DONE_LIMIT) };
+  return { total: done.length, items: searching ? done : done.slice(0, OVERVIEW_RECENT_DONE_LIMIT), all: done };
 }
 
 export function overviewRowScore(row: Pick<OverviewRow, "inProgress" | "attention" | "recentDone">): number {
@@ -144,8 +156,8 @@ export function buildWorkspaceRow(
 ): OverviewRow {
   const fallback = pickFallbackBoard(boards);
   const inProgress = sortInProgress(tasks).filter((task) => matchTask(task, query));
-  const attention = collectWorkspaceAttention(tasks, boards, now, dismissedByBoard)
-    .filter((entry) => matchTask(entry.task, query));
+  const attentionAll = collectWorkspaceAttention(tasks, boards, now, dismissedByBoard);
+  const attention = attentionAll.filter((entry) => matchTask(entry.task, query));
   const recentDone = collectRecentDone(tasks, now, query);
   return {
     workspaceId: workspace.id,
@@ -158,12 +170,20 @@ export function buildWorkspaceRow(
     collapsed: inProgress.length === 0 && attention.length === 0 && recentDone.total === 0,
     showsNoUnmergedBadge: fallback ? !boardHasMainPusher(fallback) : false,
     fallbackBoardId: fallback?.id ?? null,
+    queuedCount: boards.reduce((sum, board) => sum + (board.queue?.queuedCount ?? 0), 0),
+    tasks,
+    attentionAll,
   };
 }
 
-/** Expanded rows by score desc (ties by title), then collapsed rows by title. */
-export function sortOverviewRows<T extends Pick<OverviewRow, "score" | "collapsed" | "title">>(rows: readonly T[]): T[] {
-  return [...rows].sort((a, b) => Number(a.collapsed) - Number(b.collapsed)
+/**
+ * Rows with "needs you" cards first, then expanded rows by score desc (ties by
+ * title), then collapsed rows by title.
+ */
+export function sortOverviewRows<T extends Pick<OverviewRow, "score" | "collapsed" | "title"> & { attention?: readonly unknown[] }>(rows: readonly T[]): T[] {
+  const needsYou = (row: T) => (!row.collapsed && (row.attention?.length ?? 0) > 0 ? 0 : 1);
+  return [...rows].sort((a, b) => needsYou(a) - needsYou(b)
+    || Number(a.collapsed) - Number(b.collapsed)
     || (a.collapsed ? 0 : b.score - a.score)
     || a.title.localeCompare(b.title));
 }

@@ -85,7 +85,8 @@ describe("sortInProgress (AC3 ①)", () => {
       task("td", { columnId: "todo" }),
       doneTask("d", NOW - HOUR),
     ];
-    expect(sortInProgress(tasks).map((t) => t.id)).toEqual(["bk", "td", "dev-new", "dev-old", "rev", "blk", "x"]);
+    // Blocked cards no longer appear here: they live only in "needs you" (card f8fcc22b, AC4 ②).
+    expect(sortInProgress(tasks).map((t) => t.id)).toEqual(["bk", "td", "dev-new", "dev-old", "rev", "x"]);
   });
 });
 
@@ -165,10 +166,11 @@ describe("buildWorkspaceRow / sortOverviewRows (AC3 / AC4)", () => {
       doneTask("old", NOW - 20 * DAY),
     ], boards, NOW, "", none);
     expect(row.totalCount).toBe(4);
-    expect(row.inProgress.map((t) => t.id)).toEqual(["a", "blk"]);
+    // Blocked leaves "in progress" and lives only in "needs you" (card f8fcc22b, AC4 ②).
+    expect(row.inProgress.map((t) => t.id)).toEqual(["a"]);
     expect(row.attention.map((e) => e.item.kind)).toEqual(["blocked"]);
     expect(row.recentDone.total).toBe(1);
-    expect(row.score).toBe(2 * 3 + 1 * 2 + 1);
+    expect(row.score).toBe(1 * 3 + 1 * 2 + 1);
     expect(row.collapsed).toBe(false);
     expect(row.showsNoUnmergedBadge).toBe(true);
     expect(buildWorkspaceRow({ id: "w", title: "W" }, [], [makeBoard("b", true, true)], NOW, "", none).showsNoUnmergedBadge).toBe(false);
