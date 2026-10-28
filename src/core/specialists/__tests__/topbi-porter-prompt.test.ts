@@ -153,6 +153,13 @@ describe("kanban-topbi-porter prompt", () => {
   });
 });
 
+const EXPECTED_REPLAY_COMMAND =
+  "python3 /Users/ouweibing/Desktop/topgames_work/local-tools/tools/topbi-alpha-deploy/topbi_local_replay.py run --topbi-base origin/master --topbi-new <卡分支 HEAD> --control spend-x2 --workdir /tmp/routa-evidence/<卡号前 8 位>/local-replay --json";
+
+function extractReplayCommand(prompt: string): string | undefined {
+  return prompt.match(/`(python3 [^`]*topbi_local_replay\.py run[^`]*)`/)?.[1];
+}
+
 describe("kanban-topbi-porter local replay (no dev port, no alpha)", () => {
   it.each(loadPaths)("drops the old dev/alpha/rollback flow words (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
@@ -166,7 +173,7 @@ describe("kanban-topbi-porter local replay (no dev port, no alpha)", () => {
     const script = "/Users/ouweibing/Desktop/topgames_work/local-tools/tools/topbi-alpha-deploy/topbi_local_replay.py";
     expect(prompt).toContain(`test -f ${script}`);
     expect(prompt.indexOf("test -f")).toBeLessThan(prompt.indexOf(`${script} run`));
-    expect(prompt).toMatch(/--topbi-new <(卡分支 HEAD|card branch HEAD)> --control spend-x2/);
+    expect(extractReplayCommand(prompt)).toBe(EXPECTED_REPLAY_COMMAND);
   });
 
   it.each(loadPaths)("frames description and role reminder as local replay (%s)", (_label, dir, locale) => {
@@ -185,5 +192,11 @@ describe("kanban-done-reporter TopBI port failure rule", () => {
     const prompt = loadPrompt(dir, locale, "kanban-done-reporter");
     expect(prompt).toContain("## 移植失败");
     expect(prompt).toContain("可合 master：否");
+  });
+
+  it.each(loadPaths)("also copies the `可合 master：否` line of a `## 本机回放验收` comment (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-done-reporter");
+    expect(prompt).toContain("## 本机回放验收");
+    expect(prompt).toContain("可合 master：否（<");
   });
 });
