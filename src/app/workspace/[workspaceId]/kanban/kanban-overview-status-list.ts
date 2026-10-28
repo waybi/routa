@@ -7,6 +7,7 @@
 import type { TaskInfo } from "../types";
 import type { KanbanAttentionKind } from "./kanban-attention-rules";
 import { DONE_LANE_ID, getDoneEnteredAt } from "./kanban-done-time";
+import { computeCardDuration } from "./kanban-overview-duration";
 import type { OverviewRow } from "./kanban-overview-rules";
 import { classifyOverviewTask, startOfLocalDay, withinDoneWindow, type OverviewStatus } from "./kanban-overview-status-rules";
 
@@ -30,12 +31,15 @@ export const STATUS_GROUP_ORDER: readonly OverviewStatus[] = ["attention", "runn
 /**
  * Groups the cards of every ready row. Cards of one project stay next to each
  * other because rows are walked in order. `project` keeps one workspace;
- * `only` keeps one group (the status-bar toggle).
+ * `only` keeps one group (the status-bar toggle); `stuckOnly` narrows Done.
  */
 export function buildStatusGroups(
   rows: readonly OverviewRow[],
   project: string | null,
   only: OverviewStatus | null,
+  /** Keep only Done cards that had a timed_out run (the rhythm column's "stuck" toggle). */
+  stuckOnly = false,
+  now = 0,
 ): StatusGroups {
   const groups: StatusGroups = { attention: [], running: [], queued: [], done: [] };
   for (const row of rows) {
@@ -49,7 +53,10 @@ export function buildStatusGroups(
       if (status === "running") groups.running.push({ task, row });
       else if (status === "queued") groups.queued.push({ task, row });
     }
-    for (const task of row.recentDone.all) groups.done.push({ task, row });
+    for (const task of row.recentDone.all) {
+      if (stuckOnly && computeCardDuration(task, now).stuckCount === 0) continue;
+      groups.done.push({ task, row });
+    }
   }
   groups.done.sort((a, b) => getDoneEnteredAt(b.task) - getDoneEnteredAt(a.task));
   if (only) {

@@ -14,7 +14,11 @@ import { useTranslation } from "@/i18n";
 import type { TaskInfo } from "../types";
 import { getDoneEnteredAt } from "./kanban-done-time";
 import { HighlightedText, isEditableTarget } from "./kanban-board-search";
+import { computeCardDuration } from "./kanban-overview-duration";
+import { KanbanOverviewDurationBar } from "./kanban-overview-duration-bar";
 import { formatSpan } from "./kanban-overview-format";
+import { KanbanOverviewRhythm } from "./kanban-overview-rhythm";
+import { Badge } from "@/client/components/ui/badge";
 import { KanbanLaneMarker } from "./kanban-lane-marker";
 import { PipelineCells } from "./kanban-overview-progress";
 import { BlockedReason, columnName } from "./kanban-overview-row";
@@ -64,10 +68,11 @@ export function KanbanOverviewByStatus({ rows, dataByWorkspace, statusFilter, qu
   const [folded, setFolded] = useState<ReadonlySet<OverviewStatus>>(() => new Set());
   const [toggledDays, setToggledDays] = useState<ReadonlySet<number>>(() => new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [stuckOnly, setStuckOnly] = useState(false);
 
   const readyRows = rows.filter((row) => dataByWorkspace[row.workspaceId]?.status === "ready");
   const capsules = useMemo(() => buildCapsules(readyRows, now), [readyRows, now]);
-  const groups = useMemo(() => buildStatusGroups(readyRows, project, statusFilter), [readyRows, project, statusFilter]);
+  const groups = useMemo(() => buildStatusGroups(readyRows, project, statusFilter, stuckOnly, now), [readyRows, project, statusFilter, stuckOnly, now]);
   const days = useMemo(() => segmentByDay(groups.done, now), [groups.done, now]);
   const isDayOpen = (day: DaySegment) => (day.kind === "today") !== toggledDays.has(day.dayStart);
 
@@ -141,6 +146,7 @@ export function KanbanOverviewByStatus({ rows, dataByWorkspace, statusFilter, qu
     const label = copy.laneStepLabel.replace("{lane}", labelOf(item)).replace("{step}", String(progress.step));
     const selected = selectedId === task.id;
     const attention = item.kind !== undefined;
+    const duration = done ? computeCardDuration(task, now) : null;
     return (
       <div
         key={`${task.id}|${item.kind ?? ""}`}
@@ -164,14 +170,28 @@ export function KanbanOverviewByStatus({ rows, dataByWorkspace, statusFilter, qu
             <span className="truncate"><HighlightedText text={task.title} query={query} /></span>
           </span>
           <span className="truncate text-[11px] text-secondary">{item.row.title}</span>
-          <span className="flex min-w-0 items-center gap-1.5 text-[11px]">
-            <PipelineCells step={progress.step} failed={progress.failed} />
-            <span className={`shrink-0 font-semibold ${progress.failed ? "text-danger" : "text-primary"}`}>{label}</span>
-          </span>
-          <span className="truncate text-[11px] text-secondary">
-            {progress.specialistName}
-            {progress.stepNumber !== null && ` · ${copy.stepNumber.replace("{step}", String(progress.stepNumber))}`}
-          </span>
+          {duration ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-[11px]" data-testid="kanban-overview-done-duration">
+              <KanbanOverviewDurationBar buckets={duration.buckets} className="w-12 shrink-0" />
+              <span className="font-mono text-primary">{formatSpan(duration.totalMs, copy)}</span>
+            </span>
+          ) : (
+            <span className="flex min-w-0 items-center gap-1.5 text-[11px]">
+              <PipelineCells step={progress.step} failed={progress.failed} />
+              <span className={`shrink-0 font-semibold ${progress.failed ? "text-danger" : "text-primary"}`}>{label}</span>
+            </span>
+          )}
+          {duration ? (
+            <span className="flex min-w-0 flex-wrap items-center gap-1 text-[11px]">
+              {duration.reworkCount > 0 && <Badge tone="info">{copy.reworkBadge.replace("{count}", String(duration.reworkCount))}</Badge>}
+              {duration.stuckCount > 0 && <Badge tone="danger">{copy.stuckBadge.replace("{time}", formatSpan(duration.stuckMs, copy))}</Badge>}
+            </span>
+          ) : (
+            <span className="truncate text-[11px] text-secondary">
+              {progress.specialistName}
+              {progress.stepNumber !== null && ` · ${copy.stepNumber.replace("{step}", String(progress.stepNumber))}`}
+            </span>
+          )}
           <span className="truncate text-right font-mono text-[11px] text-secondary">
             {done
               ? formatDoneTime(getDoneEnteredAt(task), now)
@@ -214,63 +234,73 @@ export function KanbanOverviewByStatus({ rows, dataByWorkspace, statusFilter, qu
   const sumDone = capsules.reduce((sum, capsule) => sum + capsule.doneWeek, 0);
 
   return (
-    <div ref={rootRef} className="min-w-0 flex-1 px-1" data-testid="kanban-overview-by-status">
-      <div className="flex flex-wrap gap-1.5 pb-1" data-testid="kanban-overview-capsules">
-        <button type="button" aria-pressed={project === null} className={capsuleClass(project === null)} onClick={() => setProject(null)} data-testid="kanban-overview-capsule-all">
-          {copy.capsuleAll} <span className="font-mono">{sumUnfinished}</span> · <span className="font-mono">{sumDone}</span>
-        </button>
-        {capsules.map((capsule) => (
-          <button
-            key={capsule.workspaceId}
-            type="button"
-            aria-pressed={project === capsule.workspaceId}
-            className={capsuleClass(project === capsule.workspaceId)}
-            title={copy.capsuleTitle.replace("{unfinished}", String(capsule.unfinished)).replace("{done}", String(capsule.doneWeek))}
-            onClick={() => setProject((current) => (current === capsule.workspaceId ? null : capsule.workspaceId))}
-            data-testid="kanban-overview-capsule"
-            data-workspace-id={capsule.workspaceId}
-          >
-            {capsule.title} <span className="font-mono">{capsule.unfinished}</span> · <span className="font-mono">{capsule.doneWeek}</span>
+    <div ref={rootRef} className="flex min-w-0 flex-1 items-start gap-3 px-1" data-testid="kanban-overview-by-status">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap gap-1.5 pb-1" data-testid="kanban-overview-capsules">
+          <button type="button" aria-pressed={project === null} className={capsuleClass(project === null)} onClick={() => setProject(null)} data-testid="kanban-overview-capsule-all">
+            {copy.capsuleAll} <span className="font-mono">{sumUnfinished}</span> · <span className="font-mono">{sumDone}</span>
           </button>
+          {capsules.map((capsule) => (
+            <button
+              key={capsule.workspaceId}
+              type="button"
+              aria-pressed={project === capsule.workspaceId}
+              className={capsuleClass(project === capsule.workspaceId)}
+              title={copy.capsuleTitle.replace("{unfinished}", String(capsule.unfinished)).replace("{done}", String(capsule.doneWeek))}
+              onClick={() => setProject((current) => (current === capsule.workspaceId ? null : capsule.workspaceId))}
+              data-testid="kanban-overview-capsule"
+              data-workspace-id={capsule.workspaceId}
+            >
+              {capsule.title} <span className="font-mono">{capsule.unfinished}</span> · <span className="font-mono">{capsule.doneWeek}</span>
+            </button>
+          ))}
+        </div>
+        <p className="m-0 pb-2 text-[10px] text-secondary">{copy.capsuleLegend}</p>
+        {failedRows.map((row) => (
+          <div key={row.workspaceId} className="flex items-center gap-2 pb-1 text-[11px] text-danger" data-testid="kanban-overview-error">
+            {row.title}: {copy.loadFailed}
+            <button type="button" onClick={() => onRetry(row.workspaceId)} className={buttonClassName("secondary", "xs")} data-testid="kanban-overview-retry">{copy.retry}</button>
+          </div>
         ))}
-      </div>
-      <p className="m-0 pb-2 text-[10px] text-secondary">{copy.capsuleLegend}</p>
-      {failedRows.map((row) => (
-        <div key={row.workspaceId} className="flex items-center gap-2 pb-1 text-[11px] text-danger" data-testid="kanban-overview-error">
-          {row.title}: {copy.loadFailed}
-          <button type="button" onClick={() => onRetry(row.workspaceId)} className={buttonClassName("secondary", "xs")} data-testid="kanban-overview-retry">{copy.retry}</button>
+        {loading && <div className="pb-1 text-[11px] text-secondary">{copy.loading}</div>}
+        <div className="rounded-md border border-default bg-surface">
+          <div className={`${COLUMNS} border-b border-default px-2 py-1 text-[11px] text-secondary`}>
+            <span>{copy.colTitle}</span><span>{copy.colProject}</span><span>{copy.colPipeline}</span><span>{copy.colSpecialist}</span><span className="text-right">{copy.colTime}</span>
+          </div>
+          {STATUS_GROUP_ORDER.map((status) => {
+            if (total(status) === 0) return null;
+            const isFolded = folded.has(status);
+            const Chevron = isFolded ? ChevronRight : ChevronDown;
+            return (
+              <section key={status} data-testid={`kanban-overview-group-${status}`} data-folded={isFolded ? "true" : "false"}>
+                <button
+                  type="button"
+                  aria-expanded={!isFolded}
+                  onClick={() => toggleFold(status)}
+                  className="sticky top-0 z-10 flex w-full items-center gap-1.5 border-b border-default bg-surface px-2 py-1.5 text-left text-[12px] font-semibold text-primary"
+                  data-testid={`kanban-overview-group-${status}-title`}
+                >
+                  <Chevron className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <KanbanLaneMarker stage={titles[status].stage} />
+                  {titles[status].text}
+                  <span className="font-normal text-secondary">{total(status)}</span>
+                </button>
+                {!isFolded && (status === "done" ? renderDone() : groups[status].map((item) => renderRow(item, false)))}
+              </section>
+            );
+          })}
+          {allEmpty && !loading && <div className="px-2 py-3 text-[12px] text-secondary">{copy.noMatches}</div>}
         </div>
-      ))}
-      {loading && <div className="pb-1 text-[11px] text-secondary">{copy.loading}</div>}
-      <div className="rounded-md border border-default bg-surface">
-        <div className={`${COLUMNS} border-b border-default px-2 py-1 text-[11px] text-secondary`}>
-          <span>{copy.colTitle}</span><span>{copy.colProject}</span><span>{copy.colPipeline}</span><span>{copy.colSpecialist}</span><span className="text-right">{copy.colTime}</span>
-        </div>
-        {STATUS_GROUP_ORDER.map((status) => {
-          if (total(status) === 0) return null;
-          const isFolded = folded.has(status);
-          const Chevron = isFolded ? ChevronRight : ChevronDown;
-          return (
-            <section key={status} data-testid={`kanban-overview-group-${status}`} data-folded={isFolded ? "true" : "false"}>
-              <button
-                type="button"
-                aria-expanded={!isFolded}
-                onClick={() => toggleFold(status)}
-                className="sticky top-0 z-10 flex w-full items-center gap-1.5 border-b border-default bg-surface px-2 py-1.5 text-left text-[12px] font-semibold text-primary"
-                data-testid={`kanban-overview-group-${status}-title`}
-              >
-                <Chevron className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <KanbanLaneMarker stage={titles[status].stage} />
-                {titles[status].text}
-                <span className="font-normal text-secondary">{total(status)}</span>
-              </button>
-              {!isFolded && (status === "done" ? renderDone() : groups[status].map((item) => renderRow(item, false)))}
-            </section>
-          );
-        })}
-        {allEmpty && !loading && <div className="px-2 py-3 text-[12px] text-secondary">{copy.noMatches}</div>}
+        <p className="m-0 pt-1.5 text-[11px] text-secondary">{copy.keysHint}</p>
       </div>
-      <p className="m-0 pt-1.5 text-[11px] text-secondary">{copy.keysHint}</p>
+      <KanbanOverviewRhythm
+        rows={readyRows}
+        now={now}
+        project={project}
+        onPickProject={(workspaceId) => setProject((current) => (current === workspaceId ? null : workspaceId))}
+        stuckOnly={stuckOnly}
+        onToggleStuck={() => setStuckOnly((current) => !current)}
+      />
     </div>
   );
 }

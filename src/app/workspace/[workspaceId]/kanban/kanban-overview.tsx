@@ -214,7 +214,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
       </div>
       {workspaces.length === 0 && <div className="px-1 py-2 text-[12px] text-secondary">{t.kanbanOverview.noWorkspaces}</div>}
       {mode === "status" ? (
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0">
           <KanbanOverviewByStatus
             rows={sortedRows}
             dataByWorkspace={data}
