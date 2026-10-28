@@ -20,6 +20,7 @@ import type { McpServerProfile } from "../mcp/mcp-server-profiles";
 import type { FlowDiagnosisReport } from "./flow-ledger-types";
 import { formatFlowGuidanceForPrompt } from "./flow-ledger";
 import { buildKanbanTaskAdaptiveHarnessOptions } from "./task-adaptive";
+import { buildStructuredAcceptanceCriteriaLines } from "./acceptance-criteria-prompt";
 import { buildSavedHistoryMemoryPromptSection } from "./context-preload";
 import { buildLaneExperiencePromptSection } from "./task-lane-experience";
 import {
@@ -574,6 +575,7 @@ export function buildTaskPrompt(
     "",
     task.objective,
     "",
+    ...buildStructuredAcceptanceCriteriaLines(task.acceptanceCriteria, task.objective),
     ...storyReadinessSection,
     ...investSection,
     ...artifactGateSection,

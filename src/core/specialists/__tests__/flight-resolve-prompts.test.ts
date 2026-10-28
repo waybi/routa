@@ -59,6 +59,12 @@ describe.each(loadPaths)("flight_resolve.py prompts (%s)", (label, dir, locale) 
     expect(text).toContain("高危护栏");
   });
 
+  it("review guard judges ACs by the structured-field section of the prompt", () => {
+    const text = prompt(dir, locale, "kanban-flight-review-guard");
+    expect(text).toContain(zh ? "## Acceptance Criteria（结构化字段，评审以此为准）" : "structured field, review is based on this");
+    expect(text).toContain(zh ? "不能判为笔误" : "never call a missing AC a typo");
+  });
+
   it("main pusher skips by resolver delivery and falls back to the gerrit remote check", () => {
     const text = prompt(dir, locale, "kanban-main-pusher");
     expect(text).toContain(`${RESOLVER} --format json`);

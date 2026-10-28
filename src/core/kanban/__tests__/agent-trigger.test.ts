@@ -87,6 +87,126 @@ function buildReviewTaskAfterQaFrontend(assignedStep: "qa" | "guard") {
   };
 }
 
+function storyYaml(ids: string[]): string {
+  const acs = ids.map((id) => `    - id: ${id}\n      text: "text of ${id}"\n      testable: true`).join("\n");
+  const inv = ["independent", "negotiable", "valuable", "estimable", "small", "testable"]
+    .map((k) => `    ${k}:\n      status: pass\n      reason: "ok"`)
+    .join("\n");
+  return [
+    "Intro line",
+    "",
+    "```yaml",
+    "story:",
+    "  version: 1",
+    "  language: zh-CN",
+    '  title: "t"',
+    '  problem_statement: "p"',
+    '  user_value: "v"',
+    "  acceptance_criteria:",
+    acs,
+    "  constraints_and_affected_areas:",
+    '    - "a"',
+    "  dependencies_and_sequencing:",
+    "    independent_story_check: pass",
+    "    depends_on: []",
+    '    unblock_condition: "none"',
+    "  out_of_scope:",
+    '    - "o"',
+    "  invest:",
+    inv,
+    "```",
+    "",
+    "END-OF-OBJECTIVE",
+  ].join("\n");
+}
+
+const AC_HEADING = "## Acceptance Criteria（结构化字段，评审以此为准）";
+const range = (n: number) => Array.from({ length: n }, (_, i) => `AC${i + 1}`);
+
+function acTask(opts: { objective: string; acceptanceCriteria?: string[]; columnId?: string }) {
+  return createTask({
+    id: "task-ac",
+    title: "AC field",
+    objective: opts.objective,
+    acceptanceCriteria: opts.acceptanceCriteria,
+    workspaceId: "default",
+    boardId: "board-1",
+    columnId: opts.columnId ?? "dev",
+  });
+}
+
+describe("buildTaskPrompt structured acceptance criteria (retro L256)", () => {
+  it("C1: lists all 10 field ACs and flags AC10 missing from the YAML, between objective and Story Readiness", () => {
+    const fieldAcs = range(10).map((id) => `${id}: 条目 ${id} 的原文`);
+    const task = acTask({ objective: storyYaml(range(9)), acceptanceCriteria: fieldAcs });
+    const prompt = buildTaskPrompt(task, [], { summaryContext: { storyReadiness: { ready: true, requiredTaskFields: [], missing: [], checks: { scope: true, acceptanceCriteria: true, verificationCommands: true, testCases: true, verificationPlan: true, dependenciesDeclared: true } } } } as never);
+    for (const ac of fieldAcs) expect(prompt).toContain(`- ${ac}`);
+    const hint = prompt.split("\n").find((line) => line.includes("canonical YAML 缺少"));
+    expect(hint).toBeDefined();
+    expect(hint!.match(/AC\d+/g)).toEqual(["AC10"]);
+    expect(hint).toContain("以本节结构化字段为准");
+    const objEnd = prompt.indexOf("END-OF-OBJECTIVE");
+    const heading = prompt.indexOf(AC_HEADING);
+    expect(objEnd).toBeGreaterThan(-1);
+    expect(heading).toBeGreaterThan(objEnd);
+    const readiness = prompt.indexOf("## Story Readiness");
+    expect(readiness).toBeGreaterThan(-1);
+    expect(heading).toBeLessThan(readiness);
+  });
+
+  it("C2: no hint when field and YAML ids match", () => {
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(5)), acceptanceCriteria: range(5).map((id) => `${id}: x`) }));
+    expect(prompt).toContain(AC_HEADING);
+    expect(prompt).not.toContain("缺少");
+  });
+
+  it.each([[undefined], [[]], [["", "  "]]])("C3: no section for empty field %j", (field) => {
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(3)), acceptanceCriteria: field as string[] | undefined }));
+    expect(prompt).not.toContain(AC_HEADING);
+  });
+
+  it("C3: blank entries skipped, id-less entries listed but not compared", () => {
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(2)), acceptanceCriteria: ["AC1: a", "", "补充：界面无改动"] }));
+    expect(prompt).toContain("- 补充：界面无改动");
+    expect(prompt).not.toContain("\n- \n");
+    expect(prompt).not.toContain("缺少");
+  });
+
+  it.each([["no yaml block", "plain objective"], ["broken yaml", "```yaml\nstory:\n  acceptance_criteria: nope\n bad: [\n```"]])(
+    "C4: %s lists field text without hint or throw",
+    (_name, objective) => {
+      let prompt = "";
+      expect(() => { prompt = buildTaskPrompt(acTask({ objective, acceptanceCriteria: ["AC1: a", "AC10: b"] })); }).not.toThrow();
+      expect(prompt).toContain(AC_HEADING);
+      expect(prompt).toContain("- AC10: b");
+      expect(prompt).not.toContain("缺少");
+    },
+  );
+
+  it.each([["AC10：全角冒号"], ["AC10 : 冒号前有空格"], ["  AC10: 行首空格"]])("C5: recognises %j", (item) => {
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(9)), acceptanceCriteria: [item] }));
+    expect(prompt).toContain(`- ${item}`);
+    expect(prompt.split("\n").find((l) => l.includes("缺少"))!.match(/AC\d+/g)).toEqual(["AC10"]);
+  });
+
+  it("C7: long entries are never truncated", () => {
+    const items = range(10).map((id) => `${id}: ${"长句".repeat(700)}结尾-${id}`);
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(9)), acceptanceCriteria: items }));
+    for (const item of items) expect(prompt).toContain(item);
+  });
+
+  it("C11: YAML having extra ids does not trigger the hint", () => {
+    const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(11)), acceptanceCriteria: range(10).map((id) => `${id}: x`) }));
+    expect(prompt).not.toContain("缺少");
+  });
+
+  it.each(["backlog", "todo", "dev", "review", "done"])("F4: column %s shows section and hint", (columnId) => {
+    const prompt = buildTaskPrompt(acTask({ columnId, objective: storyYaml(range(9)), acceptanceCriteria: range(10).map((id) => `${id}: x`) }));
+    expect(prompt).toContain(AC_HEADING);
+    expect(prompt).toContain("canonical YAML 缺少 AC10");
+  });
+});
+
 describe("buildTaskPrompt", () => {
   it("keeps backlog automation in planning mode", () => {
     const task = createTask({
