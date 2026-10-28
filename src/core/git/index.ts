@@ -98,4 +98,11 @@ export {
   isRefAncestorAsync,
 } from "./git-utils-async";
 
+export {
+  pullWithCooldown,
+  resetPullCooldown,
+  setPullCooldownClock,
+  PULL_COOLDOWN_MS,
+} from "./pull-cooldown";
+
 export { runExclusiveForRepo } from "./repo-lock";

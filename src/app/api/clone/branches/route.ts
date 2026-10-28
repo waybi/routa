@@ -30,6 +30,7 @@ import {
   checkoutBranchAsync,
   deleteBranchAsync,
   pullBranchAsync,
+  pullWithCooldown,
   runExclusiveForRepo,
   getBranchInfoAsync,
   getRepoStatusAsync,
@@ -157,8 +158,12 @@ async function handlePatch(body: PatchBody) {
   }
 
   // Optionally pull after checkout
+  // The pull result is not an error for this request; a failed pull is simply
+  // not recorded, so the next request retries it.
+  let pullSkipped = false;
   if (doPull) {
-    await pullBranchAsync(repoPath);
+    const outcome = await pullWithCooldown(repoPath, () => pullBranchAsync(repoPath));
+    pullSkipped = outcome.skipped;
   }
 
   const branchInfo = await getBranchInfoAsync(repoPath);
@@ -171,6 +176,7 @@ async function handlePatch(body: PatchBody) {
     branches: branchInfo.branches,
     status,
     registrationsUpdated,
+    ...(pullSkipped ? { pullSkipped: true, pullSkipReason: "cooldown" } : {}),
   });
 }
 

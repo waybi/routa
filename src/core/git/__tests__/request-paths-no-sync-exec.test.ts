@@ -37,6 +37,7 @@ import { GET as getBranches, PATCH as patchBranches } from "@/app/api/clone/bran
 import { GET as getChanges } from "@/app/api/workspaces/[workspaceId]/codebases/changes/route";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
 import { commitFile, makeRepo, runGit } from "./git-test-fixtures";
+import { resetPullCooldown } from "../pull-cooldown";
 import { getCurrentBranch } from "../git-utils";
 
 describe("request paths never use synchronous git exec", () => {
@@ -45,6 +46,7 @@ describe("request paths never use synchronous git exec", () => {
     vi.stubEnv("ROUTA_DB_DRIVER", "memory");
     repo = makeRepo();
     store.repoPath = repo;
+    resetPullCooldown();
     execSpy.calls = 0;
   });
   afterEach(() => {

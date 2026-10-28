@@ -17,6 +17,7 @@ import {
   type KanbanSpecialistLanguage,
 } from "./kanban-specialist-language";
 import type { RepoSyncState } from "./kanban-repo-sync-status";
+import { claimRepoSync, releaseRepoSync } from "./kanban-repo-sync-dedupe";
 import type {
   KanbanAgentPromptHandler,
   KanbanAgentPromptOptions,
@@ -332,7 +333,10 @@ export function KanbanPageClient() {
     }
   }, []);
 
-  const syncWorkspaceRepos = useCallback(async (nextCodebases: CodebaseData[]) => {
+  const syncWorkspaceRepos = useCallback(async (allCodebases: CodebaseData[]) => {
+    // Each repo is pulled at most once per browser tab; repeat board opens skip
+    // it silently (no "syncing" state) so opening a card is not delayed.
+    const nextCodebases = allCodebases.filter((codebase) => claimRepoSync(codebase.repoPath));
     if (nextCodebases.length === 0) return;
 
     setRepoSync({
@@ -360,6 +364,7 @@ export function KanbanPageClient() {
       try {
         await syncCodebaseToLatest(codebase);
       } catch (error) {
+        releaseRepoSync(codebase.repoPath);
         failures.push(`${repoLabel}: ${error instanceof Error ? error.message : String(error)}`);
       }
 

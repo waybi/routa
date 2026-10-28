@@ -25,6 +25,7 @@ vi.mock("fs", () => ({
 }));
 
 vi.mock("@/core/git", async () => {
+  const cooldown = await import("@/core/git/pull-cooldown");
   const asyncOf = <T extends (...args: never[]) => unknown>(fn: T) =>
     async (...args: Parameters<T>) => fn(...args);
   return {
@@ -41,6 +42,7 @@ vi.mock("@/core/git", async () => {
     getRepoStatusAsync: asyncOf(gitMocks.getRepoStatus),
     resetLocalChangesAsync: asyncOf(gitMocks.resetLocalChanges),
     isBareGitRepositoryAsync: asyncOf(gitMocks.isBareGitRepository),
+    pullWithCooldown: cooldown.pullWithCooldown,
     runExclusiveForRepo: (await import("@/core/git/repo-lock")).runExclusiveForRepo,
   };
 });
@@ -61,6 +63,7 @@ vi.mock("@/core/routa-system", () => ({
   }),
 }));
 
+import { resetPullCooldown } from "@/core/git/pull-cooldown";
 import { DELETE, PATCH } from "../route";
 
 describe("/api/clone/branches DELETE", () => {
@@ -152,6 +155,7 @@ describe("/api/clone/branches PATCH", () => {
     gitMocks.isBareGitRepository.mockReturnValue(false);
     gitMocks.checkoutBranch.mockReturnValue(true);
     gitMocks.pullBranch.mockReturnValue({ success: true });
+    resetPullCooldown();
     gitMocks.getBranchInfo.mockReturnValue({
       current: "main",
       branches: ["main", "feature/polish"],
