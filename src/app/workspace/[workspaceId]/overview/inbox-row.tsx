@@ -13,6 +13,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
+import { InboxReasonCell } from "./inbox-reason-cell";
 import { Badge, type Tone } from "@/client/components/ui/badge";
 import { buttonClassName } from "@/client/components/ui/button";
 import { formatRelativeTime } from "@/client/components/home/relative-time";
@@ -223,7 +224,13 @@ export function InboxRowItem({
               </span>
             ) : copy.next(row), "inbox-row-handling")}
             {reasonText
-              ? meta(page.labelReason, truncate(reasonText.text, INBOX_SOURCE_MAX_CHARS), "inbox-row-reason", reasonText.full)
+              ? meta(page.labelReason, (
+                <InboxReasonCell
+                  reason={reasonText}
+                  labels={{ why: page.reasonWhy, decision: page.reasonDecision, expand: page.reasonExpand, collapse: page.reasonCollapse }}
+                  maxChars={INBOX_SOURCE_MAX_CHARS}
+                />
+              ), "inbox-row-reason", reasonText.full)
               : meta(page.labelReason, copy.reason(row), "inbox-row-reason")}
             {meta(page.labelSource, copy.source(row), "inbox-row-source", row.reason === "interrupted" ? copy.sourceFull(row) : undefined)}
             {meta(page.labelTime, formatRelativeTime(row.eventAt, now, copy.t.homeRedesign))}

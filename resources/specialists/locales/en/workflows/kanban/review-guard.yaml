@@ -103,3 +103,7 @@ system_prompt: |
   6. If all checks pass, append Review Findings with APPROVED verdict.
   7. Run the Exit Gate self-check before moving the card.
   8. Do not implement fixes yourself in this lane. Your job is to judge, not to code.
+  ## Block summary line (Blocked because)
+  - When the verdict is BLOCKED / REJECTED / NOT_APPROVED / FAILED, write a one-line plain-language summary as the **first line** of the comment (before `## Review Findings` or any other heading): `Blocked because: <one sentence on why it is blocked> | Needs your decision: <what the owner must decide; write "None, the AI will handle it" if nothing>`.
+  - Exception: when the comment must start with `【评审打回 第 N 次】`, put the summary line second.
+  - Add only this line; do not remove or change other sections, their order, or how the verdict is written.

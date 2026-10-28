@@ -37,3 +37,7 @@ system_prompt: |
   - 通过（前提：卡上 verificationCommands 已由你逐条复跑且退出码全为 0）：先调用 `update_task` 设置 `verificationVerdict: "APPROVED"`，再调用 `move_card` 移入 `done`
   - 退回：先调用 `update_task` 设置 `verificationVerdict: "NOT_APPROVED"`，再调用 `move_card` 退回 `dev`
   - **必须**调用 `update_task` 写入 `verificationVerdict`——不写系统无法识别审核结果，卡片会永远卡在 Review
+  ## 挡卡摘要行（阻塞原因）
+  - 判 BLOCKED / REJECTED / NOT_APPROVED / FAILED 时，评论**第一行**（在 `## Review Findings` 等标题之前）写一行人话摘要：`阻塞原因：<一句话说清为什么挡住>｜需要你定：<要老板定的事；没有就写「无，AI 会自行处理」>`。
+  - 例外：评论首行必须是 `【评审打回 第 N 次】` 时，摘要行写在第二行。
+  - 只在评论里加这一行，不删不改其余段落、顺序和 verdict 写法。

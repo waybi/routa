@@ -43,6 +43,11 @@ function dd(testId: string): HTMLElement {
   return screen.getByTestId(testId).querySelector("dd")!;
 }
 
+/** The reason text the row shows: the "why" part of a parsed comment, else the plain cell. */
+function reasonShown(): string {
+  return screen.queryByTestId("inbox-row-reason-why")?.children[1].textContent ?? dd("inbox-row-reason").textContent ?? "";
+}
+
 afterEach(() => {
   window.localStorage.clear();
 });
@@ -58,23 +63,24 @@ describe("reason fallback from comments (C3, AC3)", () => {
     ["no comments", {}, "Blocked, reason not recorded", null],
   ])("%s", (_name, overrides, text, title) => {
     renderRow(blockedCard("a", { attentionResolution: undefined, ...overrides }));
-    expect(dd("inbox-row-reason").textContent).toBe(text);
+    expect(reasonShown()).toBe(text);
     expect(dd("inbox-row-reason").getAttribute("title")).toBe(title);
   });
 
   it("d5549adc shape: shows the 06:53:39 report, not the array's last comment", () => {
-    const report = "主干推送中止：`git rebase origin/main` 冲突，已 `git rebase --abort`，未推送。";
+    const raw = "主干推送中止：`git rebase origin/main` 冲突，已 `git rebase --abort`，未推送。";
+    const report = raw.replaceAll("`", "");
     renderRow(blockedCard("d5549adc", {
-      comments: [comment("report", `${report}\n\n冲突文件…`, at(39)), comment("record", RECORD_BODY, at(1)), comment("old", "旧评论", iso(Date.UTC(2026, 9, 27, 6)))],
+      comments: [comment("report", `${raw}\n\n冲突文件…`, at(39)), comment("record", RECORD_BODY, at(1)), comment("old", "旧评论", iso(Date.UTC(2026, 9, 27, 6)))],
     }));
-    expect(dd("inbox-row-reason").textContent).toBe(report);
-    expect(dd("inbox-row-reason").getAttribute("title")).toBe(`${report}\n\n冲突文件…`);
+    expect(reasonShown()).toBe(report);
+    expect(dd("inbox-row-reason").getAttribute("title")).toBe(`${raw}\n\n冲突文件…`);
   });
 
   it("truncates a 200-char first paragraph to 160 + … and keeps the whole comment in the title", () => {
     const body = `${"原".repeat(200)}\n\n第二段`;
     renderRow(blockedCard("a", { comments: [comment("p", body, at(0))] }));
-    expect(dd("inbox-row-reason").textContent).toBe(`${"原".repeat(INBOX_SOURCE_MAX_CHARS)}…`);
+    expect(reasonShown()).toBe(`${"原".repeat(INBOX_SOURCE_MAX_CHARS)}…`);
     expect(dd("inbox-row-reason").getAttribute("title")).toBe(body);
   });
 

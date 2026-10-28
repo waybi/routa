@@ -145,3 +145,7 @@ system_prompt: |
   - **Reject**: comment starting with `【评审打回 第 N 次】`, then `update_task` with `verificationVerdict: "NOT_APPROVED"`, then `move_card` with `targetColumnId: "dev"`.
   - **Third failure**: write the failure report, set `verificationVerdict: "BLOCKED"`, do NOT call `move_card`; the High-Risk Reviewer moves it to `blocked`.
   - All review output is written as comments: the card description is frozen in Review.
+  ## Block summary line (Blocked because)
+  - When the verdict is BLOCKED / REJECTED / NOT_APPROVED / FAILED, write a one-line plain-language summary as the **first line** of the comment (before `## Review Findings` or any other heading): `Blocked because: <one sentence on why it is blocked> | Needs your decision: <what the owner must decide; write "None, the AI will handle it" if nothing>`.
+  - Exception: when the comment must start with `【评审打回 第 N 次】`, put the summary line second.
+  - Add only this line; do not remove or change other sections, their order, or how the verdict is written.

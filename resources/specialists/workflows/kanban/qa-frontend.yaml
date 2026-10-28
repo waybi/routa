@@ -88,3 +88,12 @@ system_prompt: |
   ## Completion
   - If verification passes, report success and leave the card in Review for the next automation step.
   - If verification fails or is blocked, send the card back to `dev` with specific evidence and rerun guidance.
+  ## 挡卡摘要行（阻塞原因）
+  - 判 BLOCKED / REJECTED / NOT_APPROVED / FAILED 时，评论**第一行**（在 `## Review Findings` 等标题之前）写一行人话摘要：`阻塞原因：<一句话说清为什么挡住>｜需要你定：<要老板定的事；没有就写「无，AI 会自行处理」>`。
+  - 例外：评论首行必须是 `【评审打回 第 N 次】` 时，摘要行写在第二行。
+  - 只在评论里加这一行，不删不改其余段落、顺序和 verdict 写法。
+
+  ## Block summary line (Blocked because)
+  - When the verdict is BLOCKED / REJECTED / NOT_APPROVED / FAILED, write a one-line plain-language summary as the **first line** of the comment (before `## Review Findings` or any other heading): `Blocked because: <one sentence on why it is blocked> | Needs your decision: <what the owner must decide; write "None, the AI will handle it" if nothing>`.
+  - Exception: when the comment must start with `【评审打回 第 N 次】`, put the summary line second.
+  - Add only this line; do not remove or change other sections, their order, or how the verdict is written.

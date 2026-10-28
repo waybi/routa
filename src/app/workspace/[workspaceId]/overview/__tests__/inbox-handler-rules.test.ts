@@ -119,9 +119,9 @@ const LONG_PARAGRAPH = "原".repeat(200);
 
 describe("inboxReasonText (C3, C11)", () => {
   const t = (minute: number) => iso(Date.UTC(2026, 9, 27, 6, 53) + minute * 1000);
-  it.each<[string, Partial<TaskInfo>, InboxReasonText | null]>([
+  it.each<[string, Partial<TaskInfo>, Pick<InboxReasonText, "text" | "full"> | null]>([
     ["① lastSyncError set → keeps the original reason", { lastSyncError: "hook", comments: [comment("c", "plain", t(0))] }, null],
-    ["② one plain comment", { comments: [comment("c", "第一段\n续行\n\n第二段", t(0))] }, { text: "第一段\n续行", full: "第一段\n续行\n\n第二段" }],
+    ["② one plain comment", { comments: [comment("c", "第一段\n续行\n\n第二段", t(0))] }, { text: "第一段 续行", full: "第一段\n续行\n\n第二段" }],
     ["③ plain newer than the record but earlier in the array", {
       comments: [comment("p", "普通评论", t(39)), comment("r", RECORD_BODY, t(1))],
     }, { text: "普通评论", full: "普通评论" }],
@@ -132,7 +132,7 @@ describe("inboxReasonText (C3, C11)", () => {
         comment("older", "更早的评论", iso(Date.UTC(2026, 9, 27, 6, 0))),
       ],
     }, {
-      text: "主干推送中止：`git rebase origin/main` 冲突，已 `git rebase --abort`，未推送。",
+      text: "主干推送中止：git rebase origin/main 冲突，已 git rebase --abort，未推送。",
       full: "主干推送中止：`git rebase origin/main` 冲突，已 `git rebase --abort`，未推送。\n\n详情…",
     }],
     ["④' plain older than the record and after it in the array", {
@@ -145,9 +145,9 @@ describe("inboxReasonText (C3, C11)", () => {
     ["⑦ record heading with spaces around it is skipped", { comments: [comment("p", "普通", t(0)), comment("r", "  ## 自动处理记录  \n\n### 判断\nx", t(5))] }, { text: "普通", full: "普通" }],
     ["⑧ heading quoted on line 3 is not a record", {
       comments: [comment("p", "第一行\n第二行\n## 自动处理记录 见上", t(0))],
-    }, { text: "第一行\n第二行\n## 自动处理记录 见上", full: "第一行\n第二行\n## 自动处理记录 见上" }],
+    }, { text: "第一行 第二行 自动处理记录 见上", full: "第一行\n第二行\n## 自动处理记录 见上" }],
     ["⑨ 200-char paragraph then a second one", { comments: [comment("p", `${LONG_PARAGRAPH}\n\n第二段`, t(0))] }, { text: LONG_PARAGRAPH, full: `${LONG_PARAGRAPH}\n\n第二段` }],
-    ["⑩ no blank line → first paragraph is everything", { comments: [comment("p", "一行\n两行", t(0))] }, { text: "一行\n两行", full: "一行\n两行" }],
+    ["⑩ no blank line → first paragraph is everything", { comments: [comment("p", "一行\n两行", t(0))] }, { text: "一行 两行", full: "一行\n两行" }],
     ["C11 blank comment is skipped", { comments: [comment("p", "可用", t(0)), comment("b", "   \n  ", t(9))] }, { text: "可用", full: "可用" }],
     ["C11 invalid createdAt sorts oldest", {
       comments: [comment("p", "有时间", t(0)), { id: "x", body: "无时间", createdAt: "not a date" }, { id: "y", body: "缺时间" } as never],
@@ -155,7 +155,9 @@ describe("inboxReasonText (C3, C11)", () => {
   ])("%s", (_name, overrides, expected) => {
     const task = blockedCard("a", overrides);
     expect(() => inboxReasonText(task)).not.toThrow();
-    expect(inboxReasonText(task)).toEqual(expected);
+    const actual = inboxReasonText(task);
+    if (expected === null) expect(actual).toBeNull();
+    else expect(actual).toMatchObject({ ...expected, why: expected.text, decision: null });
   });
 
   it("does not change the reason kind or severity of blockedUnknown rows", () => {
@@ -255,7 +257,7 @@ function judge({ task, board }: Case) {
     if (best) {
       const { body } = best as { body: string };
       const blank = body.search(/\n[ \t]*\n/u);
-      const text = (blank === -1 ? body : body.slice(0, blank)).trim();
+      const text = (blank === -1 ? body : body.slice(0, blank)).split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
       reason = { text, full: body, shown: text.length > MAX ? `${text.slice(0, MAX)}…` : text };
     }
   }
@@ -281,7 +283,7 @@ function crossCheck(impl: Impl, count: number, seed: number): { mismatches: numb
     const actual = {
       handler: impl.handler({ task: sample.task }, sample.board),
       canHandOff: impl.canHandOff({ task: sample.task }, sample.board),
-      reason: text ? { ...text, shown: text.text.length > MAX ? `${text.text.slice(0, MAX)}…` : text.text } : null,
+      reason: text ? { text: text.text, full: text.full, shown: text.text.length > MAX ? `${text.text.slice(0, MAX)}…` : text.text } : null,
     };
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       mismatches += 1;

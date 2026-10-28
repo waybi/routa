@@ -25,6 +25,7 @@ import {
   TASK_ATTENTION_RESOLUTION_CATEGORIES,
   type TaskAttentionResolutionCategory,
 } from "@/core/models/task-attention-resolution";
+import { parseInboxReason, type InboxReasonText } from "./inbox-reason";
 import { isAutoResolutionRecord } from "@/core/kanban/auto-resolution-record";
 import { BLOCKED_STAGE, hasBlockedResolver } from "../kanban/blocked-resolver-automation";
 import {
@@ -221,12 +222,7 @@ export function inboxHandling(row: { task: HandlerTask }): InboxHandling | null 
   return { category: resolution.category, conclusion: resolution.conclusion, ...(ref ? { ref } : {}) };
 }
 
-export interface InboxReasonText {
-  /** First paragraph (before the first blank line). */
-  text: string;
-  /** Whole comment, for the title attribute. */
-  full: string;
-}
+export type { InboxReasonText } from "./inbox-reason";
 
 type CommentLike = { body?: string | null; createdAt?: string | null };
 
@@ -247,7 +243,7 @@ export function inboxReasonText(
     .sort((a, b) => a.at - b.at || a.index - b.index);
   const newest = candidates[candidates.length - 1];
   if (!newest) return null;
-  return { text: newest.body.split(/\n\s*\n/u, 1)[0].trim(), full: newest.body };
+  return parseInboxReason(newest.body);
 }
 
 export interface InboxRowView {
