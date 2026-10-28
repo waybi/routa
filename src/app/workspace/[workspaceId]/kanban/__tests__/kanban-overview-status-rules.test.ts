@@ -135,3 +135,29 @@ describe("summarizeRhythm (AC7)", () => {
     expect(summarizeRhythm([], NOW)).toMatchObject({ count: 0, medianMs: null, stuckCards: 0 });
   });
 });
+
+// F3: random (now, doneEnteredAt) pairs against a reference that compares local year-month-day.
+function mulberry32(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe("isDoneToday random cross-check (F3, seed 1028)", () => {
+  it("agrees with a local year-month-day comparison on 10,000 pairs", () => {
+    const rand = mulberry32(1028);
+    for (let i = 0; i < 10_000; i += 1) {
+      const now = new Date(2026, 0, 1).getTime() + Math.floor(rand() * 400 * 24 * HOUR);
+      const entered = now + Math.floor((rand() - 0.5) * 6 * 24 * HOUR);
+      const t = task("r", "done", { laneSessions: [session("done", entered)] });
+      const a = new Date(now);
+      const b = new Date(entered);
+      const same = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      expect(isDoneToday(t, now)).toBe(same);
+    }
+  });
+});

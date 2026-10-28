@@ -15,10 +15,13 @@ import zh from "@/i18n/locales/zh";
 import { I18nContext } from "@/i18n/context";
 
 class MockEventSource {
+  static instances: MockEventSource[] = [];
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   readonly close = vi.fn();
-  constructor(readonly url: string) {}
+  constructor(readonly url: string) {
+    MockEventSource.instances.push(this);
+  }
 }
 
 const NOW = Date.UTC(2026, 9, 28, 12);
@@ -82,6 +85,7 @@ beforeEach(() => {
   detailStatus = 200;
   fetched.length = 0;
   routerPush.mockReset();
+  MockEventSource.instances = [];
   vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
   vi.stubGlobal("fetch", vi.fn(async (url: string) => respond(url)));
   window.history.replaceState(null, "", "/workspace/w1/kanban?view=all");
@@ -184,6 +188,39 @@ describe("all-projects page, by project (AC2 / AC3 / AC4)", () => {
     expect(within(row).getByTestId("kanban-overview-queued").textContent).toBe("排队 4");
     expect(screen.getByTestId("kanban-overview-status-bar").textContent).toContain("今天完成");
     expect(within(row).getByTestId("kanban-overview-expand-done").textContent).toBe("展开其余 3 张");
+  });
+});
+
+describe("entry paths (F4)", () => {
+  it("shows the status bar, progress and queue when `view=all` is opened directly", async () => {
+    await renderIt();
+    expect(screen.getByTestId("kanban-overview-status-bar")).toBeTruthy();
+    expect(screen.getByTestId("kanban-overview-progress").textContent).toContain("Dev 3/5");
+    expect(screen.getByTestId("kanban-overview-queued").textContent).toBe("Queued 4");
+  });
+
+  it("returns to the overview with the browser back button after 'Open in board'", async () => {
+    window.history.replaceState(null, "", "/workspace/w1/kanban?view=all");
+    await renderIt();
+    fireEvent.click(card("run"));
+    fireEvent.click(await screen.findByTestId("kanban-overview-drawer-open"));
+    expect(window.location.search).toContain("taskId=run");
+    window.history.pushState(null, "", "/workspace/w1/kanban?view=all");
+    act(() => { window.dispatchEvent(new PopStateEvent("popstate")); });
+    expect(window.location.search).toBe("?view=all");
+    expect(screen.getByTestId("kanban-overview-status-bar")).toBeTruthy();
+  });
+
+  it("updates the numbers after a workspace event reloads the data", async () => {
+    await renderIt();
+    expect(screen.getByTestId("kanban-overview-status-running-count").textContent).toBe("1");
+    TASKS.push(base("run9", "dev", { laneSessions: [{ sessionId: "r9", columnId: "dev", status: "running", startedAt: iso(NOW - 60_000) }] }));
+    const source = MockEventSource.instances[MockEventSource.instances.length - 1];
+    act(() => {
+      source.onmessage?.({ data: JSON.stringify({ type: "kanban:changed", workspaceId: "w1", entity: "task" }) } as MessageEvent);
+    });
+    await waitFor(() => expect(screen.getByTestId("kanban-overview-status-running-count").textContent).toBe("2"), { timeout: 3000 });
+    TASKS.pop();
   });
 });
 
