@@ -558,6 +558,26 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     drawerReport: string;
     drawerRuns: string;
     drawerNoRuns: string;
+    modeProject: string;
+    modeStatus: string;
+    modeLabel: string;
+    capsuleAll: string;
+    /** "{unfinished}" not done, "{done}" done in 7 days. */
+    capsuleTitle: string;
+    capsuleLegend: string;
+    groupQueued: string;
+    groupDone7d: string;
+    colTitle: string;
+    colProject: string;
+    colPipeline: string;
+    colSpecialist: string;
+    colTime: string;
+    dayToday: string;
+    dayYesterday: string;
+    /** "{count}" cards of the day. */
+    dayCount: string;
+    keysHint: string;
+    noMatches: string;
   };
   /** Redesigned board page: header actions, toolbar, load/empty/error states. */
   kanbanBoardPage: {

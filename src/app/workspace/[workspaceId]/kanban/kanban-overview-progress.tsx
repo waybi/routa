@@ -23,6 +23,17 @@ function cellClass(index: number, step: number, failed: boolean): string {
   return `${base} bg-default`;
 }
 
+/** The five pipeline cells alone (aria-hidden; the text next to them carries the meaning). */
+export function PipelineCells({ step, failed }: { step: number; failed: boolean }) {
+  return (
+    <span className="flex shrink-0 gap-0.5" aria-hidden="true">
+      {PIPELINE_STEPS.map((stage, index) => (
+        <span key={stage} className={cellClass(index, step, failed)} title={stage} data-cell={index + 1 < step ? "past" : index + 1 === step ? "current" : "future"} />
+      ))}
+    </span>
+  );
+}
+
 export function KanbanOverviewProgress({ task, laneLabel, now }: { task: TaskInfo; laneLabel: string; now: number }) {
   const { t } = useTranslation();
   const copy = t.kanbanOverview;
@@ -30,11 +41,7 @@ export function KanbanOverviewProgress({ task, laneLabel, now }: { task: TaskInf
   const label = copy.laneStepLabel.replace("{lane}", laneLabel).replace("{step}", String(progress.step));
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-secondary" data-testid="kanban-overview-progress" data-failed={progress.failed ? "true" : "false"}>
-      <span className="flex shrink-0 gap-0.5" aria-hidden="true">
-        {PIPELINE_STEPS.map((stage, index) => (
-          <span key={stage} className={cellClass(index, progress.step, progress.failed)} title={stage} data-cell={index + 1 < progress.step ? "past" : index + 1 === progress.step ? "current" : "future"} />
-        ))}
-      </span>
+      <PipelineCells step={progress.step} failed={progress.failed} />
       <span className={`shrink-0 font-semibold ${progress.failed ? "text-danger" : "text-primary"}`}>{label}</span>
       {progress.specialistName && <span className="truncate">· {progress.specialistName}</span>}
       {progress.runningMs !== null && <span className="shrink-0">· {copy.ranFor.replace("{time}", formatSpan(progress.runningMs, copy))}</span>}
