@@ -65,6 +65,15 @@ describe.each(loadPaths)("flight_resolve.py prompts (%s)", (label, dir, locale) 
     expect(text).toContain(zh ? "不能判为笔误" : "never call a missing AC a typo");
   });
 
+  it("review guard checks the contract against the resolver's 审题 section and reports it on pass", () => {
+    const text = prompt(dir, locale, "kanban-flight-review-guard");
+    expect(text).toContain("## 审题（评审守卫）");
+    expect(text).toContain("## 验收契约（出题人）");
+    expect(text).toMatch(zh ? /解析器无审题节`，不因此打回/ : /解析器无审题节` in Review Findings\. Do not reject the card for this\./);
+    expect(text).toMatch(zh ? /计入打回次数/ : /it counts as a rejection/);
+    expect(text).toMatch(zh ? /含「高风险：」行、「审题：」结果行/ : /the `审题：…` result line/);
+  });
+
   it("main pusher skips by resolver delivery and falls back to the gerrit remote check", () => {
     const text = prompt(dir, locale, "kanban-main-pusher");
     expect(text).toContain(`${RESOLVER} --format json`);
