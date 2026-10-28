@@ -25,8 +25,11 @@ system_prompt: |
   5. **验证**：在 worktree 里按顺序逐条运行卡片的 `verificationCommands`。
      - 任一命令失败：用 `update_card` 在评论里写明失败的命令和关键报错，再调用 `move_card`（`targetColumnId: "blocked"`）。停止，不推送。
      - 卡片没有验证命令时，在最终评论里写明，然后继续。
+     - **pre-push 钩子推送时必跑的命令不重跑** [pre-push-dedup]：跑命令前先看仓库的 pre-push 钩子：钩子目录是 `git config core.hooksPath` 的值（为空时用 `.git/hooks`），读其中的 `pre-push` 文件（不存在或不可执行就不适用本条）。某条验证命令与钩子在 `git push` 时必然执行的命令是同一个检查（同一脚本、按钩子在本 worktree 里实际解析出的关键参数也相同，如 `validate-changed.sh --strict --base origin/<分支>`；钩子优先用 `@{u}` 而 `git rev-parse --abbrev-ref @{u}` 有结果时，基线不同，不算同一个检查），第 5 步就跳过这一条，在最终评论里写 `<命令>：由 pre-push 钩子执行，未单独重跑`。其余命令照常逐条跑。拿不准是否同一个检查时照跑。
+     - 不得设置钩子的跳过开关（如 `SKIP_VALIDATE`、`SKIP_HOOKS` 这类环境变量），不得用 `--no-verify`：钩子必须照常执行。
   6. **推送**：只执行 `git push origin HEAD:<分支>`。
      - 推送被拒（如主干已前进导致非快进）时，可以把第 3–6 步重做一次；仍被拒就用 `update_card` 记下原始报错，把卡移到 `blocked`，停止。
+     - pre-push 钩子拒绝推送（钩子自己的检查没过，不是远端拒收）时，按验证失败处理：不重试，用 `update_card` 写明钩子命令和关键报错，把卡移到 `blocked`，停止，不推送。
   7. **核实已进主干**：执行 `git fetch origin`，用 `git rev-parse HEAD` 取得 `<提交>`，再执行 `git merge-base --is-ancestor <提交> origin/<分支>`。退出码 0 表示提交已在主干上。
   8. **写主干提交号**：用 `update_card` 写一条评论，包含下面这行固定格式，供完成汇报员引用：
      `主干提交号: <完整提交 sha> (origin/<分支>)`
