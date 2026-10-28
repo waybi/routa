@@ -16,6 +16,9 @@ vi.mock("@/core/git", () => ({
   getRepoChanges: (...args: unknown[]) => getRepoChanges(...args),
   isGitRepository: (...args: unknown[]) => isGitRepository(...args),
   isBareGitRepository: (...args: unknown[]) => isBareGitRepository(...args),
+  getRepoChangesAsync: async (...args: unknown[]) => getRepoChanges(...args),
+  isGitRepositoryAsync: async (...args: unknown[]) => isGitRepository(...args),
+  isBareGitRepositoryAsync: async (...args: unknown[]) => isBareGitRepository(...args),
 }));
 
 import { GET } from "../route";

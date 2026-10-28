@@ -19,6 +19,10 @@ vi.mock("@/core/git", () => ({
   isGitRepository: (...args: unknown[]) => isGitRepository(...args),
   isBareGitRepository: (...args: unknown[]) => isBareGitRepository(...args),
   getRepoDeliveryStatus: (...args: unknown[]) => getRepoDeliveryStatus(...args),
+  isGitRepositoryAsync: async (...args: unknown[]) => isGitRepository(...args),
+  isBareGitRepositoryAsync: async (...args: unknown[]) => isBareGitRepository(...args),
+  getRepoDeliveryStatusAsync: async (...args: unknown[]) => getRepoDeliveryStatus(...args),
+  hasBranchAuthoredCommitsOnHeadAsync: async () => false,
   getRepoCommitChanges: (...args: unknown[]) => getRepoCommitChanges(...args),
   getRepoRefSha: (...args: unknown[]) => getRepoRefSha(...args),
 }));

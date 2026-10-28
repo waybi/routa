@@ -34,6 +34,10 @@ vi.mock("@/core/git", () => ({
   isBareGitRepository: (repoPath: string) => isBareGitRepository(repoPath),
   isGitHubUrl: (value: string | null | undefined) => Boolean(value && value.includes("github.com")),
   getRepoDeliveryStatus: (...args: unknown[]) => getRepoDeliveryStatus(...args),
+  isGitRepositoryAsync: async (repoPath: string) => isGitRepository(repoPath),
+  isBareGitRepositoryAsync: async (repoPath: string) => isBareGitRepository(repoPath),
+  getRepoDeliveryStatusAsync: async (...args: unknown[]) => getRepoDeliveryStatus(...args),
+  hasBranchAuthoredCommitsOnHeadAsync: async () => false,
 }));
 
 vi.mock("@/core/kanban/workflow-orchestrator-singleton", () => ({

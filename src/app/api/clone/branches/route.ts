@@ -22,18 +22,19 @@ import * as fs from "fs";
 import * as path from "path";
 import { getRoutaSystem } from "@/core/routa-system";
 import {
-  getCurrentBranch,
-  listBranches,
-  listRemoteBranches,
-  fetchRemote,
-  getBranchStatus,
-  checkoutBranch,
-  deleteBranch,
-  pullBranch,
-  getBranchInfo,
-  getRepoStatus,
-  resetLocalChanges,
-  isBareGitRepository,
+  getCurrentBranchAsync,
+  listBranchesAsync,
+  listRemoteBranchesAsync,
+  fetchRemoteAsync,
+  getBranchStatusAsync,
+  checkoutBranchAsync,
+  deleteBranchAsync,
+  pullBranchAsync,
+  runExclusiveForRepo,
+  getBranchInfoAsync,
+  getRepoStatusAsync,
+  resetLocalChangesAsync,
+  isBareGitRepositoryAsync,
 } from "@/core/git";
 
 export async function GET(request: NextRequest) {
@@ -45,10 +46,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const current = getCurrentBranch(repoPath) ?? "unknown";
-  const local = listBranches(repoPath);
-  const remote = listRemoteBranches(repoPath);
-  const status = getBranchStatus(repoPath, current);
+  const current = await getCurrentBranchAsync(repoPath) ?? "unknown";
+  const local = await listBranchesAsync(repoPath);
+  const remote = await listRemoteBranchesAsync(repoPath);
+  const status = await getBranchStatusAsync(repoPath, current);
 
   return NextResponse.json({ current, local, remote, status });
 }
@@ -65,24 +66,35 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch remote, then return all branches
-  fetchRemote(repoPath);
+  await fetchRemoteAsync(repoPath);
 
-  const current = getCurrentBranch(repoPath) ?? "unknown";
-  const local = listBranches(repoPath);
-  const remote = listRemoteBranches(repoPath);
-  const status = getBranchStatus(repoPath, current);
+  const current = await getCurrentBranchAsync(repoPath) ?? "unknown";
+  const local = await listBranchesAsync(repoPath);
+  const remote = await listRemoteBranchesAsync(repoPath);
+  const status = await getBranchStatusAsync(repoPath, current);
 
   return NextResponse.json({ current, local, remote, status });
 }
 
+type PatchBody = {
+  repoPath?: string;
+  branch?: string;
+  pull?: boolean;
+  action?: "checkout" | "reset";
+};
+
 export async function PATCH(request: NextRequest) {
-  const body = await request.json();
-  const { repoPath, branch, pull: doPull, action } = body as {
-    repoPath?: string;
-    branch?: string;
-    pull?: boolean;
-    action?: "checkout" | "reset";
-  };
+  const body = (await request.json()) as PatchBody;
+  // Async git calls no longer serialize the whole process, so requests that
+  // change one working tree take turns instead of racing on .git/index.lock.
+  if (typeof body.repoPath === "string" && body.repoPath) {
+    return runExclusiveForRepo(body.repoPath, () => handlePatch(body));
+  }
+  return handlePatch(body);
+}
+
+async function handlePatch(body: PatchBody) {
+  const { repoPath, branch, pull: doPull, action } = body;
 
   if (!repoPath) {
     return NextResponse.json(
@@ -96,7 +108,7 @@ export async function PATCH(request: NextRequest) {
       { status: 404 }
     );
   }
-  if (isBareGitRepository(repoPath)) {
+  if (await isBareGitRepositoryAsync(repoPath)) {
     return NextResponse.json(
       {
         error: "This repository is a bare git repository (no working directory)",
@@ -107,7 +119,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (action === "reset") {
-    const result = resetLocalChanges(repoPath);
+    const result = await resetLocalChangesAsync(repoPath);
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Failed to reset local changes" },
@@ -115,9 +127,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const branchInfo = getBranchInfo(repoPath);
-    const status = getBranchStatus(repoPath, branchInfo.current);
-    const repoStatus = getRepoStatus(repoPath);
+    const branchInfo = await getBranchInfoAsync(repoPath);
+    const status = await getBranchStatusAsync(repoPath, branchInfo.current);
+    const repoStatus = await getRepoStatusAsync(repoPath);
 
     return NextResponse.json({
       success: true,
@@ -136,7 +148,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const success = checkoutBranch(repoPath, branch);
+  const success = await checkoutBranchAsync(repoPath, branch);
   if (!success) {
     return NextResponse.json(
       { error: `Failed to checkout branch '${branch}'` },
@@ -146,11 +158,11 @@ export async function PATCH(request: NextRequest) {
 
   // Optionally pull after checkout
   if (doPull) {
-    pullBranch(repoPath);
+    await pullBranchAsync(repoPath);
   }
 
-  const branchInfo = getBranchInfo(repoPath);
-  const status = getBranchStatus(repoPath, branchInfo.current);
+  const branchInfo = await getBranchInfoAsync(repoPath);
+  const status = await getBranchStatusAsync(repoPath, branchInfo.current);
   const registrationsUpdated = await syncCodebaseRegistrationsToBranch(repoPath, branchInfo.current);
 
   return NextResponse.json({
@@ -218,7 +230,7 @@ export async function DELETE(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (isBareGitRepository(repoPath)) {
+  if (await isBareGitRepositoryAsync(repoPath)) {
     return NextResponse.json(
       {
         error: "This repository is a bare git repository (no working directory)",
@@ -228,7 +240,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  const result = deleteBranch(repoPath, branch);
+  const result = await deleteBranchAsync(repoPath, branch);
   if (!result.success) {
     const status = result.error?.includes("current branch")
       ? 409
@@ -241,7 +253,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  const branchInfo = getBranchInfo(repoPath);
+  const branchInfo = await getBranchInfoAsync(repoPath);
 
   return NextResponse.json({
     success: true,

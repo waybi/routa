@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRoutaSystem } from "@/core/routa-system";
-import { getRepoChanges, isBareGitRepository, isGitRepository } from "@/core/git";
+import { getRepoChangesAsync, isBareGitRepositoryAsync, isGitRepositoryAsync } from "@/core/git";
 
 export const dynamic = "force-dynamic";
 
@@ -12,21 +12,21 @@ export async function GET(
   const system = getRoutaSystem();
   const codebases = await system.codebaseStore.listByWorkspace(workspaceId);
 
-  const repos = codebases.map((codebase) => {
+  const repos = await Promise.all(codebases.map(async (codebase) => {
     const label = codebase.label ?? codebase.repoPath.split("/").pop() ?? codebase.repoPath;
 
     try {
       if (!codebase.repoPath) {
         throw new Error("Missing repository path");
       }
-      if (!isGitRepository(codebase.repoPath)) {
+      if (!(await isGitRepositoryAsync(codebase.repoPath))) {
         throw new Error("Repository is missing or not a git repository");
       }
-      if (isBareGitRepository(codebase.repoPath)) {
+      if (await isBareGitRepositoryAsync(codebase.repoPath)) {
         throw new Error("This codebase points to a bare git repository (no working directory). Bare repos can't show changes. Use a worktree or regular clone instead.");
       }
 
-      const changes = getRepoChanges(codebase.repoPath);
+      const changes = await getRepoChangesAsync(codebase.repoPath);
       return {
         codebaseId: codebase.id,
         repoPath: codebase.repoPath,
@@ -52,7 +52,7 @@ export async function GET(
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  });
+  }));
 
   return NextResponse.json({ workspaceId, repos });
 }

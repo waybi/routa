@@ -1,8 +1,8 @@
 import {
-  getRepoDeliveryStatus,
-  hasBranchAuthoredCommitsOnHead,
-  isBareGitRepository,
-  isGitRepository,
+  getRepoDeliveryStatusAsync,
+  hasBranchAuthoredCommitsOnHeadAsync,
+  isBareGitRepositoryAsync,
+  isGitRepositoryAsync,
   type RepoDeliveryStatus,
 } from "@/core/git";
 import type { KanbanDeliveryRules } from "@/core/models/kanban";
@@ -129,7 +129,7 @@ export async function buildTaskDeliveryReadiness(
     };
   }
 
-  if (!isGitRepository(context.repoPath)) {
+  if (!(await isGitRepositoryAsync(context.repoPath))) {
     return {
       checked: false,
       repoPath: context.repoPath,
@@ -148,7 +148,7 @@ export async function buildTaskDeliveryReadiness(
     };
   }
 
-  if (context.requiresWorktree && isBareGitRepository(context.repoPath)) {
+  if (context.requiresWorktree && (await isBareGitRepositoryAsync(context.repoPath))) {
     return {
       checked: false,
       repoPath: context.repoPath,
@@ -169,7 +169,7 @@ export async function buildTaskDeliveryReadiness(
 
   const readiness = mapReadiness(
     context,
-    getRepoDeliveryStatus(context.repoPath, {
+    await getRepoDeliveryStatusAsync(context.repoPath, {
       baseBranch: context.baseBranch,
       sourceType: context.codebase?.sourceType,
       sourceUrl: context.codebase?.sourceUrl,
@@ -181,7 +181,7 @@ export async function buildTaskDeliveryReadiness(
     && isAttentionResolutionInEffect(task.attentionResolution, task);
 
   if (readiness.landedOnBase === true && !readiness.hasCommitsSinceBase) {
-    readiness.hasLandedOwnCommits = hasBranchAuthoredCommitsOnHead(
+    readiness.hasLandedOwnCommits = await hasBranchAuthoredCommitsOnHeadAsync(
       context.repoPath,
       readiness.branch,
       { fallbackSha: task.deliverySnapshot?.headSha },

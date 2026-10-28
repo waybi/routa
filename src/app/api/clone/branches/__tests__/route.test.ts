@@ -24,7 +24,26 @@ vi.mock("fs", () => ({
   existsSync,
 }));
 
-vi.mock("@/core/git", () => gitMocks);
+vi.mock("@/core/git", async () => {
+  const asyncOf = <T extends (...args: never[]) => unknown>(fn: T) =>
+    async (...args: Parameters<T>) => fn(...args);
+  return {
+    ...gitMocks,
+    getCurrentBranchAsync: asyncOf(gitMocks.getCurrentBranch),
+    listBranchesAsync: asyncOf(gitMocks.listBranches),
+    listRemoteBranchesAsync: asyncOf(gitMocks.listRemoteBranches),
+    fetchRemoteAsync: asyncOf(gitMocks.fetchRemote),
+    getBranchStatusAsync: asyncOf(gitMocks.getBranchStatus),
+    checkoutBranchAsync: asyncOf(gitMocks.checkoutBranch),
+    deleteBranchAsync: asyncOf(gitMocks.deleteBranch),
+    pullBranchAsync: asyncOf(gitMocks.pullBranch),
+    getBranchInfoAsync: asyncOf(gitMocks.getBranchInfo),
+    getRepoStatusAsync: asyncOf(gitMocks.getRepoStatus),
+    resetLocalChangesAsync: asyncOf(gitMocks.resetLocalChanges),
+    isBareGitRepositoryAsync: asyncOf(gitMocks.isBareGitRepository),
+    runExclusiveForRepo: (await import("@/core/git/repo-lock")).runExclusiveForRepo,
+  };
+});
 
 const systemMocks = vi.hoisted(() => ({
   workspaceList: vi.fn(),
@@ -132,6 +151,7 @@ describe("/api/clone/branches PATCH", () => {
     existsSync.mockReturnValue(true);
     gitMocks.isBareGitRepository.mockReturnValue(false);
     gitMocks.checkoutBranch.mockReturnValue(true);
+    gitMocks.pullBranch.mockReturnValue({ success: true });
     gitMocks.getBranchInfo.mockReturnValue({
       current: "main",
       branches: ["main", "feature/polish"],
