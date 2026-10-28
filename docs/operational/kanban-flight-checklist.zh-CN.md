@@ -43,7 +43,7 @@
 | `### 送审前自查` | 开发执行员 | `## 证据表` 评论末尾，下面三行写 a、b、c | 评审守卫、Vault routa_shiftleft |
 | `高风险：是/否（理由）` | 评审守卫 | 评审评论 | 高风险复核员 |
 | `【评审打回 第 N 次】` | 评审守卫、高风险复核员 | 打回评论的首行 | 两者共用计数：满 2 次后，第 3 次不通过就判 blocked |
-| `## 移植与 alpha 验收` | TopBI 移植员 | 卡片小节（移植成功时） | 完成汇报员 |
+| `## 本机回放验收` | TopBI 移植员 | 卡片小节（回放完成时） | 完成汇报员 |
 | `## 移植失败` | TopBI 移植员 | 失败报告评论的首行 | 完成汇报员 |
 | `可合 master：是/否` | TopBI 移植员 | 上面两种评论的最后一行（失败时固定为 `可合 master：否（<原因>）`） | 完成汇报员（原样抄进 `## 完成汇报`） |
 
@@ -111,9 +111,9 @@ Review 列有三步：QA、评审守卫、高风险复核员。后面还有步�
 
 TopBI Board 的 Done 列有两步：TopBI 移植员、完成汇报员。同一条闸门（`src/core/kanban/lane-automation-state.ts` 的 `resolveRemainingLaneStepsMoveBlock`，在 `move_card` 时由 `src/core/tools/kanban-tools.ts` 调用）也管这一列：完成汇报员没跑完，移植员就移不出卡。2026-10-22 冒烟卡 2ec8b0b2 的移植员想把失败卡移到 blocked，被 Routa 拒绝，卡留在 Done，看起来像完成了。2026-10-24 起（卡 60f276e0），目标列是 blocked（列 id 为 `blocked`，或该列 stage 为 `blocked`）时，不再受「后续步骤未跑完」闸门限制；PATCH `/api/tasks/<id>` 和 `move_card` 用同一个判断函数 `isExemptFromRemainingLaneStepsGuard`（同一文件）。移到其他列仍会被拦。卡离开某列时，编排器丢掉该列的自动化（`workflow-orchestrator.ts` 的 `handleColumnTransitionData`），所以推送员在跑时卡被移进 Blocked，推送员结束后不会在 Blocked 卡上接着起完成汇报员，也不会给它记失败。丢掉自动化时，编排器记下该列正在跑的会话；这个会话结束时，仍把它的车道记录标为 completed，并结束它的进程（工具调用合成的完成事件要等回合结束才结束进程），只是不起下一步、不恢复、不重跑。Review Guard 用 `update_task` 判 APPROVED 后卡自动收敛进 Done，也走这条路。岗位提示词要不要改回「失败移 blocked」另议，下面的规则暂时不变。现在的出口是：
 
-- 推送：移植 worktree 基于 `origin/dev`，执行 `git push origin HEAD:dev`，只做快进推送到 GitLab dev。alpha 从 GitLab dev 拉代码。被拒（非快进）就 fetch，在新的 `origin/dev` 上重建 worktree，重新 cherry-pick 一次再推；第二次被拒判失败。推完用 `git ls-remote origin refs/heads/dev` 确认远端 dev 等于 `git rev-parse HEAD`。自动回滚的 revert 也这样推。不推 master，不强推，不推 gerrit 远端（Gerrit dev 停在 ce5b3abfa，只查历史）。
-- 成功：追加 `## 移植与 alpha 验收`（写 dev 提交号），不移卡。
-- 失败：写一条评论，首行 `## 移植失败`，正文写失败步骤、证据路径、回滚提交号和 alpha 构建号（如有），末行 `可合 master：否（<原因>）`。不调用 `move_card`，正常结束，交给完成汇报员。不要把「失败移到 blocked」加回去，原因见上。
+- 本机回放：在卡片 worktree 里执行 `python3 /Users/ouweibing/Desktop/topgames_work/local-tools/tools/topbi-alpha-deploy/topbi_local_replay.py run --topbi-base origin/master --topbi-new <卡分支 HEAD> --control spend-x2 --workdir /tmp/routa-evidence/<卡号前 8 位>/local-replay --json`，本机起两个 Go 实例（A=origin/master，B=卡分支 HEAD）比对改前改后；脚本不存在先记「未做（回放脚本未部署）」。线上只跑 Go 后端、合 master 即上线，所以不再移植 dev、不再发 alpha。退出码 0 记 `本机回放：一致`；1 看差异是否只在改到的指标上（是记预期变化，否判失败）；2 记未做继续；3 修参数重跑一次。不 push 任何远端，不改 Bamboo，不登堡垒机，不动线上。
+- 成功：追加 `## 本机回放验收`（写 base 与 new 提交号、`/plywood` 差异数、探针差异数），末行 `可合 master：是`；回放没做时末行 `可合 master：否（缺本机回放：<原因>）`；不移卡。
+- 失败：写一条评论，首行 `## 移植失败`，正文写失败步骤、证据路径、末行 `可合 master：否（<原因>）`。不调用 `move_card`，正常结束，交给完成汇报员。不要把「失败移到 blocked」加回去，原因见上。
 - 完成汇报员：卡上有 `## 移植失败` 评论时，`## 完成汇报` 里写明移植失败和失败步骤，原样抄写 `可合 master：否（<原因>）`，不写成交付成功。没有这条评论时行为不变。
 
 还剩一个缺口：「需要你看」面板的「Done 岗位失败 / 跑完没汇报」只看卡上有没有 `## 完成汇报`（`src/app/workspace/[workspaceId]/kanban/kanban-attention-rules.ts` 第 43–51 行）。完成汇报员写完汇报后，移植失败的卡不会亮红标，只能读汇报里的 `可合 master：否` 看出来。要亮红标，需要另开卡改这段代码，例如识别 `## 移植失败` 评论或汇报里的 `可合 master：否`。
@@ -250,3 +250,4 @@ done
 | 2026-10-26 | 起飞检查单按项目定标准：出题人、Todo 编排员、评审守卫、高风险复核员、主干推送员（各三份 yaml）去掉写死的「仓库 → 经验包」对照和「路径认 TopBI」，改调知识库 `flight_resolve.py`；挂岗位脚本删掉 `TOPBI_BOARD_ID`，Done 列按解析器 `done_steps` 排（模板表 `DONE_STEP_TEMPLATES`、`FLIGHT_RESOLVE` 环境变量、`--check` 每板多一行项目标准）；脚本测试 16→33 条（解析器桩、三种交付方式、多仓库跳过、未登记 id 与解析器失败不写库、1 万组随机对拍） | 加新项目只改知识库档案，不改 Routa、不重启；真实库只读检查 5 块无变化、Default 不动；撤掉脚本实现后 20 条测试断言失败 | 本行所在提交（卡 1b31e133） |
 | 2026-10-26 | 出题人（三份 yaml）读 `## Risk Notes`：能判对错的转契约、判不了的写进 `### 施工注意（来自风险提示）`，统计行补「风险提示转契约 N 条，施工注意 M 条」；开发执行员（三份 yaml）开工前读施工注意，送审前做 a 行数预算 / b 对齐主干 / c 证据表全覆盖三项自查，证据表末尾写 `### 送审前自查`；加载测试补两个标题的断言和位置检查 | 待统计，Vault routa_shiftleft 每晚评估 | 本行所在提交（卡 7d183d3d） |
 | 2026-10-27 | 开发执行员与起飞检查单开发执行员（`kanban-dev-executor`、`kanban-flight-dev-executor`，各三份 yaml）档位 `smart` → `fast`；`fast` 档默认模型由 `~/.routa/kanban-model-tiers.json` 设为 `claude-sonnet-5-5-pool`，评审等其他岗位仍是 `smart`（Opus） | Dev 岗位改用 Sonnet；此前真实大卡回放 dev 花费约为 Opus 的 24%，评审多打回 1 次 | 本行所在提交 |
+| 2026-10-28 | TopBI 移植员（`kanban-topbi-porter`，三份 yaml）改为卡分支本机 Go 双实例回放：步骤缩为 5 步（前提、本机回放、结果处理、写报告、全程不做），不再移植 dev、不再推 GitLab dev、不再发 alpha、不再回滚；成功小节改 `## 本机回放验收`，固定行 `可合 master：是/否` 不变，完成汇报员只认 `## 移植失败` 和 `可合 master：否`，未改；`topbi-porter-prompt.test.ts` 重写 | 测试 35 条 → 31 条（该文件）；撤掉三份 yaml 改动后 24 败 7 过（`expected ... to contain 'topbi_local_replay.py run'`），恢复后全过 | 本行所在提交（卡 5cf1e338） |

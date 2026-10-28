@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import { loadSpecialistsFromDirectory } from "../specialist-file-loader";
 
-// Locks the TopBI porter (kanban-topbi-porter) prompt: dev port, GitLab dev push
-// (fast-forward HEAD:dev + ls-remote check), alpha deploy/replay, auto-rollback, and the
-// `## 移植失败` failure exit (no move_card in Done), across the default, en, and zh-CN load paths.
+// Locks the TopBI porter (kanban-topbi-porter) prompt: local Go two-instance replay on the card
+// branch (topbi_local_replay.py run), the exit-code handling, the `## 本机回放验收` success report,
+// the `## 移植失败` failure exit (no move_card in Done), and that no dev/alpha/push flow is left,
+// across the default, en, and zh-CN load paths.
 const bundledRoot = path.join(process.cwd(), "resources", "specialists");
 const loadPaths: Array<[string, string, string | undefined]> = [
   ["default", bundledRoot, undefined],
@@ -49,31 +50,48 @@ function findUnguardedDangerLines(prompt: string): string[] {
 }
 
 const REQUIRED_STRINGS = [
-  "git fetch origin dev",
-  "git push origin HEAD:dev",
-  "git ls-remote origin refs/heads/dev",
-  "git rev-parse HEAD",
+  "topbi_local_replay.py run",
+  "--topbi-base origin/master",
+  "--control spend-x2",
+  "--workdir /tmp/routa-evidence/",
+  "local-replay",
+  "test -f",
+  "run_in_background",
+  "40",
   "## 移植失败",
   "可合 master：否",
-  "dev 提交号",
-  "topbi_alpha_deploy.py deploy --json",
-  "topbi_alpha_deploy.py last --json",
-  "git cherry-pick --abort",
-  "git revert",
-  "可合 master",
-  "/tmp/topbi-port-",
+  "可合 master：是",
+  "可合 master：否（缺本机回放：",
+  "## 本机回放验收",
+  "本机回放：一致",
+  "本机回放：预期变化（",
+  "本机回放：未做（回放脚本未部署）",
+  "本机回放：未做（参数错）",
+  "/plywood",
+  "探针",
   "/tmp/routa-evidence/",
 ];
 
-const SECTION_TITLES = [
-  "前提",
-  "移植",
-  "逐个文件比对两边改动",
-  "推 GitLab dev",
-  "发 alpha 前取基线",
-  "自动发 alpha",
-  "alpha 验收",
-  "自动回滚",
+const SECTION_TITLES = ["前提", "本机回放", "结果处理", "写报告", "全程不做"];
+
+// Old dev/alpha/rollback flow words that must be gone (card 5cf1e338).
+const REMOVED_STRINGS = [
+  "HEAD:dev",
+  "topbi_alpha_deploy.py deploy",
+  "alpha-before",
+  "alpha-after",
+  "topbi_alpha_replay.py",
+  "TOPBI_ALPHA_BASE_URL",
+  "topbi_dev_build_client.sh",
+  "alpha 回放：",
+  "## 移植与 alpha 验收",
+  "origin/dev",
+  "git cherry-pick",
+  "git revert",
+  "/tmp/topbi-port-",
+  "git push origin",
+  "回滚",
+  "git add build/public",
 ];
 
 describe("kanban-topbi-porter prompt", () => {
@@ -84,29 +102,27 @@ describe("kanban-topbi-porter prompt", () => {
     }
   });
 
-  it.each(loadPaths)("lists the 1-9 workflow with Chinese section titles (%s)", (_label, dir, locale) => {
+  it.each(loadPaths)("lists the 1-5 workflow with Chinese section titles (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
     for (const title of SECTION_TITLES) {
       expect(prompt).toContain(title);
     }
-    for (const step of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+    for (const step of [1, 2, 3, 4, 5]) {
       expect(prompt).toMatch(new RegExp(`^\\s*${step}\\. `, "m"));
     }
   });
 
-  it.each(loadPaths)("states the deploy exit-code contract (%s)", (_label, dir, locale) => {
+  it.each(loadPaths)("states the replay exit-code contract (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
-    expect(prompt).toMatch(/退出码 0|exit code 0/i);
-    expect(prompt).toMatch(/退出码 1|exit code 1/i);
-    expect(prompt).toMatch(/2\/3/);
-    expect(prompt).toMatch(/不回滚|do not roll back/i);
-    expect(prompt).toMatch(/发 alpha 脚本未部署/);
+    for (const code of [0, 1, 2, 3]) {
+      expect(prompt).toMatch(new RegExp(`退出码 ${code}|exit code ${code}`, "i"));
+    }
+    expect(prompt).toMatch(/回放超时/);
   });
 
-  it.each(loadPaths)("requires build/ artifacts when src/server/ changes (%s)", (_label, dir, locale) => {
+  it.each(loadPaths)("never marks a missing replay as mergeable (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
-    expect(prompt).toContain("src/server/");
-    expect(prompt).toContain("build/");
+    expect(prompt).toMatch(/绝不写「是」|never write 「是」/);
   });
 
   it.each(loadPaths)("only mentions dangerous push/Bamboo tokens inside prohibitions (%s)", (_label, dir, locale) => {
@@ -116,6 +132,7 @@ describe("kanban-topbi-porter prompt", () => {
     expect(prompt).toContain("refs/for/master");
     expect(prompt).toContain("--force");
     expect(prompt).toContain("variableContext");
+    expect(prompt).toMatch(/绝不 push 任何远端|never push to any remote/i);
   });
 
   it("flags a dangerous line without a prohibition word (negative self-check)", () => {
@@ -136,88 +153,30 @@ describe("kanban-topbi-porter prompt", () => {
   });
 });
 
-// Alpha replay on every card (topbi_alpha_replay.py capture/compare) and the frontend
-// rebuild of build/public on dev (topbi_dev_build_client.sh), card 537676a9.
-const REPLAY_AND_REBUILD_STRINGS = [
-  "topbi_alpha_replay.py capture",
-  "topbi_alpha_replay.py compare",
-  "topbi_dev_build_client.sh",
-  "回放脚本未部署",
-  "alpha 回放：未做（回放脚本未部署）",
-  "alpha 发版前回放失败，见 index.json",
-  "前端重编",
-  "alpha-before",
-  "alpha-after",
-  "alpha-requests.json",
-  "--requests",
-  "git diff --name-only origin/dev..HEAD",
-  "src/client/",
-  "src/common/",
-  "assets/",
-  "config/webpack",
-  "package.json",
-  "package-lock.json",
-  "git add build/public",
-  "build: 重编前端产物",
-  "前端产物无变化",
-  "build/public/",
-  "预期变化",
-  "前端重编：",
-  "alpha 回放：",
-  "缺 alpha 回放",
-  "^..HEAD",
-];
-
-/**
- * Line-based check: TOPBI_ALPHA_BASE_URL may only appear as an optional override of the
- * alpha address, never as a precondition for replaying. A line mentioning it is a violation
- * unless the same line (lower-cased) contains 覆盖 or override.
- */
-function findBaseUrlPreconditionLines(prompt: string): string[] {
-  return prompt.split(/\r?\n/).filter((line) => {
-    if (!line.includes("TOPBI_ALPHA_BASE_URL")) return false;
-    const lower = line.toLowerCase();
-    return !lower.includes("覆盖") && !lower.includes("override");
-  });
-}
-
-describe("kanban-topbi-porter alpha replay and frontend rebuild", () => {
-  it.each(loadPaths)("contains the replay and rebuild commands and fixed strings (%s)", (_label, dir, locale) => {
+describe("kanban-topbi-porter local replay (no dev port, no alpha)", () => {
+  it.each(loadPaths)("drops the old dev/alpha/rollback flow words (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
-    for (const text of REPLAY_AND_REBUILD_STRINGS) {
-      expect(prompt).toContain(text);
+    for (const text of REMOVED_STRINGS) {
+      expect(prompt).not.toContain(text);
     }
   });
 
-  it.each(loadPaths)("no longer requires TOPBI_ALPHA_BASE_URL before replaying (%s)", (_label, dir, locale) => {
+  it.each(loadPaths)("keeps one identical replay command and checks the script first (%s)", (_label, dir, locale) => {
     const prompt = loadPrompt(dir, locale);
-    expect(findBaseUrlPreconditionLines(prompt)).toEqual([]);
-    expect(prompt).not.toContain("TOPBI_ALPHA_BASE_URL` 已配置");
-    expect(prompt).not.toContain("is set and reachable");
-    expect(prompt).not.toContain("含回放做了且一致");
-    expect(prompt).not.toContain("including a replay that was done and matched");
+    const script = "/Users/ouweibing/Desktop/topgames_work/local-tools/tools/topbi-alpha-deploy/topbi_local_replay.py";
+    expect(prompt).toContain(`test -f ${script}`);
+    expect(prompt.indexOf("test -f")).toBeLessThan(prompt.indexOf(`${script} run`));
+    expect(prompt).toMatch(/--topbi-new <(卡分支 HEAD|card branch HEAD)> --control spend-x2/);
   });
 
-  it("flags TOPBI_ALPHA_BASE_URL used as a precondition (negative self-check)", () => {
-    expect(findBaseUrlPreconditionLines("环境变量 TOPBI_ALPHA_BASE_URL 已配置才回放")).toHaveLength(1);
-    expect(findBaseUrlPreconditionLines("TOPBI_ALPHA_BASE_URL 仅用于覆盖 alpha 地址")).toEqual([]);
-    expect(findBaseUrlPreconditionLines("TOPBI_ALPHA_BASE_URL may Override the alpha URL")).toEqual([]);
-  });
-
-  it.each(loadPaths)("places the frontend rebuild inside step 3, before the step 4 push (%s)", (_label, dir, locale) => {
-    const prompt = loadPrompt(dir, locale);
-    const step3 = prompt.search(/^\s*3\. /m);
-    const step4 = prompt.search(/^\s*4\. /m);
-    const rebuild = prompt.search(/^\s+- \*\*前端重编/m);
-    expect(step3).toBeGreaterThanOrEqual(0);
-    expect(rebuild).toBeGreaterThan(step3);
-    expect(rebuild).toBeLessThan(step4);
-  });
-
-  it.each(loadPaths)("never force-adds build/public (%s)", (_label, dir, locale) => {
-    const prompt = loadPrompt(dir, locale);
-    expect(prompt).not.toContain("git add -f");
-    expect(prompt).not.toContain("git add --force");
+  it.each(loadPaths)("frames description and role reminder as local replay (%s)", (_label, dir, locale) => {
+    const specialist = loadSpecialistsFromDirectory(dir, "bundled", locale).find(
+      (entry) => entry.id === "kanban-topbi-porter"
+    );
+    const text = `${specialist?.frontmatter.description ?? ""}\n${specialist?.frontmatter.roleReminder ?? ""}`;
+    expect(text).toMatch(/本机回放|local replay/i);
+    expect(text).not.toMatch(/alpha/i);
+    expect(text).not.toContain("HEAD:dev");
   });
 });
 
