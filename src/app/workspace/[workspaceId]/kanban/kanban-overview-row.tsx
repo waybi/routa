@@ -39,13 +39,12 @@ interface BlockProps {
 }
 
 function Block({ title, tone, count, testId, empty, grow, children }: BlockProps) {
-  const frame = empty
-    ? "rounded-md border border-dashed border-default px-2 py-1.5"
-    : "rounded-md border-[length:var(--kanban-block-border-width)] border-solid border-[color:var(--kanban-block-border)] bg-[color:var(--kanban-block-bg)] p-1.5";
+  // An empty block keeps the block colours and the lane marker; it only turns into one dashed line.
+  const frame = `rounded-md border-[length:var(--kanban-block-border-width)] ${empty ? "border-dashed" : "border-solid"} border-[color:var(--kanban-block-border)] bg-[color:var(--kanban-block-bg)] p-1.5`;
   return (
     <section className={`min-w-0 flex-1 ${frame}`} data-testid={testId} data-empty={empty ? "true" : "false"}>
       <header className={`flex items-center gap-1.5 px-1 text-[11px] ${empty ? "text-secondary" : "mb-1 font-semibold text-primary"}`} data-testid={`${testId}-header`}>
-        {!empty && <KanbanLaneMarker stage={tone} />}
+        <KanbanLaneMarker stage={tone} />
         {title}
         <span className="font-normal text-secondary">{count}</span>
       </header>
