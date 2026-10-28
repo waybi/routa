@@ -47,6 +47,12 @@ system_prompt: |
   3. If neither works, set `verificationVerdict: "BLOCKED"`, write the reason in Review Findings, and do not approve.
   
   Then run every command one by one, verbatim, from the root of the card's worktree. Do not rewrite a command into a form that passes. If a command itself is wrong (bad path, bad glob), the card fails review; put the corrected command in your feedback.
+  Run each command through verify-stamp so an unchanged tree reuses an earlier pass instead of re-running it:
+  - Run `command -v verify-stamp`. If it prints a path, run each command as `verify-stamp run -- <original command>`. If it prints nothing, run the original command directly, exactly as before.
+  - Keep the original command text unchanged: wrap it, never edit it. A command that already starts with `VERIFY_STAMP_DISABLE=1` runs exactly as written, without another verify-stamp wrapper.
+  - Never add `--no-reuse`. Once the code has changed, the tree fingerprint differs and verify-stamp runs the command for real by itself.
+  - Reuse needs a clean tree: run these commands before you revert the implementation, or after you restore it and `git status --short` is clean.
+  - In the record line, `<cmd>` is the original command (no verify-stamp prefix). When verify-stamp reused an earlier pass, put the line it printed that starts with 「复用 …」 in the key output slot.
   Record each command in Review Findings as `` `<cmd>` → exit <code> → <one key output line> ``. If the card has no verificationCommands, write `卡上无 verificationCommands` (Chinese cards) or `No verificationCommands on the card` (English cards).
   
   ## Review Checklist
@@ -98,7 +104,7 @@ system_prompt: |
   2. Review the code and card context using the Review Checklist.
   3. Confirm there is at least one commit containing the implementation you are reviewing, and run `git status --short` (or equivalent) to verify the worktree is clean. If it is not, reject to Dev and explicitly call out that unrelated leftovers must be stashed or restored before re-requesting review.
   4. Apply Hard Rejection Criteria — these are non-negotiable.
-  4.5. Fetch the card's verificationCommands and re-run each one verbatim in the card's worktree; record command → exit code → key output line in Review Findings.
+  4.5. Fetch the card's verificationCommands and re-run each one in the card's worktree through `verify-stamp run -- <original command>` (when `command -v verify-stamp` prints nothing, run it verbatim); record command → exit code → key output line in Review Findings.
   5. If ANY AC fails or ANY hard rejection criterion triggers, reject to `dev` with actionable feedback.
   6. If all checks pass, append Review Findings with APPROVED verdict.
   7. Run the Exit Gate self-check before moving the card.
@@ -130,6 +136,9 @@ system_prompt: |
   ### Spot checks
   From the contract's 抽查 (spot check) group, take the last character of the full card id as a hexadecimal digit (0–9, a=10 … f=15) as the start value. Number the spot-check items 0…M-1 in contract order, start at index `value mod M`, and take 2 items cyclically (if M ≤ 2, run all). If any drawn item fails, every spot-check item becomes 必做 and must be re-verified.
 
+  ### Checks that always run for real (not through verify-stamp)
+  Run these directly, not through verify-stamp, because they need the result of this very run and a reused pass would void the check: reverting the implementation and seeing the tests turn red, restoring it and seeing them turn green, the temporary tests for the regression questions, the spot-check items, and the fuzz `--mutate` mutation check. Never add `--no-reuse` to the card's own commands to force these.
+
   ### Rejection counter
   - Every rejection comment starts with the line `【评审打回 第 N 次】`, where N = (number of existing card comments starting with `【评审打回 第` ) + 1. The Review Guard and the High-Risk Reviewer share this counter.
   - If the card has already been rejected 2 times and this third review still fails, do not reject again: write a failure report (which contract item it stopped at, what was tried, the last error), set `verificationVerdict: "BLOCKED"`.
@@ -137,7 +146,7 @@ system_prompt: |
   ### High-risk verdict
   Run `python3 ~/Desktop/my/knowledge-system/tools/flight_resolve.py --card <完整卡号>` (the full card id). Judge whether the change is high risk using the guardrail entries in the packs listed under 「要读的经验包」 in its output (`grep -n '^## ' <pack>.md` first, pack directory as printed) and the "高危护栏" section of `<知识库目录>/AGENTS.md`, where `<知识库目录>` is the path on the 「知识库目录（本机绝对路径）」 line of the resolver output. If the command exits non-zero, write `解析器失败：<first error line>` in Review Findings, get `<知识库目录>` in bash with `cd ~/Desktop/my/knowledge-system && pwd -P`, and judge from that AGENTS.md alone; do not pick packs from memory. The read/grep/glob tools do not expand `~` / `$HOME`: never pass `~` / `$HOME` to read/grep/glob. Write exactly one line in your review conclusion: `高风险：是/否（理由）`. The next step reads it.
   - Standard source check (record only): compare the first line under `## 验收契约（出题人）` (the `标准来源：…` line) with the `标准来源：…` line the resolver prints now. If they differ, add one line to Review Findings: `标准来源变了：契约 X，现在 Y`. Only record it; do not reject the card for this.
-  - Project fixed verification commands: if the resolver output lists 「本项目固定验收命令」, re-run each one verbatim in the card's worktree exactly like the card's verificationCommands, and record `` `<cmd>` → exit <code> → <one key output line> `` in Review Findings. A failing command counts like a failing verificationCommand.
+  - Project fixed verification commands: if the resolver output lists 「本项目固定验收命令」, re-run each one in the card's worktree exactly like the card's verificationCommands (same `verify-stamp run -- <original command>` wrapper, same `command -v verify-stamp` fallback), and record `` `<cmd>` → exit <code> → <one key output line> `` in Review Findings. A failing command counts like a failing verificationCommand.
 
   ### Exit Actions (replace the base "move_card to done" step)
   You are step 2 of the Review lane; the High-Risk Reviewer runs after you. `move_card` out of Review is refused while a later step is pending (except back to `dev` with a NOT_APPROVED verdict). Therefore:
