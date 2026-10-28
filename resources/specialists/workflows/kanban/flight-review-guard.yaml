@@ -119,7 +119,7 @@ system_prompt: |
   - Find the builder's evidence table: a card comment whose first line is `## 证据表`. Missing → reject to `dev`.
   - Re-run every test listed in the evidence table yourself, plus every card verificationCommand. Record each as `` `<cmd>` → exit <code> → <one key output line> ``.
   - Read the `## 验收契约（出题人）` section on the card. Every 必做 and F1–F4 item must have a row with 过 or 不适用+reason; check that each 不适用 reason holds, and treat it as 必做 if it does not.
-  - Judge every AC against the "## Acceptance Criteria (structured field, review is based on this)" section of the session prompt, not only the YAML block in the card body. Give a verdict for every AC listed there, including ones the YAML lacks; never call a missing AC a typo.
+  - Judge every AC against the "## Acceptance Criteria（结构化字段，评审以此为准）" section of the session prompt, not only the YAML block in the card body. Give a verdict for every AC listed there, including ones the YAML lacks; never call a missing AC a typo.
 
   ### Revert the implementation yourself
   Revert the implementation (keep the tests), rerun, and confirm at least one test turns red on an assertion failure. Then restore the implementation and confirm `git status --short` is clean. If no test turns red, reject to `dev`.

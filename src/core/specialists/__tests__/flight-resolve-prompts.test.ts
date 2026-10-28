@@ -61,7 +61,7 @@ describe.each(loadPaths)("flight_resolve.py prompts (%s)", (label, dir, locale) 
 
   it("review guard judges ACs by the structured-field section of the prompt", () => {
     const text = prompt(dir, locale, "kanban-flight-review-guard");
-    expect(text).toContain(zh ? "## Acceptance Criteria（结构化字段，评审以此为准）" : "structured field, review is based on this");
+    expect(text).toContain("## Acceptance Criteria（结构化字段，评审以此为准）");
     expect(text).toContain(zh ? "不能判为笔误" : "never call a missing AC a typo");
   });
 
