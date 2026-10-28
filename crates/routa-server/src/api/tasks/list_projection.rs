@@ -30,6 +30,11 @@ const LIST_LANE_SESSION_FIELDS: &[&str] = &[
     "startedAt",
     "completedAt",
     "lastActivityAt",
+    // The all-projects overview shows who runs a card and which step; must
+    // match LIST_LANE_SESSION_FIELDS on the Next backend (card f8fcc22b).
+    "specialistName",
+    "stepName",
+    "stepIndex",
 ];
 
 /// Objective budget for the list projection; must match
@@ -141,6 +146,9 @@ mod tests {
                 "status": "running",
                 "startedAt": "2026-01-01T00:00:00.000Z",
                 "lastActivityAt": "2026-01-01T00:01:00.000Z",
+                "specialistName": "Dev Crafter",
+                "stepName": "Dev",
+                "stepIndex": 1,
                 "objective": "x".repeat(38_000),
             }],
         })
@@ -182,6 +190,10 @@ mod tests {
             lane["lastActivityAt"].as_str(),
             Some("2026-01-01T00:01:00.000Z")
         );
+        // Labels the all-projects overview reads.
+        assert_eq!(lane["specialistName"].as_str(), Some("Dev Crafter"));
+        assert_eq!(lane["stepName"].as_str(), Some("Dev"));
+        assert_eq!(lane["stepIndex"].as_i64(), Some(1));
     }
 
     #[test]

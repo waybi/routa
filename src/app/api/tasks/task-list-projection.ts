@@ -46,6 +46,11 @@ const LIST_LANE_SESSION_FIELDS = [
   "startedAt",
   "completedAt",
   "lastActivityAt",
+  // The all-projects overview shows "who runs this card, which step" without
+  // reading the detail: three short strings per run (card f8fcc22b).
+  "specialistName",
+  "stepName",
+  "stepIndex",
 ] as const;
 
 /**

@@ -27,6 +27,8 @@ function fatTask(overrides: Record<string, unknown> = {}) {
         lastActivityAt: "2026-01-01T00:01:00.000Z",
         columnId: "dev",
         stepName: "Dev",
+        stepIndex: 1,
+        specialistName: "Dev Crafter",
         provider: "dsh",
         // The per-run copy of the card objective: largest single contributor
         // to the old payload, read by nobody on the client.
@@ -84,6 +86,10 @@ describe("projectTaskForList", () => {
       startedAt: "2026-01-01T00:00:00.000Z",
       lastActivityAt: "2026-01-01T00:01:00.000Z",
     });
+    // The all-projects overview reads who runs the card and which step (card f8fcc22b);
+    // other labels stay detail-only.
+    expect(lane).toMatchObject({ specialistName: "Dev Crafter", stepName: "Dev", stepIndex: 1 });
+    expect(lane.provider).toBeUndefined();
   });
 
   it("leaves a short objective untouched and unflagged", () => {
