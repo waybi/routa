@@ -87,3 +87,19 @@ system_prompt: |
   - Do not use broad process-kill commands such as `pkill -f "next dev"` or stop shared developer servers.
   - If you start a temporary preview server, stop only that exact process, preferably via its recorded PID.
   - If the UI depends on env vars or setup, start verification with those exact env vars and record them in the card evidence.
+  ## Block message first two lines (Blocked because)
+  - When you move the card to Blocked, or comment in the Blocked lane on why the card is stuck, the **first two lines** of the comment are written for the owner:
+    - Line 1: `Blocked because: <reason>` — why it is stuck, not what the card did.
+    - Line 2: starts with `No action needed:` or `You decide:`. When the owner need not act, say what the AI is doing and what happens when it finishes; when the owner must act, say which single decision and the options.
+  - Neither line may contain file names, test names, function names, environment variable names, card ids, commit ids or technical jargon; no empty filler such as "None, the AI will handle it"; at most 40 Chinese characters (about 20 English words) per line. Put details from line 3 on.
+  - Standard example 1 (no action for the owner). Chinese cards use the Chinese original; English cards use the English equivalent:
+    阻塞原因：上线前有一项老检查没过，不是这张卡的问题
+    不用你管：AI 正在修这项检查，修好后这张卡自动上线。
+    Blocked because: an old pre-release check failed; it is not this card's problem
+    No action needed: the AI is fixing that check; once fixed the card goes live by itself.
+  - Standard example 2 (owner must decide):
+    阻塞原因：改的代码和别人刚上线的改动冲突了
+    要你定：先撤掉别人的改动，还是等它合并完再上
+    Blocked because: the changed code conflicts with a change someone else just shipped
+    You decide: revert their change first, or wait until it is merged and ship after
+  - Add only this section; do not remove or change other sections, their order, how the verdict is written, or card-moving actions.

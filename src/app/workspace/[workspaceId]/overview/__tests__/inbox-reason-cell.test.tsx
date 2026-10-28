@@ -33,10 +33,12 @@ afterEach(() => {
 describe("reason cell", () => {
   it("(a) shows why and decision on two lines, expands and collapses without fetching", () => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh");
-    const body = "阻塞原因：基线失败｜需要你定：是否放行\n\n## Review Findings\n- 细节";
+    const body = "阻塞原因：上线前有一项老检查没过，不是这张卡的问题\n要你定：先撤掉别人的改动，还是等它合并完再上\n\n## 细节\n- 详情";
     const fetchMock = renderBlocked(body);
-    expect(screen.getByTestId("inbox-row-reason-why").textContent).toContain("为什么挡住：基线失败");
-    expect(screen.getByTestId("inbox-row-reason-decision").textContent).toBe("要你定：是否放行");
+    const why = screen.getByTestId("inbox-row-reason-why");
+    expect(why.firstChild?.textContent).toBe("上线前有一项老检查没过，不是这张卡的问题");
+    expect(why.textContent).not.toMatch(/阻塞原因|为什么挡住|：$/u);
+    expect(screen.getByTestId("inbox-row-reason-decision").textContent).toBe("要你定：先撤掉别人的改动，还是等它合并完再上");
     expect(screen.getByTestId("inbox-row-reason").querySelector("dd")!.getAttribute("title")).toBe(body);
     const toggle = screen.getByTestId("inbox-row-reason-toggle");
     expect(toggle.textContent).toBe("展开全文");
@@ -63,21 +65,23 @@ describe("reason cell", () => {
   });
 
   it("(c) clips a long why to 160 chars; title keeps the whole comment", () => {
-    const body = `阻塞原因：${"长".repeat(200)}｜需要你定：定`;
+    const body = `阻塞原因：${"长".repeat(200)}\n要你定：定`;
     renderBlocked(body);
-    expect(screen.getByTestId("inbox-row-reason-why").children[1].textContent).toBe(`${"长".repeat(INBOX_SOURCE_MAX_CHARS)}…`);
+    expect(screen.getByTestId("inbox-row-reason-why").firstChild?.textContent).toBe(`${"长".repeat(INBOX_SOURCE_MAX_CHARS)}…`);
     expect(screen.getByTestId("inbox-row-reason").querySelector("dd")!.getAttribute("title")).toBe(body);
   });
 
-  it("C5/C7 styling and English labels, no danger colours", () => {
-    renderBlocked("Blocked because: A | Needs your decision: B");
-    expect(screen.getByTestId("inbox-row-reason-why").textContent).toContain("Why it is blocked：A");
-    expect(screen.getByTestId("inbox-row-reason-decision").textContent).toBe("Needs your decision：B");
-    expect(screen.getByTestId("inbox-row-reason-toggle").textContent).toBe("Show full comment");
+  it("C5/C7 styling, English labels, no danger colours, no label prefix", () => {
+    renderBlocked("Blocked because: A\nYou decide: B");
     const why = screen.getByTestId("inbox-row-reason-why");
-    expect(why.children[0].className).toBe("text-secondary");
-    expect(why.children[1].className).toBe("text-primary");
-    expect(screen.getByTestId("inbox-row-reason").innerHTML).not.toMatch(/text-danger|bg-red-|#[0-9a-fA-F]{3,6}\b/u);
+    expect(why.firstChild?.textContent).toBe("A");
+    expect(why.textContent).not.toMatch(/Why it is blocked|：/u);
+    expect(screen.getByTestId("inbox-row-reason-decision").textContent).toBe("You decide: B");
+    expect(screen.getByTestId("inbox-row-reason-toggle").textContent).toBe("Show full comment");
+    expect(why.className).toBe("block font-semibold text-primary");
+    expect(screen.getByTestId("inbox-row-reason-decision").className).toBe("block text-secondary");
+    expect(screen.getByTestId("inbox-row-reason-toggle").className).toBe(`${buttonClassName("ghost", "xs")} ml-1.5 font-normal`);
+    expect(screen.getByTestId("inbox-row-reason").innerHTML).not.toMatch(/text-danger|bg-red-|attention|#[0-9a-fA-F]{3,6}\b/u);
   });
 
   it("F2 lastSyncError rows keep their text and have no toggle", () => {

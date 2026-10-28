@@ -221,7 +221,7 @@ describe("reason comment from the card detail (AC3 in the page)", () => {
     fresh = { d5549adc: { ...tasks[0], comments: [comment("c", body, iso(NOW - HOUR))] } };
     await renderReady(1);
     const dd = () => within(rowByTitle("No error card")).getByTestId("inbox-row-reason").querySelector("dd")!;
-    await waitFor(() => expect(within(rowByTitle("No error card")).getByTestId("inbox-row-reason-why").children[1].textContent).toBe("主干推送中止：冲突，未推送。"));
+    await waitFor(() => expect(within(rowByTitle("No error card")).getByTestId("inbox-row-reason-why").firstChild?.textContent).toBe("主干推送中止：冲突，未推送。"));
     expect(dd().getAttribute("title")).toBe(body);
     expect(calls.filter((call) => pathOf(call.url) === "/api/tasks/d5549adc").map((call) => call.method)).toEqual(["GET"]);
   });

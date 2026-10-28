@@ -157,7 +157,7 @@ describe("inboxReasonText (C3, C11)", () => {
     expect(() => inboxReasonText(task)).not.toThrow();
     const actual = inboxReasonText(task);
     if (expected === null) expect(actual).toBeNull();
-    else expect(actual).toMatchObject({ ...expected, why: expected.text, decision: null });
+    else expect(actual).toMatchObject({ ...expected, headline: expected.text, action: null });
   });
 
   it("does not change the reason kind or severity of blockedUnknown rows", () => {

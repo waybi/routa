@@ -22,6 +22,7 @@ import { GripVertical, Trash2 } from "lucide-react";
 import { Badge, type Tone } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { useRetrySubmit } from "./use-kanban-retry-feedback";
+import { useBlockedReason } from "./use-blocked-reason";
 
 
 interface SpecialistOption {
@@ -331,6 +332,7 @@ function KanbanCardSurface({
 }: KanbanCardSurfaceProps) {
   const { t } = useTranslation();
   const sessionStatus = linkedSession?.acpStatus;
+  const blockReason = useBlockedReason(task);
   const isTerminalCard = task.columnId === "done" || task.columnId === "blocked";
   const now = useNowTick(!isTerminalCard && Boolean(linkedSession) && !dragOverlay);
   const resolveSpecialist = createKanbanSpecialistResolver(specialists);
@@ -579,6 +581,14 @@ function KanbanCardSurface({
         </div>
       )}
 
+      {blockReason && (
+        <div title={blockReason.full} data-testid="kanban-card-block-reason">
+          <div className="line-clamp-2 text-[11px] font-semibold leading-[1.45] text-primary [overflow-wrap:anywhere]">{blockReason.headline}</div>
+          {blockReason.action && (
+            <div className="line-clamp-2 text-[11px] leading-[1.45] text-secondary [overflow-wrap:anywhere]">{blockReason.action}</div>
+          )}
+        </div>
+      )}
       <p className="line-clamp-3 text-[11px] leading-[1.45] text-secondary">{objectiveText}</p>
       {hasReviewFeedback && (
         <div

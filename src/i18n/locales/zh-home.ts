@@ -56,8 +56,6 @@ export const zhHome: HomeTranslationDictionarySections = {
     severityP2: "P2 · 缺必要证据",
     severityP3: "P3 · 待你确认",
     labelReason: "原因",
-    reasonWhy: "为什么挡住",
-    reasonDecision: "要你定",
     reasonExpand: "展开全文",
     reasonCollapse: "收起",
     labelSource: "来源",

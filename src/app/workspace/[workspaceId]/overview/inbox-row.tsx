@@ -227,7 +227,7 @@ export function InboxRowItem({
               ? meta(page.labelReason, (
                 <InboxReasonCell
                   reason={reasonText}
-                  labels={{ why: page.reasonWhy, decision: page.reasonDecision, expand: page.reasonExpand, collapse: page.reasonCollapse }}
+                  labels={{ expand: page.reasonExpand, collapse: page.reasonCollapse }}
                   maxChars={INBOX_SOURCE_MAX_CHARS}
                 />
               ), "inbox-row-reason", reasonText.full)

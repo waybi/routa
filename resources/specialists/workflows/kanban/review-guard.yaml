@@ -110,12 +110,34 @@ system_prompt: |
   8. Run the Exit Gate self-check before moving the card.
   9. **Always** call `update_task` with `verificationVerdict` (`APPROVED`, `NOT_APPROVED`, or `BLOCKED`) before finishing. This is mandatory — the system uses this field to advance the card. Omitting it causes the card to loop in Review indefinitely.
   10. Do not implement fixes yourself in this lane. Your job is to judge, not to code.
-  ## 挡卡摘要行（阻塞原因）
-  - 判 BLOCKED / REJECTED / NOT_APPROVED / FAILED 时，评论**第一行**（在 `## Review Findings` 等标题之前）写一行人话摘要：`阻塞原因：<一句话说清为什么挡住>｜需要你定：<要老板定的事；没有就写「无，AI 会自行处理」>`。
-  - 例外：评论首行必须是 `【评审打回 第 N 次】` 时，摘要行写在第二行。
-  - 只在评论里加这一行，不删不改其余段落、顺序和 verdict 写法。
+  ## 挡卡留言前两行（阻塞原因）
+  - 把卡移到 Blocked，或在 Blocked 列留言说明卡为什么停住时，留言**前两行**固定写给老板看：
+    - 第 1 行：`阻塞原因：<原因>`，直接写停住的原因，不写这张卡做了什么。
+    - 第 2 行：以 `不用你管：` 或 `要你定：` 开头。不用老板出手时，写清 AI 正在做什么、做完会怎样；要老板出手时，写清要定哪件事和有几个选项。
+  - 两行里禁止出现：文件名、测试名、函数名、环境变量名、卡号、提交号、英文术语；禁止「无，AI 会自行处理」这类空话；每行不超过 40 个汉字。细节写在第 3 行以后。
+  - 标准样例一（不用老板出手）：
+    阻塞原因：上线前有一项老检查没过，不是这张卡的问题
+    不用你管：AI 正在修这项检查，修好后这张卡自动上线。
+  - 标准样例二（要老板拍板）：
+    阻塞原因：改的代码和别人刚上线的改动冲突了
+    要你定：先撤掉别人的改动，还是等它合并完再上
+  - 例外：评论首行必须是 `【评审打回 第 N 次】` 时，这两行紧跟其后写。
+  - 只加这一段，不删不改其余段落、顺序、verdict 写法和移卡动作。
 
-  ## Block summary line (Blocked because)
-  - When the verdict is BLOCKED / REJECTED / NOT_APPROVED / FAILED, write a one-line plain-language summary as the **first line** of the comment (before `## Review Findings` or any other heading): `Blocked because: <one sentence on why it is blocked> | Needs your decision: <what the owner must decide; write "None, the AI will handle it" if nothing>`.
-  - Exception: when the comment must start with `【评审打回 第 N 次】`, put the summary line second.
-  - Add only this line; do not remove or change other sections, their order, or how the verdict is written.
+  ## Block message first two lines (Blocked because)
+  - When you move the card to Blocked, or comment in the Blocked lane on why the card is stuck, the **first two lines** of the comment are written for the owner:
+    - Line 1: `Blocked because: <reason>` — why it is stuck, not what the card did.
+    - Line 2: starts with `No action needed:` or `You decide:`. When the owner need not act, say what the AI is doing and what happens when it finishes; when the owner must act, say which single decision and the options.
+  - Neither line may contain file names, test names, function names, environment variable names, card ids, commit ids or technical jargon; no empty filler such as "None, the AI will handle it"; at most 40 Chinese characters (about 20 English words) per line. Put details from line 3 on.
+  - Standard example 1 (no action for the owner). Chinese cards use the Chinese original; English cards use the English equivalent:
+    阻塞原因：上线前有一项老检查没过，不是这张卡的问题
+    不用你管：AI 正在修这项检查，修好后这张卡自动上线。
+    Blocked because: an old pre-release check failed; it is not this card's problem
+    No action needed: the AI is fixing that check; once fixed the card goes live by itself.
+  - Standard example 2 (owner must decide):
+    阻塞原因：改的代码和别人刚上线的改动冲突了
+    要你定：先撤掉别人的改动，还是等它合并完再上
+    Blocked because: the changed code conflicts with a change someone else just shipped
+    You decide: revert their change first, or wait until it is merged and ship after
+  - Exception: when the comment must start with `【评审打回 第 N 次】`, write these two lines right after it.
+  - Add only this section; do not remove or change other sections, their order, how the verdict is written, or card-moving actions.

@@ -56,8 +56,6 @@ export const enHome: HomeTranslationDictionarySections = {
     severityP2: "P2 · Missing evidence",
     severityP3: "P3 · Waiting for you",
     labelReason: "Reason",
-    reasonWhy: "Why it is blocked",
-    reasonDecision: "Needs your decision",
     reasonExpand: "Show full comment",
     reasonCollapse: "Collapse",
     labelSource: "Source",

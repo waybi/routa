@@ -43,9 +43,9 @@ function dd(testId: string): HTMLElement {
   return screen.getByTestId(testId).querySelector("dd")!;
 }
 
-/** The reason text the row shows: the "why" part of a parsed comment, else the plain cell. */
+/** The reason text the row shows: the headline of a parsed comment, else the plain cell. */
 function reasonShown(): string {
-  return screen.queryByTestId("inbox-row-reason-why")?.children[1].textContent ?? dd("inbox-row-reason").textContent ?? "";
+  return screen.queryByTestId("inbox-row-reason-why")?.firstChild?.textContent ?? dd("inbox-row-reason").textContent ?? "";
 }
 
 afterEach(() => {

@@ -70,8 +70,6 @@ export interface HomeTranslationDictionarySections {
     severityP2: string;
     severityP3: string;
     labelReason: string;
-    reasonWhy: string;
-    reasonDecision: string;
     reasonExpand: string;
     reasonCollapse: string;
     labelSource: string;
