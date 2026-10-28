@@ -578,6 +578,29 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     dayCount: string;
     keysHint: string;
     noMatches: string;
+    rhythmTitle: string;
+    rhythmHint: string;
+    /** "{count}" cards, "{hours}" AI hours. */
+    rhythmProjectStat: string;
+    /** "{time}" median AI time per card. */
+    rhythmMedian: string;
+    /** "{count}" cards that were reworked. */
+    rhythmRework: string;
+    /** "{count}" stuck cards, "{time}" stuck time. */
+    rhythmStuck: string;
+    /** "{count}" dev runs after the first. */
+    reworkBadge: string;
+    /** "{time}" stuck time. */
+    stuckBadge: string;
+    bucketPrepare: string;
+    bucketBuild: string;
+    bucketCheck: string;
+    bucketFinish: string;
+    bucketStuck: string;
+    /** "{day}" date, "{count}" cards. */
+    barTitle: string;
+    /** "{name}" bucket, "{time}" duration. */
+    bucketTitle: string;
   };
   /** Redesigned board page: header actions, toolbar, load/empty/error states. */
   kanbanBoardPage: {
