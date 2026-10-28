@@ -5,7 +5,7 @@
  * All user-controlled input is passed as separate arguments, never interpolated into shell strings.
  */
 
-import { execFileSync, spawn, type SpawnOptions } from "child_process";
+import { execFile, execFileSync, spawn, type SpawnOptions } from "child_process";
 
 /**
  * Validate that a string contains only safe characters for use in commands.
@@ -110,4 +110,39 @@ export function ghExec(args: string[], options?: { cwd?: string }): string {
  */
 export function gitExec(args: string[], options?: { cwd?: string }): string {
   return safeExecSync("git", args, options);
+}
+
+/**
+ * Async twin of {@link safeExecSync}: same argv-only execution, cwd, encoding
+ * and default buffer limits, but the event loop stays free while the child runs.
+ */
+export function safeExecAsync(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; encoding?: BufferEncoding },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      command,
+      args,
+      {
+        encoding: options?.encoding ?? "utf-8",
+        cwd: options?.cwd ?? process.cwd(),
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout as string);
+      },
+    );
+    // execFileSync gives the child an empty, closed stdin; match that.
+    child.stdin?.end();
+  });
+}
+
+/** Async twin of {@link gitExec}. */
+export function gitExecAsync(args: string[], options?: { cwd?: string }): Promise<string> {
+  return safeExecAsync("git", args, options);
 }

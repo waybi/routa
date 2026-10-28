@@ -30,8 +30,8 @@ const GITHUB_URL_PATTERNS = [
 const SIMPLE_OWNER_REPO = /^([a-zA-Z0-9\-_]+)\/([a-zA-Z0-9\-_.]+)$/;
 
 // Performance limits for file statistics calculation
-const MAX_UNTRACKED_FILES_WITH_SYNTHETIC_STATS = 25;
-const MAX_CHANGED_FILES_WITH_DETAILED_STATS = 500; // Global limit for all file types
+export const MAX_UNTRACKED_FILES_WITH_SYNTHETIC_STATS = 25;
+export const MAX_CHANGED_FILES_WITH_DETAILED_STATS = 500; // Global limit for all file types
 
 export interface ParsedGitHubUrl {
   owner: string;
@@ -183,7 +183,7 @@ export interface RepoChanges {
 
 // 🚀 Performance: Cache repo changes to avoid repeated expensive git operations
 // TTL of 5 seconds is fresh enough for UI interactions while preventing rapid re-computation
-const repoChangesCache = new LRUCache<string, RepoChanges>({
+export const repoChangesCache = new LRUCache<string, RepoChanges>({
   max: 100, // Cache up to 100 different repo paths
   ttl: 5000, // 5 seconds - balances freshness with performance
 });
@@ -562,7 +562,7 @@ export function getRepoChanges(repoPath: string): RepoChanges {
   }
 }
 
-function buildSyntheticAddedDiff(repoPath: string, file: GitFileChange): string {
+export function buildSyntheticAddedDiff(repoPath: string, file: GitFileChange): string {
   const absolutePath = path.join(repoPath, file.path);
   const content = fs.readFileSync(absolutePath, "utf8");
   const lines = content.split(/\r?\n/);
@@ -579,7 +579,7 @@ function buildSyntheticAddedDiff(repoPath: string, file: GitFileChange): string 
   ].join("\n");
 }
 
-function buildSyntheticRenameDiff(file: GitFileChange): string {
+export function buildSyntheticRenameDiff(file: GitFileChange): string {
   return [
     `diff --git a/${file.previousPath ?? file.path} b/${file.path}`,
     "similarity index 100%",
@@ -603,7 +603,7 @@ function getFirstNonEmptyGitDiff(repoPath: string, commands: string[][]): string
   return "";
 }
 
-function countDiffPatchLines(patch: string): { additions: number; deletions: number } {
+export function countDiffPatchLines(patch: string): { additions: number; deletions: number } {
   let additions = 0;
   let deletions = 0;
 
@@ -631,7 +631,7 @@ function countNumstatTotals(output: string): { additions: number; deletions: num
     }, { additions: 0, deletions: 0 });
 }
 
-function parseNumstat(output: string): { additions: number; deletions: number } | null {
+export function parseNumstat(output: string): { additions: number; deletions: number } | null {
   const firstLine = output
     .split("\n")
     .map((line) => line.trim())
@@ -655,7 +655,7 @@ function parseNumstat(output: string): { additions: number; deletions: number } 
  *   20  0   src/bar.ts
  *   15  3   src/{old.ts => new.ts}
  */
-function parseNumstatToMap(output: string): Map<string, { additions: number; deletions: number }> {
+export function parseNumstatToMap(output: string): Map<string, { additions: number; deletions: number }> {
   const statsMap = new Map<string, { additions: number; deletions: number }>();
 
   for (const line of output.split("\n")) {

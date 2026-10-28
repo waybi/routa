@@ -76,3 +76,26 @@ export {
   getCommitDiff,
   type CommitInfo,
 } from "./git-operations";
+
+export {
+  isGitRepositoryAsync,
+  isBareGitRepositoryAsync,
+  getCurrentBranchAsync,
+  listBranchesAsync,
+  listRemoteBranchesAsync,
+  getBranchInfoAsync,
+  checkoutBranchAsync,
+  deleteBranchAsync,
+  getRepoStatusAsync,
+  getBranchStatusAsync,
+  fetchRemoteAsync,
+  pullBranchAsync,
+  resetLocalChangesAsync,
+  getRemoteUrlAsync,
+  getRepoChangesAsync,
+  getRepoDeliveryStatusAsync,
+  hasBranchAuthoredCommitsOnHeadAsync,
+  isRefAncestorAsync,
+} from "./git-utils-async";
+
+export { runExclusiveForRepo } from "./repo-lock";
