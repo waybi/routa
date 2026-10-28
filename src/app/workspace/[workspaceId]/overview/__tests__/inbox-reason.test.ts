@@ -57,6 +57,34 @@ describe("C2 old Findings comment", () => {
   });
 });
 
+const REAL_SHAPE = [
+  "## Review Findings",
+  "- **Verdict**: BLOCKED（不是 REJECTED：卡上唯一验证命令失败）",
+  "- **AC Status**（按卡正文 YAML）:",
+  "  - AC1: ✅ 通过",
+  "- **Verification Commands Re-run**:",
+  "  - `go test ./...` → exit 1",
+  "- **Issues found**:",
+  "  1. 验证命令本身不能过：gofmt 段被 3 个原有文件拖红",
+  "  2. 其他",
+].join("\n");
+
+describe("C2 real card shape (Issues found list item)", () => {
+  it("takes the first numbered item under the label", () => {
+    const result = parseInboxReason(REAL_SHAPE);
+    expect(result.why.startsWith("验证命令本身不能过")).toBe(true);
+    expect(result.why).not.toMatch(/Review Findings|Verdict|AC Status/u);
+  });
+  it("takes inline content after the label", () => {
+    expect(parseInboxReason("## Review Findings\n- **Verdict**: BLOCKED\n- **发现的问题**：端口被占用").why).toBe("端口被占用");
+  });
+  it("APPROVED style 'Issues found: None' falls back to the first paragraph", () => {
+    const result = parseInboxReason("## Review Findings\n- **Verdict**: APPROVED\n- **Issues found**: None");
+    expect(result.why).not.toBe("None");
+    expect(result.why).toMatch(/Verdict/u);
+  });
+});
+
 describe("C3 markdown stripped, full verbatim", () => {
   it.each<[string, string]>([
     ["summary", "> **阻塞原因**：`x` 失败\n｜需要你定：\n"],
@@ -112,8 +140,10 @@ describe("F3 random cross-check (10,000 cases)", () => {
         body = `${lead}${noise}${l}：${why}${decision ? `${sep}${d}：${decision}` : ""}\n\n后文`;
         expected = { why, decision };
       } else if (kind === "findings") {
-        const h = pick(["### 发现的问题", "### Findings", "**发现的问题**"]);
-        body = `${lead}${h}\n\n| t | u |\n${noise}**${why}** \`c\`\n- 次要`;
+        const h = pick(["### 发现的问题", "### Findings", "**发现的问题**", "- **Issues found**:"]);
+        const items = pick(["\n\n| t | u |\n", "\n  1. "]);
+        const mark = items.includes("1.") ? "" : noise;
+        body = `${lead}${h}${items}${mark}**${why}** \`c\`\n- 次要`;
         expected = { why: `${why} c`, decision: null };
       } else {
         body = `${noise}${why}\n续\n\n第二段`;

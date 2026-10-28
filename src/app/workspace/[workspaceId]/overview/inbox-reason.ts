@@ -29,7 +29,8 @@ export function stripReasonMarkdown(text: string): string {
 
 const SUMMARY_LINE = /^(?:阻塞原因|Blocked because)\s*[:：]\s*(.*?)\s*[|｜]\s*(?:需要你定|Needs your decision)\s*[:：]\s*(.*)$/iu;
 const SUMMARY_WHY_ONLY = /^(?:阻塞原因|Blocked because)\s*[:：]\s*(.+)$/iu;
-const FINDINGS_HEADING = /^(?:发现的问题|问题|Findings|Issues)\s*[:：]?$/iu;
+const FINDINGS_HEADING = /^(?:发现的问题|问题|Findings|Issues(?: found)?)(?:\s*[:：]\s*(.*))?$/iu;
+const EMPTY_FINDING = /^(?:none|n\/a|无|没有)[.。]?$/iu;
 
 function parseSummaryLine(body: string): { why: string; decision: string | null } | null {
   for (const raw of body.split(/\r?\n/u)) {
@@ -45,7 +46,13 @@ function parseSummaryLine(body: string): { why: string; decision: string | null 
 function findingsReason(body: string): string | null {
   const lines = body.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
-    if (!FINDINGS_HEADING.test(stripReasonMarkdown(lines[index]))) continue;
+    const heading = FINDINGS_HEADING.exec(stripReasonMarkdown(lines[index]));
+    if (!heading) continue;
+    const inline = (heading[1] ?? "").trim();
+    if (inline) {
+      if (EMPTY_FINDING.test(inline)) continue;
+      return inline;
+    }
     for (let next = index + 1; next < lines.length; next += 1) {
       const raw = lines[next].trim();
       if (!raw || raw.startsWith("|") || /^[-=_*\s]{3,}$/u.test(raw)) continue;
