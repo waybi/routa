@@ -54,7 +54,7 @@ function Block({ title, tone, count, testId, empty, grow, children }: BlockProps
   );
 }
 
-function BlockedReason({ entry, commentsOf }: { entry: OverviewAttentionEntry; commentsOf: (task: TaskInfo) => TaskInfo["comments"] }) {
+export function BlockedReason({ entry, commentsOf }: { entry: OverviewAttentionEntry; commentsOf: (task: TaskInfo) => TaskInfo["comments"] }) {
   const { t } = useTranslation();
   const page = t.inboxPage;
   const { task } = entry;

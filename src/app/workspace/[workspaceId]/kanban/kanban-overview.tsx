@@ -24,7 +24,9 @@ import {
 import { countStatusBar, filterRowByStatus, type OverviewStatus } from "./kanban-overview-status-rules";
 import { readAttentionDismissals } from "./use-kanban-attention-dismissals";
 import { useKanbanOverviewData, useRememberedOverviewWorkspaces, type OverviewWorkspaceData } from "./use-kanban-overview-data";
+import { KanbanOverviewByStatus } from "./kanban-overview-by-status";
 import { KanbanOverviewDrawer } from "./kanban-overview-drawer";
+import { useOverviewMode, type OverviewMode } from "./kanban-overview-mode";
 import { columnName, WorkspaceRow } from "./kanban-overview-row";
 import { KanbanOverviewStatusBar } from "./kanban-overview-status-bar";
 import { useInboxReasonComments } from "../overview/use-inbox-reason-comments";
@@ -84,6 +86,30 @@ export function KanbanViewToggle({ view, onChange }: { view: KanbanViewMode; onC
   );
 }
 
+/** "By project / By status" two-part switch; the choice is written to the URL by the caller. */
+function OverviewModeToggle({ mode, onChange }: { mode: OverviewMode; onChange: (mode: OverviewMode) => void }) {
+  const { t } = useTranslation();
+  const button = (value: OverviewMode, label: string) => (
+    <button
+      type="button"
+      aria-pressed={mode === value}
+      onClick={() => onChange(value)}
+      data-testid={`kanban-overview-mode-${value}`}
+      className={`h-7 rounded px-2.5 text-[12px] font-medium transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${mode === value
+        ? "bg-accent text-on-accent"
+        : "text-secondary hover:bg-hover hover:text-primary"}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="inline-flex shrink-0 gap-0.5 rounded-md border border-default bg-surface p-0.5" role="group" aria-label={t.kanbanOverview.modeLabel} data-testid="kanban-overview-mode">
+      {button("project", t.kanbanOverview.modeProject)}
+      {button("status", t.kanbanOverview.modeStatus)}
+    </div>
+  );
+}
+
 function useMinuteClock(fixed: number | undefined): number {
   const [now, setNow] = useState(() => fixed ?? Date.now());
   useEffect(() => {
@@ -107,6 +133,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
   const workspaces = useRememberedOverviewWorkspaces(fetchedWorkspaces, workspacesLoading);
   const { data, retry } = useKanbanOverviewData(workspaces);
   const search = useKanbanBoardSearch();
+  const { mode, setMode } = useOverviewMode();
   const at = useMinuteClock(now);
   const [statusFilter, setStatusFilter] = useState<OverviewStatus | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -121,6 +148,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
     return entry.status === "ready" ? row : { ...row, collapsed: false, score: -1 };
   });
   const counts = countStatusBar(allRows, at);
+  const sortedRows = sortOverviewRows(allRows);
   const rows = sortOverviewRows(allRows
     .map((row) => (data[row.workspaceId]?.status === "ready" ? filterRowByStatus(row, statusFilter, at) : row))
     .filter((row) => !statusFilter || row.collapsed === false));
@@ -158,6 +186,11 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
     }, 0);
   }, [selected?.taskId]);
 
+  const openFromList = useCallback((task: TaskInfo, row: OverviewRow, trigger: HTMLElement) => {
+    triggerRef.current = trigger;
+    setSelected({ taskId: task.id, workspaceId: row.workspaceId });
+  }, []);
+
   const toggleExpanded = useCallback((workspaceId: string) => {
     setExpanded((current) => {
       const next = new Set(current);
@@ -170,6 +203,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="kanban-overview">
       <KanbanOverviewStatusBar counts={counts} active={statusFilter} onToggle={(status) => setStatusFilter((current) => (current === status ? null : status))} />
       <div className="flex items-center gap-2 px-1 pb-2">
+        <OverviewModeToggle mode={mode} onChange={setMode} />
         <KanbanBoardSearchInput
           query={search.query}
           onQueryChange={search.setQuery}
@@ -179,7 +213,21 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
         />
       </div>
       {workspaces.length === 0 && <div className="px-1 py-2 text-[12px] text-secondary">{t.kanbanOverview.noWorkspaces}</div>}
-      {rows.map((row) => (
+      {mode === "status" ? (
+        <div className="flex min-w-0 items-start gap-3">
+          <KanbanOverviewByStatus
+            rows={sortedRows}
+            dataByWorkspace={data}
+            statusFilter={statusFilter}
+            query={search.query}
+            now={at}
+            paused={selected !== null}
+            onOpenTask={openFromList}
+            onRetry={retry}
+            commentsOf={commentsOf}
+          />
+        </div>
+      ) : rows.map((row) => (
         <WorkspaceRow
           key={row.workspaceId}
           row={row}
@@ -188,10 +236,7 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
           now={at}
           expanded={expanded.has(row.workspaceId)}
           onToggleExpand={() => toggleExpanded(row.workspaceId)}
-          onOpenTask={(task, _row, trigger) => {
-            triggerRef.current = trigger;
-            setSelected({ taskId: task.id, workspaceId: row.workspaceId });
-          }}
+          onOpenTask={openFromList}
           onRetry={() => retry(row.workspaceId)}
           commentsOf={commentsOf}
         />
