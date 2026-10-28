@@ -40,6 +40,12 @@ describe("verify-stamp wrapper rules (AC1, AC5, F4)", () => {
     expect(prompt).toContain(isZh(label) ? "自然真跑" : "for real by itself");
   });
 
+  it.each(cases(allRoles))("%s (%s) hands shell-syntax commands to bash -c or runs them directly", (id, label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, id);
+    expect(prompt).toContain("verify-stamp run -- bash -c '<");
+    expect(prompt).toContain(isZh(label) ? "verify-stamp 不经 shell 执行参数" : "verify-stamp runs its arguments without a shell");
+  });
+
   it.each(cases(allRoles))("%s (%s) never instructs adding --no-reuse", (id, _label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, id);
     for (const line of prompt.split("\n").filter((l) => l.includes("--no-reuse"))) {

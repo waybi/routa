@@ -73,6 +73,7 @@ system_prompt: |
   1. Fetch the exact commands: `curl -s http://127.0.0.1:3000/api/tasks/<cardId>` and read `.task.verificationCommands` (this GET is read-only). If that fails, `sqlite3 -readonly <routa repo>/routa.db "select verification_commands from tasks where id='<cardId>'"`.
   2. Run `command -v verify-stamp`. If it prints a path, run each command as `verify-stamp run -- <original command>`; if it prints nothing, run the original command directly.
   3. Keep the original command text unchanged. A command that starts with `VERIFY_STAMP_DISABLE=1` runs exactly as written, without another verify-stamp wrapper. Never add `--no-reuse`: after a new commit the fingerprint differs and verify-stamp runs the command for real by itself.
+     - Shell syntax rule: verify-stamp runs its arguments without a shell. If the original command contains shell syntax (starts with `cd`, a variable assignment such as `X=1`, `!`, `&&`, `||`, a pipe `|`, `;`, a redirect, or `$(...)`), hand the whole command to a shell as `verify-stamp run -- bash -c '<original command>'` (escape single quotes as needed), or run it directly without verify-stamp; the original command text still stays unchanged.
   4. If any command fails, keep fixing and commit again; do not send the card to Review. If the card has no verificationCommands (empty or missing field), skip this step. This step only reads the card; never PATCH or POST it.
 
   Only after all checks pass: call `move_card` with `targetColumnId: "review"`.
