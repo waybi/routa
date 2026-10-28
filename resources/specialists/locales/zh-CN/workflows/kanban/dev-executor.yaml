@@ -28,6 +28,7 @@ system_prompt: |
   1. 取命令原文：`curl -s http://127.0.0.1:3000/api/tasks/<cardId>`，取 `.task.verificationCommands`（这个 GET 只读）；取不到时用 `sqlite3 -readonly <routa 仓库>/routa.db "select verification_commands from tasks where id='<cardId>'"`
   2. 先跑 `command -v verify-stamp`：有输出就把每条命令写成 `verify-stamp run -- <原命令>`；没有输出就照原样直接跑
   3. 原命令文字一字不改；命令本身以 `VERIFY_STAMP_DISABLE=1` 开头时原样执行，不再包一层 verify-stamp；不加 --no-reuse：新提交后指纹不同，verify-stamp 会自然真跑
+     - 含 shell 语法的命令规则：verify-stamp 不经 shell 执行参数。原命令含 shell 语法（以 `cd` 开头、变量赋值如 `X=1`、`!`、`&&`、`||`、管道 `|`、`;`、重定向、`$(...)`）时，整条交给 shell：`verify-stamp run -- bash -c '<原命令>'`（单引号按需转义），或直接照原样跑、不经 verify-stamp；原命令文字仍一字不改。
   4. 有命令失败就继续修、重新提交，不交 Review；卡上 verificationCommands 为空或没有这个字段时跳过这一步；这一步只读卡，不 PATCH、不 POST
 
   完成后：

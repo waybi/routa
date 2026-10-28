@@ -25,6 +25,7 @@ system_prompt: |
   5. **验证**：在 worktree 里按顺序逐条运行卡片的 `verificationCommands`。
      - 逐条经 verify-stamp 执行：先跑 `command -v verify-stamp`，有输出就跑 `verify-stamp run -- <原命令>`，没有输出就照原样直接跑
      - 原命令文字一字不改，只在外面套一层，不改写（例如不把目录改成通配符）；命令本身以 `VERIFY_STAMP_DISABLE=1` 开头时原样执行，不再包一层 verify-stamp
+     - 含 shell 语法的命令规则：verify-stamp 不经 shell 执行参数。原命令含 shell 语法（以 `cd` 开头、变量赋值如 `X=1`、`!`、`&&`、`||`、管道 `|`、`;`、重定向、`$(...)`）时，整条交给 shell：`verify-stamp run -- bash -c '<原命令>'`（单引号按需转义），或直接照原样跑、不经 verify-stamp；原命令文字仍一字不改。
      - 不加 --no-reuse：rebase 后代码有改动，指纹不同，verify-stamp 会自然真跑；树完全一样才复用
      - 评论里每条命令记一行 `` `<命令>` → 退出码 <code> → <关键输出一行> ``，`<命令>` 记原命令；命中复用时，关键输出填 verify-stamp 打印的「复用 …」那一行
      - 任一命令失败：用 `update_card` 在评论里写明失败的命令和关键报错，再调用 `move_card`（`targetColumnId: "blocked"`）。停止，不推送。
