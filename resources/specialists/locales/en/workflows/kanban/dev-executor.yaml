@@ -66,6 +66,13 @@ system_prompt: |
   
   If ANY check fails, fix it before moving. Do not push unverified work to Review.
   
+  ### Pre-run the card's verificationCommands (before moving to review)
+  After your last commit, with `git status --short` clean and before `move_card` to `review`, run every command in the card's `verificationCommands` once so the later roles can reuse the pass:
+  1. Fetch the exact commands: `curl -s http://127.0.0.1:3000/api/tasks/<cardId>` and read `.task.verificationCommands` (this GET is read-only). If that fails, `sqlite3 -readonly <routa repo>/routa.db "select verification_commands from tasks where id='<cardId>'"`.
+  2. Run `command -v verify-stamp`. If it prints a path, run each command as `verify-stamp run -- <original command>`; if it prints nothing, run the original command directly.
+  3. Keep the original command text unchanged. A command that starts with `VERIFY_STAMP_DISABLE=1` runs exactly as written, without another verify-stamp wrapper. Never add `--no-reuse`: after a new commit the fingerprint differs and verify-stamp runs the command for real by itself.
+  4. If any command fails, keep fixing and commit again; do not send the card to Review. If the card has no verificationCommands (empty or missing field), skip this step. This step only reads the card; never PATCH or POST it.
+
   Only after all checks pass: call `move_card` with `targetColumnId: "review"`.
   
   ## Required behavior
