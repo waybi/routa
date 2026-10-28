@@ -202,6 +202,24 @@ describe("view toggle order: all projects first, this board second", () => {
   });
 });
 
+describe("toolbar layout (Design Spec 1)", () => {
+  it("keeps both toggle groups and the search in one container, with the status bar after it", async () => {
+    renderTabContent();
+    const toolbar = screen.getByTestId("kanban-toolbar");
+    expect(within(toolbar).getByTestId("kanban-view-toggle")).toBeTruthy();
+    expect(within(toolbar).getByTestId("kanban-overview-mode")).toBeTruthy();
+    expect(within(toolbar).getByTestId("kanban-board-search")).toBeTruthy();
+    expect(toolbar.className).toContain("gap-2");
+    // Same order as the design: toggle, mode toggle, search.
+    const order = [...toolbar.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid"));
+    expect(order.indexOf("kanban-view-toggle")).toBeLessThan(order.indexOf("kanban-overview-mode"));
+    expect(order.indexOf("kanban-overview-mode")).toBeLessThan(order.indexOf("kanban-board-search"));
+    const bar = await screen.findByTestId("kanban-overview-status-bar");
+    expect(toolbar.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("kanban-overview-toolbar")).toBeNull();
+  });
+});
+
 describe("view toggle cache", () => {
   it("switching back to all projects shows the last data at once, then refreshes in the background", async () => {
     window.history.replaceState(null, "", "/workspace/w1/kanban");

@@ -30,7 +30,8 @@ import type { KanbanCodebaseModalProps } from "./kanban-tab-modals";
 import type { AcpProviderInfo } from "@/client/acp-client";
 import type { KanbanTaskAgentCopy } from "./i18n/kanban-task-agent";
 import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
-import { KanbanOverview, KanbanViewToggle, useKanbanViewMode } from "./kanban-overview";
+import { KanbanOverview, KanbanViewToggle, OverviewModeToggle, useKanbanViewMode } from "./kanban-overview";
+import { useOverviewMode } from "./kanban-overview-mode";
 import { EMPTY_COLUMN_RAIL_WIDTH } from "./kanban-empty-column-rail";
 
 type KanbanTabHeaderProps = Omit<ComponentProps<typeof KanbanTabHeader>, "actionSlot" | "toolbarSlot" | "onFocusDispatch">;
@@ -268,10 +269,11 @@ export function KanbanTabContent({
   const copy = t.kanbanBoardPage;
   const search = useKanbanBoardSearch();
   const { view, setView } = useKanbanViewMode();
+  const { mode: overviewMode, setMode: setOverviewMode } = useOverviewMode();
   // The dispatch bar is always on screen (as before the redesign); "Add
   // request" in the header only puts the cursor into its input.
   const dispatchInputRef = useRef<HTMLInputElement | null>(null);
-  const overview = view === "all" ? <KanbanOverview onShowBoard={() => setView("board")}/> : null;
+  const overview = view === "all" ? <KanbanOverview onShowBoard={() => setView("board")} search={search} toolbarInHeader/> : null;
   const { key: codebaseModalKey, ...codebaseModalRestProps } = codebaseModalProps as KanbanCodebaseModalProps & {
     key?: string;
   };
@@ -286,6 +288,18 @@ export function KanbanTabContent({
   const toolbar = (
     <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="kanban-toolbar">
       <KanbanViewToggle view={view} onChange={setView}/>
+      {view === "all" && (
+        <>
+          <OverviewModeToggle mode={overviewMode} onChange={setOverviewMode}/>
+          <KanbanBoardSearchInput
+            query={search.query}
+            onQueryChange={search.setQuery}
+            onClear={search.clear}
+            inputRef={search.inputRef}
+            placeholder={t.kanbanOverview.searchPlaceholder}
+          />
+        </>
+      )}
       {headerProps.board && view === "board" && (
         <>
           <KanbanBoardSearchInput

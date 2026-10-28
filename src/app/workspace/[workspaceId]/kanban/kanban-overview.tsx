@@ -87,7 +87,7 @@ export function KanbanViewToggle({ view, onChange }: { view: KanbanViewMode; onC
 }
 
 /** "By project / By status" two-part switch; the choice is written to the URL by the caller. */
-function OverviewModeToggle({ mode, onChange }: { mode: OverviewMode; onChange: (mode: OverviewMode) => void }) {
+export function OverviewModeToggle({ mode, onChange }: { mode: OverviewMode; onChange: (mode: OverviewMode) => void }) {
   const { t } = useTranslation();
   const button = (value: OverviewMode, label: string) => (
     <button
@@ -126,13 +126,20 @@ function currentWorkspaceIdFromPath(): string | null {
 
 const LOADING: OverviewWorkspaceData = { status: "loading", tasks: [], boards: [] };
 
-export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; now?: number }) {
+export function KanbanOverview({ onShowBoard, now, search: externalSearch, toolbarInHeader = false }: {
+  onShowBoard: () => void;
+  now?: number;
+  /** Search state owned by the header toolbar; when set with toolbarInHeader the page draws no toolbar row of its own. */
+  search?: ReturnType<typeof useKanbanBoardSearch>;
+  toolbarInHeader?: boolean;
+}) {
   const { t } = useTranslation();
   const router = useRouter();
   const { workspaces: fetchedWorkspaces, loading: workspacesLoading } = useWorkspaces();
   const workspaces = useRememberedOverviewWorkspaces(fetchedWorkspaces, workspacesLoading);
   const { data, retry } = useKanbanOverviewData(workspaces);
-  const search = useKanbanBoardSearch();
+  const ownSearch = useKanbanBoardSearch();
+  const search = externalSearch ?? ownSearch;
   const { mode, setMode } = useOverviewMode();
   const at = useMinuteClock(now);
   const [statusFilter, setStatusFilter] = useState<OverviewStatus | null>(null);
@@ -201,8 +208,8 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="kanban-overview">
-      <KanbanOverviewStatusBar counts={counts} active={statusFilter} onToggle={(status) => setStatusFilter((current) => (current === status ? null : status))} />
-      <div className="flex items-center gap-2 px-1 pb-2">
+      {!toolbarInHeader && (
+      <div data-testid="kanban-overview-toolbar" className="flex items-center gap-2 px-1 pb-2">
         <OverviewModeToggle mode={mode} onChange={setMode} />
         <KanbanBoardSearchInput
           query={search.query}
@@ -212,6 +219,8 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
           placeholder={t.kanbanOverview.searchPlaceholder}
         />
       </div>
+      )}
+      <KanbanOverviewStatusBar counts={counts} active={statusFilter} onToggle={(status) => setStatusFilter((current) => (current === status ? null : status))} />
       {workspaces.length === 0 && <div className="px-1 py-2 text-[12px] text-secondary">{t.kanbanOverview.noWorkspaces}</div>}
       {mode === "status" ? (
         <div className="flex min-w-0">
