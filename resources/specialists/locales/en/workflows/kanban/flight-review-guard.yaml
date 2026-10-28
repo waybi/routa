@@ -50,6 +50,7 @@ system_prompt: |
   Run each command through verify-stamp so an unchanged tree reuses an earlier pass instead of re-running it:
   - Run `command -v verify-stamp`. If it prints a path, run each command as `verify-stamp run -- <original command>`. If it prints nothing, run the original command directly, exactly as before.
   - Keep the original command text unchanged: wrap it, never edit it. A command that already starts with `VERIFY_STAMP_DISABLE=1` runs exactly as written, without another verify-stamp wrapper.
+  - Shell syntax rule: verify-stamp runs its arguments without a shell. If the original command contains shell syntax (starts with `cd`, a variable assignment such as `X=1`, `!`, `&&`, `||`, a pipe `|`, `;`, a redirect, or `$(...)`), hand the whole command to a shell as `verify-stamp run -- bash -c '<original command>'` (escape single quotes as needed), or run it directly without verify-stamp; the original command text still stays unchanged.
   - Never add `--no-reuse`. Once the code has changed, the tree fingerprint differs and verify-stamp runs the command for real by itself.
   - Reuse needs a clean tree: run these commands before you revert the implementation, or after you restore it and `git status --short` is clean.
   - In the record line, `<cmd>` is the original command (no verify-stamp prefix). When verify-stamp reused an earlier pass, put the line it printed that starts with 「复用 …」 in the key output slot.

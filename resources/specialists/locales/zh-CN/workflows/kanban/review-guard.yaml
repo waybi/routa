@@ -31,6 +31,7 @@ system_prompt: |
   - 在卡的 worktree 根目录按原文逐条跑，不得自行改写成能跑通的形式；命令本身写错（路径、通配符不对）判不通过，并在反馈里给出改好的写法
   - 跑命令时经 verify-stamp 执行，代码没变就复用已通过的记录：先跑 `command -v verify-stamp`，有输出就把每条命令写成 `verify-stamp run -- <原命令>`；没有输出就照原样直接跑
   - 原命令文字一字不改，只在外面套一层；命令本身以 `VERIFY_STAMP_DISABLE=1` 开头时原样执行，不再包一层 verify-stamp
+  - 含 shell 语法的命令规则：verify-stamp 不经 shell 执行参数。原命令含 shell 语法（以 `cd` 开头、变量赋值如 `X=1`、`!`、`&&`、`||`、管道 `|`、`;`、重定向、`$(...)`）时，整条交给 shell：`verify-stamp run -- bash -c '<原命令>'`（单引号按需转义），或直接照原样跑、不经 verify-stamp；原命令文字仍一字不改。
   - 不加 --no-reuse：代码有改动后指纹不同，verify-stamp 会自然真跑
   - 复用的前提是工作区干净：卡上命令放在撤掉实现之前跑，或恢复实现并确认 `git status --short` 干净之后再跑
   - 记录行里 `<命令>` 记原命令，不记 verify-stamp 前缀；命中复用时，关键输出填 verify-stamp 打印的「复用 …」那一行
