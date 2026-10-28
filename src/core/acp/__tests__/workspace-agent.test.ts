@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { WorkspaceAgentStateMachine } from "../workspace-agent/workspace-agent-state";
 import {
   normalizeAnthropicBaseUrl,
@@ -70,6 +70,37 @@ describe("WorkspaceAgentStateMachine", () => {
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 describe("resolveWorkspaceAgentConfig", () => {
+  const ISOLATED_ENV_KEYS = [
+    "WORKSPACE_AGENT_PROVIDER",
+    "WORKSPACE_AGENT_MODEL",
+    "WORKSPACE_AGENT_MAX_STEPS",
+    "ROUTA_DEFAULT_MODEL",
+  ] as const;
+  const envBefore: Record<string, string | undefined> = {};
+
+  const restoreIsolatedEnv = () => {
+    for (const key of ISOLATED_ENV_KEYS) {
+      if (envBefore[key] === undefined) delete process.env[key];
+      else process.env[key] = envBefore[key];
+    }
+  };
+
+  beforeAll(() => {
+    for (const key of ISOLATED_ENV_KEYS) envBefore[key] = process.env[key];
+  });
+
+  beforeEach(() => {
+    for (const key of ISOLATED_ENV_KEYS) delete process.env[key];
+  });
+
+  afterEach(restoreIsolatedEnv);
+
+  afterAll(() => {
+    for (const key of ISOLATED_ENV_KEYS) {
+      expect(process.env[key]).toBe(envBefore[key]);
+    }
+  });
+
   it("returns defaults when no overrides or env vars", () => {
     const config = resolveWorkspaceAgentConfig();
     expect(config.provider).toBe("anthropic");
