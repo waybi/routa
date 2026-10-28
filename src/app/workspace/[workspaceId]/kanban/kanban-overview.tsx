@@ -1,32 +1,34 @@
 "use client";
 
 /**
- * "All projects" overview: one row per active workspace with three blocks
- * (in progress, needs you, recently done in 7 days) and a cross-workspace
- * search. Also owns the "This board / All projects" toggle, which lives in
- * the URL as `view=all` so a full reload keeps the overview.
+ * "All projects" overview: a status bar, then one row per active workspace
+ * with three blocks (in progress, needs you, recently done in 7 days) and a
+ * cross-workspace search. A card click opens a right-side drawer; the full
+ * card page is one button away. Also owns the "This board / All projects"
+ * toggle, which lives in the URL as `view=all` so a full reload keeps the
+ * overview.
  */
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "@/i18n";
 import { useWorkspaces } from "@/client/hooks/use-workspaces";
-import type { KanbanBoardInfo, TaskInfo } from "../types";
-import type { KanbanAttentionKind } from "./kanban-attention-rules";
-import { getDoneEnteredAt } from "./kanban-done-time";
-import { HighlightedText, KanbanBoardSearchInput, normalizeSearchQuery, useKanbanBoardSearch } from "./kanban-board-search";
+import type { TaskInfo } from "../types";
+import { KanbanBoardSearchInput, useKanbanBoardSearch } from "./kanban-board-search";
 import {
   buildWorkspaceRow,
-  formatDoneShort,
   overviewTaskHref,
-  shortSha,
   sortOverviewRows,
   type OverviewRow,
 } from "./kanban-overview-rules";
+import { countStatusBar, filterRowByStatus, type OverviewStatus } from "./kanban-overview-status-rules";
 import { readAttentionDismissals } from "./use-kanban-attention-dismissals";
 import { useKanbanOverviewData, useRememberedOverviewWorkspaces, type OverviewWorkspaceData } from "./use-kanban-overview-data";
-import { buttonClassName } from "@/client/components/ui/button";
-import { KanbanLaneMarker } from "./kanban-lane-marker";
+import { KanbanOverviewDrawer } from "./kanban-overview-drawer";
+import { columnName, WorkspaceRow } from "./kanban-overview-row";
+import { KanbanOverviewStatusBar } from "./kanban-overview-status-bar";
+import { useInboxReasonComments } from "../overview/use-inbox-reason-comments";
+import { inboxReason } from "../overview/inbox-rules";
 
 export type KanbanViewMode = "board" | "all";
 export const KANBAN_VIEW_QUERY_KEY = "view";
@@ -96,144 +98,6 @@ function currentWorkspaceIdFromPath(): string | null {
   return window.location.pathname.match(/^\/workspace\/([^/]+)/)?.[1] ?? null;
 }
 
-function columnName(task: TaskInfo, boards: readonly KanbanBoardInfo[]): string {
-  const board = boards.find((item) => item.id === task.boardId) ?? boards.find((item) => item.isDefault) ?? boards[0];
-  return board?.columns.find((column) => column.id === task.columnId)?.name ?? task.columnId ?? "";
-}
-
-const cardClass = "flex w-full min-w-0 items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[11px] text-primary hover:bg-hover";
-const chipClass = "shrink-0 rounded bg-subtle px-1.5 text-[10px] text-secondary";
-
-interface BlockProps {
-  title: string;
-  /** Lane stage whose status color marks the block title. */
-  tone: "dev" | "blocked" | "done";
-  count: string;
-  testId: string;
-  children: React.ReactNode;
-}
-
-function Block({ title, tone, count, testId, children }: BlockProps) {
-  return (
-    <section className="min-w-0 flex-1 rounded-md border-[length:var(--kanban-block-border-width)] border-solid border-[color:var(--kanban-block-border)] bg-[color:var(--kanban-block-bg)] p-1.5" data-testid={testId}>
-      <header className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-primary" data-testid={`${testId}-header`}>
-        <KanbanLaneMarker stage={tone} />
-        {title}
-        <span className="font-normal text-secondary">{count}</span>
-      </header>
-      <div className="max-h-40 space-y-0.5 overflow-y-auto">{children}</div>
-    </section>
-  );
-}
-
-function WorkspaceRow({
-  row,
-  data,
-  query,
-  onOpenTask,
-  onRetry,
-}: {
-  row: OverviewRow;
-  data: OverviewWorkspaceData;
-  query: string;
-  onOpenTask: (task: TaskInfo, row: OverviewRow) => void;
-  onRetry: () => void;
-}) {
-  const { t } = useTranslation();
-  const count = (n: number) => t.kanbanOverview.blockCount.replace("{count}", String(n));
-  const kindLabel = (kind: KanbanAttentionKind, ahead: number) => (kind === "unmerged"
-    ? t.kanbanAttention.unmerged.replace("{count}", String(ahead))
-    : t.kanbanAttention[kind]);
-  const searching = normalizeSearchQuery(query).length > 0;
-  const openButton = (task: TaskInfo, body: React.ReactNode) => (
-    <button key={task.id} type="button" className={cardClass} title={task.title} onClick={() => onOpenTask(task, row)} data-testid="kanban-overview-card" data-task-id={task.id}>
-      {body}
-    </button>
-  );
-
-  const head = (
-    <div className="w-44 shrink-0">
-      <div className="truncate text-[12px] font-semibold text-primary">{row.title}</div>
-      <div className="text-[11px] text-secondary">{t.kanbanOverview.cardCount.replace("{count}", String(row.totalCount))}</div>
-      {row.showsNoUnmergedBadge && data.status === "ready" && (
-        <span className="mt-0.5 inline-block rounded bg-subtle px-1.5 text-[10px] text-secondary" title={t.kanbanOverview.noUnmergedHint} data-testid="kanban-overview-no-unmerged">
-          {t.kanbanOverview.noUnmergedBadge}
-        </span>
-      )}
-    </div>
-  );
-
-  let body: React.ReactNode;
-  if (data.status === "error") {
-    body = (
-      <div className="flex items-center gap-2 text-[11px] text-danger" data-testid="kanban-overview-error">
-        {t.kanbanOverview.loadFailed}
-        <button type="button" onClick={onRetry} className={buttonClassName("secondary", "xs")} data-testid="kanban-overview-retry">
-          {t.kanbanOverview.retry}
-        </button>
-      </div>
-    );
-  } else if (data.status === "loading") {
-    body = <div className="text-[11px] text-secondary">{t.kanbanOverview.loading}</div>;
-  } else if (row.collapsed) {
-    body = <div className="text-[11px] text-secondary">{t.kanbanOverview.emptyRow}</div>;
-  } else {
-    body = (
-      <div className="flex min-w-0 flex-1 gap-2">
-        <Block title={t.kanbanOverview.inProgress} tone="dev" count={count(row.inProgress.length)} testId="kanban-overview-in-progress">
-          {row.inProgress.map((task) => openButton(task, (
-            <>
-              <span className={chipClass}>{columnName(task, data.boards)}</span>
-              <span className="truncate"><HighlightedText text={task.title} query={query} /></span>
-            </>
-          )))}
-        </Block>
-        <Block title={t.kanbanOverview.needsYou} tone="blocked" count={count(row.attention.length)} testId="kanban-overview-attention">
-          {row.attention.map((entry) => (
-            <span key={`${entry.task.id}|${entry.item.kind}`} className="block" data-kind={entry.item.kind}>
-              {openButton(entry.task, (
-                <>
-                  <span className="shrink-0 rounded bg-danger-subtle px-1.5 text-[10px] text-danger">{kindLabel(entry.item.kind, entry.item.ahead)}</span>
-                  <span className="truncate"><HighlightedText text={entry.task.title} query={query} /></span>
-                </>
-              ))}
-            </span>
-          ))}
-        </Block>
-        <Block
-          tone="done"
-          title={searching ? t.kanbanOverview.recentDoneMatches.replace("{count}", String(row.recentDone.total)) : t.kanbanOverview.recentDone7d}
-          count={searching ? "" : count(row.recentDone.total)}
-          testId="kanban-overview-recent-done"
-        >
-          {row.recentDone.items.map((task) => {
-            const sha = shortSha(task.completionReport?.commit);
-            return openButton(task, (
-              <>
-                <span className="shrink-0 font-mono text-[10px] text-secondary">{formatDoneShort(getDoneEnteredAt(task))}</span>
-                <span className="truncate"><HighlightedText text={task.completionReport?.excerpt || task.title} query={query} /></span>
-                {sha && <span className="shrink-0 font-mono text-[10px] text-secondary"><HighlightedText text={sha} query={query} /></span>}
-              </>
-            ));
-          })}
-        </Block>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`flex items-start gap-3 border-b border-default px-1 ${row.collapsed && data.status === "ready" ? "py-1.5" : "py-2"}`}
-      data-testid="kanban-overview-row"
-      data-workspace-id={row.workspaceId}
-      data-collapsed={row.collapsed && data.status === "ready" ? "true" : "false"}
-    >
-      {head}
-      {body}
-    </div>
-  );
-}
-
 const LOADING: OverviewWorkspaceData = { status: "loading", tasks: [], boards: [] };
 
 export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; now?: number }) {
@@ -244,16 +108,30 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
   const { data, retry } = useKanbanOverviewData(workspaces);
   const search = useKanbanBoardSearch();
   const at = useMinuteClock(now);
+  const [statusFilter, setStatusFilter] = useState<OverviewStatus | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [selected, setSelected] = useState<{ taskId: string; workspaceId: string } | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   // Read dismissals on every render: the single-board bar may have changed them.
-  const rows = sortOverviewRows(workspaces.map((workspace) => {
+  const allRows = workspaces.map((workspace) => {
     const entry = data[workspace.id] ?? LOADING;
     const row = buildWorkspaceRow(workspace, entry.tasks, entry.boards, at, search.query, readAttentionDismissals);
     // Keep loading / failed rows above the collapsed ones.
     return entry.status === "ready" ? row : { ...row, collapsed: false, score: -1 };
-  }));
+  });
+  const counts = countStatusBar(allRows, at);
+  const rows = sortOverviewRows(allRows
+    .map((row) => (data[row.workspaceId]?.status === "ready" ? filterRowByStatus(row, statusFilter, at) : row))
+    .filter((row) => !statusFilter || row.collapsed === false));
 
-  const openTask = useCallback((task: TaskInfo, row: OverviewRow) => {
+  // Blocked rows without lastSyncError read their card once for the reason text.
+  const blockedRows = allRows.flatMap((row) => row.attentionAll
+    .filter((entry) => entry.item.kind === "blocked")
+    .map((entry) => ({ task: entry.task, reason: inboxReason(entry.item, entry.task) })));
+  const commentsOf = useInboxReasonComments(blockedRows);
+
+  const openFullTask = useCallback((task: TaskInfo, row: OverviewRow) => {
     const href = overviewTaskHref(task, row.workspaceId, row.fallbackBoardId);
     if (currentWorkspaceIdFromPath() === encodeURIComponent(row.workspaceId)) {
       // Same workspace: kanban-tab listens for popstate and opens the card.
@@ -265,8 +143,32 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
     router.push(href);
   }, [onShowBoard, router]);
 
+  const selectedRow = selected ? allRows.find((row) => row.workspaceId === selected.workspaceId) : undefined;
+  const selectedTask = selected ? selectedRow?.tasks.find((task) => task.id === selected.taskId) : undefined;
+
+  const closeDrawer = useCallback(() => {
+    const id = selected?.taskId;
+    setSelected(null);
+    // Back to the card row that opened the drawer (it may have been re-rendered since).
+    window.setTimeout(() => {
+      const trigger = triggerRef.current?.isConnected
+        ? triggerRef.current
+        : document.querySelector<HTMLElement>(`[data-testid="kanban-overview-card"][data-task-id="${id}"]`);
+      trigger?.focus();
+    }, 0);
+  }, [selected?.taskId]);
+
+  const toggleExpanded = useCallback((workspaceId: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(workspaceId)) next.add(workspaceId);
+      return next;
+    });
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="kanban-overview">
+      <KanbanOverviewStatusBar counts={counts} active={statusFilter} onToggle={(status) => setStatusFilter((current) => (current === status ? null : status))} />
       <div className="flex items-center gap-2 px-1 pb-2">
         <KanbanBoardSearchInput
           query={search.query}
@@ -283,10 +185,30 @@ export function KanbanOverview({ onShowBoard, now }: { onShowBoard: () => void; 
           row={row}
           data={data[row.workspaceId] ?? LOADING}
           query={search.query}
-          onOpenTask={openTask}
+          now={at}
+          expanded={expanded.has(row.workspaceId)}
+          onToggleExpand={() => toggleExpanded(row.workspaceId)}
+          onOpenTask={(task, _row, trigger) => {
+            triggerRef.current = trigger;
+            setSelected({ taskId: task.id, workspaceId: row.workspaceId });
+          }}
           onRetry={() => retry(row.workspaceId)}
+          commentsOf={commentsOf}
         />
       ))}
+      {selectedTask && selectedRow && (
+        <KanbanOverviewDrawer
+          key={selectedTask.id}
+          task={selectedTask}
+          projectTitle={selectedRow.title}
+          columnLabel={columnName(selectedTask, data[selectedRow.workspaceId]?.boards ?? [])}
+          onClose={closeDrawer}
+          onOpenInBoard={() => {
+            setSelected(null);
+            openFullTask(selectedTask, selectedRow);
+          }}
+        />
+      )}
     </div>
   );
 }

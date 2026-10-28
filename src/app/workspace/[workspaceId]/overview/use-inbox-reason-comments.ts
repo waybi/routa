@@ -20,7 +20,7 @@ function commentsKey(task: Pick<TaskInfo, "id" | "updatedAt">): string {
 }
 
 /** Rows that need the detail read: blockedUnknown and no comments on the list copy. */
-export function rowsNeedingComments(rows: readonly InboxRow[]): Array<{ id: string; key: string }> {
+export function rowsNeedingComments(rows: ReadonlyArray<Pick<InboxRow, "reason" | "task">>): Array<{ id: string; key: string }> {
   const seen = new Set<string>();
   const wanted: Array<{ id: string; key: string }> = [];
   for (const row of rows) {
@@ -33,7 +33,7 @@ export function rowsNeedingComments(rows: readonly InboxRow[]): Array<{ id: stri
   return wanted;
 }
 
-export function useInboxReasonComments(rows: readonly InboxRow[]): (task: TaskInfo) => Comments | undefined {
+export function useInboxReasonComments(rows: ReadonlyArray<Pick<InboxRow, "reason" | "task">>): (task: TaskInfo) => Comments | undefined {
   const [loaded, setLoaded] = useState<ReadonlyMap<string, Comments>>(() => new Map());
   const [requested] = useState(() => new Set<string>());
   const wantedJson = JSON.stringify(rowsNeedingComments(rows));

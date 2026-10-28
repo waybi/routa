@@ -14,7 +14,7 @@ import {
   DURATION_BUCKET_ORDER,
   type DurationBuckets,
 } from "./kanban-overview-duration";
-import type { OverviewRow } from "./kanban-overview-rules";
+import { OVERVIEW_RECENT_DONE_LIMIT, type OverviewRow } from "./kanban-overview-rules";
 
 export type OverviewStatus = "running" | "queued" | "attention" | "done";
 
@@ -181,4 +181,25 @@ export function summarizeRhythm(tasks: readonly TaskInfo[], now: number): Rhythm
 /** Done cards inside the 7-day window, newest first. */
 export function withinDoneWindow(task: TaskInfo, now: number): boolean {
   return task.columnId === DONE_LANE_ID && now - getDoneEnteredAt(task) <= ATTENTION_DONE_WINDOW_MS;
+}
+
+/**
+ * Narrows a row to one status (the status-bar toggle). "Done" keeps only cards
+ * that entered Done today. The row is `collapsed` when nothing is left.
+ */
+export function filterRowByStatus(row: OverviewRow, filter: OverviewStatus | null, now: number): OverviewRow {
+  if (!filter) return row;
+  const attentionIds = new Set(row.attentionAll.map((entry) => entry.task.id));
+  const inProgress = filter === "running" || filter === "queued"
+    ? row.inProgress.filter((task) => classifyOverviewTask(task, attentionIds) === filter)
+    : [];
+  const attention = filter === "attention" ? row.attention : [];
+  const doneAll = filter === "done" ? row.recentDone.all.filter((task) => isDoneToday(task, now)) : [];
+  return {
+    ...row,
+    inProgress,
+    attention,
+    recentDone: { total: doneAll.length, items: doneAll.slice(0, OVERVIEW_RECENT_DONE_LIMIT), all: doneAll },
+    collapsed: inProgress.length === 0 && attention.length === 0 && doneAll.length === 0,
+  };
 }

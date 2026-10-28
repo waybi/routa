@@ -253,6 +253,8 @@ describe("KanbanOverview", () => {
     const listener = () => seen.push(`${window.location.pathname}${window.location.search}`);
     window.addEventListener("popstate", listener);
     fireEvent.click(within(rowOf("w1")).getAllByTestId("kanban-overview-card")[0]);
+    // AC4 ③: the click opens the drawer; the full page starts from its button.
+    fireEvent.click(await screen.findByTestId("kanban-overview-drawer-open"));
     window.removeEventListener("popstate", listener);
     expect(seen).toEqual(["/workspace/w1/kanban?boardId=b1&taskId=t1"]);
     expect(onShowBoard).toHaveBeenCalled();
@@ -263,6 +265,7 @@ describe("KanbanOverview", () => {
     renderTabContent();
     await waitFor(() => expect(within(rowOf("w1")).getAllByTestId("kanban-overview-card").length).toBe(1));
     fireEvent.click(within(rowOf("w1")).getAllByTestId("kanban-overview-card")[0]);
+    fireEvent.click(await screen.findByTestId("kanban-overview-drawer-open"));
     expect(`${window.location.pathname}${window.location.search}`).toBe("/workspace/w1/kanban?boardId=b1&taskId=t1");
     expect(screen.queryByTestId("kanban-overview")).toBeNull();
   });
@@ -271,6 +274,7 @@ describe("KanbanOverview", () => {
     await renderOverview();
     const card = within(rowOf("w2")).getAllByTestId("kanban-overview-card").find((el) => el.getAttribute("data-task-id") === "t2")!;
     fireEvent.click(card);
+    fireEvent.click(await screen.findByTestId("kanban-overview-drawer-open"));
     expect(routerPush).toHaveBeenCalledWith("/workspace/w2/kanban?boardId=b2&taskId=t2");
   });
 
