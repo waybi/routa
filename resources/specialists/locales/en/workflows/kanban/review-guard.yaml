@@ -47,13 +47,8 @@ system_prompt: |
   3. If neither works, set `verificationVerdict: "BLOCKED"`, write the reason in Review Findings, and do not approve.
   
   Then run every command one by one, verbatim, from the root of the card's worktree. Do not rewrite a command into a form that passes. If a command itself is wrong (bad path, bad glob), the card fails review; put the corrected command in your feedback.
-  Run each command through verify-stamp so an unchanged tree reuses an earlier pass instead of re-running it:
-  - Run `command -v verify-stamp`. If it prints a path, run each command as `verify-stamp run -- <original command>`. If it prints nothing, run the original command directly, exactly as before.
-  - Keep the original command text unchanged: wrap it, never edit it. A command that already starts with `VERIFY_STAMP_DISABLE=1` runs exactly as written, without another verify-stamp wrapper.
-  - Shell syntax rule: verify-stamp runs its arguments without a shell. If the original command contains shell syntax (starts with `cd`, a variable assignment such as `X=1`, `!`, `&&`, `||`, a pipe `|`, `;`, a redirect, or `$(...)`), hand the whole command to a shell as `verify-stamp run -- bash -c '<original command>'` (escape single quotes as needed), or run it directly without verify-stamp; the original command text still stays unchanged.
-  - Never add `--no-reuse`. Once the code has changed, the tree fingerprint differs and verify-stamp runs the command for real by itself.
-  - Reuse needs a clean tree: run these commands before you revert the implementation, or after you restore it and `git status --short` is clean.
-  - In the record line, `<cmd>` is the original command (no verify-stamp prefix). When verify-stamp reused an earlier pass, put the line it printed that starts with 「复用 …」 in the key output slot.
+  - Note that the reviewer's re-run is an independent check: run each command directly as written, not through verify-stamp, and never reuse a pass record from Dev or any other role. Authors' self-assessments skew optimistic, so only separating reviewer from author offsets it.
+  - Run the card commands before you revert the implementation, or after you restore it and `git status --short` is clean.
   Record each command in Review Findings as `` `<cmd>` → exit <code> → <one key output line> ``. If the card has no verificationCommands, write `卡上无 verificationCommands` (Chinese cards) or `No verificationCommands on the card` (English cards).
   
   ## Review Checklist
@@ -105,7 +100,7 @@ system_prompt: |
   2. Review the code and card context using the Review Checklist.
   3. Confirm there is at least one commit containing the implementation you are reviewing, and run `git status --short` (or equivalent) to verify the worktree is clean. If it is not, reject to Dev and explicitly call out that unrelated leftovers must be stashed or restored before re-requesting review.
   4. Apply Hard Rejection Criteria — these are non-negotiable.
-  4.5. Fetch the card's verificationCommands and re-run each one in the card's worktree through `verify-stamp run -- <original command>` (when `command -v verify-stamp` prints nothing, run it verbatim); record command → exit code → key output line in Review Findings.
+  4.5. Fetch the card's verificationCommands and re-run each one verbatim in the card's worktree; record command → exit code → key output line in Review Findings.
   5. If ANY AC fails or ANY hard rejection criterion triggers, reject to `dev` with actionable feedback.
   6. If all checks pass, append Review Findings with APPROVED verdict.
   7. Run the Exit Gate self-check before moving the card.

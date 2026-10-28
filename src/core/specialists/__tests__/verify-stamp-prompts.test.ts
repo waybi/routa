@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { loadSpecialistsFromDirectory } from "../specialist-file-loader";
 
 // Locks the verify-stamp prompt rules (card 907633bf) into all three load paths
-// (default / locales/en / locales/zh-CN) for the five roles that run card commands.
+// (default / locales/en / locales/zh-CN) for the three roles that use it (dev-executor,
+// flight-dev-executor, main-pusher). The two review roles run card commands for real
+// (card 4fdb7cd2): the reviewer's re-run is an independent check, no verify-stamp.
 const bundledRoot = path.join(process.cwd(), "resources", "specialists");
 type LoadPath = [label: string, dir: string, locale: string | undefined];
 const loadPaths: LoadPath[] = [
@@ -18,7 +20,7 @@ const loadPaths: LoadPath[] = [
 const reviewers = ["kanban-review-guard", "kanban-flight-review-guard"];
 const pusher = "kanban-main-pusher";
 const devs = ["kanban-dev-executor", "kanban-flight-dev-executor"];
-const allRoles = [...reviewers, pusher, ...devs];
+const allRoles = [pusher, ...devs];
 
 function loadPrompt(dir: string, locale: string | undefined, id: string): string {
   const specialist = loadSpecialistsFromDirectory(dir, "bundled", locale).find((entry) => entry.id === id);
@@ -53,7 +55,7 @@ describe("verify-stamp wrapper rules (AC1, AC5, F4)", () => {
     }
   });
 
-  it.each(cases([...reviewers, pusher]))("%s (%s) keeps the record format and explains reuse", (id, label, dir, locale) => {
+  it.each(cases([pusher]))("%s (%s) keeps the record format and explains reuse", (id, label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, id);
     expect(prompt).toContain(
       isZh(label)
@@ -67,13 +69,12 @@ describe("verify-stamp wrapper rules (AC1, AC5, F4)", () => {
 describe("flight-review-guard fixed commands and real runs (AC1, AC3, C4, C6)", () => {
   const id = "kanban-flight-review-guard";
 
-  it.each(loadPaths)("fixed verification commands also go through verify-stamp (%s)", (label, dir, locale) => {
+  it.each(loadPaths)("fixed verification commands are re-run verbatim, no verify-stamp (%s)", (label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, id);
-    const line = prompt.split("\n").find((l) => l.includes("本项目固定验收命令") && l.includes("verify-stamp"));
-    expect(line, "fixed-commands line must mention verify-stamp").toBeDefined();
-    expect(line).toContain("verify-stamp run --");
-    expect(line).toContain("command -v verify-stamp");
-    expect(isZh(label) || line!.includes("fallback")).toBe(true);
+    const line = prompt.split("\n").find((l) => l.includes("本项目固定验收命令") && l.includes("verificationCommands"));
+    expect(line, "fixed-commands line must exist").toBeDefined();
+    expect(line).not.toContain("verify-stamp run --");
+    expect(line).toContain(isZh(label) ? "原样复跑" : "verbatim");
   });
 
   it.each(loadPaths)("revert, regression, spot-check and --mutate run for real (%s)", (label, dir, locale) => {
@@ -90,7 +91,7 @@ describe("flight-review-guard fixed commands and real runs (AC1, AC3, C4, C6)", 
 
   it.each(cases(reviewers))("%s (%s) re-runs card commands only on a clean tree, before the revert", (rid, label, dir, locale) => {
     const prompt = loadPrompt(dir, locale, rid);
-    const rule = isZh(label) ? "复用的前提是工作区干净" : "Reuse needs a clean tree";
+    const rule = isZh(label) ? "卡上命令放在撤掉实现之前跑" : "Run the card commands before you revert the implementation";
     const at = prompt.indexOf(rule);
     expect(at).toBeGreaterThan(-1);
     expect(prompt.slice(at, at + 200)).toContain("git status --short");
@@ -98,6 +99,21 @@ describe("flight-review-guard fixed commands and real runs (AC1, AC3, C4, C6)", 
       const revert = prompt.indexOf(isZh(label) ? "自己撤掉实现验红" : "### Revert the implementation yourself");
       expect(revert).toBeGreaterThan(at);
     }
+  });
+});
+
+describe("reviewers run card commands for real (card 4fdb7cd2)", () => {
+  it.each(cases(reviewers))("%s (%s) has no verify-stamp wrapper and states the independent re-check", (id, label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, id);
+    expect(prompt).not.toContain("verify-stamp run --");
+    expect(prompt).not.toContain("--no-reuse");
+    expect(prompt).toContain(isZh(label) ? "评审重跑是独立复查" : "the reviewer's re-run is an independent check");
+    expect(prompt).toContain("git status --short");
+    expect(prompt).toContain(
+      isZh(label)
+        ? "`<命令>` → 退出码 <code> → <关键输出一行>"
+        : "`<cmd>` → exit <code> → <one key output line>",
+    );
   });
 });
 
@@ -140,21 +156,22 @@ describe("dev roles pre-run the card commands before review (AC4, C5, C12)", () 
   });
 });
 
-describe("F3: verify-stamp appears in exactly the five roles x three languages", () => {
+describe("F3: verify-stamp appears in exactly the three roles x three languages", () => {
   const dirs = [
     path.join(bundledRoot, "workflows", "kanban"),
     path.join(bundledRoot, "locales", "en", "workflows", "kanban"),
     path.join(bundledRoot, "locales", "zh-CN", "workflows", "kanban"),
   ];
-  const expected = new Set(["review-guard", "flight-review-guard", "main-pusher", "dev-executor", "flight-dev-executor"]);
+  const expected = new Set(["main-pusher", "dev-executor", "flight-dev-executor"]);
+  const reviewYaml = ["review-guard", "flight-review-guard"];
 
-  it("only the 15 targeted yaml files contain `verify-stamp run --`", () => {
+  it("only the 9 targeted yaml files contain `verify-stamp run --`", () => {
     for (const dir of dirs) {
       for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
         const has = fs.readFileSync(path.join(dir, file), "utf-8").includes("verify-stamp run --");
         expect(has, `${dir}/${file}`).toBe(expected.has(file.replace(/\.yaml$/, "")));
       }
-      for (const name of expected) expect(fs.existsSync(path.join(dir, `${name}.yaml`))).toBe(true);
+      for (const name of [...expected, ...reviewYaml]) expect(fs.existsSync(path.join(dir, `${name}.yaml`))).toBe(true);
     }
   });
 });
