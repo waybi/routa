@@ -528,6 +528,36 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     loading: string;
     searchPlaceholder: string;
     noWorkspaces: string;
+    statusRunning: string;
+    statusQueued: string;
+    statusNeedsYou: string;
+    statusDoneToday: string;
+    statusBarLabel: string;
+    /** "{lane}" = column name, "{step}" = 1..5 position on the Backlog→Done pipeline. */
+    laneStepLabel: string;
+    /** "{step}" = 1-based step inside the lane. */
+    stepNumber: string;
+    /** "{time}" = how long the current run has been running. */
+    ranFor: string;
+    /** "{count}" minutes. */
+    minutesShort: string;
+    /** "{hours}" / "{minutes}". */
+    hoursMinutesShort: string;
+    /** "{count}" = cards waiting in the session queue. */
+    queuedBadge: string;
+    /** "{title}" = block title; the block has no cards. */
+    blockEmpty: string;
+    /** "{count}" = hidden Done cards. */
+    expandRest: string;
+    collapseRest: string;
+    openInBoard: string;
+    drawerClose: string;
+    drawerLoading: string;
+    drawerLoadFailed: string;
+    drawerObjective: string;
+    drawerReport: string;
+    drawerRuns: string;
+    drawerNoRuns: string;
   };
   /** Redesigned board page: header actions, toolbar, load/empty/error states. */
   kanbanBoardPage: {
