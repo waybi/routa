@@ -399,6 +399,8 @@ export const zhTail: TailTranslationDictionarySections = {
     cardDeleted: "卡片已删除",
     cardDeleteFailed: "删除卡片失败",
     retryTriggerFailed: "重新运行失败",
+    retryStepRunningTitle: "本列施工者还在运行",
+    retryStepRunningHint: "没有重新运行。要换掉它，请点「结束并重跑」。",
     agentSessionCreating: "正在创建会话…",
     agentSessionCreateFailed: "创建会话失败",
     agentPromptFailed: "消息未发出",
@@ -415,6 +417,11 @@ export const zhTail: TailTranslationDictionarySections = {
     taskRejected: "被打回 · {title}",
     openCard: "查看卡片",
     notificationsEnabled: "已开启完成通知",
+  },
+  kanbanRerunGuard: {
+    endAndRerun: "结束并重跑",
+    endAndRerunTitle: "结束正在运行的施工者？",
+    endAndRerunMessage: "本列施工者还在运行，确认后会先结束它再重新运行。",
   },
   kanbanCardActivity: {
     stalled: "可能卡住",

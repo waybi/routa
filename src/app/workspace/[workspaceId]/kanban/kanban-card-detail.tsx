@@ -66,7 +66,7 @@ export interface KanbanCardDetailProps {
   fullWidth?: boolean;
   selectedProvider?: string | null;
   onPatchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
-  onRetryTrigger: (taskId: string) => Promise<void>;
+  onRetryTrigger: (taskId: string, options?: { force?: boolean }) => Promise<void>;
   onRunPullRequest?: (taskId: string) => Promise<string | null>;
   onDelete: () => void;
   onRefresh: () => void;

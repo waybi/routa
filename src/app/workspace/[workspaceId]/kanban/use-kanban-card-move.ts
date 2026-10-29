@@ -34,18 +34,22 @@ export type MoveBlockedState = {
 export class TaskPatchError extends Error {
   storyReadiness?: TaskInfo["storyReadiness"];
   missingTaskFields?: string[];
+  /** Machine reason of the reply (e.g. "step_running" on a 409 rerun). */
+  reason?: string;
 
   constructor(
     message: string,
     options?: {
       storyReadiness?: TaskInfo["storyReadiness"];
       missingTaskFields?: string[];
+      reason?: string;
     },
   ) {
     super(message);
     this.name = "TaskPatchError";
     this.storyReadiness = options?.storyReadiness;
     this.missingTaskFields = options?.missingTaskFields;
+    this.reason = options?.reason;
   }
 }
 

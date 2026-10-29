@@ -405,6 +405,8 @@ export const enTail: TailTranslationDictionarySections = {
     cardDeleted: "Card deleted",
     cardDeleteFailed: "Failed to delete card",
     retryTriggerFailed: "Rerun failed",
+    retryStepRunningTitle: "This lane's builder is still running",
+    retryStepRunningHint: "Nothing was rerun. To replace it, click \"End & rerun\".",
     agentSessionCreating: "Creating session…",
     agentSessionCreateFailed: "Failed to create session",
     agentPromptFailed: "Message not sent",
@@ -421,6 +423,11 @@ export const enTail: TailTranslationDictionarySections = {
     taskRejected: "Sent back · {title}",
     openCard: "Open card",
     notificationsEnabled: "Completion notifications enabled",
+  },
+  kanbanRerunGuard: {
+    endAndRerun: "End & rerun",
+    endAndRerunTitle: "End the running builder?",
+    endAndRerunMessage: "This lane's builder is still running. Confirming ends it first, then reruns.",
   },
   kanbanCardActivity: {
     stalled: "May be stuck",

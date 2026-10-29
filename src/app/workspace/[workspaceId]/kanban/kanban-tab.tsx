@@ -452,6 +452,7 @@ export function KanbanTab({
         missingTaskFields: Array.isArray(data.missingTaskFields)
           ? data.missingTaskFields.filter((item: unknown): item is string => typeof item === "string")
           : undefined,
+        reason: typeof data.reason === "string" ? data.reason : undefined,
       });
     }
     const updated = data.task as TaskInfo;
@@ -1112,7 +1113,7 @@ export function KanbanTab({
     }));
   }
 
-  async function retryTaskTrigger(taskId: string) {
+  async function retryTaskTrigger(taskId: string, options?: { force?: boolean }) {
     // trackRetry shows "starting" until the new run is visible, or toasts the error.
     const updated = await trackRetry(taskId, async () => {
       await ensureBoardAutoProviderPersisted();
@@ -1129,7 +1130,11 @@ export function KanbanTab({
         && boardAutoProviderId
         ? boardAutoProviderId
         : undefined;
-      return patchTask(taskId, { retryTrigger: true, ...(retryProviderId ? { retryProviderId } : {}) });
+      return patchTask(taskId, {
+        retryTrigger: true,
+        ...(options?.force ? { force: true } : {}),
+        ...(retryProviderId ? { retryProviderId } : {}),
+      });
     });
     if (updated.triggerSessionId) {
       // Keep the task detail open on the new session and select it in ACP.

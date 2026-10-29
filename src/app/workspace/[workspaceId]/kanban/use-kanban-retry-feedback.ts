@@ -17,7 +17,7 @@ import { toast } from "@/client/components/toast";
 import { useTranslation } from "@/i18n";
 import type { SessionInfo, TaskInfo } from "../types";
 
-export function useRetrySubmit(onRetryTrigger: (taskId: string) => Promise<void>) {
+export function useRetrySubmit(onRetryTrigger: (taskId: string, options?: { force?: boolean }) => Promise<void>) {
   const [submitting, setSubmitting] = useState(false);
   // A ref, not the state: two clicks in one tick both see the old state.
   const inFlightRef = useRef(false);
@@ -29,12 +29,12 @@ export function useRetrySubmit(onRetryTrigger: (taskId: string) => Promise<void>
     };
   }, []);
 
-  const submit = useCallback(async (taskId: string) => {
+  const submit = useCallback(async (taskId: string, options?: { force?: boolean }) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setSubmitting(true);
     try {
-      await onRetryTrigger(taskId);
+      await (options ? onRetryTrigger(taskId, options) : onRetryTrigger(taskId));
     } catch {
       // The board already showed the error; the button just turns back on.
     } finally {
@@ -123,6 +123,11 @@ export function useKanbanRetryPending({
         delete next[taskId];
         return next;
       });
+      if ((error as { reason?: unknown } | null)?.reason === "step_running") {
+        // A live builder already runs this lane: tell the user, offer "End & rerun".
+        toast.info(t.feedback.retryStepRunningTitle, { description: t.feedback.retryStepRunningHint });
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       toast.error(t.feedback.retryTriggerFailed, { description: message });
       throw error;

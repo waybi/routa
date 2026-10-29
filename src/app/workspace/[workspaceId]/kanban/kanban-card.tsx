@@ -51,7 +51,7 @@ export interface KanbanCardProps {
   onOpenDetail: () => void;
   onDelete: () => void;
   onPatchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
-  onRetryTrigger: (taskId: string) => Promise<void>;
+  onRetryTrigger: (taskId: string, options?: { force?: boolean }) => Promise<void>;
   onRefresh: () => void;
   /** Optional title renderer, e.g. to highlight board-search hits. */
   renderTitle?: (title: string) => ReactNode;

@@ -410,6 +410,8 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     cardDeleteFailed: string;
     // Kanban card rerun
     retryTriggerFailed: string;
+    retryStepRunningTitle: string;
+    retryStepRunningHint: string;
     // Kanban agent session
     agentSessionCreating: string;
     agentSessionCreateFailed: string;
@@ -433,6 +435,11 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     notificationsEnabled: string;
   };
   /** One-line run activity on the kanban card face (working / may be stuck / failed). */
+  kanbanRerunGuard: {
+    endAndRerun: string;
+    endAndRerunTitle: string;
+    endAndRerunMessage: string;
+  };
   kanbanCardActivity: {
     /** Run is alive but has been silent past the stall threshold. */
     stalled: string;
