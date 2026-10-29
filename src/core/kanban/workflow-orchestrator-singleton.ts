@@ -34,7 +34,8 @@ import { KanbanSessionQueue } from "./kanban-session-queue";
 import { getKanbanSessionConcurrencyLimit as getBoardSessionConcurrencyLimit } from "./board-session-limits";
 import { getKanbanDevSessionSupervision, getKanbanLaneSessionWatchdog } from "./board-session-supervision";
 import { getKanbanAutoProvider } from "./board-auto-provider";
-import { upsertTaskLaneSession } from "./task-lane-history";
+import { getLatestLaneSessionForColumn, upsertTaskLaneSession } from "./task-lane-history";
+import { findLiveColumnSession } from "./lane-live-session";
 import {
   classifyRetryableEnvironmentFailure,
   formatEnvironmentFailureError,
@@ -137,6 +138,8 @@ export async function enqueueKanbanTaskSession(
      * adopted when the board queue starts it.
      */
     adoptLaneRun?: boolean;
+    /** The user's rerun button (PATCH retryTrigger): the lane record is marked manual_rerun with attempt+1. */
+    manualRerun?: boolean;
   },
 ): Promise<{ sessionId?: string; queued: boolean; error?: string }> {
   const task = params.task;
@@ -145,6 +148,13 @@ export async function enqueueKanbanTaskSession(
   }
   if (task.triggerSessionId && !params.ignoreExistingTrigger) {
     return { sessionId: task.triggerSessionId, queued: false };
+  }
+
+  // A lane run adopted by the orchestrator must never start next to a builder
+  // that still runs in the same column (a forced rerun ends it first).
+  if (params.resumeLane || params.adoptLaneRun) {
+    const liveSessionId = findLiveColumnSession(task, params.expectedColumnId ?? task.columnId);
+    if (liveSessionId) return { sessionId: liveSessionId, queued: false };
   }
 
   if (params.resumeLane && !params.step) {
@@ -273,6 +283,7 @@ async function startKanbanTaskSession(
     step?: KanbanAutomationStep;
     stepIndex?: number;
     supervision?: AutomationSessionSupervisionContext;
+    manualRerun?: boolean;
   },
 ): Promise<{ sessionId?: string | null; error?: string }> {
   const task = await system.taskStore.get(taskId);
@@ -427,12 +438,14 @@ async function startKanbanTaskSession(
       transport: triggerResult.transport ?? sessionStep?.transport ?? effectiveAutomation.transport,
       externalTaskId: triggerResult.externalTaskId,
       contextId: triggerResult.contextId,
-      attempt: params.supervision?.attempt,
+      attempt: params.manualRerun
+        ? (getLatestLaneSessionForColumn(task as Parameters<typeof getLatestLaneSessionForColumn>[0], nextTask.columnId)?.attempt ?? 1) + 1
+        : params.supervision?.attempt,
       loopMode: params.supervision?.mode,
       completionRequirement: params.supervision?.completionRequirement,
       objective: params.supervision?.objective ?? nextTask.objective,
       recoveredFromSessionId: params.supervision?.recoveredFromSessionId,
-      recoveryReason: params.supervision?.recoveryReason,
+      recoveryReason: params.manualRerun ? "manual_rerun" : params.supervision?.recoveryReason,
       // Card 59f5b059: a Blocked run keeps its reason (lastSyncError is cleared below).
       attentionReason: blockedRunAttentionReason(board, nextTask),
       status: "running",

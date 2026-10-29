@@ -1,4 +1,3 @@
-import { getAcpInstanceId, isExecutionLeaseActive } from "../acp/execution-backend";
 import { getHttpSessionStore } from "../acp/http-session-store";
 import { getAcpProcessManager } from "../acp/processer";
 import type { RoutaSystem } from "../routa-system";
@@ -16,6 +15,7 @@ import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { isLaneAutomationComplete } from "./done-lane-teardown";
 import { runLaneRerunOnce } from "./lane-rerun-claim";
+import { isSessionActivelyRunning } from "./lane-live-session";
 import {
   hasTrippedRetryableEnvironmentFuse,
   isAwaitingEnvironmentFix,
@@ -37,42 +37,6 @@ export interface RestartRecoveryOptions {
    * without it, or when the history has no end, the restart rules apply.
    */
   readSessionEndHistory?: ReadSessionEndHistory;
-}
-
-function isSessionActivelyRunning(
-  taskSessionId: string | undefined,
-  options: RestartRecoveryOptions,
-): boolean {
-  if (!taskSessionId) return false;
-
-  if (options.processManager.hasActiveSession(taskSessionId)) {
-    return true;
-  }
-
-  const session = options.sessionStore.getSession(taskSessionId);
-  if (!session) {
-    return false;
-  }
-
-  if (session.acpStatus === "ready" || session.acpStatus === "connecting") {
-    return true;
-  }
-
-  if (session.acpStatus === "error") {
-    return false;
-  }
-
-  // Hydrated sessions from storage only remain resumable when the current
-  // instance still owns the execution lease.
-  const ownerInstanceId = session.ownerInstanceId?.trim();
-  if (!ownerInstanceId) {
-    return false;
-  }
-  if (ownerInstanceId !== getAcpInstanceId()) {
-    return false;
-  }
-
-  return isExecutionLeaseActive(session.leaseExpiresAt);
 }
 
 /** The card's latest run is in this column and was ended by the inactivity watchdog. */

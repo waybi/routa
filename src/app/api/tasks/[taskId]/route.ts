@@ -75,6 +75,7 @@ import {
 } from "@/core/kanban/task-contract-readiness";
 import { resolveTaskWorktreeTruth } from "@/core/kanban/task-worktree-truth";
 import { claimLaneRerun, hasLaneRunStartedSince } from "@/core/kanban/lane-rerun-claim";
+import { findLiveColumnSession } from "@/core/kanban/lane-live-session";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 import {
   evaluateKanbanTransitionGates,
@@ -263,6 +264,8 @@ async function patchTask(
     repoPath?: string;
     syncToGitHub?: boolean;
     retryTrigger?: boolean;
+    /** With retryTrigger: end the live builder of this lane first, then rerun. */
+    force?: boolean;
     retryProviderId?: string;
     codebaseIds?: string[];
     worktreeId?: string | null;
@@ -274,6 +277,7 @@ async function patchTask(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  let forcedEndSessionIds: string[] = [];
   if (body.retryTrigger) {
     // Card 14de4800: one rerun per card lane. While the startup resume or
     // revive starts this lane, or when one of them started it after this
@@ -283,9 +287,29 @@ async function patchTask(
     if (!rerunClaim.release || hasLaneRunStartedSince(existing, stored, existing.columnId ?? "")) {
       return NextResponse.json({ task: await serializeTask(stored, system), retrySkipped: true });
     }
+    // A live builder already runs this lane: a second one would fight it and
+    // leave the first unsupervised. Only an explicit force replaces it.
+    const liveSessionId = findLiveColumnSession(stored, existing.columnId);
+    if (liveSessionId && body.force !== true) {
+      return NextResponse.json(
+        { task: await serializeTask(stored, system), retrySkipped: true, reason: "step_running", sessionId: liveSessionId },
+        { status: 409 },
+      );
+    }
+    if (liveSessionId) {
+      // Forget first: ending a session the orchestrator still follows would be
+      // read as a failed step and start an automatic rerun. A failed end is
+      // only logged; the rerun goes on (the old process is reaped later).
+      forcedEndSessionIds = [liveSessionId];
+      await endCardSessionsQuietly(system, forcedEndSessionIds, "replaced by a forced manual rerun", {
+        cardId: taskId,
+        columnId: existing.columnId,
+      });
+    }
   }
 
   let nextTask: Task = { ...existing, updatedAt: new Date() };
+  markSessionsCompleted(nextTask, forcedEndSessionIds);
   let transitionDeliveryReadiness: TaskDeliveryReadiness | undefined;
   // Only an explicit move ends the old column's processes; a verdict that
   // converges the card may come from the agent that is still in its turn.
@@ -707,6 +731,7 @@ async function patchTask(
       ignoreExistingTrigger: retryingTrigger,
       providerOverride: retryProviderId,
       resumeLane: retryingTrigger,
+      manualRerun: retryingTrigger,
     });
     nextTask = (await system.taskStore.get(taskId)) ?? nextTask;
     if (triggerResult.sessionId) {

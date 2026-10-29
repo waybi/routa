@@ -121,7 +121,9 @@ export type TaskLaneSessionRecoveryReason =
    * The model was rate limited (HTTP 429, usage_limit_reached, ...). Retryable:
    * not counted against any retry budget; re-run automatically at retryAfterAt.
    */
-  | "rate_limited";
+  | "rate_limited"
+  /** The user pressed rerun (PATCH retryTrigger); a new run of the lane, not a failure, never counted against retry budgets. */
+  | "manual_rerun";
 
 export type TaskLaneHandoffRequestType =
   | "environment_preparation"

@@ -23,11 +23,9 @@ import type { KanbanBoardStore } from "../store/kanban-board-store";
 import type { TaskStore } from "../store/task-store";
 import type { ColumnTransitionData } from "./column-transition";
 import { resolveTransitionAutomation } from "./column-transition";
-import {
-  getDefaultKanbanDevSessionSupervision,
-  getDefaultKanbanLaneSessionWatchdog,
-} from "./board-session-supervision";
+import { getDefaultKanbanDevSessionSupervision, getDefaultKanbanLaneSessionWatchdog } from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import { isLiveRunningAutomation } from "./lane-live-session";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import { reconcileExitAfterTurnEnd, settleUnhandledLaneEnd } from "./lane-session-settlement";
 import {
@@ -37,11 +35,7 @@ import {
   isEnvironmentFailureMessage,
   isRetryableEnvironmentFailureLaneSession,
 } from "./environment-failure";
-import {
-  collectRateLimitEvidence,
-  RateLimitRetryScheduler,
-  runRateLimitRetry,
-} from "./rate-limit-retry";
+import { collectRateLimitEvidence, RateLimitRetryScheduler, runRateLimitRetry } from "./rate-limit-retry";
 import { isUserCancelledLaneSession, planLaneStepRetry, resolveCancelledTurnReason } from "./lane-cancel-origin";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
@@ -165,7 +159,7 @@ export function getNonDevAutomationRunCount(
     // Environment failures (including retryable ones: rate limits, restart
     // interruptions) are counted separately (see environment-failure.ts); they
     // and a user's own cancel must not consume the normal repeat budget.
-    if (isEnvironmentFailureLaneSession(entry) || isRetryableEnvironmentFailureLaneSession(entry) || isUserCancelledLaneSession(entry)) {
+    if (isEnvironmentFailureLaneSession(entry) || isRetryableEnvironmentFailureLaneSession(entry) || isUserCancelledLaneSession(entry) || entry.recoveryReason === "manual_rerun") { // a manual rerun is not an automation run
       continue;
     }
     runCount += 1;
@@ -633,7 +627,7 @@ export class KanbanWorkflowOrchestrator {
    * Follow a lane run started outside a column transition (a manual rerun of
    * the card) at `stepIndex`, so the lane's later steps still run after it.
    * Without a session id the run is queued; its session is adopted from the
-   * card's triggerSessionId when it starts. Replaces any finished automation.
+   * card's triggerSessionId when it starts. Replaces a finished automation, not a live one (false).
    */
   async adoptLaneRun(params: {
     cardId: string;
@@ -643,6 +637,7 @@ export class KanbanWorkflowOrchestrator {
     /** Dev counters to carry over (a rate-limit rerun); default a fresh run. */
     counters?: { attempt: number; recoveryAttempts: number };
   }): Promise<boolean> {
+    if (isLiveRunningAutomation(this.activeAutomations.get(params.cardId), params.sessionId)) return false;
     const task = await this.taskStore.get(params.cardId);
     if (!task?.boardId || task.columnId !== params.columnId) return false;
     const board = await this.kanbanBoardStore.get(task.boardId);

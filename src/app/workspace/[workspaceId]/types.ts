@@ -207,7 +207,8 @@ export interface TaskInfo {
       | "turn_cancelled"
       | "user_cancelled"
       | "restart_interrupted"
-      | "rate_limited";
+      | "rate_limited"
+      | "manual_rerun";
     retryAfterAt?: string;
     status: "running" | "completed" | "failed" | "timed_out" | "transitioned";
     startedAt: string;
