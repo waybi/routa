@@ -3,6 +3,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as sqliteSchema from "./sqlite-schema";
 import { normalizeTaskCreationSource } from "../kanban/task-creation-policy";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "../kanban/task-adaptive";
+import { mergeLaneRecords } from "../kanban/lane-session-merge";
 import { hydrateTaskComments, type Task, type TaskStatus } from "../models/task";
 import type { TaskStore } from "../store/task-store";
 
@@ -14,6 +15,30 @@ export class SqliteTaskStore implements TaskStore {
   async save(task: Task): Promise<void> {
     task = stripSpeculativeKanbanTaskAdaptiveSnapshot(task);
     const version = (task as Task & { version?: number }).version ?? 1;
+    // Merge lane records with the stored row so an older copy cannot wipe them
+    // (lane-session-merge.ts). better-sqlite3 reads are synchronous, so the
+    // read-merge-write below cannot interleave with another save.
+    const storedRow = this.db
+      .select({
+        sessionIds: sqliteSchema.tasks.sessionIds,
+        laneSessions: sqliteSchema.tasks.laneSessions,
+      })
+      .from(sqliteSchema.tasks)
+      .where(eq(sqliteSchema.tasks.id, task.id))
+      .limit(1)
+      .all()[0];
+    if (storedRow) {
+      task = {
+        ...task,
+        ...mergeLaneRecords(
+          {
+            sessionIds: (storedRow.sessionIds as string[] | null) ?? undefined,
+            laneSessions: (storedRow.laneSessions as Task["laneSessions"] | null) ?? undefined,
+          },
+          task,
+        ),
+      };
+    }
     await this.db
       .insert(sqliteSchema.tasks)
       .values({

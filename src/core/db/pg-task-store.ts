@@ -9,6 +9,7 @@ import type { Database } from "./index";
 import { tasks } from "./schema";
 import { normalizeTaskCreationSource } from "../kanban/task-creation-policy";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "../kanban/task-adaptive";
+import { mergeLaneRecords } from "../kanban/lane-session-merge";
 import { hydrateTaskComments, type Task, type TaskStatus } from "../models/task";
 import type { TaskStore } from "../store/task-store";
 
@@ -17,8 +18,37 @@ export class PgTaskStore implements TaskStore {
 
   async save(task: Task): Promise<void> {
     task = stripSpeculativeKanbanTaskAdaptiveSnapshot(task);
+    // One transaction: lock the stored row, merge lane records into the
+    // incoming card (lane-session-merge.ts), then upsert on the same connection.
+    await this.db.transaction(async (tx) => {
+      const [storedRow] = await tx
+        .select({ sessionIds: tasks.sessionIds, laneSessions: tasks.laneSessions })
+        .from(tasks)
+        .where(eq(tasks.id, task.id))
+        .limit(1)
+        .for("update");
+      const merged = storedRow
+        ? {
+            ...task,
+            ...mergeLaneRecords(
+              {
+                sessionIds: (storedRow.sessionIds as string[] | null) ?? undefined,
+                laneSessions: (storedRow.laneSessions as Task["laneSessions"] | null) ?? undefined,
+              },
+              task,
+            ),
+          }
+        : task;
+      await this.upsertRow(tx, merged);
+    });
+  }
+
+  private async upsertRow(
+    db: Pick<Database, "insert">,
+    task: Task,
+  ): Promise<void> {
     const version = (task as Task & { version?: number }).version ?? 1;
-    await this.db
+    await db
       .insert(tasks)
       .values({
         id: task.id,

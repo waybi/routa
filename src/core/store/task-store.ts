@@ -6,6 +6,7 @@
 
 import { hydrateTaskComments, Task, TaskStatus } from "../models/task";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "../kanban/task-adaptive";
+import { mergeLaneRecords } from "../kanban/lane-session-merge";
 
 export interface TaskStore {
   save(task: Task): Promise<void>;
@@ -23,7 +24,10 @@ export class InMemoryTaskStore implements TaskStore {
   private tasks = new Map<string, Task>();
 
   async save(task: Task): Promise<void> {
-    this.tasks.set(task.id, { ...stripSpeculativeKanbanTaskAdaptiveSnapshot(task) });
+    const incoming = stripSpeculativeKanbanTaskAdaptiveSnapshot(task);
+    // Lane records are merged with the stored row (see lane-session-merge.ts).
+    const merged = mergeLaneRecords(this.tasks.get(task.id), incoming);
+    this.tasks.set(task.id, { ...incoming, ...merged });
   }
 
   async get(taskId: string): Promise<Task | undefined> {
