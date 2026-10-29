@@ -13,34 +13,66 @@ import { mergeLaneRecords } from "../kanban/lane-session-merge";
 import { hydrateTaskComments, type Task, type TaskStatus } from "../models/task";
 import type { TaskStore } from "../store/task-store";
 
+function isNoTransactionSupportError(error: unknown): boolean {
+  return error instanceof Error && /No transactions support/i.test(error.message);
+}
+
 export class PgTaskStore implements TaskStore {
   constructor(private db: Database) {}
 
   async save(task: Task): Promise<void> {
     task = stripSpeculativeKanbanTaskAdaptiveSnapshot(task);
-    // One transaction: lock the stored row, merge lane records into the
-    // incoming card (lane-session-merge.ts), then upsert on the same connection.
-    await this.db.transaction(async (tx) => {
-      const [storedRow] = await tx
-        .select({ sessionIds: tasks.sessionIds, laneSessions: tasks.laneSessions })
-        .from(tasks)
-        .where(eq(tasks.id, task.id))
-        .limit(1)
-        .for("update");
-      const merged = storedRow
-        ? {
-            ...task,
-            ...mergeLaneRecords(
-              {
-                sessionIds: (storedRow.sessionIds as string[] | null) ?? undefined,
-                laneSessions: (storedRow.laneSessions as Task["laneSessions"] | null) ?? undefined,
-              },
-              task,
-            ),
-          }
-        : task;
-      await this.upsertRow(tx, merged);
-    });
+    // postgres-js: one transaction — lock the stored row, merge lane records into
+    // the incoming card (lane-session-merge.ts), then upsert on the same connection.
+    // neon-http has no interactive transactions (its transaction() throws before
+    // any statement is sent), so there we read then upsert without a row lock.
+    if (!this.transactionsUnsupported) {
+      try {
+        await this.db.transaction(async (tx) => {
+          const storedRow = await this.readLaneRecords(tx, task.id, true);
+          await this.upsertRow(tx, this.withMergedLaneRecords(task, storedRow));
+        });
+        return;
+      } catch (error) {
+        if (!isNoTransactionSupportError(error)) throw error;
+        this.transactionsUnsupported = true;
+      }
+    }
+    const storedRow = await this.readLaneRecords(this.db, task.id, false);
+    await this.upsertRow(this.db, this.withMergedLaneRecords(task, storedRow));
+  }
+
+  private transactionsUnsupported = false;
+
+  private async readLaneRecords(
+    client: Pick<Database, "select">,
+    taskId: string,
+    lock: boolean,
+  ): Promise<{ sessionIds: unknown; laneSessions: unknown } | undefined> {
+    const query = client
+      .select({ sessionIds: tasks.sessionIds, laneSessions: tasks.laneSessions })
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1);
+    const [row] = await (lock ? query.for("update") : query);
+    return row;
+  }
+
+  private withMergedLaneRecords(
+    task: Task,
+    storedRow: { sessionIds: unknown; laneSessions: unknown } | undefined,
+  ): Task {
+    if (!storedRow) return task;
+    return {
+      ...task,
+      ...mergeLaneRecords(
+        {
+          sessionIds: (storedRow.sessionIds as string[] | null) ?? undefined,
+          laneSessions: (storedRow.laneSessions as Task["laneSessions"] | null) ?? undefined,
+        },
+        task,
+      ),
+    };
   }
 
   private async upsertRow(
