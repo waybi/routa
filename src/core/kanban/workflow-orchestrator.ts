@@ -25,6 +25,7 @@ import type { ColumnTransitionData } from "./column-transition";
 import { resolveTransitionAutomation } from "./column-transition";
 import { getDefaultKanbanDevSessionSupervision, getDefaultKanbanLaneSessionWatchdog } from "./board-session-supervision";
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
+import { buildLaneSessionBackfill } from "./lane-session-backfill";
 import { isLiveRunningAutomation } from "./lane-live-session";
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import { reconcileExitAfterTurnEnd, settleUnhandledLaneEnd } from "./lane-session-settlement";
@@ -754,6 +755,7 @@ export class KanbanWorkflowOrchestrator {
       const sessionActivity = sessionStore.getSessionActivity(eventSessionId);
       if (task) {
         upsertTaskLaneSession(task, {
+          ...buildLaneSessionBackfill(task, automation, eventSessionId), // no record yet: take column/step from memory
           sessionId: eventSessionId,
           lastActivityAt: sessionActivity?.lastMeaningfulActivityAt ?? sessionActivity?.lastActivityAt,
         });

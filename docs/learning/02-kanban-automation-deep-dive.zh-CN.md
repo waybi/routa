@@ -426,6 +426,19 @@ recoveryReason 是 `turn_cancelled` 或 `restart_interrupted`」的卡，用 `re
 pm2 日志打一行 `[RestartRecovery] Startup resume enqueued N interrupted lane step(s): <卡:列:岗位>, …`。
 遗留：重启时被杀、却被记成 completed 的步骤（经验包 routa:290）看起来像做完了，启动续跑不处理。
 
+**lane 记录写入（卡 dd65b565，复盘 L279）**：续跑和限流重跑都靠 lane 记录的 `columnId` / `stepIndex` 找原步骤，
+所以记录不能丢、不能缺列。之前有两个口子：
+① `TaskStore.save` 按 id 整行覆盖，手里拿着旧卡副本的保存者（步骤结束处理 `handleAgentCompletion` 的 save、`autoAdvanceCard`、MCP `move_card` 等）
+在 Done 第一步开工写入 `sessionIds` 和 lane 记录之后保存，就把它们冲掉。现在三个 store（内存 / SQLite / Postgres）的 `save`
+先读库里当前行，用 `lane-session-merge.ts` 的 `mergeLaneRecords` 合并再写：`sessionIds` 取并集（传入的顺序在前，库里多出的接后面）；
+`laneSessions` 按 sessionId 合并，库里有而传入没有的保留；两边都有同一会话时，已结束的不会被 running 改回去（不论哪边是终态），
+两边都已结束取传入的，缺的字段（columnId、stepIndex、specialistId、stepId 等）由另一边补齐。SQLite 同步读后写，Postgres 在一个事务里 `SELECT … FOR UPDATE` 后再 upsert。
+只有这两个只增字段改成合并；status、comments、columnId 等其他字段仍是后写者赢。
+② 结束事件到达时卡上找不到该会话的记录，处理函数只补一条没有列信息的骨架记录，续跑和限流重跑按 columnId 匹配不上就跳过。
+现在 `lane-session-backfill.ts` 的 `buildLaneSessionBackfill` 在记录不存在时，用内存 automation 补 `columnId`、`columnName`、`stepIndex`（当前步）、
+`stepId`（步骤有 id 才带）、`stepName`、`role`、`specialistId`、`specialistName`；记录已存在时不动任何字段，内存里没有 automation 时不编造列。
+未做：历史卡已丢的记录不回填；「重启时被杀步骤记成 completed」仍是遗留。
+
 ### 5e. 环境失败与重试预算（卡 79804de2）
 
 模型限流（429）和 Routa 重启打断都不是卡自己的错，以前却照样扣重试次数：
@@ -687,3 +700,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-26 | 重启打断的步骤自动续跑：启动清扫后异步扫所有卡，最后一条记录是本列 failed/timed_out + `turn_cancelled`/`restart_interrupted` 的从同一步重跑（adoptLaneRun，Done 推送员重跑推送员）；Routa 没重启时被取消的回合按 1/2/5 分钟退避写 `retryAfterAt` 用限流计时器重跑；用户经 `session/cancel` 取消的记新值 `user_cancelled`（TS 与 Rust 同步），不重跑、不扣预算；重新运行、revive、启动续跑按 cardId+columnId 认领，同卡只起一个（5b、5c、5d、5e） | 新增 46 个用例（启动续跑 30、取消退避 13、10,000 组随机对拍 2：不一致 0，埋错「看门狗可续跑」被抓到；acp 路由 1）与 1 个 Rust 用例；kanban/tasks/acp/kanban 路由 90 个文件 1009 个用例全过；修复前 2026-10-26 17:57 一次 rebuild 让 3 张卡停 12 分钟等手动 retryTrigger | 本提交 feat(kanban): resume restart-interrupted lane steps automatically |
 
 | 2026-10-26 | 64f2e31c 合并主干：重跑计划优先于步骤结束后的 Blocked 分流 | 新增取消、限流等待及熔断分流 3 个回归用例 | 本合并提交 |
+| 2026-10-29 | `TaskStore.save`（内存 / SQLite / Postgres）合并 `sessionIds` 与 `laneSessions`：旧卡副本不再冲掉 Done 第一步开工写入的记录，已结束记录不被改回 running；步骤结束找不到记录时骨架记录补 columnId / stepIndex / specialistId / stepId（5d） | 新增 45 个用例（合并规则表、10,000 组随机对拍不一致 0 且埋错被抓 1,602 组、三种 store 交错保存、autoAdvanceCard / move_card / 结束处理三条路径、重启续跑与限流重跑），撤掉根治 11 个变红、撤掉兜底 6 个变红；修复前 10-29 一天 4 张卡 Done 第一步记录丢失、重启后停住要人工 retryTrigger | 本提交 fix(kanban): backfill column/step on skeleton lane records |
