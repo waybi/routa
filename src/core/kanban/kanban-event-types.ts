@@ -112,9 +112,35 @@ export type KanbanSessionActivityEvent = {
   timestamp: string;
 };
 
+/**
+ * One row per server start, written by the startup lane sweep (card 2d21984e).
+ *
+ * Not a board frame: it is never sent over SSE and has no workspace, so it is
+ * stored under the workspace id `"*"`. A replay asks for one real workspace
+ * id, so these rows are never replayed to a client. They exist so a review can
+ * compute downtime from routa.db instead of from pm2 logs.
+ */
+export const KANBAN_SERVER_RESTART_WORKSPACE_ID = "*";
+
+export type KanbanServerRestartEvent = {
+  type: "kanban:server-restart";
+  workspaceId: typeof KANBAN_SERVER_RESTART_WORKSPACE_ID;
+  /** ISO time the sweep started (process start side). */
+  bootAt: string;
+  pid: number;
+  /** Lane sessions the sweep ended; present when the sweep succeeded. */
+  endedSessionIds?: string[];
+  /** Cards those sessions belonged to; present when the sweep succeeded. */
+  cards?: number;
+  /** Error text; present when the sweep threw. */
+  error?: string;
+  timestamp: string;
+};
+
 export type KanbanWorkspaceEvent =
   | KanbanWorkspaceChangedEvent
   | KanbanFitnessChangedEvent
   | KanbanTaskLifecycleEvent
   | KanbanSessionTailEvent
-  | KanbanSessionActivityEvent;
+  | KanbanSessionActivityEvent
+  | KanbanServerRestartEvent;

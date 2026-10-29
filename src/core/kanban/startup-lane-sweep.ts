@@ -2,7 +2,11 @@ import { getAcpRunnerUrl } from "../acp/execution-backend";
 import { getHttpSessionStore } from "../acp/http-session-store";
 import { getAcpProcessManager } from "../acp/processer";
 import { getDatabaseDriver } from "../db/index";
-import { getRoutaSystem } from "../routa-system";
+import { getRoutaSystem, type RoutaSystem } from "../routa-system";
+import {
+  KANBAN_SERVER_RESTART_WORKSPACE_ID,
+  type KanbanServerRestartEvent,
+} from "./kanban-event-types";
 import { resumeInterruptedLaneSteps } from "./interrupted-lane-resume";
 import { readPersistedSessionEndHistory } from "./lane-session-settlement";
 import { endStaleRunningLaneSessions } from "./restart-recovery";
@@ -24,8 +28,13 @@ export async function endStaleRunningLaneSessionsOnStartup(): Promise<void> {
   ) {
     return;
   }
+  const bootAt = new Date().toISOString();
+  const pid = process.pid;
+  let system: RoutaSystem | undefined;
+  let outcome: Pick<KanbanServerRestartEvent, "endedSessionIds" | "cards" | "error">;
   try {
-    const result = await endStaleRunningLaneSessions(getRoutaSystem(), {
+    system = getRoutaSystem();
+    const result = await endStaleRunningLaneSessions(system, {
       sessionStore: getHttpSessionStore(),
       processManager: getAcpProcessManager(),
       // The session store is not hydrated yet: read how each session ended from the database.
@@ -35,10 +44,46 @@ export async function endStaleRunningLaneSessionsOnStartup(): Promise<void> {
       `[RestartRecovery] Startup sweep ended ${result.sessions.length} stale running lane session(s) on ${result.cards} card(s)`
         + (result.sessions.length > 0 ? `: ${result.sessions.join(", ")}` : ""),
     );
+    outcome = { endedSessionIds: [...result.sessions], cards: result.cards };
   } catch (error) {
     console.warn("[RestartRecovery] Startup sweep of stale running lane sessions failed:", error);
+    outcome = { error: error instanceof Error ? error.message : String(error) };
   }
+  await recordServerRestart(system, { bootAt, pid, ...outcome });
   scheduleStartupLaneResume();
+}
+
+/**
+ * Exactly one `kanban:server-restart` row per start, whether the sweep worked
+ * or not. Never throws: a store failure must not hold up the resume.
+ */
+async function recordServerRestart(
+  system: RoutaSystem | undefined,
+  fields: Pick<KanbanServerRestartEvent, "bootAt" | "pid" | "endedSessionIds" | "cards" | "error">,
+): Promise<void> {
+  if (!system) {
+    console.warn("[RestartRecovery] No system available: the kanban:server-restart event is not recorded");
+    return;
+  }
+  try {
+    const target = system;
+    const event: KanbanServerRestartEvent = {
+      type: "kanban:server-restart",
+      workspaceId: KANBAN_SERVER_RESTART_WORKSPACE_ID,
+      ...fields,
+      timestamp: new Date().toISOString(),
+    };
+    await target.kanbanEventStore.append({
+      id: crypto.randomUUID(),
+      workspaceId: KANBAN_SERVER_RESTART_WORKSPACE_ID,
+      type: event.type,
+      resourceId: null,
+      payload: event,
+      createdAt: Date.now(),
+    });
+  } catch (error) {
+    console.warn("[RestartRecovery] Could not record the kanban:server-restart event:", error);
+  }
 }
 
 /** Resolves when the startup resume finished (tests). */
