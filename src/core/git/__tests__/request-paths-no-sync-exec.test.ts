@@ -4,6 +4,7 @@
  */
 import { NextRequest } from "next/server";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,14 +43,18 @@ import { getCurrentBranch } from "../git-utils";
 
 describe("request paths never use synchronous git exec", () => {
   let repo: string;
+  let cooldownDir: string;
   beforeEach(() => {
     vi.stubEnv("ROUTA_DB_DRIVER", "memory");
     repo = makeRepo();
     store.repoPath = repo;
     resetPullCooldown();
+    cooldownDir = fs.mkdtempSync(path.join(os.tmpdir(), "routa-nosync-cooldown-"));
+    vi.stubEnv("ROUTA_PULL_COOLDOWN_FILE", path.join(cooldownDir, "cooldown.json"));
     execSpy.calls = 0;
   });
   afterEach(() => {
+    fs.rmSync(cooldownDir, { recursive: true, force: true });
     fs.rmSync(repo, { recursive: true, force: true });
     vi.unstubAllEnvs();
   });

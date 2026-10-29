@@ -97,6 +97,14 @@ export async function getCurrentBranchAsync(repoPath: string): Promise<string | 
   }
 }
 
+export async function getShortHeadAsync(repoPath: string): Promise<string | null> {
+  try {
+    return (await git(["rev-parse", "--short", "HEAD"], repoPath)) || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function listBranchesAsync(repoPath: string): Promise<string[]> {
   try {
     const output = await git(["branch", "--format=%(refname:short)"], repoPath);

@@ -66,6 +66,7 @@ Use these when you already know the main product model and need a narrower topic
 
 - [agentwatch-tui.md](./agentwatch-tui.md): TUI-first runtime model, information architecture, and keybindings for Harness Monitor
 - [harness-trace-learning-phase2.md](./harness-trace-learning-phase2.md): trace learning and playbook-driven guidance
+- [kanban-auto-pull-cooldown.md](./kanban-auto-pull-cooldown.md): auto `git pull` cooldown on board open (key = repo path + branch, persisted JSON file)
 
 ## Legacy Specs And Migration Status
 

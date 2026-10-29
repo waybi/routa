@@ -159,7 +159,8 @@ async function handlePatch(body: PatchBody) {
 
   // Optionally pull after checkout
   // The pull result is not an error for this request; a failed pull is simply
-  // not recorded, so the next request retries it.
+  // not recorded, so the next request retries it. The cooldown key includes the
+  // current branch; pull-cooldown resolves it.
   let pullSkipped = false;
   if (doPull) {
     const outcome = await pullWithCooldown(repoPath, () => pullBranchAsync(repoPath));

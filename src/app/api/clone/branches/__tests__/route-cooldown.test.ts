@@ -5,6 +5,8 @@
  */
 import { NextRequest } from "next/server";
 import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installFakeGit,
@@ -52,9 +54,14 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
   let repoB: string;
   let now: number;
   const dirs: string[] = [];
+  let cooldownDir: string;
+  let cooldownFile: string;
 
   beforeEach(() => {
     vi.stubEnv("ROUTA_DB_DRIVER", "memory");
+    cooldownDir = fs.mkdtempSync(path.join(os.tmpdir(), "routa-cooldown-route-"));
+    cooldownFile = path.join(cooldownDir, "cooldown.json");
+    vi.stubEnv("ROUTA_PULL_COOLDOWN_FILE", cooldownFile);
     fake = installFakeGit();
     repoA = makeRepo();
     repoB = makeRepo();
@@ -68,6 +75,7 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
     setPullCooldownClock(null);
     resetPullCooldown();
     vi.unstubAllEnvs();
+    fs.rmSync(cooldownDir, { recursive: true, force: true });
     for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
   });
 
@@ -115,6 +123,31 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
     expect(fake.pullCount()).toBe(4);
   });
 
+  it("F4: key includes the branch; a restart keeps the record", async () => {
+    runGit(repoA, "branch", "other");
+    await patch(repoA, { branch: "main" });
+    expect(fake.pullCount()).toBe(1);
+    await patch(repoA, { branch: "other" });
+    expect(fake.pullCount()).toBe(2); // not blocked by main's record
+    const back = await (await patch(repoA, { branch: "main" })).json();
+    expect(fake.pullCount()).toBe(2);
+    expect(back.pullSkipped).toBe(true);
+
+    resetPullCooldown({ keepStore: true }); // simulated restart
+    const again = await (await patch(repoA, { branch: "main" })).json();
+    expect(fake.pullCount()).toBe(2);
+    expect(again.pullSkipped).toBe(true);
+    const keys = Object.keys(JSON.parse(fs.readFileSync(cooldownFile, "utf8")).entries);
+    expect(keys.some((k) => k.endsWith("@@main"))).toBe(true);
+    expect(keys.some((k) => k.endsWith("@@other"))).toBe(true);
+  });
+
+  it("C17: pull:false never touches the cooldown file", async () => {
+    await patch(repoA, { pull: false });
+    expect(fake.pullCount()).toBe(0);
+    expect(fs.existsSync(cooldownFile)).toBe(false);
+  });
+
   it("C3: the manual pull endpoint ignores the cooldown", async () => {
     systemMock.codebase = { id: "cb-1", repoPath: repoA };
     await patch(repoA); // auto pull, now cooling down
@@ -130,7 +163,7 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
     expect(fake.pullCount()).toBe(2);
   });
 
-  it("F2: pull:false only checks out; checkout still happens during cooldown", async () => {
+  it("F2: pull:false only checks out; checkout still happens; cooldown is per branch", async () => {
     runGit(repoA, "branch", "other");
     const before = runGit(repoA, "rev-parse", "HEAD");
     const res = await (await patch(repoA, { pull: false })).json();
@@ -140,8 +173,10 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
 
     await patch(repoA); // cooldown starts
     const sw = await (await patch(repoA, { branch: "other" })).json();
-    expect(sw.pullSkipped).toBe(true);
+    expect(sw.pullSkipped).toBeUndefined(); // cooldown key is repo + branch: "other" has no record yet
     expect(sw.branch).toBe("other");
+    const sw2 = await (await patch(repoA, { branch: "other" })).json();
+    expect(sw2.pullSkipped).toBe(true);
     expect(runGit(repoA, "rev-parse", "--abbrev-ref", "HEAD").trim()).toBe("other");
   });
 

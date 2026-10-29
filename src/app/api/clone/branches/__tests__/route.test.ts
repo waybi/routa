@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as os from "os";
+import * as path from "path";
+import { rm } from "fs/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { existsSync } = vi.hoisted(() => ({
   existsSync: vi.fn<(path: string) => boolean>(),
@@ -149,6 +152,12 @@ describe("/api/clone/branches DELETE", () => {
 });
 
 describe("/api/clone/branches PATCH", () => {
+  let cooldownFile = "";
+  let fileSeq = 0;
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await rm(cooldownFile, { force: true });
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
@@ -156,6 +165,8 @@ describe("/api/clone/branches PATCH", () => {
     gitMocks.checkoutBranch.mockReturnValue(true);
     gitMocks.pullBranch.mockReturnValue({ success: true });
     resetPullCooldown();
+    cooldownFile = path.join(os.tmpdir(), `routa-route-test-${process.pid}-${++fileSeq}-cooldown.json`);
+    vi.stubEnv("ROUTA_PULL_COOLDOWN_FILE", cooldownFile);
     gitMocks.getBranchInfo.mockReturnValue({
       current: "main",
       branches: ["main", "feature/polish"],

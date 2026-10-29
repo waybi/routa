@@ -94,6 +94,7 @@ export {
   getRemoteUrlAsync,
   getRepoChangesAsync,
   getRepoDeliveryStatusAsync,
+  getShortHeadAsync,
   hasBranchAuthoredCommitsOnHeadAsync,
   isRefAncestorAsync,
 } from "./git-utils-async";
@@ -102,6 +103,9 @@ export {
   pullWithCooldown,
   resetPullCooldown,
   setPullCooldownClock,
+  setPullCooldownFile,
+  getPullCooldownFilePath,
+  flushPullCooldownWrites,
   PULL_COOLDOWN_MS,
 } from "./pull-cooldown";
 
