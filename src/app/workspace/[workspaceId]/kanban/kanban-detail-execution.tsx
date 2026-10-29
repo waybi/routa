@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { AcpProviderInfo } from "@/client/acp-client";
+import { useConfirm } from "@/client/components/confirm-dialog";
 import { Select } from "@/client/components/select";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
@@ -123,7 +124,7 @@ export interface KanbanDetailExecutionProps {
   specialistLanguage: KanbanSpecialistLanguage;
   selectedProvider?: string | null;
   onPatchTask: (taskId: string, payload: Record<string, unknown>) => Promise<TaskInfo>;
-  onRetryTrigger: (taskId: string) => Promise<void>;
+  onRetryTrigger: (taskId: string, options?: { force?: boolean }) => Promise<void>;
   onProviderChange?: (providerId: string | null) => void;
   compact?: boolean;
 }
@@ -211,9 +212,16 @@ export function KanbanDetailExecution({
   const overrideKey = `${task.id}:${task.assignedProvider ?? ""}:${task.assignedRole ?? ""}:${task.assignedSpecialistId ?? ""}:${task.assignedSpecialistName ?? ""}`;
   const needsLiveRunRecovery = isExpiredEmbeddedSessionFailure(failureMessage);
   const retrySubmit = useRetrySubmit(onRetryTrigger);
-  const runActionLabel = needsLiveRunRecovery
-    ? t.kanbanDetail.recoverLiveRun
-    : hasRecordedRuns ? t.kanban.rerun : t.kanban.run;
+  const confirm = useConfirm();
+  const hasRunningStep = useMemo(
+    () => (task.laneSessions ?? []).some((entry) => entry.columnId === task.columnId && entry.status === "running"),
+    [task.laneSessions, task.columnId],
+  );
+  const runActionLabel = hasRunningStep
+    ? t.kanbanRerunGuard.endAndRerun
+    : needsLiveRunRecovery
+      ? t.kanbanDetail.recoverLiveRun
+      : hasRecordedRuns ? t.kanban.rerun : t.kanban.run;
   const showCurrentRunSeparately = laneSteps.length > 1 || hasCardOverride || effectiveRunTarget !== lanePipeline;
   const nextLaneName = transitionArtifacts.nextColumn?.name;
 
@@ -379,8 +387,17 @@ export function KanbanDetailExecution({
                 data-testid="kanban-detail-run"
                 disabled={retrySubmit.submitting}
                 aria-busy={retrySubmit.submitting}
-                onClick={() => {
-                  void retrySubmit.submit(task.id);
+                onClick={async () => {
+                  if (!hasRunningStep) {
+                    void retrySubmit.submit(task.id);
+                    return;
+                  }
+                  const confirmed = await confirm({
+                    title: t.kanbanRerunGuard.endAndRerunTitle,
+                    message: t.kanbanRerunGuard.endAndRerunMessage,
+                    confirmLabel: t.kanbanRerunGuard.endAndRerun,
+                  });
+                  if (confirmed) void retrySubmit.submit(task.id, { force: true });
                 }}
               >
                 {retrySubmit.submitting ? t.kanban.retryStarting : runActionLabel}
