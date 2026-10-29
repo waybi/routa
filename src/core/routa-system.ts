@@ -11,6 +11,11 @@
  * to a workspace.
  */
 
+import {
+  isPromiseLike,
+  resolveWorkflowOrchestratorSingletonModule,
+  resolveWorkflowOrchestratorSingletonModuleAsync,
+} from "./kanban/resolve-orchestrator-module";
 import { InMemoryAgentStore, AgentStore } from "./store/agent-store";
 import { InMemoryConversationStore, ConversationStore } from "./store/conversation-store";
 import { InMemoryTaskStore, TaskStore } from "./store/task-store";
@@ -350,62 +355,58 @@ const GLOBAL_KEY = "__routa_system__";
 type WorkflowOrchestratorSingletonModule =
   typeof import("./kanban/workflow-orchestrator-singleton");
 
-function resolveWorkflowOrchestratorSingletonModule(
-  value: unknown,
-): WorkflowOrchestratorSingletonModule {
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (typeof record.startWorkflowOrchestrator === "function") {
-      return record as WorkflowOrchestratorSingletonModule;
-    }
-
-    const defaultExport = record.default;
-    if (defaultExport && typeof defaultExport === "object") {
-      const defaultRecord = defaultExport as Record<string, unknown>;
-      if (typeof defaultRecord.startWorkflowOrchestrator === "function") {
-        return defaultRecord as WorkflowOrchestratorSingletonModule;
-      }
-    }
-
-    const moduleExports = record["module.exports"];
-    if (moduleExports && typeof moduleExports === "object") {
-      const moduleExportsRecord = moduleExports as Record<string, unknown>;
-      if (typeof moduleExportsRecord.startWorkflowOrchestrator === "function") {
-        return moduleExportsRecord as WorkflowOrchestratorSingletonModule;
-      }
-    }
-  }
-
-  throw new TypeError("startWorkflowOrchestrator is not a function");
-}
-
+/**
+ * Builds the system, attaches the bridges and starts the orchestrator on a
+ * local value; only a fully started system is published on globalThis. If any
+ * step throws, nothing is published, so the next call starts over instead of
+ * handing out a half-initialized singleton (card 2d21984e: it used to be
+ * published first, a resolve error then skipped the Kanban event persistence,
+ * and kanban_events stopped filling).
+ */
 export function getRoutaSystem(): RoutaSystem {
   const g = globalThis as Record<string, unknown>;
   if (!g[GLOBAL_KEY]) {
     const { getDatabaseDriver } = require("./db/index") as typeof import("./db/index");
-    const driver = getDatabaseDriver();
+    return initializeRoutaSystem(
+      getDatabaseDriver(),
+      require("./kanban/workflow-orchestrator-singleton"),
+    );
+  }
+  return g[GLOBAL_KEY] as RoutaSystem;
+}
 
+/**
+ * The init sequence behind getRoutaSystem(), with the database driver and the
+ * orchestrator module passed in so tests can feed it the shapes the bundler
+ * produces (plain object, Promise, empty object). Publishes on globalThis.
+ */
+export function initializeRoutaSystem(
+  driver: string,
+  orchestratorModule: unknown,
+): RoutaSystem {
+  const g = globalThis as Record<string, unknown>;
+  if (!g[GLOBAL_KEY]) {
+    // Resolve first: a module that cannot be resolved fails before any store,
+    // bridge or timer exists, so a retry has nothing to duplicate.
+    const orchestratorReady = isPromiseLike(orchestratorModule)
+      ? undefined
+      : resolveWorkflowOrchestratorSingletonModule<WorkflowOrchestratorSingletonModule>(orchestratorModule);
+
+    let system: RoutaSystem;
     switch (driver) {
       case "postgres":
         console.log("[RoutaSystem] Initializing with Postgres (Neon) stores");
-        g[GLOBAL_KEY] = createPgSystem();
+        system = createPgSystem();
         break;
       case "sqlite":
         console.log("[RoutaSystem] Initializing with SQLite stores (local Node.js)");
-        g[GLOBAL_KEY] = createSqliteSystem();
+        system = createSqliteSystem();
         break;
       default:
         console.log("[RoutaSystem] Initializing with InMemory stores (no database)");
-        g[GLOBAL_KEY] = createInMemorySystem();
+        system = createInMemorySystem();
         break;
     }
-
-    // Start the workflow orchestrator to listen for column transitions
-    const system = g[GLOBAL_KEY] as RoutaSystem;
-    const { startWorkflowOrchestrator } = resolveWorkflowOrchestratorSingletonModule(
-      require("./kanban/workflow-orchestrator-singleton"),
-    );
-    startWorkflowOrchestrator(system);
 
     // Set up EventBus → KanbanEventBroadcaster bridge for file changes
     setupFileChangeBridge(system);
@@ -420,6 +421,25 @@ export function getRoutaSystem(): RoutaSystem {
       taskStore: system.taskStore,
       kanbanBoardStore: system.kanbanBoardStore,
     });
+
+    // Start the workflow orchestrator to listen for column transitions.
+    if (orchestratorReady) {
+      orchestratorReady.startWorkflowOrchestrator(system);
+    }
+
+    g[GLOBAL_KEY] = system;
+
+    if (!orchestratorReady) {
+      // Production bundle: the module is async (a Promise). getRoutaSystem is
+      // synchronous, so start the orchestrator as soon as it resolves. A
+      // failure is loud and un-publishes the system so the next call retries.
+      resolveWorkflowOrchestratorSingletonModuleAsync<WorkflowOrchestratorSingletonModule>(orchestratorModule)
+        .then((resolved) => resolved.startWorkflowOrchestrator(system))
+        .catch((error) => {
+          console.error("[RoutaSystem] Workflow orchestrator failed to start:", error);
+          if (g[GLOBAL_KEY] === system) delete g[GLOBAL_KEY];
+        });
+    }
   }
   return g[GLOBAL_KEY] as RoutaSystem;
 }

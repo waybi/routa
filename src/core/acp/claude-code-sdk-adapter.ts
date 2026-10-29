@@ -24,9 +24,18 @@ import "@/core/platform/serverless-fs-patch";
 
 import type { NotificationHandler, JsonRpcMessage } from "@/core/acp/protocol-types";
 import { isServerlessEnvironment } from "@/core/acp/api-based-providers";
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { McpServerConfig, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { McpServerConfig, SDKMessage, query } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "path";
+
+/**
+ * Loaded on first use, not at import time. The SDK is ESM-only, and a static
+ * import makes this module (and everything that imports it, down to the
+ * workflow orchestrator) an async module in the webpack production bundle, so
+ * a plain require() of the orchestrator returned a Promise (card 2d21984e).
+ */
+async function loadSdkQuery(): Promise<typeof query> {
+  return (await import("@anthropic-ai/claude-agent-sdk")).query;
+}
 import type { LifecycleNotifier } from "@/core/acp/lifecycle-notifier";
 
 interface PendingUserInputRequest {
@@ -421,7 +430,7 @@ export class ClaudeCodeSdkAdapter {
         (queryOptions as Record<string, unknown>).resume = this.sdkSessionId;
       }
 
-      const stream = query({
+      const stream = (await loadSdkQuery())({
         prompt: text,
         options: queryOptions,
       });
@@ -662,7 +671,7 @@ export class ClaudeCodeSdkAdapter {
         (queryOptions as Record<string, unknown>).resume = this.sdkSessionId;
       }
 
-      const stream = query({
+      const stream = (await loadSdkQuery())({
         prompt: text,
         options: queryOptions,
       });
