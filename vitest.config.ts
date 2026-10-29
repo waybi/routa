@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: ["./vitest.setup.ts"],
+    setupFiles: ["./vitest.git-env.setup.ts", "./vitest.setup.ts"],
     execArgv: [],
     include: ["**/__tests__/**/*.test.ts", "**/__tests__/**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "src/client/utils/__tests__/**", "**/.routa/**", "**/.worktrees/**"], // Exclude old test files and .routa cache
