@@ -38,6 +38,7 @@ import { GET as getBranches, PATCH as patchBranches } from "@/app/api/clone/bran
 import { GET as getChanges } from "@/app/api/workspaces/[workspaceId]/codebases/changes/route";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
 import { commitFile, makeRepo, runGit } from "./git-test-fixtures";
+import { restoreGitEnv, scrubGitEnv } from "./git-env-scrub";
 import { resetPullCooldown } from "../pull-cooldown";
 import { getCurrentBranch } from "../git-utils";
 
@@ -45,6 +46,7 @@ describe("request paths never use synchronous git exec", () => {
   let repo: string;
   let cooldownDir: string;
   beforeEach(() => {
+    scrubGitEnv();
     vi.stubEnv("ROUTA_DB_DRIVER", "memory");
     repo = makeRepo();
     store.repoPath = repo;
@@ -57,6 +59,7 @@ describe("request paths never use synchronous git exec", () => {
     fs.rmSync(cooldownDir, { recursive: true, force: true });
     fs.rmSync(repo, { recursive: true, force: true });
     vi.unstubAllEnvs();
+    restoreGitEnv();
   });
 
   it("sanity: the spy sees synchronous git helpers", () => {

@@ -13,6 +13,7 @@ import {
 } from "../pull-cooldown";
 import { getShortHeadAsync } from "../git-utils-async";
 import { makeRepo, runGit } from "./git-test-fixtures";
+import { restoreGitEnv, scrubGitEnv } from "./git-env-scrub";
 
 type Opts = Parameters<typeof rawPullWithCooldown>[2];
 const noBranch: Opts = { resolveBranch: async () => null };
@@ -23,11 +24,13 @@ const ok = async () => ({ success: true });
 
 const MIN = 60 * 1000;
 
+
 describe("pullWithCooldown", () => {
   let now = 0;
   let dir: string;
   let file: string;
   beforeEach(() => {
+    scrubGitEnv();
     now = 0;
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "pull-cooldown-"));
     file = path.join(dir, "cooldown.json");
@@ -40,6 +43,7 @@ describe("pullWithCooldown", () => {
     resetPullCooldown();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    restoreGitEnv();
     fs.rmSync(dir, { recursive: true, force: true });
   });
   const readEntries = () => JSON.parse(fs.readFileSync(file, "utf8")).entries as Record<string, number>;

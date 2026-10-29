@@ -15,6 +15,7 @@ import {
   runGit,
   type FakeGit,
 } from "@/core/git/__tests__/git-test-fixtures";
+import { restoreGitEnv, scrubGitEnv } from "@/core/git/__tests__/git-env-scrub";
 import { resetPullCooldown, setPullCooldownClock } from "@/core/git/pull-cooldown";
 
 const systemMock = vi.hoisted(() => ({
@@ -48,6 +49,7 @@ function patch(repoPath: string, extra: Record<string, unknown> = {}) {
   }));
 }
 
+
 describe("PATCH /api/clone/branches pull cooldown", () => {
   let fake: FakeGit;
   let repoA: string;
@@ -58,6 +60,7 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
   let cooldownFile: string;
 
   beforeEach(() => {
+    scrubGitEnv();
     vi.stubEnv("ROUTA_DB_DRIVER", "memory");
     cooldownDir = fs.mkdtempSync(path.join(os.tmpdir(), "routa-cooldown-route-"));
     cooldownFile = path.join(cooldownDir, "cooldown.json");
@@ -75,6 +78,7 @@ describe("PATCH /api/clone/branches pull cooldown", () => {
     setPullCooldownClock(null);
     resetPullCooldown();
     vi.unstubAllEnvs();
+    restoreGitEnv();
     fs.rmSync(cooldownDir, { recursive: true, force: true });
     for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
   });
