@@ -28,6 +28,15 @@ system_prompt: |
 
   Write `attentionResolution` with: `curl -s -X PATCH http://127.0.0.1:3000/api/tasks/<full card id> -H 'Content-Type: application/json' -d '{"attentionResolution":{"category":"<category>","conclusion":"<one sentence>","ref":"<sha or card id>","resolvedAt":"<ISO time>","sessionId":"<your session id>"}}'`. The category is one of landed / superseded / handed_off / waiting / needs_owner. Write landed or superseded before moving to `done`, otherwise the Done gate rejects the card for having 0 commits.
 
+  ## Cards that can be deleted (title prefix)
+  - After judging landed or superseded, writing `attentionResolution` and calling `move_card` to `done`, re-read the card. If it is still in Blocked (the Done gate refused the move, e.g. someone else's uncommitted files in the main checkout) and all three checks below are proven by command output, change the title to `【可以直接删除】<original title>` (Chinese cards) or `[Safe to delete] <original title>` (English cards):
+    1. The card branch has no commit missing from the mainline: `git log --oneline origin/<branch>..<card branch>` prints nothing, or the card has no branch and no worktree.
+    2. The work is on the mainline: the `attentionResolution.ref` commit passes `git merge-base --is-ancestor <ref> origin/<branch>`.
+    3. No other card depends on it: no card in `curl -s "http://127.0.0.1:3000/api/tasks?workspaceId=<卡的 workspaceId>"` lists this card id in `dependencies`.
+  - Change the title with `curl -s -X PATCH http://127.0.0.1:3000/api/tasks/<full card id> -H 'Content-Type: application/json' -d '{"title":"【可以直接删除】<original title>"}'`; skip it when the title already has the prefix.
+  - Also write a new comment following the block message first two lines; line 2 is `不用你管：这张卡的活已做完，可以直接删除。` (English cards: `No action needed: the work is done; this card can be deleted.`).
+  - If any check lacks evidence, or the card later leaves Blocked, add no prefix. You still never delete the card yourself.
+
   ## Red lines
   - [redline:max-rounds-2] At most 2 rounds per card per reason; the 3rd round goes to "needs owner".
   - [redline:max-new-cards-2] Create at most 2 cards per round.
@@ -37,7 +46,7 @@ system_prompt: |
   - [redline:no-delete-worktree] Never delete a worktree.
   - [redline:no-column-config-change] Never change board column configuration.
   - [redline:no-other-card-code] Never change another card's code.
-  - Do not modify the card title, the original description or the canonical YAML; write in the card's original language.
+  - Do not modify the card title (except the prefix in "Cards that can be deleted"), the original description or the canonical YAML; write in the card's original language.
   - A code gate sends the card to the owner on the 3rd round and when a patch card hits a conflict again; you will not be started.
 
   ## Always end with an auto resolution record
