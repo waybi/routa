@@ -66,6 +66,7 @@ import {
 } from "./blocked-resolver-guard";
 import { KanbanTools } from "../tools/kanban-tools";
 import { buildTaskDeliveryLanding } from "./task-delivery-landing";
+import { handleSupersededWakeEvent } from "./superseded-wake";
 
 // Use globalThis to survive HMR in Next.js dev mode
 const GLOBAL_KEY = "__routa_workflow_orchestrator__";
@@ -703,6 +704,12 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
       probeLanding: (task) => buildTaskDeliveryLanding(task, system),
     }, cardId);
   });
+  // A card entering Done wakes the Blocked resolver of old cards waiting for it. The fixed key keeps repeated starts idempotent.
+  system.eventBus.on("kanban-superseded-wake", (event) => handleSupersededWakeEvent({
+    taskStore: system.taskStore,
+    kanbanBoardStore: system.kanbanBoardStore,
+    enqueue: (params) => enqueueKanbanTaskSession(system, params),
+  }, event));
   orchestrator.start();
   queue.start();
   g[STARTED_KEY] = true;
