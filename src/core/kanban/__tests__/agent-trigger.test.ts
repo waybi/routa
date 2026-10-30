@@ -9,6 +9,7 @@ import {
   resolveSessionModelSelection,
   triggerAssignedTaskAgent,
 } from "../agent-trigger";
+import { buildStructuredAcceptanceCriteriaLines } from "../acceptance-criteria-prompt";
 import { resolveKanbanAutomationStep } from "../effective-task-automation";
 import { createTask } from "../../models/task";
 import type { KanbanAutomationStep, KanbanColumn } from "../../models/kanban";
@@ -135,6 +136,50 @@ function acTask(opts: { objective: string; acceptanceCriteria?: string[]; column
   });
 }
 
+describe("structured AC numbering (L256)", () => {
+  const items = (input: string[], objective?: string) =>
+    buildStructuredAcceptanceCriteriaLines(input, objective).filter((l) => l.startsWith("- "));
+
+  it("AC1: numbers unnumbered items in order", () => {
+    expect(items(["甲", "乙", "丙", "丁"])).toEqual(["- AC-1: 甲", "- AC-2: 乙", "- AC-3: 丙", "- AC-4: 丁"]);
+  });
+  it("AC2: mixed keeps numbered, no collision", () => {
+    expect(items(["x", "AC3: y", "z"])).toEqual(["- AC-1: x", "- AC3: y", "- AC-2: z"]);
+    expect(items(["AC-1: a", "b"])).toEqual(["- AC-1: a", "- AC-2: b"]);
+    expect(items(["AC1 正文", "b"])).toEqual(["- AC1 正文", "- AC-2: b"]);
+    expect(items(["AC2: a", "b", "c"])).toEqual(["- AC2: a", "- AC-1: b", "- AC-3: c"]);
+    expect(items(["AC10: a", "b"])).toEqual(["- AC10: a", "- AC-1: b"]);
+  });
+  it("AC2: all numbered stay verbatim", () => {
+    const all = ["AC3: y", "AC-a 字母号", "AC1 正文", "ac2：小写全角"];
+    expect(items(all)).toEqual(all.map((a) => `- ${a}`));
+  });
+  it("AC2: English words are not treated as numbered", () => {
+    expect(items(["Accept 按钮可点", "ACME 接口", "ACa: 无短横字母号"])).toEqual([
+      "- AC-1: Accept 按钮可点", "- AC-2: ACME 接口", "- AC-3: ACa: 无短横字母号",
+    ]);
+  });
+  it("AC3: input not mutated; YAML warning reads raw items", () => {
+    const input = ["x", "AC3: y", "z"];
+    const clone = structuredClone(input);
+    buildStructuredAcceptanceCriteriaLines(input, undefined);
+    expect(input).toEqual(clone);
+    const none = buildStructuredAcceptanceCriteriaLines(["a", "b", "c", "d"], storyYaml(["AC1", "AC2", "AC3", "AC4"])).join("\n");
+    expect(none).not.toContain("缺少");
+    const some = buildStructuredAcceptanceCriteriaLines(["AC1: a", "AC3: c"], storyYaml(["AC1", "AC2"])).join("\n");
+    expect(some).toContain("canonical YAML 缺少 AC3");
+  });
+  it("edge: blank/leading whitespace/two digits", () => {
+    expect(items(["", "  x", "  AC3: y"])).toEqual(["- AC-1: x", "-   AC3: y"]);
+    expect(items(Array.from({ length: 12 }, (_, i) => `t${i}`)).at(-1)).toBe("- AC-12: t11");
+    expect(buildStructuredAcceptanceCriteriaLines([], undefined)).toEqual([]);
+  });
+  it("path: buildTaskPrompt shows AC-1", () => {
+    const prompt = buildTaskPrompt(createTask({ id: "t-n", title: "t", objective: "o", acceptanceCriteria: ["无编号"], workspaceId: "default", boardId: "b", columnId: "dev" }));
+    expect(prompt).toContain("- AC-1: 无编号");
+  });
+});
+
 describe("buildTaskPrompt structured acceptance criteria (retro L256)", () => {
   it("C1: lists all 10 field ACs and flags AC10 missing from the YAML, between objective and Story Readiness", () => {
     const fieldAcs = range(10).map((id) => `${id}: 条目 ${id} 的原文`);
@@ -167,7 +212,7 @@ describe("buildTaskPrompt structured acceptance criteria (retro L256)", () => {
 
   it("C3: blank entries skipped, id-less entries listed but not compared", () => {
     const prompt = buildTaskPrompt(acTask({ objective: storyYaml(range(2)), acceptanceCriteria: ["AC1: a", "", "补充：界面无改动"] }));
-    expect(prompt).toContain("- 补充：界面无改动");
+    expect(prompt).toContain("- AC-2: 补充：界面无改动");
     expect(prompt).not.toContain("\n- \n");
     expect(prompt).not.toContain("缺少");
   });

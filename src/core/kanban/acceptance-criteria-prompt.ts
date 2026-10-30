@@ -3,10 +3,29 @@ import { parseCanonicalStory } from "./canonical-story";
 export const STRUCTURED_AC_HEADING = "## Acceptance Criteria（结构化字段，评审以此为准）";
 
 const AC_ID_PATTERN = /^\s*(AC\d+)\s*[:：]/i;
+// Already-numbered entry: AC3 / AC-3 (digits, "-" optional) or AC-a (letters need "-"),
+// followed by : ： whitespace . 、 or end. Avoids treating "Accept…" / "ACME…" as numbered.
+const EXISTING_AC_ID = /^\s*AC(?:-?(\d+)|-[A-Za-z0-9]+)(?=[:：\s.、]|$)/i;
+
+/** Prefix unnumbered items with AC-n (smallest unused n, in order); numbered items kept verbatim. Pure. */
+function numberItems(items: string[]): string[] {
+  const used = new Set<number>();
+  for (const item of items) {
+    const m = EXISTING_AC_ID.exec(item);
+    if (m?.[1]) used.add(Number(m[1]));
+  }
+  let n = 1;
+  return items.map((item) => {
+    if (EXISTING_AC_ID.test(item)) return item;
+    while (used.has(n)) n++;
+    return `AC-${n++}: ${item.trim()}`;
+  });
+}
 
 /**
  * Prompt section that lists the structured `task.acceptanceCriteria` field and flags
  * AC ids that exist in the field but not in the canonical story YAML (retro L256).
+ * Unnumbered items get an AC-n prefix for display only (input is never mutated).
  * Returns [] when the field has no non-empty entries.
  */
 export function buildStructuredAcceptanceCriteriaLines(
@@ -18,7 +37,7 @@ export function buildStructuredAcceptanceCriteriaLines(
   );
   if (items.length === 0) return [];
 
-  const lines = [STRUCTURED_AC_HEADING, "", ...items.map((item) => `- ${item}`), ""];
+  const lines = [STRUCTURED_AC_HEADING, "", ...numberItems(items).map((item) => `- ${item}`), ""];
 
   const parsed = parseCanonicalStory(objective);
   if (!parsed.story) return lines;

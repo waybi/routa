@@ -97,7 +97,7 @@ Kanban Orchestrator                    UI / Trace / EventBus
 │  {task.objective —— 任务的目标描述}                             │
 │                                                               │
 │  ## Acceptance Criteria（结构化字段，评审以此为准）              │
-│  task.acceptanceCriteria 逐条原样；YAML 少的 AC id 末尾告警     │
+│  task.acceptanceCriteria 逐条列出，无编号补 AC-n；YAML 少的告警  │
 │                                                               │
 │  ## Story Readiness（结构化字段就绪度）                         │
 │  scope=present, acceptanceCriteria=missing, …                 │
@@ -568,7 +568,7 @@ Orchestrator 决定：cardId=abc 该进 dev 列了，配的是 Claude + CRAFTER
 
 `buildTaskPrompt()` 拼出的不是一句自然语言请求，而是一份结构化的**工单**——
 包含 Context / Task Details / Objective / Gates / Evidence / Memory / Tools / Instructions 等
-完整章节。其中 Objective 之后会列出结构化验收字段 `task.acceptanceCriteria`（逐条原样、不截断），并点名 canonical YAML 里漏掉的 AC id（`acceptance-criteria-prompt.ts`），评审以该字段为准。这份工单让 Agent 像收到一份工程规格书一样开始工作，而不是靠"猜"用户想要什么。
+完整章节。其中 Objective 之后会列出结构化验收字段 `task.acceptanceCriteria`（逐条原样、不截断），并点名 canonical YAML 里漏掉的 AC id（`acceptance-criteria-prompt.ts`），评审以该字段为准。条目没有 AC 编号时，展示时按顺序补 `AC-1:`、`AC-2:`…（跳过已被原编号占用的数字，如 `[x, AC3: y, z]` → `AC-1: x`、`AC3: y`、`AC-2: z`；`AC3`、`AC-a`、`AC1 正文` 视为已有编号原样保留；只改提示词展示，不写回 `task.acceptanceCriteria`）。评审守卫在 Review Findings 里对该节每一条写一行「编号：✅/❌ 依据」，编号用该节显示的编号，不能只写契约编号。这份工单让 Agent 像收到一份工程规格书一样开始工作，而不是靠"猜"用户想要什么。
 
 **而且工单内容因泳道而异**：backlog 列的工单禁止写代码（只做规划），
 dev 列的工单有安全验证规则，review 列的工单有 handoff 指令。
@@ -618,3 +618,4 @@ prompt 本身就是 Agent 的行为约束边界。
 | 2026-10-25 | Provider 下拉里状态为 unavailable 的项保留显示但禁用（disabled + aria-disabled、置灰，悬停显示 unavailableReason），当前选中项变不可用时不自动切换；首页输入框的 preferredDefaultProvider 不可用时回退到 use-acp 选好的 provider（resolveComposerProviderId） | 用户点不中没装的 provider，输入框也不会默认选中它 | （见本次提交） |
 | 2026-10-28 | `PROVIDER_MODEL_TIERS.dsh.fast` 代码默认 `claude-opus-5-5` → `claude-sonnet-5-5`（RunAI 线路），balanced/smart 仍是 Opus 5.5 | 开发岗位（fast 档）在全局档位文件没填 fast 时也跑 Sonnet；真实大卡回放 dev 花费 $2.99（Sonnet）对 $12.49（Opus）（Pool 线路回放测得） | （见本次提交） |
 | 2026-10-28 | 提示词在 Objective 之后新增「Acceptance Criteria（结构化字段）」一节并提示 YAML 漏掉的 AC id；三份 flight-review-guard.yaml 要求逐条以该节为准（复盘 L256） | 评审守卫能看到字段里的全部 AC（如卡 143cfbed 的 AC10），不再判笔误 | （见本次提交） |
+| 2026-10-30 | 结构化验收一节给无编号条目补 AC-n；三份 flight-review-guard.yaml 要求按该编号逐条写「编号：✅/❌ 依据」（复盘 L256，承 98e7700a） | 评审结论可按 AC 逐条核对（原卡 0/4） | （见本次提交） |
