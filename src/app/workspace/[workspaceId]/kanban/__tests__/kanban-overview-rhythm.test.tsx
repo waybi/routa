@@ -119,6 +119,23 @@ describe("right column and list durations (AC7)", () => {
     expect(within(block).getByTestId("kanban-overview-rhythm-line").textContent).toContain("Median — per card");
   });
 
+  it("stuck=0 project renders no stuck segment; stuck>0 project keeps the red toggle button", async () => {
+    await renderIt();
+    const lineY = within(projectBlock("Y")).getByTestId("kanban-overview-rhythm-line");
+    expect(within(projectBlock("Y")).queryByTestId("kanban-overview-rhythm-stuck")).toBeNull();
+    expect(lineY.textContent ?? "").not.toContain("stuck");
+    expect(lineY.children).toHaveLength(2);
+    const lineX = within(projectBlock("X")).getByTestId("kanban-overview-rhythm-line");
+    expect(lineX.children).toHaveLength(3);
+    const btn = within(projectBlock("X")).getByTestId("kanban-overview-rhythm-stuck");
+    expect(btn.getAttribute("type")).toBe("button");
+    expect(btn.className).toContain("text-danger");
+    expect(btn.textContent).toBe("1 stuck 40 min");
+    fireEvent.click(btn);
+    expect(btn.getAttribute("aria-pressed")).toBe("true");
+    expect(btn.className).toContain("bg-danger-subtle");
+  });
+
   it("list rows show a small bar, total time, rework and stuck badges", async () => {
     await renderIt();
     // Only today is open; open the earlier days so every card has a row.

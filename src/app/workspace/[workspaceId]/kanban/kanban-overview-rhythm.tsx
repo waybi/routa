@@ -70,19 +70,17 @@ export function KanbanOverviewRhythm({ rows, now, project, onPickProject, stuckO
               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-secondary" data-testid="kanban-overview-rhythm-line">
                 <span>{copy.rhythmMedian.replace("{time}", summary.medianMs === null ? "—" : formatSpan(summary.medianMs, copy))}</span>
                 <span>· {copy.rhythmRework.replace("{count}", String(summary.reworkCards))}</span>
-                {summary.stuckCards > 0
-                  ? (
-                    <button
-                      type="button"
-                      aria-pressed={stuckOnly}
-                      onClick={onToggleStuck}
-                      className={`${buttonClassName("ghost", "xs")} text-danger ${stuckOnly ? "bg-danger-subtle" : ""}`}
-                      data-testid="kanban-overview-rhythm-stuck"
-                    >
-                      {copy.rhythmStuck.replace("{count}", String(summary.stuckCards)).replace("{time}", formatSpan(summary.stuckMs, copy))}
-                    </button>
-                  )
-                  : <span>· {copy.rhythmStuck.replace("{count}", "0").replace("{time}", formatSpan(0, copy))}</span>}
+                {summary.stuckCards > 0 && (
+                  <button
+                    type="button"
+                    aria-pressed={stuckOnly}
+                    onClick={onToggleStuck}
+                    className={`${buttonClassName("ghost", "xs")} text-danger ${stuckOnly ? "bg-danger-subtle" : ""}`}
+                    data-testid="kanban-overview-rhythm-stuck"
+                  >
+                    {copy.rhythmStuck.replace("{count}", String(summary.stuckCards)).replace("{time}", formatSpan(summary.stuckMs, copy))}
+                  </button>
+                )}
               </div>
             </section>
           );
