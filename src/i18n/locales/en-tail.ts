@@ -504,6 +504,7 @@ export const enTail: TailTranslationDictionarySections = {
     statusNeedsYou: "Needs you",
     statusDoneToday: "Done today",
     statusBarLabel: "Status filter",
+    queuedResolvedHint: "{count} more cards were handled by AI and await cleanup; not counted here",
     laneStepLabel: "{lane} {step}/5",
     stepNumber: "Step {step}",
     ranFor: "running {time}",

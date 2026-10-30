@@ -498,6 +498,7 @@ export const zhTail: TailTranslationDictionarySections = {
     statusNeedsYou: "需要你处理",
     statusDoneToday: "今天完成",
     statusBarLabel: "状态筛选",
+    queuedResolvedHint: "另有 {count} 张卡已由 AI 处理完、等清理，未算进来",
     laneStepLabel: "{lane} {step}/5",
     stepNumber: "第 {step} 步",
     ranFor: "已跑 {time}",

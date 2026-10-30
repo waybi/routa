@@ -4,6 +4,7 @@
  * and the 7-day rhythm of a project. Pure: `now` is always passed in.
  */
 
+import { isAttentionResolvedInEffect } from "@/core/models/task-attention-resolution";
 import type { TaskInfo } from "../types";
 import { ATTENTION_DONE_WINDOW_MS } from "./kanban-attention-rules";
 import { DONE_LANE_ID, getDoneEnteredAt } from "./kanban-done-time";
@@ -63,11 +64,18 @@ export function classifyOverviewTask(task: TaskInfo, attentionTaskIds: ReadonlyS
   return currentLaneSession(task)?.status === "running" ? "running" : "queued";
 }
 
+/** Blocked card the Blocked resolver already handled (landed/superseded/handed_off/waiting): it only awaits cleanup. */
+export function isResolvedAwaitingCleanup(task: Pick<TaskInfo, "columnId" | "attentionResolution" | "laneSessions">): boolean {
+  return task.columnId === "blocked" && isAttentionResolvedInEffect(task.attentionResolution, task);
+}
+
 export interface StatusBarCounts {
   running: number;
   queued: number;
   attention: number;
   doneToday: number;
+  /** Resolved Blocked cards left out of `queued`; shown only as a hover hint. */
+  resolvedAwaitingCleanup: number;
 }
 
 /**
@@ -78,12 +86,16 @@ export function countStatusBar(
   rows: ReadonlyArray<Pick<OverviewRow, "tasks" | "attentionAll">>,
   now: number,
 ): StatusBarCounts {
-  const counts: StatusBarCounts = { running: 0, queued: 0, attention: 0, doneToday: 0 };
+  const counts: StatusBarCounts = { running: 0, queued: 0, attention: 0, doneToday: 0, resolvedAwaitingCleanup: 0 };
   for (const row of rows) {
     const attentionIds = new Set(row.attentionAll.map((entry) => entry.task.id));
     counts.attention += attentionIds.size;
     for (const task of row.tasks) {
       if (isDoneToday(task, now)) counts.doneToday += 1;
+      if (!attentionIds.has(task.id) && isResolvedAwaitingCleanup(task)) {
+        counts.resolvedAwaitingCleanup += 1;
+        continue;
+      }
       const status = classifyOverviewTask(task, attentionIds);
       if (status === "running") counts.running += 1;
       else if (status === "queued") counts.queued += 1;

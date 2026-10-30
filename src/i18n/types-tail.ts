@@ -540,6 +540,8 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     statusNeedsYou: string;
     statusDoneToday: string;
     statusBarLabel: string;
+    /** "{count}" = resolved Blocked cards waiting for cleanup. */
+    queuedResolvedHint: string;
     /** "{lane}" = column name, "{step}" = 1..5 position on the Backlog→Done pipeline. */
     laneStepLabel: string;
     /** "{step}" = 1-based step inside the lane. */

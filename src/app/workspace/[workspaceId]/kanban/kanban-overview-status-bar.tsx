@@ -6,7 +6,7 @@ import { StatusDot, type Tone } from "@/client/components/ui/badge";
 import { useTranslation } from "@/i18n";
 import type { OverviewStatus, StatusBarCounts } from "./kanban-overview-status-rules";
 
-const ITEMS: ReadonlyArray<{ status: OverviewStatus; count: keyof StatusBarCounts; tone: Tone; pulse?: boolean }> = [
+const ITEMS: ReadonlyArray<{ status: OverviewStatus; count: Exclude<keyof StatusBarCounts, "resolvedAwaitingCleanup">; tone: Tone; pulse?: boolean }> = [
   { status: "running", count: "running", tone: "attention", pulse: true },
   { status: "queued", count: "queued", tone: "info" },
   { status: "attention", count: "attention", tone: "danger" },
@@ -38,6 +38,9 @@ export function KanbanOverviewStatusBar({
           type="button"
           aria-pressed={active === item.status}
           onClick={() => onToggle(item.status)}
+          title={item.status === "queued" && counts.resolvedAwaitingCleanup > 0
+            ? copy.queuedResolvedHint.replace("{count}", String(counts.resolvedAwaitingCleanup))
+            : undefined}
           data-testid={`kanban-overview-status-${item.status}`}
           className={`flex min-w-0 items-center gap-2 rounded-md border px-3 py-2.5 text-left transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${active === item.status
             ? "border-accent bg-accent-subtle"

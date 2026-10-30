@@ -1,12 +1,16 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   classifyOverviewTask,
   countStatusBar,
   isDoneToday,
+  isResolvedAwaitingCleanup,
   laneProgress,
   summarizeRhythm,
 } from "../kanban-overview-status-rules";
 import { buildWorkspaceRow, collectRecentDone, sortInProgress, sortOverviewRows } from "../kanban-overview-rules";
+import { KanbanOverviewStatusBar } from "../kanban-overview-status-bar";
 import type { KanbanBoardInfo, TaskInfo } from "../../types";
 
 type LaneSession = NonNullable<TaskInfo["laneSessions"]>[number];
@@ -159,5 +163,55 @@ describe("isDoneToday random cross-check (F3, seed 1028)", () => {
       const same = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
       expect(isDoneToday(t, now)).toBe(same);
     }
+  });
+});
+
+describe("resolved Blocked cards are not counted as queued", () => {
+  const boards = [board("b1")];
+  const res = (category: string) => ({ category, resolvedAt: iso(NOW - HOUR) }) as TaskInfo["attentionResolution"];
+  const rowOf = (tasks: TaskInfo[]) => buildWorkspaceRow({ id: "A", title: "A" }, tasks, boards, NOW, "", none);
+
+  it.each(["landed", "superseded", "handed_off", "waiting"])("Blocked + %s leaves queued and is counted separately", (category) => {
+    const t = task("b", "blocked", { attentionResolution: res(category) });
+    expect(isResolvedAwaitingCleanup(t)).toBe(true);
+    const counts = countStatusBar([{ tasks: [t], attentionAll: [] }], NOW);
+    expect(counts).toEqual({ running: 0, queued: 0, attention: 0, doneToday: 0, resolvedAwaitingCleanup: 1 });
+    expect(classifyOverviewTask(t, new Set())).toBe("queued");
+  });
+
+  it("keeps old behaviour for needs_owner, missing resolution, other lanes and attention cards", () => {
+    const needsOwner = task("n", "blocked", { attentionResolution: res("needs_owner") });
+    const bare = task("bare", "blocked");
+    const dev = task("dev", "dev", { attentionResolution: res("waiting") });
+    const todo = task("todo", "todo");
+    const backlog = task("bl", "backlog");
+    expect(isResolvedAwaitingCleanup(needsOwner)).toBe(false);
+    expect(isResolvedAwaitingCleanup(bare)).toBe(false);
+    const counts = countStatusBar([{ tasks: [needsOwner, bare, dev, todo, backlog], attentionAll: [] }], NOW);
+    expect(counts).toEqual({ running: 0, queued: 5, attention: 0, doneToday: 0, resolvedAwaitingCleanup: 0 });
+    const inAttention = task("x", "blocked", { attentionResolution: res("superseded") });
+    const c2 = countStatusBar([{ tasks: [inAttention], attentionAll: [{ task: inAttention }] as never }], NOW);
+    expect(c2).toEqual({ running: 0, queued: 0, attention: 1, doneToday: 0, resolvedAwaitingCleanup: 0 });
+  });
+
+  it("sums over several rows and keeps the cards in the queued filter", () => {
+    const a = task("a", "blocked", { attentionResolution: res("landed") });
+    const rows = [rowOf([a, task("q", "todo")]), rowOf([task("b", "blocked", { attentionResolution: res("waiting") })])];
+    const counts = countStatusBar(rows, NOW);
+    expect(counts.queued).toBe(1);
+    expect(counts.resolvedAwaitingCleanup).toBe(2);
+  });
+
+  it("renders four buttons and a hover title only on the queued one when N > 0", () => {
+    const base = { running: 1, queued: 2, attention: 3, doneToday: 4 };
+    const render = (n: number) => renderToStaticMarkup(createElement(KanbanOverviewStatusBar, { counts: { ...base, resolvedAwaitingCleanup: n }, active: null, onToggle: () => {} }));
+    const zero = render(0);
+    const three = render(3);
+    expect((three.match(/<button/g) ?? []).length).toBe(4);
+    expect(zero).not.toContain("title=");
+    expect((three.match(/title=/g) ?? []).length).toBe(1);
+    expect(three).not.toContain("{count}");
+    expect(three).toMatch(/data-testid="kanban-overview-status-queued"[^>]*title="[^"]*3[^"]*"|title="[^"]*3[^"]*"[^>]*data-testid="kanban-overview-status-queued"/);
+    expect(three.replace(/ title="[^"]*"/, "")).toBe(zero);
   });
 });
