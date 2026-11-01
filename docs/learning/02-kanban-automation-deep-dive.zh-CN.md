@@ -701,3 +701,4 @@ code_diff     → 要有代码变更记录
 
 | 2026-10-26 | 64f2e31c 合并主干：重跑计划优先于步骤结束后的 Blocked 分流 | 新增取消、限流等待及熔断分流 3 个回归用例 | 本合并提交 |
 | 2026-10-29 | `TaskStore.save`（内存 / SQLite / Postgres）合并 `sessionIds` 与 `laneSessions`：旧卡副本不再冲掉 Done 第一步开工写入的记录，已结束记录不被改回 running；步骤结束找不到记录时骨架记录补 columnId / stepIndex / specialistId / stepId（5d） | 新增 45 个用例（合并规则表、10,000 组随机对拍不一致 0 且埋错被抓 1,602 组、三种 store 交错保存、autoAdvanceCard / move_card / 结束处理三条路径、重启续跑与限流重跑），撤掉根治 11 个变红、撤掉兜底 6 个变红；修复前 10-29 一天 4 张卡 Done 第一步记录丢失、重启后停住要人工 retryTrigger | 本提交 fix(kanban): backfill column/step on skeleton lane records |
+| 2026-11-01 | 重启续跑受控验证：本卡 Dev 步骤中途重启 Routa，核对自动续跑（卡号 d30b6e09） | 只改文档，无代码变更 | 本行所在提交 |
