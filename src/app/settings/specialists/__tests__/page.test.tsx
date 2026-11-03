@@ -120,4 +120,18 @@ describe("SpecialistsSettingsPage layout (card a4345457)", () => {
     expect(inspector!.closest('details,[hidden],[aria-hidden="true"]')).toBeNull();
     expect(inspector!.className.split(/\s+/)).toContain("xl:flex");
   });
+
+  it("stops every inner scroll area from chaining the wheel into the page scroll", async () => {
+    const root = await renderPage("en");
+    const scrollAreas = [
+      ...["specialists-tab-catalog-list", "specialists-tab-editor-scroll", "specialists-tab-inspector-scroll"].map((id) => screen.getByTestId(id)),
+      ...Array.from(root.querySelectorAll("textarea")),
+    ];
+    expect(scrollAreas).toHaveLength(6);
+    for (const area of scrollAreas) {
+      expect(area.className.split(/\s+/)).toContain("overscroll-contain");
+    }
+    // The page-level scroller itself must keep chaining normally.
+    expect(root.parentElement!.parentElement!.className.split(/\s+/)).not.toContain("overscroll-contain");
+  });
 });

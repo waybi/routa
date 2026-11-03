@@ -313,7 +313,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
           </div>
 
           <div
-            className="min-h-0 flex-1 overflow-y-auto py-1 desktop-scrollbar-thin"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1 desktop-scrollbar-thin"
             data-testid="specialists-tab-catalog-list"
           >
             {visibleSpecialists.map((specialist) => {
@@ -372,7 +372,10 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
           </div>
 
           <div className="flex min-h-0 flex-1">
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto desktop-scrollbar-thin">
+            <div
+              className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain desktop-scrollbar-thin"
+              data-testid="specialists-tab-editor-scroll"
+            >
               <div className={`${workbenchRowCls} flex flex-wrap items-start justify-between gap-3`}>
                 <div className="min-w-0">
                   <p className={sectionTitleCls}>{editingId ? `${t.common.edit} ${t.settings.specialists}` : `${t.common.new} ${t.settings.specialists}`}</p>
@@ -440,7 +443,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                       disabled={readOnlySelection}
                       rows={2}
                       placeholder={t.specialists.descriptionPlaceholder}
-                      className={`${desktopInputCls} disabled:opacity-60`}
+                      className={`${desktopInputCls} overscroll-contain disabled:opacity-60`}
                     />
                   </Field>
                 </div>
@@ -502,7 +505,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                     disabled={readOnlySelection}
                     rows={14}
                     placeholder={t.sessionDetailRedesign.settings.specialistPromptPlaceholder}
-                    className={`${desktopInputCls} min-h-[280px] font-mono text-[12px] leading-5 disabled:opacity-60`}
+                    className={`${desktopInputCls} min-h-[280px] overscroll-contain font-mono text-[12px] leading-5 disabled:opacity-60`}
                   />
                 </Field>
               </section>
@@ -515,7 +518,7 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                     disabled={readOnlySelection}
                     rows={3}
                     placeholder={t.specialists.roleReminderPlaceholder}
-                    className={`${desktopInputCls} disabled:opacity-60`}
+                    className={`${desktopInputCls} overscroll-contain disabled:opacity-60`}
                   />
                 </Field>
               </section>
@@ -527,7 +530,10 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                 <div className="mt-1 text-[11px] text-desktop-text-secondary">{t.settings.specialistsTab.catalog}</div>
               </div>
 
-              <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 desktop-scrollbar-thin">
+              <div
+                className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 desktop-scrollbar-thin"
+                data-testid="specialists-tab-inspector-scroll"
+              >
                 <InspectorCard label={t.sessionDetailRedesign.settings.source} value={selectedSpecialist ? sourceLabels[selectedSpecialist.source] : t.common.new} />
                 <InspectorCard label={t.sessionDetailRedesign.settings.category} value={selectedSpecialist ? getSpecialistCategory(selectedSpecialist.id) : "custom"} />
                 <InspectorCard label={t.sessionDetailRedesign.settings.writable} value={readOnlySelection ? t.common.disabled : t.common.enabled} />
