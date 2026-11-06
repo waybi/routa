@@ -1,5 +1,6 @@
 import { AgentEvent, AgentEventType, EventBus } from "../events/event-bus";
 import type { TaskStore } from "../store/task-store";
+import { isTaskOnHold } from "./task-hold";
 
 export interface KanbanSessionQueueJob {
   cardId: string;
@@ -37,6 +38,8 @@ export class KanbanSessionQueue {
     private eventBus: EventBus,
     private taskStore: TaskStore,
     private getConcurrencyLimit: (workspaceId: string, boardId: string) => Promise<number>,
+    /** Called when a queued job is dropped because its card was put on hold. */
+    private onHeldJobDropped?: (cardId: string, columnId: string | undefined) => void,
   ) {}
 
   isCompatible(eventBus: EventBus, taskStore: TaskStore): boolean {
@@ -316,9 +319,12 @@ export class KanbanSessionQueue {
         this.removeQueuedEntryInstance(boardId, nextEntry);
         continue;
       }
-      if (!task || task.boardId !== boardId || (nextEntry.columnId && task.columnId !== nextEntry.columnId)) {
+      // A card put on hold while it waited is dropped quietly, without taking a slot (card beb29624).
+      if (!task || task.boardId !== boardId || (nextEntry.columnId && task.columnId !== nextEntry.columnId)
+        || isTaskOnHold(task)) {
         this.removeQueuedEntryInstance(boardId, nextEntry);
         this.jobsByCardId.delete(nextEntry.cardId);
+        if (task && isTaskOnHold(task)) this.onHeldJobDropped?.(nextEntry.cardId, nextEntry.columnId);
         continue;
       }
       if (this.countRunning(boardId) >= limit) return;

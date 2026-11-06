@@ -21,6 +21,7 @@ import { isLaneAutomationComplete } from "./done-lane-teardown";
 import { hasTrippedRetryableEnvironmentFuse } from "./environment-failure";
 import { resolveLaneResumeStep } from "./lane-automation-state";
 import { runLaneRerunOnce } from "./lane-rerun-claim";
+import { isTaskOnHold } from "./task-hold";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { enqueueKanbanTaskSession } from "./workflow-orchestrator-singleton";
 
@@ -38,10 +39,12 @@ export type InterruptedLaneDecision =
  * the card's current column.
  */
 export function decideInterruptedLaneResume(
-  task: Pick<Task, "columnId" | "laneSessions" | "triggerSessionId">,
+  task: Pick<Task, "columnId" | "laneSessions" | "triggerSessionId"> & { labels?: Task["labels"] },
   columns: KanbanColumn[],
   now: Date,
 ): InterruptedLaneDecision {
+  // Checked before the claim and again on the fresh card inside it (card beb29624).
+  if (isTaskOnHold(task)) return { kind: "skip", reason: "on hold" };
   const columnId = task.columnId;
   const column = columns.find((entry) => entry.id === columnId);
   const automation = column?.automation;

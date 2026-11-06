@@ -90,6 +90,7 @@ import {
 } from "../kanban/transition-gates";
 import { resolveTaskWorktreeTruth } from "../kanban/task-worktree-truth";
 import { filterBacklogContextSearchSpec } from "../kanban/backlog-context-confirmation";
+import { ON_HOLD_ERROR } from "../kanban/task-hold";
 import { buildTaskSnapshot, findTaskBoundToSession, type TaskSnapshotOptions } from "./kanban-task-snapshot";
 
 
@@ -1144,7 +1145,8 @@ export class KanbanTools {
         task,
         expectedColumnId: column.id,
       });
-      if (result.error) {
+      // A held card's skipped start (card beb29624) is not a failure.
+      if (result.error && result.error !== ON_HOLD_ERROR) {
         console.warn(`[KanbanTools] Failed to enqueue automation for card ${task.id}: ${result.error}`);
       }
     }

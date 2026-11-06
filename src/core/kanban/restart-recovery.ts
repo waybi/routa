@@ -16,6 +16,7 @@ import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator"
 import { isLaneAutomationComplete } from "./done-lane-teardown";
 import { runLaneRerunOnce } from "./lane-rerun-claim";
 import { isSessionActivelyRunning } from "./lane-live-session";
+import { isTaskOnHold } from "./task-hold";
 import {
   hasTrippedRetryableEnvironmentFuse,
   isAwaitingEnvironmentFix,
@@ -257,6 +258,8 @@ export async function reviveMissingEntryAutomations(
 
     const task = await sanitizeStaleCurrentLaneAutomation(system, originalTask, options);
     if (task.triggerSessionId) continue;
+    // A held card is left alone (card beb29624): no lane claim, no rerun, no re-entry.
+    if (isTaskOnHold(task)) continue;
 
     const currentColumnId = task.columnId;
     if (!currentColumnId) continue;

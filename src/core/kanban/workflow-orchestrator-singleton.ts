@@ -67,6 +67,7 @@ import {
 import { KanbanTools } from "../tools/kanban-tools";
 import { buildTaskDeliveryLanding } from "./task-delivery-landing";
 import { handleSupersededWakeEvent } from "./superseded-wake";
+import { isTaskOnHold, ON_HOLD_ERROR } from "./task-hold";
 
 // Use globalThis to survive HMR in Next.js dev mode
 const GLOBAL_KEY = "__routa_workflow_orchestrator__";
@@ -103,6 +104,13 @@ async function createAutomationSession(
 ): Promise<CreateAutomationSessionResult | null> {
   const task = await system.taskStore.get(params.cardId);
   if (!task?.boardId) return null;
+  if (isTaskOnHold(task)) {
+    // Card beb29624: a held card ends its lane quietly. "queued" keeps the
+    // orchestrator from recording the next step as failed; the forget drops
+    // the automation, so nothing waits for a session that never comes.
+    holdKanbanCard(system, task.id, params.columnId);
+    return { sessionId: null, queued: true };
+  }
   const result = await enqueueKanbanTaskSession(system, {
     task,
     expectedColumnId: params.columnId,
@@ -149,6 +157,11 @@ export async function enqueueKanbanTaskSession(
   }
   if (task.triggerSessionId && !params.ignoreExistingTrigger) {
     return { sessionId: task.triggerSessionId, queued: false };
+  }
+  // Card beb29624: before the resume/adopt branches, so a held run is never adopted.
+  if (isTaskOnHold(task)) {
+    holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId);
+    return { queued: false, error: ON_HOLD_ERROR };
   }
 
   // A lane run adopted by the orchestrator must never start next to a builder
@@ -227,6 +240,12 @@ export async function enqueueKanbanTaskSession(
   });
 }
 
+/** A held card starts no session: drop its queued lane automation and log one info line. */
+function holdKanbanCard(system: RoutaSystem, cardId: string, columnId: string | undefined): void {
+  forgetKanbanCard(system, cardId, { columnId });
+  console.info(`[KanbanHold] card ${cardId} on hold; no session started`);
+}
+
 /** Stops a Blocked resolver start the gate rejects; returns the gate name on a hit. */
 async function checkBlockedResolverGuard(
   system: RoutaSystem,
@@ -294,6 +313,11 @@ async function startKanbanTaskSession(
   }
   if (task.triggerSessionId && !params.ignoreExistingTrigger) {
     return { sessionId: task.triggerSessionId };
+  }
+  // The hold label may have been added while the start waited in the board queue.
+  if (isTaskOnHold(task)) {
+    holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId);
+    return { error: ON_HOLD_ERROR };
   }
 
   const nextTask = {
@@ -611,6 +635,7 @@ export function getKanbanSessionQueue(system: RoutaSystem): KanbanSessionQueue {
       system.eventBus,
       system.taskStore,
       (workspaceId, boardId) => getBoardConcurrencyLimit(system, workspaceId, boardId),
+      (cardId, columnId) => holdKanbanCard(system, cardId, columnId),
     );
     g[QUEUE_KEY] = queue;
   }
