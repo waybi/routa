@@ -76,6 +76,7 @@ import {
 import { resolveTaskWorktreeTruth } from "@/core/kanban/task-worktree-truth";
 import { claimLaneRerun, hasLaneRunStartedSince } from "@/core/kanban/lane-rerun-claim";
 import { findLiveColumnSession } from "@/core/kanban/lane-live-session";
+import { isTaskOnHold, ON_HOLD_ERROR, ON_HOLD_RETRY_MESSAGE } from "@/core/kanban/task-hold";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 import {
   evaluateKanbanTransitionGates,
@@ -275,6 +276,12 @@ async function patchTask(
     body = await request.json() as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  // Card beb29624: a held card is not rerun. Judged on this request's labels,
+  // before any claim or forced end, so one PATCH can drop hold and rerun.
+  if (body.retryTrigger && isTaskOnHold({ labels: sanitizeLabels(body.labels) ?? existing.labels })) {
+    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
   }
 
   let forcedEndSessionIds: string[] = [];
@@ -742,7 +749,7 @@ async function patchTask(
         nextTask.sessionIds.push(triggerResult.sessionId);
       }
       nextTask.lastSyncError = undefined;
-    } else if (triggerResult.queued) {
+    } else if (triggerResult.queued || triggerResult.error === ON_HOLD_ERROR) {
       nextTask.lastSyncError = undefined;
     } else if (triggerResult.error) {
       nextTask.lastSyncError = triggerResult.error;

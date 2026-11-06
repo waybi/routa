@@ -3,6 +3,7 @@ import { getRoutaSystem } from "@/core/routa-system";
 import { enqueueKanbanTaskSession } from "@/core/kanban/workflow-orchestrator-singleton";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
 import { captureTaskDeliverySnapshot } from "@/core/kanban/task-delivery-snapshot";
+import { isTaskOnHold, ON_HOLD_ERROR, ON_HOLD_RETRY_MESSAGE } from "@/core/kanban/task-hold";
 import {
   getRemoteUrl,
   isBareGitRepository,
@@ -53,6 +54,9 @@ export async function POST(
   }
   if (!task.boardId) {
     return NextResponse.json({ error: "Task is missing board context." }, { status: 400 });
+  }
+  if (isTaskOnHold(task)) {
+    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
   }
 
   const body = await request.json().catch(() => ({})) as {
@@ -119,6 +123,10 @@ export async function POST(
     },
   });
 
+  if (result.error === ON_HOLD_ERROR) {
+    // Put on hold while this request ran: a skipped start, not a failure.
+    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
+  }
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
