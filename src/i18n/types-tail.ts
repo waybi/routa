@@ -496,6 +496,12 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     /** Hover title; "{name}" = column name. */
     railHint: string;
   };
+  /** Card badge of a card with the "hold" label (no agent is started for it). */
+  kanbanHold: {
+    badge: string;
+    /** Hover title of the badge. */
+    tooltip: string;
+  };
   /** Board search box in the kanban toolbar. */
   kanbanSearch: {
     placeholder: string;

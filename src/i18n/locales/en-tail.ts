@@ -470,6 +470,10 @@ export const enTail: TailTranslationDictionarySections = {
   kanbanEmptyColumn: {
     railHint: "{name} has no cards; drop a card here",
   },
+  kanbanHold: {
+    badge: "On hold",
+    tooltip: "Has the hold label: Routa will not auto-start an agent. Remove the label, then click Rerun.",
+  },
   kanbanSearch: {
     placeholder: "Search title, card id, requirement, report, commit",
     shortcutHint: "Press / to search, Esc to clear",

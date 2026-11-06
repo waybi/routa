@@ -8,6 +8,7 @@ import type { CodebaseData } from "@/client/hooks/use-workspaces";
 import { resolveEffectiveTaskAutomation } from "@/core/kanban/effective-task-automation";
 import { parseCanonicalStory } from "@/core/kanban/canonical-story";
 import { formatArtifactLabel, resolveKanbanTransitionArtifacts } from "@/core/kanban/transition-artifacts";
+import { isTaskOnHold } from "@/core/kanban/task-hold";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
@@ -18,7 +19,7 @@ import {
   type KanbanCardRunStatus,
   resolveCardMergeState,
 } from "./kanban-card-status";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Pause, Trash2 } from "lucide-react";
 import { Badge, type Tone } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { useRetrySubmit } from "./use-kanban-retry-feedback";
@@ -530,6 +531,14 @@ function KanbanCardSurface({
         {prioritySizeLabel && (
           <span data-testid="kanban-card-priority-size" className="inline-flex">
             <Badge tone={getPriorityBadgeTone(task.priority)}>{prioritySizeLabel}</Badge>
+          </span>
+        )}
+        {isTaskOnHold(task) && (
+          <span title={t.kanbanHold.tooltip} data-testid="kanban-card-hold" className="inline-flex">
+            <Badge tone="neutral">
+              <Pause className="h-3 w-3" aria-hidden="true" />
+              {t.kanbanHold.badge}
+            </Badge>
           </span>
         )}
         {(canRun || canRetry || retrySubmit.submitting) && (
