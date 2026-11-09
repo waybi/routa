@@ -276,15 +276,19 @@ Agent 完成/失败/超时
    │
    ▼
 ③ 成功 & 满足 & 还有下一个 step？
-   → 启动下一个 step（startNextAutomationStep，结果是 started / queued / failed）
+   → 启动下一个 step（startNextAutomationStep，结果是 started / queued / failed / skipped）
      例：先跑 CRAFTER 写代码，再跑 GATE 评审
      board 名额满时 createSession 回 {queued:true}：自动化保持 queued，不记失败、
      不写错误；队列之后拉起这一步时会写 triggerSessionId，编排器在它结束时接管
      这个会话并继续推进
+     启动前先过 next-step-guard（复盘 L395）：从 taskStore 重读卡，卡已离开本列、
+     或卡上有别的 running 且进程真活着的会话（任意列，不算刚结束的这个）→ 不起
+     下一步，结果 skipped：卡上 lastSyncError 记「跳过：卡已离开 <列>」或
+     「跳过：已有会话 <id> 在跑」，存的是重读到的新卡，自动化标 completed
    │
    ▼
 ④ 失败 & 开了 automatic fallback & 还有下一个 step？
-   → 试下一个 fallback agent（比如 Claude 失败了换 OpenCode）
+   → 试下一个 fallback agent（比如 Claude 失败了换 OpenCode）；启动前同样过 next-step-guard
      环境故障、限流（rate_limited）、非 dev 列看门狗超时、回合被取消（turn_cancelled）不走 fallback
    │
    ▼
@@ -329,6 +333,23 @@ Routa 接着起了完成汇报员，提交没进主干。
 不起下一步、不 kill、不 fallback、不恢复，所以编排器没跟踪的运行不会被推进两次。
 会话结束事件早于 lane 记录写入时（极快结束的会话）找不到记录，由下次启动清扫按真实结果补登（见 5d）。
 没被编排器跟踪的会话结束时，按事件里的 workspaceId 扫该工作区的卡找这条 running 记录。
+
+**同列下一步启动前重读卡（复盘 L395，卡 9a2ef285）**：完成处理开头读一次卡，中间有多次 await，
+评审可能已把卡打回 dev，或别的施工会话已在跑。之前编排器照旧用开头读的旧卡起下一步，
+还会用旧卡整行保存，把卡写回原列，于是重复触发高风险评审、留下多余会话。
+现在 `startNextAutomationStep` 在保存卡和开会话之前调 `next-step-guard.ts` 的 `skipStaleNextStep`：
+判断规则只写一份（`decideNextStep`），hasNextStep 和 fallback 两条路共用。
+判活口径同 `findLiveColumnSession`：lane 记录 running 且 `isSessionActivelyRunning` 为真，进程已死的僵尸不挡；
+判活抛错按「不在跑」处理，照常起下一步。跳过时把旧卡上刚结束这一步的 lane 记录补到新卡上、
+跳过原因追加到 lastSyncError（已有原因保留）、只保存新卡；自动化标 completed，30 秒后清理，
+刚结束的会话照常结束，看板名额由队列按结束事件释放。这只缩小「判断通过」到「开会话」之间的空档，没有加锁。
+
+**秒退空会话记退出原因**：车道会话从 lane 记录 startedAt 到结束不足 30 秒、会话历史里没有
+agent_message / agent_message_chunk / tool_call / tool_call_update 时，在 lastSyncError 末尾追加
+「会话 <id> 存活 <n> 秒无输出即结束（stopReason=… / 退出码=…）」，已有失败或限流原因保留在前面；
+会话库里查不到这个会话（如重启后）或读历史出错时不写。写入点是步骤结束收尾和恢复重跑两处；
+同列还要起下一步时只打日志（下一个会话开工会清空 lastSyncError，留着会盖住下一步自己的失败信息）。
+不要求进程已退出：DSH 会话步骤结束后进程可能还活着。这句只是事后线索，不触发重跑，不新增 lane status 或 recoveryReason 取值。
 
 ### 5c. 手动「重新运行」（PATCH retryTrigger）
 
@@ -703,3 +724,4 @@ code_diff     → 要有代码变更记录
 | 2026-10-29 | `TaskStore.save`（内存 / SQLite / Postgres）合并 `sessionIds` 与 `laneSessions`：旧卡副本不再冲掉 Done 第一步开工写入的记录，已结束记录不被改回 running；步骤结束找不到记录时骨架记录补 columnId / stepIndex / specialistId / stepId（5d） | 新增 45 个用例（合并规则表、10,000 组随机对拍不一致 0 且埋错被抓 1,602 组、三种 store 交错保存、autoAdvanceCard / move_card / 结束处理三条路径、重启续跑与限流重跑），撤掉根治 11 个变红、撤掉兜底 6 个变红；修复前 10-29 一天 4 张卡 Done 第一步记录丢失、重启后停住要人工 retryTrigger | 本提交 fix(kanban): backfill column/step on skeleton lane records |
 | 2026-11-01 | 重启续跑受控验证：本卡 Dev 步骤中途重启 Routa，核对自动续跑（卡号 d30b6e09） | 只改文档，无代码变更 | 本行所在提交 |
 | 2026-11-01 | 重启续跑受控验证（Dev 列样本）：本卡 Dev 步骤中途重启 Routa，核对自动续跑（卡号 b638136a） | 只改文档，无代码变更 | 本行所在提交 |
+| 2026-11-09 | 同列下一步启动前重读卡：卡已离开本列、或卡上有别的进程真活着的 running 会话时跳过下一步，原因写 lastSyncError，只存重读到的新卡；秒退（<30 秒且无输出）的车道会话在 lastSyncError 追加退出原因（5b，复盘 L395） | 新增 32 个用例（含两组 10,000 次随机对拍不一致 0、埋错被抓）；撤掉实现后 14 个变红，全是断言失败；kanban 全套 1153 个用例全过；两份旧测试的精确断言放宽为「原因不变 + 可选秒退句」 | 本提交 fix(kanban): re-read the card before starting the next lane step |

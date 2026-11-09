@@ -337,7 +337,8 @@ describe("F2④/AC4: ordinary failures keep consuming the budget", () => {
     const card = await h.card();
     // The lane's completed earlier steps plus this failed run.
     expect(getNonDevAutomationRunCount(card, lane, STAGE[lane])).toBe(stepIndex + 1);
-    expect(card.lastSyncError).toBe("boom");
+    // 复盘 L395: a run that ended in <30 s without output appends its exit note; the reason itself is unchanged.
+    expect(card.lastSyncError).toMatch(/^boom(；会话 \S+ 存活 \d+ 秒无输出即结束（[^）]+）)?$/);
     expect((await h.record(sessionId))?.retryAfterAt).toBeUndefined();
     const calls = h.createSession.mock.calls.length;
     await vi.advanceTimersByTimeAsync(2 * 60 * 60_000);
@@ -377,7 +378,7 @@ describe("C4/F4①: a 429 failure reruns the same step at retryAfterAt", () => {
     // Server reset 09:56:07.846Z plus 0.5 × 60 s.
     expect(record.retryAfterAt).toBe("2026-10-23T09:56:37.846Z");
     const card = await h.card();
-    expect(card.lastSyncError).toMatch(/^\[environment\] rate_limited：限流，预计 \d{2}:\d{2} 重试$/);
+    expect(card.lastSyncError).toMatch(/^\[environment\] rate_limited：限流，预计 \d{2}:\d{2} 重试(；会话 \S+ 存活 \d+ 秒无输出即结束（[^）]+）)?$/);
     expect(getNonDevAutomationRunCount(card, lane, STAGE[lane])).toBe(countBefore);
     expect(h.orchestrator.getAutomationForCard(h.cardId)).toMatchObject({ recoveryAttempts: 0, attempt: 1 });
 

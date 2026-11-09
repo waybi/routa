@@ -27,6 +27,7 @@ import { getDefaultKanbanDevSessionSupervision, getDefaultKanbanLaneSessionWatch
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { buildLaneSessionBackfill } from "./lane-session-backfill";
 import { isLiveRunningAutomation } from "./lane-live-session";
+import { appendQuickExitNote, scheduleAutomationCleanup, skipStaleNextStep } from "./next-step-guard"; // 复盘 L395
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import { reconcileExitAfterTurnEnd, settleUnhandledLaneEnd } from "./lane-session-settlement";
 import {
@@ -40,7 +41,6 @@ import { collectRateLimitEvidence, RateLimitRetryScheduler, runRateLimitRetry } 
 import { isUserCancelledLaneSession, planLaneStepRetry, resolveCancelledTurnReason } from "./lane-cancel-origin";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
-const COMPLETED_AUTOMATION_CLEANUP_DELAY_MS = 30_000;
 
 interface RecoveryNotificationParams {
   workspaceId: string;
@@ -242,7 +242,7 @@ export interface CreateAutomationSessionResult {
   queued?: boolean;
 }
 
-type AutomationStepStart = "started" | "queued" | "failed";
+type AutomationStepStart = "started" | "queued" | "failed" | "skipped";
 
 /** A lane's own steps followed by the card's automatic fallback agents. */
 function buildAutomationSteps(
@@ -892,6 +892,7 @@ export class KanbanWorkflowOrchestrator {
         } else if (!task.lastSyncError) {
           task.lastSyncError = this.buildFailureMessage(automation, event, completionSatisfied);
         }
+        appendQuickExitNote(task, eventSessionId, sessionStore, { event }); // ended in <30 s with no output
         await this.taskStore.save(task);
       }
 
@@ -944,12 +945,7 @@ export class KanbanWorkflowOrchestrator {
       await this.endFinishedStepSession(eventSessionId, event);
       if (task && !rateLimitPlan?.retryAt && automation.stage !== "blocked") await this.afterLaneEnd?.(cardId)?.catch((error: unknown) => console.warn("[WorkflowOrchestrator] afterLaneEnd failed", cardId, error));
 
-      const completedAutomation = automation;
-      setTimeout(() => {
-        if (this.activeAutomations.get(cardId) === completedAutomation) {
-          this.activeAutomations.delete(cardId);
-        }
-      }, COMPLETED_AUTOMATION_CLEANUP_DELAY_MS);
+      scheduleAutomationCleanup(this.activeAutomations, cardId, automation);
       return;
     }
     await settleUnhandledLaneEnd(this.taskStore, getHttpSessionStore(), event, "event"); // no automation follows it
@@ -1313,6 +1309,7 @@ export class KanbanWorkflowOrchestrator {
 
     task.lastSyncError = undefined;
     task.updatedAt = new Date();
+    if (await skipStaleNextStep({ taskStore: this.taskStore, task, cardId, automation, automations: this.activeAutomations, sessions: getHttpSessionStore() })) return "skipped";
     await this.taskStore.save(task);
 
     this.cleanupCardSession?.(cardId);
@@ -1387,6 +1384,7 @@ export class KanbanWorkflowOrchestrator {
     }
 
     task.lastSyncError = this.buildRecoveryMessage(automation, reason);
+    appendQuickExitNote(task, previousSessionId, getHttpSessionStore());
     task.updatedAt = new Date();
     await this.taskStore.save(task);
 

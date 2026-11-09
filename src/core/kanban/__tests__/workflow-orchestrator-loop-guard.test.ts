@@ -307,7 +307,8 @@ describe("workflow orchestrator loop guard", () => {
         recoveryReason: "environment_failure",
       }),
     ]);
-    expect(updatedTask?.lastSyncError).toBe(`[environment] ${PROVIDER_NOT_REGISTERED}`);
+    // 复盘 L395: the <30 s empty session appends its exit note after the unchanged reason.
+    expect(updatedTask?.lastSyncError?.split("；会话 ")[0]).toBe(`[environment] ${PROVIDER_NOT_REGISTERED}`);
     // Ordinary retry budget untouched, environment failure counted once.
     expect(orchestrator.getAutomationForCard(task.id)).toMatchObject({ recoveryAttempts: 0, attempt: 1 });
     expect(getEnvironmentFailureCount(updatedTask, "dev")).toBe(1);
