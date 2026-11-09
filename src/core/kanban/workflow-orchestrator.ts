@@ -39,6 +39,7 @@ import {
 } from "./environment-failure";
 import { collectRateLimitEvidence, RateLimitRetryScheduler, runRateLimitRetry } from "./rate-limit-retry";
 import { isUserCancelledLaneSession, planLaneStepRetry, resolveCancelledTurnReason } from "./lane-cancel-origin";
+import type { AutoAdvanceGate } from "./auto-advance-delivery-gate";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 
@@ -449,6 +450,7 @@ export class KanbanWorkflowOrchestrator {
     this.doneWorktreeCleanup = fn;
   }
   setAfterLaneEnd(fn: (cardId: string) => Promise<unknown>): void { this.afterLaneEnd = fn; }
+  private autoAdvanceGate?: AutoAdvanceGate; setAutoAdvanceGate(fn: AutoAdvanceGate): void { this.autoAdvanceGate = fn; } // card 29482e39: target deliveryRules
 
   /** Get all active automations */
   getActiveAutomations(): ActiveAutomation[] {
@@ -1557,6 +1559,7 @@ export class KanbanWorkflowOrchestrator {
       // Never auto-advance into the blocked lane — it is a recovery lane,
       // not a normal workflow destination.
       if (nextColumn.stage === "blocked") return;
+      if (await this.autoAdvanceGate?.(task, currentColumn, nextColumn)) return;
 
       task.columnId = nextColumn.id;
       task.status = resolveTaskStatusForBoardColumn(board.columns, nextColumn.id);

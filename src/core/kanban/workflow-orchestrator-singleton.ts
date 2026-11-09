@@ -68,6 +68,8 @@ import { KanbanTools } from "../tools/kanban-tools";
 import { buildTaskDeliveryLanding } from "./task-delivery-landing";
 import { handleSupersededWakeEvent } from "./superseded-wake";
 import { isTaskOnHold, ON_HOLD_ERROR } from "./task-hold";
+import { createAutoAdvanceDeliveryGate } from "./auto-advance-delivery-gate";
+import { getKanbanEventBroadcaster } from "./kanban-event-broadcaster";
 
 // Use globalThis to survive HMR in Next.js dev mode
 const GLOBAL_KEY = "__routa_workflow_orchestrator__";
@@ -729,6 +731,14 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
       probeLanding: (task) => buildTaskDeliveryLanding(task, system),
     }, cardId);
   });
+  // Card 29482e39: auto-advance checks the target column's deliveryRules like move_card / PATCH do.
+  orchestrator.setAutoAdvanceGate(createAutoAdvanceDeliveryGate({
+    system,
+    taskStore: system.taskStore,
+    notify: (task) => getKanbanEventBroadcaster().notify({
+      workspaceId: task.workspaceId, entity: "task", action: "updated", resourceId: task.id, source: "system",
+    }),
+  }));
   // A card entering Done wakes the Blocked resolver of old cards waiting for it. The fixed key keeps repeated starts idempotent.
   system.eventBus.on("kanban-superseded-wake", (event) => handleSupersededWakeEvent({
     taskStore: system.taskStore,
