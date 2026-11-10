@@ -468,6 +468,11 @@ export const zhTail: TailTranslationDictionarySections = {
     badge: "暂不派",
     tooltip: "带 hold 标签，Routa 不会自动派施工者；去掉标签后点重跑",
   },
+  kanbanRoleHold: {
+    roleBadge: "暂停：{roles}",
+    roleTooltip: "带 hold:<岗位> 标签：Routa 不派这些岗位（{roles}），其他岗位照常；去掉标签后点重跑",
+    roleSeparator: "、",
+  },
   kanbanSearch: {
     placeholder: "搜标题、卡号、需求、汇报、提交号",
     shortcutHint: "按 / 聚焦搜索，Esc 清空",
