@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { recordProviderConfigOptions, resetProviderConfigOptionsCache } from "@/core/acp/provider-config-probe";
+import { getModelForProvider } from "@/core/acp/provider-registry";
 
 const {
   getHttpSessionStore,
@@ -516,6 +517,33 @@ describe("/api/acp POST", () => {
     ));
   });
 
+  it.each([
+    ["opencode-go", "deepseek-v4.1-flash", false],
+    ["opencode-go", "deepseek-v4.1-flash", true],
+    ["local-7357", "gpt-6.1-sol", false],
+    ["local-7357", "gpt-6-astra", false],
+    ["local-7357", getModelForProvider("dsh", "fast"), false],
+    ["local-7357", getModelForProvider("dsh", "balanced"), false],
+    ["local-7357", getModelForProvider("dsh", "smart"), false],
+    [undefined, "unknown-model", false],
+  ])("starts dsh with cached group %s / %s (encoded=%s)", async (group, model, encoded) => {
+    const value = JSON.stringify([group, model]);
+    const options = group ? [{ id: "model", currentValue: value, options: [{ group, options: [{ value }] }] }] : [];
+    recordProviderConfigOptions("dsh", options);
+    acpProcessManager.createSession.mockResolvedValue("acp-dsh-model");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(options);
+    await POST(new NextRequest("http://localhost/api/acp", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 32, method: "session/new",
+        params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project", model: encoded ? value : model } }),
+    }));
+    await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual(group && group !== "local-7357"
+      ? { DSH_ACP_PROVIDER: group, DSH_ACP_MODEL: model }
+      : { DSH_ACP_MODEL: model });
+  });
+
   it("persists the model the agent actually runs when none was requested", async () => {
     acpProcessManager.createSession.mockResolvedValue("acp-dsh-3");
     acpProcessManager.getProcess.mockReturnValue({ alive: true });
@@ -870,7 +898,7 @@ describe("/api/acp POST", () => {
     );
   });
 
-  it("recreates a recovered dsh session on a DeepSeek official model without DSH_ACP_MODEL (review R2)", async () => {
+  it("recreates a recovered dsh session with the known DeepSeek provider and model", async () => {
     const value = (provider: string, model: string) => JSON.stringify([provider, model]);
     const options = (current: string, effort: string) => [
       { id: "model", currentValue: current, options: [
@@ -901,7 +929,7 @@ describe("/api/acp POST", () => {
     );
 
     await expect(response.json()).resolves.toMatchObject({ result: { sessionId: "session-dsh-official", provider: "dsh" } });
-    expect(acpProcessManager.createSession.mock.calls[0][6]).toBeUndefined();
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual({ DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: "deepseek-v4-pro" });
     expect(acpProcessManager.setConfigOption.mock.calls.map((call) => [call[1], call[2]])).toEqual([
       ["model", value("deepseek-official", "deepseek-v4-pro")],
       ["reasoning_effort", "high"],

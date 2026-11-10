@@ -430,10 +430,14 @@ Specialist 可以指定 `modelTier`，系统根据 tier + provider 自动选模�
   > acp profile 兜底模型（不传 DSH_ACP_MODEL）
 ~~~
 
-「看板施工者默认模型」按快速 / 平衡 / 智能三档各存一个 Local 7357 模型 id，存在服务端文件
+「看板施工者默认模型」按快速 / 平衡 / 智能三档各存一个模型 id；下拉开放 Local 7357 和 opencode-go 分组，存在服务端文件
 `~/.routa/kanban-model-tiers.json`（环境变量 `ROUTA_KANBAN_MODEL_TIERS_FILE` 可改路径），
 接口 `GET/PUT /api/kanban/model-tiers`（PUT 传 `null` 或空串 = 跟随代码默认）。
 每次起施工者都重新读这个文件，所以改完不用重启；正在跑的施工者不受影响。
+DSH 新建会话只查已有 configOptions 缓存，不额外启动探针。已知非 local-7357 模型传
+`DSH_ACP_PROVIDER=<组>` 和 `DSH_ACP_MODEL=<裸模型名>`；local-7357 或解析不到时仍只传原模型值。
+恢复和子代理继承同样为已知非 local-7357 模型传这两个变量；未知模型保留原来的启动后重放回退。
+默认档位 fast=gpt-6.1-sol、balanced/smart=gpt-6-astra 仍不传 `DSH_ACP_PROVIDER`。
 正常列流转、列内下一步、PATCH retryTrigger、POST revive 和直接 POST /api/acp session/new 都经过这一层，
 `src/core/kanban/__tests__/lane-model-tier-entry-paths.test.ts` 逐条覆盖。
 看板设置里步骤的「跟随默认」选项悬停时，会显示这一步实际会用的模型和来源。
@@ -613,6 +617,7 @@ prompt 本身就是 Agent 的行为约束边界。
 
 | 日期 | 改了什么 | 效果 | 提交 |
 |---|---|---|---|
+| 2026-11-10 | 档位下拉开放 opencode-go；新建、恢复、继承按已知分组传启动 provider | 保留 local-7357 和未知模型回退；新增回归测试覆盖启动环境 | （见本次提交） |
 | 2026-10-23 | 新增「看板施工者默认模型」全局档位设置，插在岗位 model 和 PROVIDER_MODEL_TIERS 之间 | 换施工者默认模型不用再改代码、重新构建 | （见本次提交） |
 | 2026-10-25 | session/new 建会话前同步检查静态 preset 命令是否存在；`_providers/list` 和 `/api/providers?check=true` 改用同一个判定函数并返回 unavailableReason | 没装的 provider 当场返回 -32002（带命令名），不再假成功、不起子进程 | （见本次提交） |
 | 2026-10-25 | Provider 下拉里状态为 unavailable 的项保留显示但禁用（disabled + aria-disabled、置灰，悬停显示 unavailableReason），当前选中项变不可用时不自动切换；首页输入框的 preferredDefaultProvider 不可用时回退到 use-acp 选好的 provider（resolveComposerProviderId） | 用户点不中没装的 provider，输入框也不会默认选中它 | （见本次提交） |

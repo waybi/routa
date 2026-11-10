@@ -30,6 +30,8 @@ import {
 } from "@/core/acp/execution-backend";
 import { buildProviderModelArgs } from "@/core/acp/provider-model-args";
 import { applySessionConfig } from "@/core/acp/session-config-apply";
+import { getCachedProviderConfigOptions } from "@/core/acp/provider-config-probe";
+import { parseModelValue, resolveModelValue } from "@/core/acp/config-options";
 import { resolveTierModelForProvider, resolveTierReasoningEffortForProvider } from "@/core/kanban/kanban-model-tiers";
 import type { McpServerProfile } from "@/core/mcp/mcp-server-profiles";
 import { pendingAcpCreations } from "@/core/acp/pending-acp-creations";
@@ -767,7 +769,11 @@ export async function handleSessionNew({
         // For DSH provider, pass the resolved model via environment variable
         // so the DSH ACP profile can pick it up dynamically.
         if (provider === "dsh" && resolvedModel) {
-          dshModelEnv = { DSH_ACP_MODEL: resolvedModel };
+          const options = getCachedProviderConfigOptions(provider)?.configOptions;
+          const parsed = parseModelValue(resolveModelValue(options, resolvedModel));
+          dshModelEnv = parsed?.provider && parsed.provider !== "local-7357"
+            ? { DSH_ACP_PROVIDER: parsed.provider, DSH_ACP_MODEL: parsed.model }
+            : { DSH_ACP_MODEL: resolvedModel };
         }
         const extraArgs = buildProviderModelArgs(provider, model);
         acpSessionId = await manager.createSession(
