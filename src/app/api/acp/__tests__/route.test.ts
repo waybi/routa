@@ -4,7 +4,12 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { recordProviderConfigOptions, resetProviderConfigOptionsCache } from "@/core/acp/provider-config-probe";
+import { getProviderConfigOptions, recordProviderConfigOptions, resetProviderConfigOptionsCache } from "@/core/acp/provider-config-probe";
+
+vi.mock("@/core/acp/provider-config-probe", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/core/acp/provider-config-probe")>(),
+  getProviderConfigOptions: vi.fn(),
+}));
 import { getModelForProvider } from "@/core/acp/provider-registry";
 
 const {
@@ -332,6 +337,7 @@ describe("/api/acp POST", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetProviderConfigOptionsCache();
+    vi.mocked(getProviderConfigOptions).mockReset().mockResolvedValue({ providerId: "dsh", configOptions: [], fetchedAt: "2026-11-10T00:00:00Z", source: "probe" });
     isForwardedAcpRequest.mockReturnValue(false);
     getRequiredRunnerUrl.mockReturnValue(null);
     updateSessionExecutionBindingInDb.mockResolvedValue(undefined);
@@ -539,8 +545,34 @@ describe("/api/acp POST", () => {
         params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project", model: encoded ? value : model } }),
     }));
     await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    if (group) expect(getProviderConfigOptions).not.toHaveBeenCalled();
     expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual(group && group !== "local-7357"
       ? { DSH_ACP_PROVIDER: group, DSH_ACP_MODEL: model }
+      : { DSH_ACP_MODEL: model });
+  });
+
+  it.each(["resolved", "unresolved", "failed"])("probes cold dsh config once (%s)", async (result) => {
+    const model = "deepseek-v4.1-flash";
+    const value = JSON.stringify(["opencode-go", model]);
+    const options = [{ id: "model", currentValue: value, options: [{ group: "opencode-go", options: [{ value }] }] }];
+    if (result === "failed") {
+      vi.mocked(getProviderConfigOptions).mockRejectedValueOnce(new Error("probe failed"));
+    } else {
+      vi.mocked(getProviderConfigOptions).mockResolvedValueOnce({ providerId: "dsh",
+        configOptions: result === "resolved" ? options : [], fetchedAt: "2026-11-10T00:00:00Z", source: "probe" });
+    }
+    acpProcessManager.createSession.mockResolvedValue("acp-cold-dsh");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(options);
+    await POST(new NextRequest("http://localhost/api/acp", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 34, method: "session/new",
+        params: { provider: "dsh", workspaceId: "default", cwd: "/tmp/project", model } }),
+    }));
+    await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    expect(getProviderConfigOptions).toHaveBeenCalledExactlyOnceWith("dsh");
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual(result === "resolved"
+      ? { DSH_ACP_PROVIDER: "opencode-go", DSH_ACP_MODEL: model }
       : { DSH_ACP_MODEL: model });
   });
 
