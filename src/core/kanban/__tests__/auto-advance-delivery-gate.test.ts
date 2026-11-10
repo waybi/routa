@@ -102,7 +102,7 @@ function column(id: string, position: number, rules?: KanbanDeliveryRules | null
     name: id === "done" ? "Done" : id[0].toUpperCase() + id.slice(1),
     position,
     stage: id as KanbanColumn["stage"],
-    ...(rules !== undefined ? { automation: { enabled: false, deliveryRules: rules ?? undefined } } : {}),
+    ...(rules !== undefined ? { automation: { enabled: false, deliveryRules: rules as KanbanDeliveryRules } } : {}),
   };
 }
 
@@ -131,7 +131,7 @@ async function createRig(
   }));
   const orchestrator = new KanbanWorkflowOrchestrator(system.eventBus, system.kanbanBoardStore, system.taskStore);
   if (options.gate !== false) {
-    orchestrator.setAutoAdvanceGate(createAutoAdvanceDeliveryGate({ system, taskStore: system.taskStore }));
+    orchestrator.setAutoAdvanceGate(createAutoAdvanceDeliveryGate({ system, taskStore: system.taskStore, boardStore: system.kanbanBoardStore }));
   }
   const transitions: Rig["transitions"] = [];
   system.eventBus.on("gate-test-transitions", (event) => {
@@ -302,6 +302,93 @@ describe("F3: every rule switch x readiness state (128 cases)", () => {
   });
 });
 
+describe("并发保护：readiness 等待期间输入改变", () => {
+  it.each([
+    ["人工移回 dev", { columnId: "dev" }],
+    ["同列换运行身份", { triggerSessionId: "replacement-run" }],
+    ["同列改状态", { status: TaskStatus.IN_PROGRESS }],
+    ["同期编辑内容", { title: "新的标题", comment: "人工备注" }],
+    ["同列更换工作副本", { worktreeId: "new-worktree" }],
+  ] as Array<[string, Partial<Task>]>)('%s 不被旧检查覆盖（放行和拦截）', async (_name, edit) => {
+    for (const probe of [readiness(), readiness(ZERO_COMMITS)]) {
+      const rig = await createRig("review", "done", { requireCommittedChanges: true });
+      await rig.addCard("race", "review", { triggerSessionId: "old-run" });
+      let finish!: (value: TaskDeliveryReadiness) => void;
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => { entered = resolve; });
+      readinessMock.mockImplementationOnce(() => {
+        entered();
+        return new Promise<TaskDeliveryReadiness>((resolve) => { finish = resolve; });
+      });
+      const pending = rig.advance("race", "review");
+      await started;
+      const latest = { ...await rig.card("race"), ...edit };
+      await rig.system.taskStore.save(latest);
+      const saved = await rig.card("race");
+      const save = vi.spyOn(rig.system.taskStore, "save");
+      finish(probe);
+      await pending;
+      expect(await rig.card("race")).toEqual(saved);
+      expect(save).not.toHaveBeenCalled();
+      expect(rig.transitions).toHaveLength(0);
+      save.mockRestore();
+    }
+  });
+
+  it.each(["delete", "rules", "order"])("检查期间 %s 变化取消本次推进且不写旧评论", async (change) => {
+    const rig = await createRig("review", "done", { requireCommittedChanges: true });
+    await rig.addCard("race-board", "review");
+    let finish!: (value: TaskDeliveryReadiness) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    readinessMock.mockImplementationOnce(() => {
+      entered();
+      return new Promise<TaskDeliveryReadiness>((resolve) => { finish = resolve; });
+    });
+    const pending = rig.advance("race-board", "review");
+    await started;
+    if (change === "delete") await rig.system.taskStore.delete("race-board");
+    else {
+      const board = (await rig.system.kanbanBoardStore.get(BOARD_ID))!;
+      if (change === "rules") board.columns[1].automation!.deliveryRules = { requireCleanWorktree: true };
+      else board.columns.push(column("dev", 0.5));
+      await rig.system.kanbanBoardStore.save(board);
+    }
+    finish(readiness(ZERO_COMMITS));
+    await pending;
+    expect((await rig.system.taskStore.get("race-board"))?.lastSyncError).toBeUndefined();
+    expect(rig.transitions).toHaveLength(0);
+  });
+
+  it("gate 返回后与最终保存前仍重读卡，取消已换列的推进", async () => {
+    const rig = await createRig("review", "done", undefined);
+    await rig.addCard("post-gate", "review");
+    rig.orchestrator.setAutoAdvanceGate(async () => {
+      await rig.system.taskStore.save({ ...await rig.card("post-gate"), columnId: "dev" });
+      return false;
+    });
+    await rig.advance("post-gate", "review");
+    expect((await rig.card("post-gate")).columnId).toBe("dev");
+    expect(rig.transitions).toHaveLength(0);
+  });
+
+  it("原始 null 规则直接传到 gate，不探测 git", async () => {
+    const rig = await createRig("review", "done", undefined);
+    const task = await rig.addCard("raw-null", "review");
+    const gate = createAutoAdvanceDeliveryGate({ system: rig.system, taskStore: rig.system.taskStore, boardStore: rig.system.kanbanBoardStore });
+    const from = column("review", 0);
+    const to = column("done", 1, null);
+    expect(to.automation!.deliveryRules).toBeNull();
+    // Board hydration normalizes null to undefined; the gate must still skip git
+    // when handed the original wire shape before hydration.
+    const board = createKanbanBoard({ id: BOARD_ID, workspaceId: WORKSPACE_ID, name: "Board" });
+    board.columns = [from, to];
+    vi.spyOn(rig.system.kanbanBoardStore, "get").mockResolvedValue(board);
+    expect(await gate(task, from, to)).toBe(false);
+    expect(readinessMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("C3: the readiness probe throws", () => {
   it("fails closed: card stays, reason says the check errored, nothing escapes", async () => {
     const rig = await createRig("review", "done", { requireCommittedChanges: true });
@@ -390,6 +477,39 @@ describe("C1 / C4 / F4 integration: the singleton wires the gate into a real Rev
     }
     store.pushNotificationToHistory(sessionId, { sessionId, update: { sessionUpdate: "agent_message", content: { type: "text", text: "working" } } });
   }
+
+  it.each([false, true])("启用 Done 自动化：可交付=%s，启动次数与闸门结论一致", async (deliverable) => {
+    const h = await createLaneHarness("review", triggerAssignedTaskAgentMock);
+    const board = (await h.system.kanbanBoardStore.get(h.boardId))!;
+    const done = board.columns.find((entry) => entry.id === "done")!;
+    done.automation = {
+      enabled: true,
+      transitionType: "entry",
+      deliveryRules: { requireCommittedChanges: true },
+      steps: [{ id: "done-pusher", providerId: "dsh", role: "CRAFTER", specialistId: "done-pusher" }],
+    };
+    await h.system.kanbanBoardStore.save(board);
+    readinessMock.mockResolvedValue(readiness(deliverable ? {} : ZERO_COMMITS));
+    await processKanbanColumnTransition(h.system, {
+      cardId: h.cardId, cardTitle: "Card review", boardId: h.boardId, workspaceId: WORKSPACE_ID,
+      fromColumnId: "dev", toColumnId: "review", fromColumnName: "dev", toColumnName: "review",
+    });
+    for (const step of [0, 1]) {
+      const sessionId = await h.waitForStep(step);
+      recordOutput(sessionId);
+      emitAgentEvent(h.system, AgentEventType.AGENT_COMPLETED, sessionId, { success: true, stopReason: "end_turn" });
+    }
+    await vi.waitFor(async () => {
+      const card = await h.card();
+      expect(deliverable ? card.columnId === "done" : !!card.lastSyncError).toBe(true);
+      if (deliverable) expect(triggerAssignedTaskAgentMock.mock.calls.some(([params]) => params.task.columnId === "done")).toBe(true);
+    }, WAIT);
+    await settle(60);
+    const doneCalls = triggerAssignedTaskAgentMock.mock.calls.filter(([params]) => params.task.columnId === "done");
+    expect(doneCalls).toHaveLength(deliverable ? 1 : 0);
+    expect((await h.card()).columnId).toBe(deliverable ? "done" : "review");
+    expect(h.transitions.filter((entry) => entry.to === "done")).toHaveLength(deliverable ? 1 : 0);
+  });
 
   it("Review last step ends -> Done (requireCommittedChanges, 0 commits) is blocked once, repeats add nothing", async () => {
     const h = await createLaneHarness("review", triggerAssignedTaskAgentMock);

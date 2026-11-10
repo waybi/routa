@@ -557,6 +557,9 @@ commitsSinceBase 等指标 → 与 `KanbanDeliveryRules` 比对。
 （`auto-advance-delivery-gate.ts`，卡 29482e39）。自动推进被拦时卡留在原列，
 `lastSyncError` 和卡片评论写「自动推进被拦：」加检查原句（同一原因不重复记评论）；
 检查本身出错也按拦下处理，原因写「检查出错：…」。目标列没配规则或三项全 false 时不跑 git。
+检查等待期间若卡被移列、重新运行、编辑或删除，或目标列顺序、规则改变，本次检查作废；
+不推进，也不把旧错误和评论写到新状态上。最终推进前再次重读卡，避免覆盖同期操作。
+这不是跨存储事务：保护范围是检查等待窗口，不承诺跨进程的读写原子性。
 
 ### Layer 3: Required Artifacts（`transition-artifacts.ts`）
 
@@ -732,4 +735,5 @@ code_diff     → 要有代码变更记录
 | 2026-11-01 | 重启续跑受控验证：本卡 Dev 步骤中途重启 Routa，核对自动续跑（卡号 d30b6e09） | 只改文档，无代码变更 | 本行所在提交 |
 | 2026-11-01 | 重启续跑受控验证（Dev 列样本）：本卡 Dev 步骤中途重启 Routa，核对自动续跑（卡号 b638136a） | 只改文档，无代码变更 | 本行所在提交 |
 | 2026-11-09 | 同列下一步启动前重读卡：卡已离开本列、或卡上有别的进程真活着的 running 会话时跳过下一步，原因写 lastSyncError，只存重读到的新卡；秒退（<30 秒且无输出）的车道会话在 lastSyncError 追加退出原因（5b，复盘 L395） | 新增 32 个用例（含两组 10,000 次随机对拍不一致 0、埋错被抓）；撤掉实现后 14 个变红，全是断言失败；kanban 全套 1153 个用例全过；两份旧测试的精确断言放宽为「原因不变 + 可选秒退句」 | 本提交 fix(kanban): re-read the card before starting the next lane step |
+| 2026-11-10 | 自动推进的异步交付检查结束后重读卡与目标列；卡片或目标规则改变时取消旧检查，拦截评论也不覆盖同期编辑；最终推进前再重读卡（第 6 节 Layer 2） | 可控 Promise 覆盖人工移列、同列换运行身份、状态、内容、工作副本、删卡及规则/顺序变化；补启用 Done 自动化的放行/拦截对照和原始 null | 本提交 fix(kanban): discard stale auto-advance delivery checks |
 | 2026-11-09 | 编排器自动推进（autoAdvanceCard）推进前也查目标列 deliveryRules：不通过留在原列，写 lastSyncError 与「自动推进被拦：」评论（同句不重复），检查出错按拦下处理；由 `startWorkflowOrchestrator` 注入闸门（5b、第 6 节 Layer 2）。部署后纯证据卡（0 提交）Review 通过不再自动进 Done，要按经验包 routa.md:72 在 Done 列临时关 requireCommittedChanges 过闸 | 新增 17 个用例（含 8 种规则开关 × 16 种检查状态 128 组全组合，埋错被抓）；撤掉编排器调用 11 个变红、撤掉注入 1 个变红，全是断言失败；修复前 11-09 Coder 看板卡 c53dc6c1 0 提交被自动推进 Done | 本提交 fix(kanban): auto-advance checks the target column's deliveryRules |

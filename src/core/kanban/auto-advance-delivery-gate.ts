@@ -14,6 +14,7 @@ import type { KanbanColumn } from "../models/kanban";
 import type { Task } from "../models/task";
 import { attentionResolutionAfterMove } from "../models/task-attention-resolution";
 import type { TaskStore } from "../store/task-store";
+import type { KanbanBoardStore } from "../store/kanban-board-store";
 import { appendTaskComment, appendTaskCommentEntry } from "./task-comment-log";
 import {
   buildTaskDeliveryReadiness,
@@ -35,7 +36,8 @@ type DeliverySystem = Parameters<typeof buildTaskDeliveryReadiness>[1];
 
 export interface AutoAdvanceDeliveryGateDeps {
   system: DeliverySystem;
-  taskStore: Pick<TaskStore, "save">;
+  taskStore: Pick<TaskStore, "get" | "save">;
+  boardStore: Pick<KanbanBoardStore, "get">;
   /** Tells the board the card changed (optional). */
   notify?: (task: Task) => void;
 }
@@ -64,11 +66,28 @@ async function resolveAutoAdvanceDeliveryError(
   }
 }
 
+/** Discard a readiness result if any concurrent edit changed its input snapshot. */
+export async function refreshAutoAdvanceTask(task: Task, store: Pick<TaskStore, "get">): Promise<Task | undefined> {
+  const snapshot = JSON.stringify(task);
+  const latest = await store.get(task.id);
+  return latest && JSON.stringify(latest) === snapshot ? latest : undefined;
+}
+
 export function createAutoAdvanceDeliveryGate(deps: AutoAdvanceDeliveryGateDeps): AutoAdvanceGate {
   return async (task, fromColumn, nextColumn) => {
+    const snapshot = JSON.stringify(task);
     const error = await resolveAutoAdvanceDeliveryError(task, fromColumn, nextColumn, deps.system);
+    const [latest, board] = await Promise.all([deps.taskStore.get(task.id), deps.boardStore.get(task.boardId!)]);
+    const columns = board?.columns.slice().sort((left, right) => left.position - right.position);
+    const index = columns?.findIndex((column) => column.id === fromColumn.id) ?? -1;
+    // A move, rerun, edit, deletion or changed target policy invalidates the probe.
+    // Do not even write a block note onto the replacement card/run.
+    if (!latest || JSON.stringify(latest) !== snapshot || index < 0
+      || JSON.stringify(columns?.[index]) !== JSON.stringify(fromColumn)
+      || JSON.stringify(columns?.[index + 1]) !== JSON.stringify(nextColumn)) return true;
     if (!error) return false;
 
+    task = latest;
     const note = `${AUTO_ADVANCE_BLOCKED_PREFIX}${error}`;
     task.lastSyncError = note;
     // Same dedupe as move_card's block comment: a repeated trigger

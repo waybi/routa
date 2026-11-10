@@ -39,7 +39,7 @@ import {
 } from "./environment-failure";
 import { collectRateLimitEvidence, RateLimitRetryScheduler, runRateLimitRetry } from "./rate-limit-retry";
 import { isUserCancelledLaneSession, planLaneStepRetry, resolveCancelledTurnReason } from "./lane-cancel-origin";
-import type { AutoAdvanceGate } from "./auto-advance-delivery-gate";
+import { refreshAutoAdvanceTask, type AutoAdvanceGate } from "./auto-advance-delivery-gate";
 
 const WATCHDOG_SCAN_INTERVAL_MS = 30_000;
 
@@ -1536,7 +1536,7 @@ export class KanbanWorkflowOrchestrator {
       if (!board) return;
 
       // Check if the card was already moved by the specialist (via move_card tool).
-      const task = await this.taskStore.get(cardId);
+      let task = await this.taskStore.get(cardId);
       if (!task) return;
 
       if (task.columnId !== automation.columnId) {
@@ -1560,6 +1560,7 @@ export class KanbanWorkflowOrchestrator {
       // not a normal workflow destination.
       if (nextColumn.stage === "blocked") return;
       if (await this.autoAdvanceGate?.(task, currentColumn, nextColumn)) return;
+      task = await refreshAutoAdvanceTask(task, this.taskStore); if (!task) return;
 
       task.columnId = nextColumn.id;
       task.status = resolveTaskStatusForBoardColumn(board.columns, nextColumn.id);

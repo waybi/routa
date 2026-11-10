@@ -735,6 +735,7 @@ export function startWorkflowOrchestrator(system: RoutaSystem): void {
   orchestrator.setAutoAdvanceGate(createAutoAdvanceDeliveryGate({
     system,
     taskStore: system.taskStore,
+    boardStore: system.kanbanBoardStore,
     notify: (task) => getKanbanEventBroadcaster().notify({
       workspaceId: task.workspaceId, entity: "task", action: "updated", resourceId: task.id, source: "system",
     }),
