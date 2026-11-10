@@ -13,6 +13,9 @@
  * skipped step saves the fresh card (never the copy read earlier, which would
  * put the card back into the old column), keeps the finished step's lane
  * record, writes the reason to lastSyncError and settles the automation.
+ * An allowed step returns the fresh card; the orchestrator saves on it with
+ * adoptFreshCard (复盘 L401), so a hold, objective or comment written while
+ * it awaited is not overwritten by the earlier copy.
  *
  * This only narrows the window between the check and the session start; it
  * takes no lock.
@@ -159,9 +162,78 @@ interface GuardedAutomation {
 }
 
 /**
- * Read the card again and decide; on skip, settle and return true (the caller
- * returns "skipped" and must not start the step). On allow, the quick-exit
- * note of the finished session is only logged.
+ * Keep the finished step's end (written on the earlier copy `stale`) on the
+ * fresh card: its lane record, its id in sessionIds, and a triggerSessionId
+ * that still points at it is cleared.
+ */
+export function carryFinishedStepEnd(fresh: Task, stale: Task, finishedSessionId: string | undefined): void {
+  if (!finishedSessionId) return;
+  const finishedRecord = getTaskLaneSession(stale, finishedSessionId);
+  if (finishedRecord) upsertTaskLaneSession(fresh, { ...finishedRecord });
+  const sessionIds = fresh.sessionIds ?? [];
+  if (!sessionIds.includes(finishedSessionId)) fresh.sessionIds = [...sessionIds, finishedSessionId];
+  if (fresh.triggerSessionId === finishedSessionId) fresh.triggerSessionId = undefined;
+}
+
+/** Make `target` hold exactly the fields of `source` (keys missing on source are deleted). */
+export function replaceTaskContents(target: Task, source: Task): void {
+  if (target === source) return;
+  const record = target as unknown as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!(key in source)) delete record[key];
+  }
+  Object.assign(target, source);
+}
+
+/**
+ * 复盘 L401: the card an orchestrator path saves after awaits. Every field is
+ * taken from `fresh` (labels such as hold, objective, comments, columnId ...)
+ * except the finished step's end (see carryFinishedStepEnd), lastSyncError and
+ * updatedAt. `task` (the copy read earlier, still used by the caller) is
+ * replaced in place, so later saves of it do not write the old fields back.
+ */
+export function adoptFreshCard(
+  task: Task,
+  fresh: Task,
+  finishedSessionId: string | undefined,
+  lastSyncError: string | undefined,
+  now: Date = new Date(),
+): void {
+  carryFinishedStepEnd(fresh, task, finishedSessionId);
+  fresh.lastSyncError = lastSyncError;
+  fresh.updatedAt = now;
+  replaceTaskContents(task, fresh);
+}
+
+/**
+ * Read the card again right before saving the copy read when the step ended,
+ * and save on that (see adoptFreshCard); the copy's lastSyncError is kept. A
+ * failed read (or a deleted card) leaves the copy as it is.
+ */
+export async function adoptFreshCardBeforeSave(
+  taskStore: TaskStore,
+  cardId: string,
+  task: Task,
+  finishedSessionId: string | undefined,
+): Promise<void> {
+  let fresh: Task | undefined;
+  try {
+    fresh = await taskStore.get(cardId);
+  } catch (error) {
+    console.warn(`[NextStepGuard] Could not read card ${cardId} again before saving; saving the earlier copy:`, error);
+  }
+  if (fresh) adoptFreshCard(task, fresh, finishedSessionId, task.lastSyncError);
+  else task.updatedAt = new Date();
+}
+
+/** skip: the step must not start. fresh: the card read again (undefined when that read threw). */
+export type NextStepGuardResult = { skip: true } | { skip: false; fresh?: Task };
+
+/**
+ * Read the card again and decide; on skip, settle and return { skip: true }
+ * (the caller returns "skipped" and must not start the step). On allow, the
+ * quick-exit note of the finished session is only logged and the fresh card is
+ * returned for the caller to save on.
  */
 export async function skipStaleNextStep<T extends GuardedAutomation>(params: {
   taskStore: TaskStore;
@@ -171,7 +243,7 @@ export async function skipStaleNextStep<T extends GuardedAutomation>(params: {
   automations: Map<string, T>;
   sessions: QuickExitSessionSource;
   isActive?: (sessionId: string) => boolean;
-}): Promise<boolean> {
+}): Promise<NextStepGuardResult> {
   const { taskStore, task, cardId, automation, automations, sessions } = params;
   const finishedSessionId = automation.sessionId;
   let fresh: Task | undefined;
@@ -179,7 +251,7 @@ export async function skipStaleNextStep<T extends GuardedAutomation>(params: {
     fresh = await taskStore.get(cardId);
   } catch (error) {
     console.warn(`[NextStepGuard] Could not read card ${cardId} again; starting the next step as before:`, error);
-    return false;
+    return { skip: false };
   }
   const decision = decideNextStep({
     task: fresh,
@@ -192,19 +264,15 @@ export async function skipStaleNextStep<T extends GuardedAutomation>(params: {
     // would hide that step's own failure message: log it only.
     const note = finishedSessionId ? buildQuickExitNote(task, finishedSessionId, sessions) : undefined;
     if (note) console.info(`[NextStepGuard] Card ${cardId}: ${note}`);
-    return false;
+    return { skip: false, fresh };
   }
 
   console.info(`[NextStepGuard] Card ${cardId}: ${decision.reason}`);
   automation.status = "completed";
   scheduleAutomationCleanup(automations, cardId, automation);
-  if (!fresh) return true;
+  if (!fresh) return { skip: true };
   // Keep the finished step's end (written on the earlier copy) on the fresh card.
-  const finishedRecord = finishedSessionId ? getTaskLaneSession(task, finishedSessionId) : undefined;
-  if (finishedRecord) upsertTaskLaneSession(fresh, { ...finishedRecord });
-  const sessionIds = fresh.sessionIds ?? [];
-  if (finishedSessionId && !sessionIds.includes(finishedSessionId)) fresh.sessionIds = [...sessionIds, finishedSessionId];
-  if (finishedSessionId && fresh.triggerSessionId === finishedSessionId) fresh.triggerSessionId = undefined;
+  carryFinishedStepEnd(fresh, task, finishedSessionId);
   // Keep a reason already on the card (e.g. written by the lane it moved to).
   const existing = fresh.lastSyncError?.trim();
   fresh.lastSyncError = !existing ? decision.reason
@@ -216,5 +284,5 @@ export async function skipStaleNextStep<T extends GuardedAutomation>(params: {
   } catch (error) {
     console.warn(`[NextStepGuard] Could not save the skip reason on card ${cardId}:`, error);
   }
-  return true;
+  return { skip: true };
 }
