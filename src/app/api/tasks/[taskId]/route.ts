@@ -76,7 +76,8 @@ import {
 import { resolveTaskWorktreeTruth } from "@/core/kanban/task-worktree-truth";
 import { claimLaneRerun, hasLaneRunStartedSince } from "@/core/kanban/lane-rerun-claim";
 import { findLiveColumnSession } from "@/core/kanban/lane-live-session";
-import { isTaskOnHold, ON_HOLD_ERROR, ON_HOLD_RETRY_MESSAGE } from "@/core/kanban/task-hold";
+import { formatHoldRetryMessage, getTaskHold, isRoleHoldSyncError, ON_HOLD_ERROR } from "@/core/kanban/task-hold";
+import { hasRoleHoldLabels, resolveRerunSpecialistId } from "@/core/kanban/task-hold-target";
 import { stripSpeculativeKanbanTaskAdaptiveSnapshot } from "@/core/kanban/task-adaptive";
 import {
   evaluateKanbanTransitionGates,
@@ -280,8 +281,14 @@ async function patchTask(
 
   // Card beb29624: a held card is not rerun. Judged on this request's labels,
   // before any claim or forced end, so one PATCH can drop hold and rerun.
-  if (body.retryTrigger && isTaskOnHold({ labels: sanitizeLabels(body.labels) ?? existing.labels })) {
-    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
+  // Card a00fb67b: a "hold:<role>" label stops the rerun only when the step it
+  // resumes runs that role.
+  if (body.retryTrigger) {
+    const rerunTask = { ...existing, labels: sanitizeLabels(body.labels) ?? existing.labels };
+    const hold = getTaskHold(rerunTask, hasRoleHoldLabels(rerunTask)
+      ? await resolveRerunSpecialistId(system, rerunTask)
+      : undefined);
+    if (hold.held) return NextResponse.json({ error: formatHoldRetryMessage(hold) }, { status: 409 });
   }
 
   let forcedEndSessionIds: string[] = [];
@@ -749,8 +756,11 @@ async function patchTask(
         nextTask.sessionIds.push(triggerResult.sessionId);
       }
       nextTask.lastSyncError = undefined;
-    } else if (triggerResult.queued || triggerResult.error === ON_HOLD_ERROR) {
+    } else if (triggerResult.queued) {
       nextTask.lastSyncError = undefined;
+    } else if (triggerResult.error === ON_HOLD_ERROR) {
+      // A skipped start, not a failure; a role hold already wrote why (card a00fb67b).
+      nextTask.lastSyncError = isRoleHoldSyncError(nextTask.lastSyncError) ? nextTask.lastSyncError : undefined;
     } else if (triggerResult.error) {
       nextTask.lastSyncError = triggerResult.error;
     }

@@ -3,7 +3,7 @@ import { getRoutaSystem } from "@/core/routa-system";
 import { enqueueKanbanTaskSession } from "@/core/kanban/workflow-orchestrator-singleton";
 import { buildTaskDeliveryReadiness } from "@/core/kanban/task-delivery-readiness";
 import { captureTaskDeliverySnapshot } from "@/core/kanban/task-delivery-snapshot";
-import { isTaskOnHold, ON_HOLD_ERROR, ON_HOLD_RETRY_MESSAGE } from "@/core/kanban/task-hold";
+import { formatHoldRetryMessage, getTaskHold, ON_HOLD_ERROR } from "@/core/kanban/task-hold";
 import {
   getRemoteUrl,
   isBareGitRepository,
@@ -12,6 +12,9 @@ import {
 } from "@/core/git";
 
 export const dynamic = "force-dynamic";
+
+/** The role a PR run starts; "hold:kanban-pr-publisher" stops it (card a00fb67b). */
+const PR_PUBLISHER_SPECIALIST_ID = "kanban-pr-publisher";
 
 function isGitLabUrl(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -55,8 +58,9 @@ export async function POST(
   if (!task.boardId) {
     return NextResponse.json({ error: "Task is missing board context." }, { status: 400 });
   }
-  if (isTaskOnHold(task)) {
-    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
+  const hold = getTaskHold(task, PR_PUBLISHER_SPECIALIST_ID);
+  if (hold.held) {
+    return NextResponse.json({ error: formatHoldRetryMessage(hold) }, { status: 409 });
   }
 
   const body = await request.json().catch(() => ({})) as {
@@ -117,7 +121,7 @@ export async function POST(
     step: {
       id: `manual-pr-${platform}`,
       role: "DEVELOPER",
-      specialistId: "kanban-pr-publisher",
+      specialistId: PR_PUBLISHER_SPECIALIST_ID,
       specialistName: "PR Publisher",
       specialistLocale: locale,
     },
@@ -125,7 +129,8 @@ export async function POST(
 
   if (result.error === ON_HOLD_ERROR) {
     // Put on hold while this request ran: a skipped start, not a failure.
-    return NextResponse.json({ error: ON_HOLD_RETRY_MESSAGE }, { status: 409 });
+    const stored = (await system.taskStore.get(taskId)) ?? task;
+    return NextResponse.json({ error: formatHoldRetryMessage(getTaskHold(stored, PR_PUBLISHER_SPECIALIST_ID)) }, { status: 409 });
   }
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 500 });
