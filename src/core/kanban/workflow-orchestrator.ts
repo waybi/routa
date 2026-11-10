@@ -27,7 +27,7 @@ import { getDefaultKanbanDevSessionSupervision, getDefaultKanbanLaneSessionWatch
 import { getTaskLaneSession, markTaskLaneSessionStatus, upsertTaskLaneSession } from "./task-lane-history";
 import { buildLaneSessionBackfill } from "./lane-session-backfill";
 import { isLiveRunningAutomation } from "./lane-live-session";
-import { appendQuickExitNote, scheduleAutomationCleanup, skipStaleNextStep } from "./next-step-guard"; // 复盘 L395
+import { adoptFreshCard, adoptFreshCardBeforeSave, appendQuickExitNote, scheduleAutomationCleanup, skipStaleNextStep } from "./next-step-guard"; // 复盘 L395, L401
 import { collectTaskSessionIds, isLaneAutomationComplete } from "./done-lane-teardown";
 import { reconcileExitAfterTurnEnd, settleUnhandledLaneEnd } from "./lane-session-settlement";
 import {
@@ -895,6 +895,7 @@ export class KanbanWorkflowOrchestrator {
           task.lastSyncError = this.buildFailureMessage(automation, event, completionSatisfied);
         }
         appendQuickExitNote(task, eventSessionId, sessionStore, { event }); // ended in <30 s with no output
+        await adoptFreshCardBeforeSave(this.taskStore, cardId, task, eventSessionId); // 复盘 L401
         await this.taskStore.save(task);
       }
 
@@ -1299,19 +1300,12 @@ export class KanbanWorkflowOrchestrator {
       return "failed";
     }
 
-    const previousSessionId = automation.sessionId;
-    if (previousSessionId) {
-      if (!task.sessionIds.includes(previousSessionId)) {
-        task.sessionIds.push(previousSessionId);
-      }
-      if (task.triggerSessionId === previousSessionId) {
-        task.triggerSessionId = undefined;
-      }
-    }
-
-    task.lastSyncError = undefined;
-    task.updatedAt = new Date();
-    if (await skipStaleNextStep({ taskStore: this.taskStore, task, cardId, automation, automations: this.activeAutomations, sessions: getHttpSessionStore() })) return "skipped";
+    const guard = await skipStaleNextStep({ taskStore: this.taskStore, task, cardId, automation, automations: this.activeAutomations, sessions: getHttpSessionStore() });
+    if (guard.skip) return "skipped";
+    // 复盘 L401: save on the card the guard just read, not the copy read when
+    // the step ended (a hold, objective or comment added meanwhile stays).
+    // Without a fresh read (it threw) the earlier copy is saved as before.
+    adoptFreshCard(task, guard.fresh ?? task, automation.sessionId, undefined);
     await this.taskStore.save(task);
 
     this.cleanupCardSession?.(cardId);
@@ -1352,7 +1346,7 @@ export class KanbanWorkflowOrchestrator {
     } catch (error) {
       automation.status = "failed";
       task.lastSyncError = error instanceof Error ? error.message : String(error);
-      task.updatedAt = new Date();
+      await adoptFreshCardBeforeSave(this.taskStore, cardId, task, undefined); // 复盘 L401
       await this.taskStore.save(task);
       return "failed";
     }
@@ -1388,6 +1382,7 @@ export class KanbanWorkflowOrchestrator {
     task.lastSyncError = this.buildRecoveryMessage(automation, reason);
     appendQuickExitNote(task, previousSessionId, getHttpSessionStore());
     task.updatedAt = new Date();
+    await adoptFreshCardBeforeSave(this.taskStore, cardId, task, previousSessionId); // 复盘 L401
     await this.taskStore.save(task);
 
     this.cleanupCardSession?.(cardId);
@@ -1424,7 +1419,7 @@ export class KanbanWorkflowOrchestrator {
     } catch (error) {
       automation.status = "failed";
       task.lastSyncError = error instanceof Error ? error.message : String(error);
-      task.updatedAt = new Date();
+      await adoptFreshCardBeforeSave(this.taskStore, cardId, task, undefined); // 复盘 L401
       await this.taskStore.save(task);
       return false;
     }

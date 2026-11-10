@@ -346,6 +346,15 @@ Routa 接着起了完成汇报员，提交没进主干。
 跳过原因追加到 lastSyncError（已有原因保留）、只保存新卡；自动化标 completed，30 秒后清理，
 刚结束的会话照常结束，看板名额由队列按结束事件释放。这只缩小「判断通过」到「开会话」之间的空档，没有加锁。
 
+**放行时以重读的卡为准保存（复盘 L401，卡 ca2ff7a3）**：守卫放行后，编排器之前仍整卡保存完成处理开头读到的旧副本，
+await 期间别人给卡加的 hold、改的 objective、加的留言会被冲掉，hold 丢了下一步照常开跑。
+现在守卫放行时把重读的卡交回（`{ skip:false, fresh }`），`adoptFreshCard` 以它为底，只带上旧副本上
+刚结束这一步的 lane 记录、sessionIds 追加、等于上一会话的 triggerSessionId 清空，再写 lastSyncError 和 updatedAt；
+其余字段（labels、objective、comment/comments、columnId 等）取新卡，旧副本上有、新卡上没有的键删掉。
+调用方手里的 task 对象同步成这份内容，所以之后失败收尾、catch 再存它也不会把旧值写回。
+同法用在步骤结束收尾保存、恢复重跑保存和两处起会话抛错的 catch 保存：保存前 `adoptFreshCardBeforeSave` 再读一次卡，
+保留本路径写的 lastSyncError。重读抛错时照旧存旧副本并打 warn。重读到保存之间仍有 await，store 没有锁，空档只是缩小。
+
 **秒退空会话记退出原因**：车道会话从 lane 记录 startedAt 到结束不足 30 秒、会话历史里没有
 agent_message / agent_message_chunk / tool_call / tool_call_update 时，在 lastSyncError 末尾追加
 「会话 <id> 存活 <n> 秒无输出即结束（stopReason=… / 退出码=…）」，已有失败或限流原因保留在前面；
@@ -737,3 +746,4 @@ code_diff     → 要有代码变更记录
 | 2026-11-09 | 同列下一步启动前重读卡：卡已离开本列、或卡上有别的进程真活着的 running 会话时跳过下一步，原因写 lastSyncError，只存重读到的新卡；秒退（<30 秒且无输出）的车道会话在 lastSyncError 追加退出原因（5b，复盘 L395） | 新增 32 个用例（含两组 10,000 次随机对拍不一致 0、埋错被抓）；撤掉实现后 14 个变红，全是断言失败；kanban 全套 1153 个用例全过；两份旧测试的精确断言放宽为「原因不变 + 可选秒退句」 | 本提交 fix(kanban): re-read the card before starting the next lane step |
 | 2026-11-10 | 自动推进的异步交付检查结束后重读卡与目标列；卡片或目标规则改变时取消旧检查，拦截评论也不覆盖同期编辑；最终推进前再重读卡（第 6 节 Layer 2） | 可控 Promise 覆盖人工移列、同列换运行身份、状态、内容、工作副本、删卡及规则/顺序变化；补启用 Done 自动化的放行/拦截对照和原始 null | 本提交 fix(kanban): discard stale auto-advance delivery checks |
 | 2026-11-09 | 编排器自动推进（autoAdvanceCard）推进前也查目标列 deliveryRules：不通过留在原列，写 lastSyncError 与「自动推进被拦：」评论（同句不重复），检查出错按拦下处理；由 `startWorkflowOrchestrator` 注入闸门（5b、第 6 节 Layer 2）。部署后纯证据卡（0 提交）Review 通过不再自动进 Done，要按经验包 routa.md:72 在 Done 列临时关 requireCommittedChanges 过闸 | 新增 17 个用例（含 8 种规则开关 × 16 种检查状态 128 组全组合，埋错被抓）；撤掉编排器调用 11 个变红、撤掉注入 1 个变红，全是断言失败；修复前 11-09 Coder 看板卡 c53dc6c1 0 提交被自动推进 Done | 本提交 fix(kanban): auto-advance checks the target column's deliveryRules |
+| 2026-11-10 | 守卫放行与步骤结束、恢复重跑、起会话抛错这几处保存改为以重读的卡为准（`adoptFreshCard` / `adoptFreshCardBeforeSave`），await 期间加的 hold、objective、留言不再被旧副本冲掉；守卫返回值改为 `{ skip, fresh }`（5b，复盘 L401） | 新增 18 个用例（含 10,000 组随机对拍不一致 0、两种埋错被抓）；改前 11 个窗口用例全红（断言失败）；撤掉下一步保存 6 个变红、撤掉保存前重读 5 个变红；kanban 全套全过 | 本提交 fix(kanban): save the freshly read card when starting the next lane step |
