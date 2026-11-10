@@ -27,7 +27,6 @@ import {
 import {
   resolveKanbanAutomationStep,
   resolveEffectiveTaskAutomation,
-  type AutomationSpecialistSummary,
 } from "./effective-task-automation";
 import { buildKanbanWorktreeNaming } from "./worktree-naming";
 import { KanbanSessionQueue } from "./kanban-session-queue";
@@ -49,7 +48,6 @@ import { analyzeFlowForTasks } from "./flow-ledger";
 import { resolveTaskWorktreeTruth } from "./task-worktree-truth";
 import { runDoneWorktreeCleanup } from "./done-worktree-cleanup";
 import { getHttpSessionStore } from "../acp/http-session-store";
-import { getSpecialistById } from "../orchestration/specialist-prompts";
 import { dispatchSessionPrompt } from "@/core/acp/session-prompt";
 import type { ColumnTransitionData } from "./column-transition";
 import {
@@ -67,26 +65,18 @@ import {
 import { KanbanTools } from "../tools/kanban-tools";
 import { buildTaskDeliveryLanding } from "./task-delivery-landing";
 import { handleSupersededWakeEvent } from "./superseded-wake";
-import { isTaskOnHold, ON_HOLD_ERROR } from "./task-hold";
+import { getTaskHold, ON_HOLD_ERROR, type TaskHold } from "./task-hold";
+import {
+  hasRoleHoldLabels,
+  recordRoleHold,
+  resolveKanbanSpecialist,
+  resolveStartSpecialistId,
+} from "./task-hold-target";
 
 // Use globalThis to survive HMR in Next.js dev mode
 const GLOBAL_KEY = "__routa_workflow_orchestrator__";
 const STARTED_KEY = "__routa_workflow_orchestrator_started__";
 const QUEUE_KEY = "__routa_kanban_session_queue__";
-
-function resolveKanbanSpecialist(
-  specialistId: string,
-  locale?: string,
-): AutomationSpecialistSummary | undefined {
-  const specialist = (locale ? getSpecialistById(specialistId, locale) : undefined)
-    ?? getSpecialistById(specialistId);
-  if (!specialist) return undefined;
-  return {
-    name: specialist.name,
-    role: specialist.role,
-    defaultProvider: specialist.defaultProvider,
-  };
-}
 
 async function createAutomationSession(
   system: RoutaSystem,
@@ -104,11 +94,13 @@ async function createAutomationSession(
 ): Promise<CreateAutomationSessionResult | null> {
   const task = await system.taskStore.get(params.cardId);
   if (!task?.boardId) return null;
-  if (isTaskOnHold(task)) {
+  const hold = getTaskHold(task, params.step.specialistId);
+  if (hold.held) {
     // Card beb29624: a held card ends its lane quietly. "queued" keeps the
     // orchestrator from recording the next step as failed; the forget drops
     // the automation, so nothing waits for a session that never comes.
-    holdKanbanCard(system, task.id, params.columnId);
+    // Card a00fb67b: a role hold of this step's role ends the lane the same way.
+    await holdKanbanCard(system, task.id, params.columnId, hold);
     return { sessionId: null, queued: true };
   }
   const result = await enqueueKanbanTaskSession(system, {
@@ -159,8 +151,12 @@ export async function enqueueKanbanTaskSession(
     return { sessionId: task.triggerSessionId, queued: false };
   }
   // Card beb29624: before the resume/adopt branches, so a held run is never adopted.
-  if (isTaskOnHold(task)) {
-    holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId);
+  // Card a00fb67b: a given step is judged by its role here too; a manual rerun
+  // without a step is judged after it resolved the step it resumes (a Done
+  // rerun of the reporter must not be judged as the column's pusher).
+  const hold = getTaskHold(task, params.step?.specialistId);
+  if (hold.held) {
+    await holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId, hold);
     return { queued: false, error: ON_HOLD_ERROR };
   }
 
@@ -215,6 +211,17 @@ export async function enqueueKanbanTaskSession(
     return result;
   }
 
+  // Card a00fb67b: a start without a step runs the card's effective role.
+  const startSpecialistId = params.step?.specialistId
+    ?? (hasRoleHoldLabels(task)
+      ? await resolveStartSpecialistId(system, task, { columnId: params.expectedColumnId ?? task.columnId })
+      : undefined);
+  const roleHold = getTaskHold(task, startSpecialistId);
+  if (roleHold.held) {
+    await holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId, roleHold);
+    return { queued: false, error: ON_HOLD_ERROR };
+  }
+
   // Card 59f5b059: every resolver start passes this gate (after the
   // resume/adopt branches, so a stopped start is never adopted).
   const guardHit = await checkBlockedResolverGuard(system, task, params);
@@ -236,13 +243,30 @@ export async function enqueueKanbanTaskSession(
     boardId: task.boardId,
     workspaceId: task.workspaceId,
     columnId: params.expectedColumnId ?? task.columnId,
+    // Known up front, so a role hold added while the job waits drops it in the queue.
+    specialistId: startSpecialistId
+      ?? await resolveStartSpecialistId(system, task, { columnId: params.expectedColumnId ?? task.columnId }),
     start: async () => startKanbanTaskSession(system, task.id, params),
   });
 }
 
-/** A held card starts no session: drop its queued lane automation and log one info line. */
-function holdKanbanCard(system: RoutaSystem, cardId: string, columnId: string | undefined): void {
+/**
+ * A held card starts no session: drop its queued lane automation and log one
+ * info line. A role hold (card a00fb67b) also writes why into lastSyncError;
+ * the whole-card hold leaves lastSyncError as it is.
+ */
+async function holdKanbanCard(
+  system: RoutaSystem,
+  cardId: string,
+  columnId: string | undefined,
+  hold: TaskHold,
+): Promise<void> {
   forgetKanbanCard(system, cardId, { columnId });
+  if (hold.held && hold.scope === "role") {
+    console.info(`[KanbanHold] card ${cardId} hold:${hold.specialistId} (scope=role); no ${hold.specialistId} session started`);
+    await recordRoleHold(system.taskStore, cardId, hold.specialistId);
+    return;
+  }
   console.info(`[KanbanHold] card ${cardId} on hold; no session started`);
 }
 
@@ -258,13 +282,7 @@ async function checkBlockedResolverGuard(
   const current = (await system.taskStore.get(task.id)) ?? task;
   // A card that already left the column cannot start there (startKanbanTaskSession refuses it).
   if (current.columnId !== columnId) return undefined;
-  let specialistId = params.step?.specialistId;
-  if (!specialistId) {
-    const workspace = await system.workspaceStore.get(current.workspaceId);
-    specialistId = resolveEffectiveTaskAutomation(current, board.columns, resolveKanbanSpecialist, {
-      autoProviderId: getKanbanAutoProvider(workspace?.metadata, board.id),
-    }).specialistId;
-  }
+  const specialistId = await resolveStartSpecialistId(system, current, { step: params.step, board });
   const decision = evaluateBlockedResolverGuard({ task: current, board, specialistId });
   if (decision.gate === "none") return undefined;
   await applyBlockedResolverGuard(system.taskStore, current, decision);
@@ -315,8 +333,10 @@ async function startKanbanTaskSession(
     return { sessionId: task.triggerSessionId };
   }
   // The hold label may have been added while the start waited in the board queue.
-  if (isTaskOnHold(task)) {
-    holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId);
+  const hold = getTaskHold(task, params.step?.specialistId
+    ?? (hasRoleHoldLabels(task) ? await resolveStartSpecialistId(system, task) : undefined));
+  if (hold.held) {
+    await holdKanbanCard(system, task.id, params.expectedColumnId ?? task.columnId, hold);
     return { error: ON_HOLD_ERROR };
   }
 
@@ -635,7 +655,7 @@ export function getKanbanSessionQueue(system: RoutaSystem): KanbanSessionQueue {
       system.eventBus,
       system.taskStore,
       (workspaceId, boardId) => getBoardConcurrencyLimit(system, workspaceId, boardId),
-      (cardId, columnId) => holdKanbanCard(system, cardId, columnId),
+      (cardId, columnId, hold) => holdKanbanCard(system, cardId, columnId, hold),
     );
     g[QUEUE_KEY] = queue;
   }

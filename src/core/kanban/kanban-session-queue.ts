@@ -1,6 +1,6 @@
 import { AgentEvent, AgentEventType, EventBus } from "../events/event-bus";
 import type { TaskStore } from "../store/task-store";
-import { isTaskOnHold } from "./task-hold";
+import { getTaskHold, type TaskHold } from "./task-hold";
 
 export interface KanbanSessionQueueJob {
   cardId: string;
@@ -8,6 +8,8 @@ export interface KanbanSessionQueueJob {
   boardId: string;
   workspaceId: string;
   columnId?: string;
+  /** Role the start runs (card a00fb67b): a "hold:<role>" label added while it waits drops it. */
+  specialistId?: string;
   start: () => Promise<{ sessionId?: string | null; error?: string }>;
 }
 
@@ -38,8 +40,8 @@ export class KanbanSessionQueue {
     private eventBus: EventBus,
     private taskStore: TaskStore,
     private getConcurrencyLimit: (workspaceId: string, boardId: string) => Promise<number>,
-    /** Called when a queued job is dropped because its card was put on hold. */
-    private onHeldJobDropped?: (cardId: string, columnId: string | undefined) => void,
+    /** Called when a queued job is dropped because its card (or its role) was put on hold. */
+    private onHeldJobDropped?: (cardId: string, columnId: string | undefined, hold: TaskHold) => unknown,
   ) {}
 
   isCompatible(eventBus: EventBus, taskStore: TaskStore): boolean {
@@ -319,12 +321,21 @@ export class KanbanSessionQueue {
         this.removeQueuedEntryInstance(boardId, nextEntry);
         continue;
       }
-      // A card put on hold while it waited is dropped quietly, without taking a slot (card beb29624).
+      // A card put on hold while it waited is dropped quietly, without taking a slot (card beb29624);
+      // so is a job whose role got a "hold:<role>" label (card a00fb67b). An entry
+      // without a role only answers to the whole-card hold.
+      const hold: TaskHold = task ? getTaskHold(task, nextEntry.specialistId) : { held: false };
       if (!task || task.boardId !== boardId || (nextEntry.columnId && task.columnId !== nextEntry.columnId)
-        || isTaskOnHold(task)) {
+        || hold.held) {
         this.removeQueuedEntryInstance(boardId, nextEntry);
         this.jobsByCardId.delete(nextEntry.cardId);
-        if (task && isTaskOnHold(task)) this.onHeldJobDropped?.(nextEntry.cardId, nextEntry.columnId);
+        if (hold.held) {
+          try {
+            await this.onHeldJobDropped?.(nextEntry.cardId, nextEntry.columnId, hold);
+          } catch (error) {
+            console.warn(`[KanbanSessionQueue] hold drop of card ${nextEntry.cardId} not recorded:`, error);
+          }
+        }
         continue;
       }
       if (this.countRunning(boardId) >= limit) return;
