@@ -14,8 +14,8 @@ import type { ModelEffortChoice } from "@/client/model-effort/model-effort-choic
 export const KANBAN_MODEL_TIER_KEYS = ["fast", "balanced", "smart"] as const;
 export type KanbanModelTierKey = (typeof KANBAN_MODEL_TIER_KEYS)[number];
 
-/** The only model group lane agents can run (see routa experience L143). */
-export const LANE_MODEL_GROUP_LABELS = ["Local 7357", "local-7357"];
+/** Model groups enabled for lane agents. */
+export const LANE_MODEL_GROUP_LABELS = ["Local 7357", "local-7357", "opencode-go"];
 
 export interface KanbanModelTierState {
   override: string | null;

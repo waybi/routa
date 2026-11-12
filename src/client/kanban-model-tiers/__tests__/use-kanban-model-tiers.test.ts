@@ -35,12 +35,14 @@ const data: KanbanModelTiersData = {
 };
 
 describe("kanban model tier client helpers", () => {
-  it("keeps only Local 7357 models", () => {
+  it("keeps Local 7357 and OpenCode Go models", () => {
     expect(filterLaneModelChoices([
       { value: "deepseek-flash", label: "DeepSeek Flash", group: "DeepSeek" },
       { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", group: "Local 7357" },
+      { value: "deepseek-v4.1-flash", label: "DeepSeek Flash", group: "opencode-go" },
+      { value: "gpt-6-astra", label: "GPT", group: "local-7357" },
       { value: "loose", label: "Loose" },
-    ]).map((choice) => choice.value)).toEqual(["claude-sonnet-5-5"]);
+    ]).map((choice) => choice.value)).toEqual(["claude-sonnet-5-5", "deepseek-v4.1-flash", "gpt-6-astra"]);
     expect(filterLaneModelChoices(undefined)).toEqual([]);
   });
 

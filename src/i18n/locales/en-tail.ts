@@ -474,6 +474,11 @@ export const enTail: TailTranslationDictionarySections = {
     badge: "On hold",
     tooltip: "Has the hold label: Routa will not auto-start an agent. Remove the label, then click Rerun.",
   },
+  kanbanRoleHold: {
+    roleBadge: "Paused: {roles}",
+    roleTooltip: "Has hold:<role> labels: Routa will not start {roles}; other roles run as usual. Remove the label, then click Rerun.",
+    roleSeparator: ", ",
+  },
   kanbanSearch: {
     placeholder: "Search title, card id, requirement, report, commit",
     shortcutHint: "Press / to search, Esc to clear",

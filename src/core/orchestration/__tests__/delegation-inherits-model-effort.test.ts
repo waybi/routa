@@ -92,9 +92,9 @@ describe("resolveChildModelConfig (AC4 rules)", () => {
     expect(resolveRoleModel(AgentRole.CRAFTER, "spec-model", config)).toBe("spec-model");
   });
 
-  it("DSH_ACP_MODEL only for a Local 7357 model on dsh", () => {
+  it("passes provider only for known non-local dsh models", () => {
     expect(buildChildModelEnv("dsh", LOCAL_MODEL, modelOptions(""))).toEqual({ DSH_ACP_MODEL: LOCAL_MODEL });
-    expect(buildChildModelEnv("dsh", OFFICIAL_MODEL, modelOptions(""))).toBeUndefined();
+    expect(buildChildModelEnv("dsh", OFFICIAL_MODEL, modelOptions(""))).toEqual({ DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: OFFICIAL_MODEL });
     expect(buildChildModelEnv("dsh", LOCAL_MODEL, undefined)).toBeUndefined();
     expect(buildChildModelEnv("opencode", LOCAL_MODEL, modelOptions(""))).toBeUndefined();
   });
@@ -249,10 +249,10 @@ describe("spawnChildAgent passes the lead's model / effort (C2)", () => {
     expect(t.registered[0]).toMatchObject({ provider: "dsh", model: LOCAL_MODEL, reasoningEffort: "high" });
   });
 
-  it("B: same dsh provider, DeepSeek official model: no env, model only via set_config_option", async () => {
+  it("B: same dsh provider, DeepSeek official model: provider and model in env", async () => {
     const t = setup({ childProvider: "dsh", caller: { provider: "dsh", model: OFFICIAL_MODEL, reasoningEffort: "high" }, callerConfig: modelOptions("") });
     await t.delegate();
-    expect(t.extraEnvOf()).toBeUndefined();
+    expect(t.extraEnvOf()).toEqual({ DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: OFFICIAL_MODEL });
     expect(t.setCalls()).toEqual([
       ["model", JSON.stringify(["deepseek-official", OFFICIAL_MODEL])],
       ["reasoning_effort", "high"],
@@ -381,7 +381,22 @@ describe("every execution path shows the new effect (F4 ③–⑤)", () => {
 // Review R2: the written-back member record goes through restart recovery
 // ---------------------------------------------------------------------------
 
-describe("R2: an inherited model survives restart recovery (DSH_ACP_MODEL only for Local 7357)", () => {
+describe("R2: an inherited model survives restart recovery with its known provider", () => {
+  it.each(["opencode-go", "deepseek-official", "local-7357"])("recovery and child env resolve %s", (group) => {
+    for (const model of ["deepseek-v4.1-flash", "gpt-6.1-sol", "gpt-6-astra"]) {
+      const value = JSON.stringify([group, model]);
+      const options = [{ id: "model", options: [{ group, options: [{ value }] }] }];
+      const expected = group === "local-7357" ? { DSH_ACP_MODEL: model }
+        : { DSH_ACP_PROVIDER: group, DSH_ACP_MODEL: model };
+      expect(buildRecoveryModelEnv("dsh", model, options)).toEqual(expected);
+      expect(buildRecoveryModelEnv("dsh", value, options)).toEqual(expected);
+      expect(buildChildModelEnv("dsh", model, options)).toEqual(expected);
+      expect(buildChildModelEnv("dsh", value, options)).toEqual(group === "local-7357"
+        ? { DSH_ACP_MODEL: value } : expected);
+      expect(buildRecoveryModelEnv("dsh", model, [])).toBeUndefined();
+      expect(buildChildModelEnv("dsh", model, [])).toBeUndefined();
+    }
+  });
   const ACP_DEFAULT = JSON.stringify(["local-7357", "gpt-6.1-sol"]);
 
   beforeEach(() => {
@@ -437,9 +452,9 @@ describe("R2: an inherited model survives restart recovery (DSH_ACP_MODEL only f
     expect(r.replayed).toMatchObject({ model: OFFICIAL_MODEL, reasoningEffort: "high" });
   });
 
-  it("DeepSeek official model, options known (a dsh session reported them): still no DSH_ACP_MODEL", async () => {
+  it("DeepSeek official model, options known: provider and model are passed", async () => {
     const r = await delegateThenRecover(OFFICIAL_MODEL, true);
-    expect(r.env).toBeUndefined();
+    expect(r.env).toEqual({ DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: OFFICIAL_MODEL });
     expect(r.calls[0]).toEqual(["model", JSON.stringify(["deepseek-official", OFFICIAL_MODEL])]);
   });
 
@@ -457,7 +472,7 @@ describe("R2: an inherited model survives restart recovery (DSH_ACP_MODEL only f
 
   it("buildRecoveryModelEnv: full option values decide by their group; other providers never get the env", () => {
     expect(buildRecoveryModelEnv("dsh", JSON.stringify(["local-7357", "gpt-6.1-sol"]), undefined)).toEqual({ DSH_ACP_MODEL: "gpt-6.1-sol" });
-    expect(buildRecoveryModelEnv("dsh", JSON.stringify(["deepseek-official", OFFICIAL_MODEL]), modelOptions(""))).toBeUndefined();
+    expect(buildRecoveryModelEnv("dsh", JSON.stringify(["deepseek-official", OFFICIAL_MODEL]), modelOptions(""))).toEqual({ DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: OFFICIAL_MODEL });
     expect(buildRecoveryModelEnv("dsh", "unknown-model", modelOptions(""))).toBeUndefined();
     expect(buildRecoveryModelEnv("dsh", undefined, modelOptions(""))).toBeUndefined();
     expect(buildRecoveryModelEnv("opencode", LOCAL_MODEL, modelOptions(""))).toBeUndefined();

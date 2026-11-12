@@ -200,3 +200,110 @@ describe("kanban-done-reporter TopBI port failure rule", () => {
     expect(prompt).toContain("可合 master：否（<");
   });
 });
+
+// Card 39e94583: the porter report must end with three fixed lines (可合 redesign/all / 可合 master /
+// 判据范围) because a redesign/all-based card is not mergeable to master, and the porter's only check
+// is a local Go replay. The Done Reporter copies the new triple verbatim and still recognizes the old
+// single `可合 master：否` line.
+const MERGE_LINE_PREFIXES = ["可合 redesign/all：", "可合 master：", "判据范围："];
+
+function loadSpecialist(dir: string, locale: string | undefined, id: string) {
+  return loadSpecialistsFromDirectory(dir, "bundled", locale).find((entry) => entry.id === id);
+}
+
+describe("TopBI merge-line triple", () => {
+  it.each(loadPaths)("porter states the three fixed merge lines and the reminder (%s)", (_label, dir, locale) => {
+    const specialist = loadSpecialist(dir, locale, "kanban-topbi-porter");
+    const prompt = specialist?.behaviorPrompt ?? "";
+    for (const prefix of MERGE_LINE_PREFIXES) {
+      expect(prompt).toContain(prefix);
+    }
+    expect(prompt).toContain("不适用");
+    const reminder = `${specialist?.frontmatter.roleReminder ?? ""}${specialist?.frontmatter.role_reminder ?? ""}`;
+    for (const prefix of MERGE_LINE_PREFIXES) {
+      expect(reminder).toContain(prefix);
+    }
+  });
+
+  it.each(loadPaths)("porter forbids 可合 master：是 when the baseline is not master (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    expect(prompt).toContain("否（基线不是 master，需另行移植）");
+    expect(prompt).toMatch(/判不清|cannot tell/);
+    expect(prompt).toMatch(/merge-base --is-ancestor origin\/master HEAD/);
+    expect(prompt).toMatch(/不得写「是」|never write 「是」/);
+    // No guidance that a non-master baseline may still be marked 可合 master：是.
+    expect(prompt).not.toMatch(/基线不是 master[^。\n]*可合 master：是/);
+    expect(prompt).not.toMatch(/not master[^。\n]*可合 master：是/);
+  });
+
+  it.each(loadPaths)("porter requires the three lines in the success, no-replay and failure reports (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale);
+    const step4Start = prompt.indexOf("4. **");
+    const step5Start = prompt.indexOf("5. **");
+    expect(step4Start).toBeGreaterThan(-1);
+    expect(step5Start).toBeGreaterThan(step4Start);
+    const reportSection = prompt.slice(step4Start, step5Start);
+    for (const prefix of MERGE_LINE_PREFIXES) {
+      expect(reportSection).toContain(prefix);
+    }
+    expect(reportSection).toContain("## 本机回放验收");
+    expect(reportSection).toContain("可合 redesign/all：否（缺本机回放：");
+    expect(reportSection).toContain("可合 master：否（缺本机回放：");
+
+    const failureIdx = prompt.search(/失败报告格式|Failure report format/);
+    expect(failureIdx).toBeGreaterThan(-1);
+    const failureSection = prompt.slice(failureIdx, failureIdx + 700);
+    expect(failureSection).toContain("## 移植失败");
+    for (const prefix of MERGE_LINE_PREFIXES) {
+      expect(failureSection).toContain(prefix);
+    }
+  });
+
+  it.each(loadPaths)("done-reporter copies the new three lines and keeps the old single line (%s)", (_label, dir, locale) => {
+    const prompt = loadPrompt(dir, locale, "kanban-done-reporter");
+    for (const prefix of MERGE_LINE_PREFIXES) {
+      expect(prompt).toContain(prefix);
+    }
+    expect(prompt).toMatch(/原样抄|verbatim/);
+    expect(prompt).toContain("可合 master：否（<");
+    expect(prompt).toContain("## 移植失败");
+    expect(prompt).toContain("## 本机回放验收");
+    const ruleLine = prompt.split(/\r?\n/).find((line) => line.includes("## 移植失败")) ?? "";
+    expect(ruleLine).toContain("可合 redesign/all：");
+    expect(ruleLine).toContain("判据范围：");
+    // The new triple no longer ends with the 可合 master line, so recognition must not be last-line-only.
+    expect(ruleLine).not.toContain("末行为 `可合 master：否");
+    expect(ruleLine).toMatch(/末行|last line/);
+  });
+
+  it("en locale keeps the Chinese fixed lines verbatim", () => {
+    const enDir = path.join(bundledRoot, "locales", "en");
+    const porter = loadPrompt(enDir, "en", "kanban-topbi-porter");
+    const reporter = loadPrompt(enDir, "en", "kanban-done-reporter");
+    for (const text of ["## 本机回放验收", "## 移植失败", "可合 redesign/all：", "可合 master：", "判据范围："]) {
+      expect(porter).toContain(text);
+      expect(reporter).toContain(text);
+    }
+    for (const prompt of [porter, reporter]) {
+      expect(prompt).not.toContain("可合 master:");
+      expect(prompt).not.toContain("可合 redesign/all:");
+    }
+  });
+
+  it.each(["kanban-topbi-porter", "kanban-done-reporter"])(
+    "keeps id, role and model tier identical across the three locales (%s)",
+    (id) => {
+      const entries = loadPaths.map(([, dir, locale]) => loadSpecialist(dir, locale, id));
+      for (const entry of entries) {
+        expect(entry).toBeDefined();
+        expect(entry?.id).toBe(id);
+      }
+      const tier = (entry: (typeof entries)[number]) =>
+        entry?.frontmatter.model_tier ?? entry?.frontmatter.modelTier;
+      expect(entries[1]?.frontmatter.role).toBe(entries[0]?.frontmatter.role);
+      expect(entries[2]?.frontmatter.role).toBe(entries[0]?.frontmatter.role);
+      expect(tier(entries[1])).toBe(tier(entries[0]));
+      expect(tier(entries[2])).toBe(tier(entries[0]));
+    }
+  );
+});

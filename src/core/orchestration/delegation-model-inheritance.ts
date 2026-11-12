@@ -9,10 +9,9 @@
  *   (specialist `model`, else OrchestratorConfig crafterModel / gateModel /
  *   routaModel) when set, else the lead's.
  *
- * DSH can only start on a Local 7357 model through DSH_ACP_MODEL (any other
- * line fails session/new), so the env carries the model only when the lead's
- * own configOptions place it in that group; every model is also applied with
- * session/set_config_option after start.
+ * DSH starts known models through DSH_ACP_MODEL, with DSH_ACP_PROVIDER for
+ * non-local groups. Unknown models keep the replay-only fallback; every model
+ * is also applied with session/set_config_option after start.
  */
 
 import { DSH_ENV_MODEL_GROUP, applySessionConfig, type SessionConfigTarget } from "../acp/session-config-apply";
@@ -69,7 +68,7 @@ export function resolveRoleModel(
   return byRole?.trim() || undefined;
 }
 
-/** DSH_ACP_MODEL for a dsh child, only when the lead's options put the model in Local 7357. */
+/** Startup env for a dsh child, resolved only from the lead's known options. */
 export function buildChildModelEnv(
   childProvider: string,
   model: string | undefined,
@@ -77,7 +76,11 @@ export function buildChildModelEnv(
 ): Record<string, string> | undefined {
   if (childProvider !== "dsh" || !model) return undefined;
   const value = resolveModelValue(callerOptions, model);
-  return parseModelValue(value)?.provider === DSH_ENV_MODEL_GROUP ? { DSH_ACP_MODEL: model } : undefined;
+  const parsed = parseModelValue(value);
+  if (!parsed?.provider) return undefined;
+  return parsed.provider === DSH_ENV_MODEL_GROUP
+    ? { DSH_ACP_MODEL: model }
+    : { DSH_ACP_PROVIDER: parsed.provider, DSH_ACP_MODEL: parsed.model };
 }
 
 export interface DelegationModelPlan extends ChildModelConfig {

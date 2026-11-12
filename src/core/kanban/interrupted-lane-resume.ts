@@ -21,7 +21,8 @@ import { isLaneAutomationComplete } from "./done-lane-teardown";
 import { hasTrippedRetryableEnvironmentFuse } from "./environment-failure";
 import { resolveLaneResumeStep } from "./lane-automation-state";
 import { runLaneRerunOnce } from "./lane-rerun-claim";
-import { isTaskOnHold } from "./task-hold";
+import { getTaskHold } from "./task-hold";
+import { recordRoleHold } from "./task-hold-target";
 import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator";
 import { enqueueKanbanTaskSession } from "./workflow-orchestrator-singleton";
 
@@ -31,7 +32,7 @@ export const INTERRUPTED_LANE_REASONS: readonly TaskLaneSessionRecoveryReason[] 
 export type InterruptedLaneDecision =
   | { kind: "resume"; step: KanbanAutomationStep; stepIndex: number }
   | { kind: "wait"; retryAt: Date }
-  | { kind: "skip"; reason: string };
+  | { kind: "skip"; reason: string; heldSpecialistId?: string };
 
 /**
  * Whether the card's interrupted lane step is re-run now, later, or not at
@@ -44,7 +45,7 @@ export function decideInterruptedLaneResume(
   now: Date,
 ): InterruptedLaneDecision {
   // Checked before the claim and again on the fresh card inside it (card beb29624).
-  if (isTaskOnHold(task)) return { kind: "skip", reason: "on hold" };
+  if (getTaskHold(task).held) return { kind: "skip", reason: "on hold" };
   const columnId = task.columnId;
   const column = columns.find((entry) => entry.id === columnId);
   const automation = column?.automation;
@@ -79,7 +80,13 @@ export function decideInterruptedLaneResume(
     return { kind: "wait", retryAt: new Date(retryAtMs) };
   }
   const resumeStep = resolveLaneResumeStep(task, columns);
-  return resumeStep ? { kind: "resume", ...resumeStep } : { kind: "skip", reason: "no step" };
+  if (!resumeStep) return { kind: "skip", reason: "no step" };
+  // Card a00fb67b: a role hold is judged on the step this rerun would start.
+  const roleHold = getTaskHold(task, resumeStep.step.specialistId);
+  if (roleHold.held && roleHold.scope === "role") {
+    return { kind: "skip", reason: `hold:${roleHold.specialistId}`, heldSpecialistId: roleHold.specialistId };
+  }
+  return { kind: "resume", ...resumeStep };
 }
 
 export interface InterruptedLaneResumeOptions {
@@ -146,10 +153,18 @@ async function resumeTask(
     result.waiting.push({ cardId: task.id, retryAt: decision.retryAt });
     return;
   }
+  if (decision.kind === "skip" && decision.heldSpecialistId) {
+    await recordRoleHold(system.taskStore, task.id, decision.heldSpecialistId);
+    return;
+  }
   if (decision.kind !== "resume" || !task.columnId) return;
   const columnId = task.columnId;
   const started = await runLaneRerunOnce(system.taskStore, task, columnId, async (fresh) => {
     const current = decideInterruptedLaneResume(fresh, columns, options.now?.() ?? new Date());
+    if (current.kind === "skip" && current.heldSpecialistId) {
+      await recordRoleHold(system.taskStore, fresh.id, current.heldSpecialistId);
+      return undefined;
+    }
     if (current.kind !== "resume") return undefined;
     // Started outside a column transition: the orchestrator adopts the run so
     // its end is recorded and the lane's next step follows (routa:274).

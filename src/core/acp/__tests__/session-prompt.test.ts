@@ -484,7 +484,7 @@ describe("session-prompt", () => {
       reasoningEffort: "high",
     }));
   });
-  it("recreates a dsh session on a DeepSeek official model without DSH_ACP_MODEL and switches with set_config_option (review R2)", async () => {
+  it("recreates a dsh session with the known provider, retaining cold-cache replay", async () => {
     const value = (provider: string, model: string) => JSON.stringify([provider, model]);
     const startup = () => [
       { id: "model", type: "select", currentValue: value("local-7357", "claude-opus-5-5-pool"), options: [
@@ -517,7 +517,9 @@ describe("session-prompt", () => {
       if (knownOptions) recordProviderConfigOptions("dsh", options);
       await dispatchSessionPrompt({ sessionId: `dsh-recover-official-${knownOptions}`, prompt: "continue", workspaceId: "ws-1" });
       expect(managerMock.createSession).toHaveBeenCalledOnce();
-      expect(managerMock.createSession.mock.calls[0][6]).toBeUndefined();
+      expect(managerMock.createSession.mock.calls[0][6]).toEqual(knownOptions
+        ? { DSH_ACP_PROVIDER: "deepseek-official", DSH_ACP_MODEL: "deepseek-v4-pro" }
+        : undefined);
       expect(calls[0]).toBe(`model=${value("deepseek-official", "deepseek-v4-pro")}`);
     }
   });

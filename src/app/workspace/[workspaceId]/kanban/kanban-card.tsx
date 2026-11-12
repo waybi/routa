@@ -9,6 +9,7 @@ import { resolveEffectiveTaskAutomation } from "@/core/kanban/effective-task-aut
 import { parseCanonicalStory } from "@/core/kanban/canonical-story";
 import { formatArtifactLabel, resolveKanbanTransitionArtifacts } from "@/core/kanban/transition-artifacts";
 import { isTaskOnHold } from "@/core/kanban/task-hold";
+import { formatHoldBadge } from "./kanban-hold-badge";
 import type { KanbanColumnInfo, SessionInfo, TaskInfo, WorktreeInfo } from "../types";
 import { type KanbanSpecialistLanguage } from "./kanban-specialist-language";
 import { createKanbanSpecialistResolver } from "./kanban-card-session-utils";
@@ -340,6 +341,8 @@ function KanbanCardSurface({
   const effectiveAutomation = resolveEffectiveTaskAutomation(task, boardColumns, resolveSpecialist, {
     autoProviderId,
   });
+  // Card a00fb67b: "hold:<role>" labels only; the whole-card hold keeps its own badge.
+  const roleHoldBadge = formatHoldBadge(task, t);
   const prioritySizeLabel = getPrioritySizeLabel(task.priority);
   const mergeState = resolveCardMergeState(task);
   // Folds acpStatus, the live activity heartbeat and the lane-session record
@@ -538,6 +541,14 @@ function KanbanCardSurface({
             <Badge tone="neutral">
               <Pause className="h-3 w-3" aria-hidden="true" />
               {t.kanbanHold.badge}
+            </Badge>
+          </span>
+        )}
+        {roleHoldBadge?.kind === "role" && (
+          <span title={roleHoldBadge.tooltip} data-testid="kanban-card-role-hold" className="inline-flex">
+            <Badge tone="neutral" className="[overflow-wrap:anywhere]">
+              <Pause className="h-3 w-3" aria-hidden="true" />
+              {roleHoldBadge.text}
             </Badge>
           </span>
         )}

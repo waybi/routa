@@ -16,7 +16,8 @@ import { hasExceededNonDevAutomationRepeatLimit } from "./workflow-orchestrator"
 import { isLaneAutomationComplete } from "./done-lane-teardown";
 import { runLaneRerunOnce } from "./lane-rerun-claim";
 import { isSessionActivelyRunning } from "./lane-live-session";
-import { isTaskOnHold } from "./task-hold";
+import { getTaskHold } from "./task-hold";
+import { recordRoleHold } from "./task-hold-target";
 import {
   hasTrippedRetryableEnvironmentFuse,
   isAwaitingEnvironmentFix,
@@ -259,7 +260,7 @@ export async function reviveMissingEntryAutomations(
     const task = await sanitizeStaleCurrentLaneAutomation(system, originalTask, options);
     if (task.triggerSessionId) continue;
     // A held card is left alone (card beb29624): no lane claim, no rerun, no re-entry.
-    if (isTaskOnHold(task)) continue;
+    if (getTaskHold(task).held) continue;
 
     const currentColumnId = task.columnId;
     if (!currentColumnId) continue;
@@ -354,6 +355,25 @@ export async function reviveMissingEntryAutomations(
       .find((entry) => entry.columnId === currentColumnId && typeof entry.stepIndex === "number");
     const latestRunEnded = latestRun?.status === "failed" || latestRun?.status === "timed_out";
     const resumeStep = latestRunEnded ? resolveLaneResumeStep(task, board.columns) : undefined;
+    const laneState = resolveCurrentLaneAutomationState(task, board.columns);
+    const startsNextStep = !latestRunEnded
+      && laneState.currentSession
+      && laneState.currentSession.columnId === currentColumnId
+      && (laneState.currentSession.status === "transitioned" || laneState.currentSession.status === "completed")
+      && laneState.nextStep
+      && typeof laneState.currentStepIndex === "number";
+
+    // Card a00fb67b: a "hold:<role>" label of the role revive would start
+    // leaves the card alone (no claim, no rerun) and says why on the card.
+    const startStep = resumeStep && resumeStep.stepIndex > 0
+      ? resumeStep.step
+      : startsNextStep ? laneState.nextStep : getKanbanAutomationSteps(automation)[0];
+    const roleHold = getTaskHold(task, startStep?.specialistId);
+    if (roleHold.held) {
+      if (roleHold.scope === "role") await recordRoleHold(system.taskStore, task.id, roleHold.specialistId);
+      continue;
+    }
+
     // Every start below claims the card's lane first: a concurrent startup
     // resume or retryTrigger already starting it makes revive skip the card.
     if (resumeStep && resumeStep.stepIndex > 0) {
@@ -368,15 +388,7 @@ export async function reviveMissingEntryAutomations(
       continue;
     }
 
-    const laneState = resolveCurrentLaneAutomationState(task, board.columns);
-    if (
-      !latestRunEnded
-      && laneState.currentSession
-      && laneState.currentSession.columnId === currentColumnId
-      && (laneState.currentSession.status === "transitioned" || laneState.currentSession.status === "completed")
-      && laneState.nextStep
-      && typeof laneState.currentStepIndex === "number"
-    ) {
+    if (startsNextStep && laneState.nextStep && typeof laneState.currentStepIndex === "number") {
       // Started outside a column transition, so the orchestrator must adopt
       // it: otherwise its end is never recorded (lane stays "running") and the
       // lane's following step never starts (Done Reporter a1d9bffc, 2026-10-23).

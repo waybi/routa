@@ -12,7 +12,6 @@ import {
   MODEL_CONFIG_ID,
   REASONING_EFFORT_CONFIG_ID,
   findOption,
-  flattenOptionValues,
   parseModelValue,
   resolveModelValue,
   summarizeConfigOptions,
@@ -94,32 +93,17 @@ export async function applySessionConfig(
   return { ...summarizeConfigOptions(options), configOptions: options, warnings };
 }
 
-/** DSH config-options group DSH_ACP_MODEL starts on (the acp profile pins the env model to it). */
+/** Default provider when DSH_ACP_PROVIDER is omitted. */
 export const DSH_ENV_MODEL_GROUP = "local-7357";
 
-/**
- * True only when the model is known to live in Local 7357: either the value
- * itself is a full `["local-7357", id]` option value, or `options` list the id
- * under that group. Unknown means false.
- */
+/** Known option groups can start via env; retain support for explicit local values. */
 export function isDshEnvStartableModel(model: string | undefined, options: AcpConfigOption[] | undefined): boolean {
-  const parsed = parseModelValue(model?.trim());
-  if (!parsed) return false;
-  if (parsed.provider) return parsed.provider === DSH_ENV_MODEL_GROUP;
-  return flattenOptionValues(findOption(options, MODEL_CONFIG_ID)).some((entry) => {
-    const value = parseModelValue(entry.value);
-    return value?.provider === DSH_ENV_MODEL_GROUP && value.model === parsed.model;
-  });
+  if (!model) return false;
+  return parseModelValue(model.trim())?.provider === DSH_ENV_MODEL_GROUP
+    || !!parseModelValue(resolveModelValue(options, model))?.provider;
 }
 
-/**
- * Startup env for recreating a session: DSH only accepts its startup model
- * through DSH_ACP_MODEL (it ignores -m), and only for Local 7357 models — any
- * other line fails session/new. So the env carries the stored model only when
- * the provider's known options (latest seen on any live session, or a probe)
- * place it in Local 7357; otherwise DSH starts on its default and
- * replayStoredSessionConfig switches the model with set_config_option.
- */
+/** Startup env for recovery; unknown models retain the existing replay-only fallback. */
 export function buildRecoveryModelEnv(
   provider: string,
   storedModel: string | undefined,
@@ -127,7 +111,10 @@ export function buildRecoveryModelEnv(
 ): Record<string, string> | undefined {
   const parsed = parseModelValue(storedModel?.trim());
   if (provider !== "dsh" || !parsed || !isDshEnvStartableModel(storedModel, knownOptions)) return undefined;
-  return { DSH_ACP_MODEL: parsed.model };
+  const resolved = parseModelValue(resolveModelValue(knownOptions, storedModel!));
+  return resolved?.provider && resolved.provider !== DSH_ENV_MODEL_GROUP
+    ? { DSH_ACP_PROVIDER: resolved.provider, DSH_ACP_MODEL: resolved.model }
+    : { DSH_ACP_MODEL: parsed.model };
 }
 
 /**

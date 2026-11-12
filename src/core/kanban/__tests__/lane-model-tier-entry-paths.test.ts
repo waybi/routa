@@ -76,6 +76,7 @@ vi.mock("@/core/orchestration/specialist-prompts", async () => {
   };
 });
 
+import { recordProviderConfigOptions, resetProviderConfigOptionsCache } from "@/core/acp/provider-config-probe";
 import { POST as acpPost } from "@/app/api/acp/route";
 import { PATCH as taskPatch } from "@/app/api/tasks/[taskId]/route";
 import { POST as revivePost } from "@/app/api/kanban/boards/[boardId]/revive/route";
@@ -199,6 +200,13 @@ function emitDone(system: RoutaSystem, sessionId: string, success = true) {
 
 describe("lane agent model: global tier setting on every start path", () => {
   beforeEach(() => {
+    resetProviderConfigOptionsCache();
+    recordProviderConfigOptions("dsh", [{
+      id: "model", type: "select", currentValue: JSON.stringify(["local-7357", CODE_DEFAULT]),
+      options: [{ group: "local-7357", name: "Local 7357", options: [
+        CODE_DEFAULT, ...Object.values(GLOBAL), "gpt-6.1-sol", "claude-haiku-5-5", "muse-spark-1.3", "claude-fable-5-1",
+      ].map((model) => ({ value: JSON.stringify(["local-7357", model]), name: model })) }],
+    }]);
     process.env.ROUTA_KANBAN_MODEL_TIERS_FILE = tiersFile;
     fs.rmSync(tiersFile, { force: true });
     resetWorkflowOrchestrator();
@@ -215,6 +223,10 @@ describe("lane agent model: global tier setting on every start path", () => {
   });
 
   afterEach(() => {
+    for (const call of processManager.createSession.mock.calls) {
+      expect(call[6] ?? {}).not.toHaveProperty("DSH_ACP_PROVIDER");
+    }
+    resetProviderConfigOptionsCache();
     resetWorkflowOrchestrator();
     vi.unstubAllGlobals();
     delete process.env.ROUTA_KANBAN_MODEL_TIERS_FILE;
@@ -366,7 +378,8 @@ describe("lane agent model: global tier setting on every start path", () => {
       }),
     }));
     expect(response.status).toBe(200);
-    expect(startedModels()).toEqual([GLOBAL.fast]);
+    await vi.waitFor(() => expect(startedModels()).toEqual([GLOBAL.fast]));
+    expect(processManager.createSession.mock.calls[0][6]).toEqual({ DSH_ACP_MODEL: GLOBAL.fast });
   });
 
   it("POST /api/acp session/new keeps an explicit model over the global setting", async () => {
@@ -381,7 +394,8 @@ describe("lane agent model: global tier setting on every start path", () => {
         params: { provider: "dsh", workspaceId: "default", cwd: tmpDir, specialistId: "spec-fast", model: "gpt-6.1-sol" },
       }),
     }));
-    expect(startedModels()).toEqual(["gpt-6.1-sol"]);
+    await vi.waitFor(() => expect(startedModels()).toEqual(["gpt-6.1-sol"]));
+    expect(processManager.createSession.mock.calls[0][6]).toEqual({ DSH_ACP_MODEL: "gpt-6.1-sol" });
   });
 
   describe("reasoning effort (agent process with config options)", () => {

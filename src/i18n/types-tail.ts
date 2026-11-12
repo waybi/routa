@@ -502,6 +502,14 @@ export interface TailTranslationDictionarySections extends ShellTranslationDicti
     /** Hover title of the badge. */
     tooltip: string;
   };
+  /** Card badge of a card with "hold:<role>" labels (only those roles are not started; card a00fb67b). */
+  kanbanRoleHold: {
+    /** "{roles}" = the held roles joined by roleSeparator. */
+    roleBadge: string;
+    /** Hover title; "{roles}" = the held roles joined by roleSeparator. */
+    roleTooltip: string;
+    roleSeparator: string;
+  };
   /** Board search box in the kanban toolbar. */
   kanbanSearch: {
     placeholder: string;
