@@ -22,6 +22,11 @@ describe("buildProviderModelArgs", () => {
     expect(buildProviderModelArgs("dsh", "anything")).toBeUndefined();
   });
 
+  it("never builds CLI model args for pi (model comes from Pi settings.json)", () => {
+    expect(buildProviderModelArgs("pi", "claude-opus-5-5-pool")).toBeUndefined();
+    expect(buildProviderModelArgs("pi", "opencode-go/deepseek-v4.1-flash")).toBeUndefined();
+  });
+
   it("omits blank model overrides", () => {
     expect(buildProviderModelArgs("codex", "  ")).toBeUndefined();
   });

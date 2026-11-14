@@ -150,6 +150,21 @@ describe("acp-presets", () => {
     expect(ACP_AGENT_PRESETS.some((preset) => preset.id === "cc-haha" && preset.nonStandardApi)).toBe(true);
   });
 
+  it("declares pi as a standard-Api preset that runs through the pi-acp adapter", () => {
+    const pi = getPresetById("pi");
+    expect(pi).toMatchObject({
+      id: "pi",
+      command: "pi-acp",
+      args: [],
+      envBinOverride: "PI_ACP_BIN",
+      preferredTier: ModelTier.BALANCED,
+      supportedRoles: [AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
+    });
+    expect(pi?.nonStandardApi).toBeUndefined();
+    expect(getStandardPresets().some((preset) => preset.id === "pi")).toBe(true);
+    expect(normalizeProviderPresetId("pi")).toBe("pi");
+  });
+
   it("starts Kimi Code CLI through its ACP subcommand", () => {
     expect(getPresetById("kimi")).toMatchObject({
       command: "kimi",

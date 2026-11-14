@@ -239,6 +239,21 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     preferredTier: ModelTier.SMART,
     resume: { supported: true, mode: "replay", supportsFork: false, supportsList: true },
   },
+  // Pi (pi-coding-agent) speaks no ACP of its own: local-tools/tools/pi-acp
+  // bridges newline-delimited JSON-RPC to `pi -p --mode json`. The model comes
+  // from Pi's own settings.json, so buildProviderModelArgs returns nothing here.
+  {
+    id: "pi",
+    name: "Pi",
+    command: "pi-acp",
+    args: [],
+    description: "Pi coding agent via pi-acp ACP adapter",
+    envBinOverride: "PI_ACP_BIN",
+    capabilities: ["mcp_tool", "code_generation", "file_operations"],
+    supportedRoles: [AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
+    preferredTier: ModelTier.BALANCED,
+    resume: { supported: true, mode: "native", supportsFork: false, supportsList: false },
+  },
   // Workspace Agent runs natively via Vercel AI SDK (no external CLI)
   {
     id: "workspace",
