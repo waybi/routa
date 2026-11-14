@@ -155,7 +155,7 @@ describe("acp-presets", () => {
     expect(pi).toMatchObject({
       id: "pi",
       command: "pi-acp",
-      args: [],
+      args: ["--tools", "read,bash,edit,write,grep,find,ls", "--no-skills"],
       envBinOverride: "PI_ACP_BIN",
       preferredTier: ModelTier.BALANCED,
       supportedRoles: [AgentRole.CRAFTER, AgentRole.GATE, AgentRole.DEVELOPER],
@@ -163,6 +163,20 @@ describe("acp-presets", () => {
     expect(pi?.nonStandardApi).toBeUndefined();
     expect(getStandardPresets().some((preset) => preset.id === "pi")).toBe(true);
     expect(normalizeProviderPresetId("pi")).toBe("pi");
+  });
+
+  // Pi never asks for approval, so the allowlist is the safety surface: if it
+  // silently disappears, every dispatched card runs with Pi's full toolset.
+  it("keeps a non-empty tool allowlist on the pi preset", () => {
+    const pi = getPresetById("pi");
+    const args = pi?.args ?? [];
+    const index = args.indexOf("--tools");
+    expect(index).toBeGreaterThanOrEqual(0);
+    const tools = (args[index + 1] ?? "").split(",").filter(Boolean);
+    expect(tools.length).toBeGreaterThan(0);
+    expect(tools).toContain("bash");
+    expect(tools).toContain("edit");
+    expect(args.some((arg) => arg.startsWith("mcp__"))).toBe(false);
   });
 
   it("starts Kimi Code CLI through its ACP subcommand", () => {

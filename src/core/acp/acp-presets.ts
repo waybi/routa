@@ -246,7 +246,11 @@ export const ACP_AGENT_PRESETS: readonly AcpAgentPreset[] = [
     id: "pi",
     name: "Pi",
     command: "pi-acp",
-    args: [],
+    // Tool allowlist, not decoration: Pi never asks for approval, so what the
+    // adapter hands the model is the whole safety surface. MCP tools stay
+    // reachable (only an entry starting with mcp__ would filter them), which
+    // keeps the routa-coordination bridge working.
+    args: ["--tools", "read,bash,edit,write,grep,find,ls", "--no-skills"],
     description: "Pi coding agent via pi-acp ACP adapter",
     envBinOverride: "PI_ACP_BIN",
     capabilities: ["mcp_tool", "code_generation", "file_operations"],
