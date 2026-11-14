@@ -22,9 +22,19 @@ describe("buildProviderModelArgs", () => {
     expect(buildProviderModelArgs("dsh", "anything")).toBeUndefined();
   });
 
-  it("never builds CLI model args for pi (model comes from Pi settings.json)", () => {
-    expect(buildProviderModelArgs("pi", "claude-opus-5-5-pool")).toBeUndefined();
-    expect(buildProviderModelArgs("pi", "opencode-go/deepseek-v4.1-flash")).toBeUndefined();
+  it("passes an assigned model to pi as -m (pi-acp forwards it to the Pi child)", () => {
+    expect(buildProviderModelArgs("pi", "opencode-go/deepseek-v4.1-flash")).toEqual([
+      "-m",
+      "opencode-go/deepseek-v4.1-flash",
+    ]);
+    expect(buildProviderModelArgs("pi", "deepseek-v4.1-flash")).toEqual([
+      "-m",
+      "deepseek-v4.1-flash",
+    ]);
+  });
+
+  it("still keeps dsh on DSH_ACP_MODEL only", () => {
+    expect(buildProviderModelArgs("dsh", "deepseek-v4.1-flash")).toBeUndefined();
   });
 
   it("omits blank model overrides", () => {

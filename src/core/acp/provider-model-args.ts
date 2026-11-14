@@ -10,15 +10,11 @@ export function buildProviderModelArgs(provider: string, model: string | undefin
     return undefined;
   }
 
-  // Pi takes its model from ~/.pi/agent/settings.json; pi-acp has no -m flag,
-  // so an assigned pool model here would only make the adapter reject argv.
-  if (provider === "pi") {
-    return undefined;
-  }
-
   if (provider === "codex" || provider === "codex-acp") {
     return ["-c", `model=${JSON.stringify(trimmedModel)}`];
   }
 
+  // pi-acp accepts -m as an alias of --model and expands a bare id into
+  // provider/id, so an assigned model reaches the Pi child process.
   return ["-m", trimmedModel];
 }

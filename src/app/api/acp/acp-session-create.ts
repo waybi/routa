@@ -762,13 +762,18 @@ export async function handleSessionNew({
         // "lane agent default model" setting first (dsh only), then the
         // provider's PROVIDER_MODEL_TIERS table. No tier: the acp default.
         let resolvedModel = model;
-        let dshModelEnv: Record<string, string> | undefined;
+        let modelEnv: Record<string, string> | undefined;
         if (!resolvedModel && specialist?.defaultModelTier) {
           resolvedModel = resolveTierModelForProvider(provider, specialist.defaultModelTier);
         }
-        // For DSH provider, pass the resolved model via environment variable
-        // so the DSH ACP profile can pick it up dynamically.
-        if (provider === "dsh" && resolvedModel) {
+        // Model transport starts with the environment: the DSH ACP profile reads
+        // DSH_ACP_MODEL, pi-acp reads PI_ACP_MODEL (and expands a bare id into
+        // provider/id). argv from buildProviderModelArgs carries an explicitly
+        // assigned model for providers that take -m; pi-acp gives that value
+        // precedence over the env default.
+        if (provider === "pi" && resolvedModel) {
+          modelEnv = { PI_ACP_MODEL: resolvedModel };
+        } else if (provider === "dsh" && resolvedModel) {
           let entry = getCachedProviderConfigOptions(provider);
           if (!entry) {
             try {
@@ -779,7 +784,7 @@ export async function handleSessionNew({
           }
           const options = entry?.configOptions;
           const parsed = parseModelValue(resolveModelValue(options, resolvedModel));
-          dshModelEnv = parsed?.provider && parsed.provider !== "local-7357"
+          modelEnv = parsed?.provider && parsed.provider !== "local-7357"
             ? { DSH_ACP_PROVIDER: parsed.provider, DSH_ACP_MODEL: parsed.model }
             : { DSH_ACP_MODEL: resolvedModel };
         }
@@ -791,7 +796,7 @@ export async function handleSessionNew({
           provider,
           modeId,
           extraArgs,
-          dshModelEnv,
+          modelEnv,
           workspaceId,
           resolvedToolMode,
           resolvedMcpProfile,

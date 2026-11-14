@@ -485,6 +485,38 @@ describe("/api/acp POST", () => {
     });
   });
 
+  it("passes PI_ACP_MODEL for pi session/new so the card model reaches the Pi child", async () => {
+    persistSessionToDb.mockResolvedValue(undefined);
+    acpProcessManager.createSession.mockResolvedValue("acp-pi-1");
+    acpProcessManager.getProcess.mockReturnValue({ alive: true });
+    acpProcessManager.getConfigOptions.mockReturnValue(undefined);
+
+    const response = await POST(new NextRequest("http://localhost/api/acp", {
+      method: "POST",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 22,
+        method: "session/new",
+        params: {
+          provider: "pi",
+          workspaceId: "default",
+          cwd: "/tmp/project",
+          model: "opencode-go/glm-5.3",
+        },
+      }),
+    }));
+
+    await vi.waitFor(() => expect(httpSessionStore.updateSessionAcpStatus).toHaveBeenCalledWith(expect.any(String), "ready"));
+    // Slot 6 is the extra env handed to the spawned agent process: pi-acp reads it.
+    expect(acpProcessManager.createSession.mock.calls[0][6]).toEqual({ PI_ACP_MODEL: "opencode-go/glm-5.3" });
+    expect(acpProcessManager.setConfigOption).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 22,
+      result: { provider: "pi", acpStatus: "connecting" },
+    });
+  });
+
   it("applies model before reasoning effort for dsh session/new and passes DSH_ACP_MODEL", async () => {
     const mv = (m: string) => JSON.stringify(["local-7357", m]);
     const options = (m: string, effort: string) => [
