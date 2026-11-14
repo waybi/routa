@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Copy, FileCode2, Plus, RefreshCw, Save, Search, Trash2 } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
@@ -17,6 +17,7 @@ import {
   type SpecialistForm,
 } from "./settings-panel-shared";
 import { desktopAwareFetch } from "../utils/diagnostics";
+import { useModelEffortChoices } from "../model-effort/use-model-effort-choices";
 import {
   SPECIALIST_CATEGORY_OPTIONS,
   filterSpecialistsByCategory,
@@ -27,6 +28,14 @@ import {
 type SpecialistsTabProps = {
   modelDefs: ModelDefinition[];
 };
+
+/**
+ * Provider whose advertised models feed the specialist model dropdown.
+ * Tier-based model resolution only applies to DSH lanes, and its
+ * config-options carry every model group (deepseek-official, local-7357,
+ * opencode-go) a lane session can actually start.
+ */
+const SPECIALIST_MODEL_PROVIDER_ID = "dsh";
 
 const desktopInputCls =
   "w-full rounded-sm border border-desktop-border bg-desktop-bg-primary px-2.5 py-1.5 text-[12px] leading-5 text-desktop-text-primary outline-none transition focus:border-desktop-accent focus:ring-1 focus:ring-desktop-accent/20 placeholder:text-desktop-text-muted";
@@ -54,6 +63,18 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SpecialistForm>(EMPTY_SPECIALIST_FORM);
   const datalistId = useId();
+  // Specialist model override candidates come from the DSH provider's advertised
+  // models (deepseek-official / local-7357 / opencode-go groups), so the dropdown
+  // mirrors what session/new can actually start instead of an empty hand-built list.
+  const providerChoices = useModelEffortChoices([SPECIALIST_MODEL_PROVIDER_ID]);
+  const providerModelChoices = useMemo(
+    () => providerChoices[SPECIALIST_MODEL_PROVIDER_ID]?.models ?? [],
+    [providerChoices],
+  );
+  const customModelDefs = useMemo(() => {
+    const providerValues = new Set(providerModelChoices.map((choice) => choice.value));
+    return modelDefs.filter((definition) => !providerValues.has(definition.alias));
+  }, [modelDefs, providerModelChoices]);
   const loadFailedMessage = t.errors.loadFailed;
   const requiresPostgresMessage = t.specialists.requiresPostgres;
 
@@ -489,8 +510,15 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
                       className={`${desktopInputCls} font-mono disabled:opacity-60`}
                     />
                     <datalist id={datalistId}>
-                      {modelDefs.map((definition) => (
-                        <option key={definition.alias} value={definition.alias} label={`${definition.alias} -> ${definition.modelName}`} />
+                      {providerModelChoices.map((choice) => (
+                        <option
+                          key={`provider:${choice.group ?? ""}:${choice.value}`}
+                          value={choice.value}
+                          label={choice.group ? `${choice.group} · ${choice.label}` : choice.label}
+                        />
+                      ))}
+                      {customModelDefs.map((definition) => (
+                        <option key={`alias:${definition.alias}`} value={definition.alias} label={`${definition.alias} -> ${definition.modelName}`} />
                       ))}
                     </datalist>
                   </Field>
