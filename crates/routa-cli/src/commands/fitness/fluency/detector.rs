@@ -45,7 +45,12 @@ impl EvaluationContext {
 
 struct CommandExecutionResult {
     exit_code: i32,
+    /// stdout and stderr concatenated, kept as evidence and as a fallback for
+    /// patterns that legitimately target diagnostics.
     output: String,
+    /// stdout alone. Diagnostics on stderr (proxy warnings, deprecation
+    /// notices) must not decide an output assertion.
+    stdout: String,
     timed_out: bool,
 }
 
@@ -227,6 +232,30 @@ fn test_regex_against_text(
         text
     };
     Ok(regex.is_match(capped))
+}
+
+/// Decide a `command_output_regex` criterion from the command's stdout first.
+///
+/// stdout is the command's answer; stderr carries diagnostics that the host
+/// environment injects (Node proxy warnings, `cargo` progress). Matching the
+/// concatenation first made an anchored pattern such as `^(darwin|linux)$`
+/// fail merely because a warning was printed. Patterns that intentionally
+/// target diagnostics still pass through the fallback against the combined
+/// output, so existing models keep working.
+fn command_output_matches(
+    pattern: &str,
+    flags: &str,
+    stdout: &str,
+    combined: &str,
+) -> Result<bool, String> {
+    const LABEL: &str = "command_output_regex";
+    if test_regex_against_text(pattern, flags, stdout, LABEL)? {
+        return Ok(true);
+    }
+    if stdout == combined {
+        return Ok(false);
+    }
+    test_regex_against_text(pattern, flags, combined, LABEL)
 }
 
 fn lookup_path<'a>(source: &'a JsonValue, spec: &[PathSegment]) -> Option<&'a JsonValue> {
@@ -582,12 +611,7 @@ fn evaluate_detector(
             Ok(result) => {
                 let passed = !result.timed_out
                     && result.exit_code == *expected_exit_code
-                    && test_regex_against_text(
-                        pattern,
-                        flags,
-                        &result.output,
-                        "command_output_regex",
-                    )?;
+                    && command_output_matches(pattern, flags, &result.stdout, &result.output)?;
                 Ok(DetectorResult {
                     status: if passed {
                         CriterionStatus::Pass
@@ -872,10 +896,12 @@ fn run_command(
         .join()
         .map_err(|_| "failed to join stderr reader".to_string())?;
     let output = format!("{stdout}{stderr}").trim().to_string();
+    let stdout = stdout.trim().to_string();
 
     Ok(CommandExecutionResult {
         exit_code: status.code().unwrap_or(1),
         output,
+        stdout,
         timed_out,
     })
 }
