@@ -89,13 +89,13 @@ describe("KanbanModelTiersCard", () => {
     vi.unstubAllGlobals();
   });
 
-  it("offers follow-code-default first and only Local 7357 models", async () => {
+  it("offers follow-code-default first, then DeepSeek official and Local 7357 models", async () => {
     render(<KanbanModelTiersCard />);
     const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
-    await waitFor(() => expect(select.options.length).toBe(3));
+    await waitFor(() => expect(select.options.length).toBe(4));
     expect(select.options[0]).toMatchObject({ value: "" });
     expect(select.options[0].textContent).toContain("claude-opus-5-5");
-    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "claude-opus-5-5", "claude-sonnet-5-5"]);
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "deepseek-flash", "claude-opus-5-5", "claude-sonnet-5-5"]);
   });
 
   it("explains on hover which Kanban specialists use each tier", async () => {
@@ -112,7 +112,7 @@ describe("KanbanModelTiersCard", () => {
   it("saves a tier on the server and back to follow-code-default", async () => {
     render(<KanbanModelTiersCard />);
     const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
-    await waitFor(() => expect(select.options.length).toBe(3));
+    await waitFor(() => expect(select.options.length).toBe(4));
 
     fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
     await waitFor(() => expect(screen.getByTestId("kanban-model-tier-smart").textContent).toContain("claude-sonnet-5-5"));
@@ -199,7 +199,7 @@ describe("KanbanModelTiersCard", () => {
   it("marks an overridden tier and switches its source badges", async () => {
     render(<KanbanModelTiersCard />);
     const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
-    await waitFor(() => expect(select.options.length).toBe(3));
+    await waitFor(() => expect(select.options.length).toBe(4));
     const tier = screen.getByTestId("kanban-model-tier-smart");
     const copy = en.kanbanModelTiers;
     expect(tier.getAttribute("data-overridden")).toBe("false");
@@ -224,7 +224,7 @@ describe("KanbanModelTiersCard", () => {
   it("keeps the save status slot mounted and uses the danger color on failure", async () => {
     render(<KanbanModelTiersCard />);
     const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
-    await waitFor(() => expect(select.options.length).toBe(3));
+    await waitFor(() => expect(select.options.length).toBe(4));
     for (const tier of ["fast", "balanced", "smart"]) {
       expect(screen.getByTestId(`kanban-model-tier-${tier}-status`).textContent).toBe("");
     }
