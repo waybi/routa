@@ -14,8 +14,13 @@ import type { ModelEffortChoice } from "@/client/model-effort/model-effort-choic
 export const KANBAN_MODEL_TIER_KEYS = ["fast", "balanced", "smart"] as const;
 export type KanbanModelTierKey = (typeof KANBAN_MODEL_TIER_KEYS)[number];
 
-/** Model groups enabled for lane agents. */
-export const LANE_MODEL_GROUP_LABELS = ["Local 7357", "local-7357", "opencode-go"];
+/**
+ * Model groups enabled for lane agents. "DeepSeek" is the display name of the
+ * deepseek-official group in DSH config-options; its deepseek-flash is the
+ * official DeepSeek-V4.1-Flash and DSH starts it through DSH_ACP_PROVIDER, so
+ * it is a valid lane model and must stay in the dropdown.
+ */
+export const LANE_MODEL_GROUP_LABELS = ["DeepSeek", "deepseek-official", "Local 7357", "local-7357", "opencode-go"];
 
 export interface KanbanModelTierState {
   override: string | null;
