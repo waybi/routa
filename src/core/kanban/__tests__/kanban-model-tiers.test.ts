@@ -81,6 +81,38 @@ describe("kanban global model tiers", () => {
     expect(resolveTierModelForProvider("claude", ModelTier.SMART)).toBe(PROVIDER_MODEL_TIERS.claude.smart);
   });
 
+  it("applies a tier entry explicitly targeting pi with a provider/model id", () => {
+    writeKanbanModelTierSettings({
+      balanced: { provider: "pi", model: "deepseek-official/deepseek-flash" },
+    });
+    expect(resolveTierModelForProvider("pi", ModelTier.BALANCED)).toBe("deepseek-official/deepseek-flash");
+    // The pi entry never leaks into dsh, which keeps its own code table.
+    expect(resolveTierModelForProvider("dsh", ModelTier.BALANCED)).toBe(PROVIDER_MODEL_TIERS.dsh.balanced);
+    // pi has no code tier table: an untargeted tier resolves to nothing.
+    expect(resolveTierModelForProvider("pi", ModelTier.SMART)).toBeUndefined();
+  });
+
+  it("does not synthesize a provider prefix for a bare pi model", () => {
+    writeKanbanModelTierSettings({ smart: { provider: "pi", model: "deepseek-flash" } });
+    expect(resolveTierModelForProvider("pi", ModelTier.SMART)).toBeUndefined();
+  });
+
+  it("keeps legacy bare-string tiers on dsh only", () => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ tiers: { fast: "claude-haiku-5-5" } }));
+    expect(resolveTierModelForProvider("dsh", ModelTier.FAST)).toBe("claude-haiku-5-5");
+    expect(resolveTierModelForProvider("pi", ModelTier.FAST)).toBeUndefined();
+  });
+
+  it("drops a tier whose explicit provider id is invalid", () => {
+    writeKanbanModelTierSettings({
+      smart: { provider: "bad provider!", model: "claude-sonnet-5-5" },
+    });
+    expect(readKanbanModelTierSettings()).toEqual({});
+    expect(resolveTierModelForProvider("dsh", ModelTier.SMART)).toBe(PROVIDER_MODEL_TIERS.dsh.smart);
+    expect(resolveTierModelForProvider("bad provider!", ModelTier.SMART)).toBeUndefined();
+  });
+
   it("returns nothing without a tier or for a provider without a tier table", () => {
     writeKanbanModelTierOverrides({ smart: "claude-sonnet-5-5" });
     expect(resolveTierModelForProvider("dsh", undefined)).toBeUndefined();
@@ -176,6 +208,14 @@ describe("kanban global model tiers", () => {
       expect(resolveTierReasoningEffortForProvider("dsh", undefined)).toBeUndefined();
       expect(resolveTierReasoningEffortForProvider("claude", ModelTier.SMART)).toBeUndefined();
       expect(resolveTierReasoningEffortForProvider("codex", ModelTier.SMART)).toBeUndefined();
+    });
+
+    it("resolves the tier effort for any explicitly targeted provider", () => {
+      writeKanbanModelTierSettings({
+        balanced: { provider: "pi", model: "deepseek-official/deepseek-flash", reasoningEffort: "high" },
+      });
+      expect(resolveTierReasoningEffortForProvider("pi", ModelTier.BALANCED)).toBe("high");
+      expect(resolveTierReasoningEffortForProvider("dsh", ModelTier.BALANCED)).toBeUndefined();
     });
   });
 });

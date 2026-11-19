@@ -1,17 +1,25 @@
 /**
- * Global per-tier default models for DSH lane agents ("看板施工者默认模型").
+ * Global per-tier default models for lane agents ("看板施工者默认模型").
  *
  * Lane model resolution (first non-blank wins):
  *   card assignedModel > column step model > specialist model
- *   > these global tier overrides > PROVIDER_MODEL_TIERS.dsh > acp profile default.
+ *   > the global tier entry for this provider > PROVIDER_MODEL_TIERS[provider]
+ *   > acp profile default.
  *
  * Lane reasoning effort resolution (first non-blank wins):
  *   card assignedReasoningEffort > column step reasoningEffort
- *   > this tier's global reasoning effort (dsh only) > acp profile default.
+ *   > the global tier effort for this provider > acp profile default.
  *
- * File format: { tiers: { fast: { model?, reasoningEffort? } }, updatedAt }.
- * The legacy format (tiers.fast is a model string) is read as { model } and
- * upgraded on the next write; it is only normalized here, at read time.
+ * File format: { tiers: { fast: { provider?, model?, reasoningEffort? } }, updatedAt }.
+ * `provider` names the lane the entry belongs to; when absent, the entry is
+ * treated as dsh. A legacy bare model string is read as { model } and only
+ * ever applies to dsh, so existing configs keep working unchanged.
+ *
+ * Non-dsh lanes must name a full "provider/model" model (e.g.
+ * "deepseek-official/deepseek-flash"): pi-acp expands a bare id through PI
+ * settings' defaultProvider, which is unset on this box and would be
+ * ambiguous. We never synthesize that prefix — a guessed provider resolves to
+ * the wrong upstream. dsh keeps bare local gateway ids.
  *
  * The overrides live in a small JSON file next to the user specialists
  * (~/.routa/kanban-model-tiers.json), so they survive restarts and are shared
@@ -31,15 +39,18 @@ export type KanbanModelTierKey = (typeof KANBAN_MODEL_TIER_KEYS)[number];
 export type KanbanModelTierOverrides = Partial<Record<KanbanModelTierKey, string>>;
 
 export interface KanbanTierSetting {
+  /** Lane this entry targets. Absent means dsh (legacy format). */
+  provider?: string;
   model?: string;
   reasoningEffort?: string;
 }
-/** Full per-tier settings: model and reasoning effort, each optional. */
+/** Full per-tier settings: provider, model and reasoning effort, each optional. */
 export type KanbanModelTierSettings = Partial<Record<KanbanModelTierKey, KanbanTierSetting>>;
 
-/** Only DSH lane agents read the overrides; they hold Local 7357 model ids. */
+/** Lane used by tier entries that do not name one (legacy format). */
 export const KANBAN_MODEL_TIER_PROVIDER_ID = "dsh";
 
+const PROVIDER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const REASONING_EFFORT_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
 
@@ -51,6 +62,10 @@ export function getKanbanModelTiersFilePath(): string {
 
 export function isKanbanModelTierKey(value: unknown): value is KanbanModelTierKey {
   return typeof value === "string" && (KANBAN_MODEL_TIER_KEYS as readonly string[]).includes(value);
+}
+
+export function isValidKanbanTierProviderId(value: string): boolean {
+  return PROVIDER_ID_PATTERN.test(value);
 }
 
 export function isValidKanbanTierModelId(value: string): boolean {
@@ -83,6 +98,20 @@ function cleanEffort(value: unknown): string | undefined {
 }
 
 /**
+ * A non-dsh lane may only consume a model that already carries an explicit
+ * "provider/model" prefix. Never build that prefix ourselves: pi-acp would
+ * fall back to PI settings' defaultProvider (unset here), and a wrong guess
+ * would route the session to the wrong upstream.
+ */
+function hasProviderPrefix(model: string): boolean {
+  const slash = model.indexOf("/");
+  return slash > 0
+    && slash < model.length - 1
+    && isValidKanbanTierProviderId(model.slice(0, slash))
+    && isValidKanbanTierModelId(model.slice(slash + 1));
+}
+
+/**
  * The single normalization point: accepts the current format, the legacy
  * string-per-tier format and a bare tiers record. Invalid values are dropped,
  * tiers left empty are omitted.
@@ -96,9 +125,20 @@ function sanitizeSettings(raw: unknown): KanbanModelTierSettings {
     const value = (source as Record<string, unknown>)[key];
     const setting: KanbanTierSetting = {};
     if (typeof value === "string") {
+      // Legacy bare model: dsh only, no explicit provider recorded.
       const model = cleanModel(value);
       if (model) setting.model = model;
     } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      const rawProvider = (value as KanbanTierSetting).provider;
+      // An explicitly written but invalid provider drops the whole tier:
+      // never let a typo silently retarget the entry to dsh.
+      if (rawProvider !== undefined && rawProvider !== null
+        && (typeof rawProvider !== "string" || !isValidKanbanTierProviderId(rawProvider.trim()))) {
+        continue;
+      }
+      if (typeof rawProvider === "string" && rawProvider.trim()) {
+        setting.provider = rawProvider.trim();
+      }
       const model = cleanModel((value as KanbanTierSetting).model);
       const reasoningEffort = cleanEffort((value as KanbanTierSetting).reasoningEffort);
       if (model) setting.model = model;
@@ -159,7 +199,11 @@ export function writeKanbanModelTierOverrides(overrides: KanbanModelTierOverride
   const current = readKanbanModelTierSettings();
   const next: KanbanModelTierSettings = {};
   for (const key of KANBAN_MODEL_TIER_KEYS) {
-    next[key] = { model: cleanModel(overrides[key]), reasoningEffort: current[key]?.reasoningEffort };
+    next[key] = {
+      provider: current[key]?.provider,
+      model: cleanModel(overrides[key]),
+      reasoningEffort: current[key]?.reasoningEffort,
+    };
   }
   return toOverrides(writeKanbanModelTierSettings(next));
 }
@@ -172,39 +216,49 @@ export function getCodeDefaultTierModel(providerId: string, tier: KanbanModelTie
 
 /**
  * The model a session gets from its specialist tier when neither the card,
- * the column step nor the specialist names one: the global override for DSH,
- * else the code tier table. Undefined when the provider has no tier table
- * (the agent then runs its own default).
+ * the column step nor the specialist names one: the global tier entry that
+ * targets this provider, else the provider's code tier table. Undefined when
+ * neither exists (the agent then runs its own default).
+ *
+ * An entry targets a provider through its `provider` field; missing means dsh
+ * (legacy format). A non-dsh entry is only handed down when its model already
+ * carries a "provider/model" prefix — the caller never synthesizes one.
  */
 export function resolveTierModelForProvider(
   providerId: string,
   tier: ModelTier | string | undefined,
-  overrides: KanbanModelTierOverrides = providerId === KANBAN_MODEL_TIER_PROVIDER_ID
-    ? readKanbanModelTierOverrides()
-    : {},
+  settings: KanbanModelTierSettings = readKanbanModelTierSettings(),
 ): string | undefined {
   const tierKey = modelTierToKey(tier);
-  if (!tierKey || !PROVIDER_MODEL_TIERS[providerId]) return undefined;
-  if (providerId === KANBAN_MODEL_TIER_PROVIDER_ID && overrides[tierKey]) {
-    return overrides[tierKey];
+  if (!tierKey) return undefined;
+  const entry = settings[tierKey];
+  if (entry?.model && (entry.provider ?? KANBAN_MODEL_TIER_PROVIDER_ID) === providerId) {
+    if (providerId === KANBAN_MODEL_TIER_PROVIDER_ID || hasProviderPrefix(entry.model)) {
+      return entry.model;
+    }
+    console.warn(
+      `[kanban-model-tiers] Ignoring ${tierKey} model "${entry.model}" for ${providerId}: expected provider/model prefix`,
+    );
   }
   return getCodeDefaultTierModel(providerId, tierKey);
 }
 
 /**
- * The reasoning effort a DSH session gets from its specialist tier when
- * neither the card nor the column step names one. Undefined for other
- * providers, without a tier, or when the tier has none (acp default applies).
+ * The reasoning effort a session gets from its specialist tier when neither
+ * the card nor the column step names one. The entry's `provider` (absent =
+ * dsh) must match the lane. Undefined without a tier or when the tier has
+ * none (acp default applies).
  */
 export function resolveTierReasoningEffortForProvider(
   providerId: string,
   tier: ModelTier | string | undefined,
   settings?: KanbanModelTierSettings,
 ): string | undefined {
-  if (providerId !== KANBAN_MODEL_TIER_PROVIDER_ID) return undefined;
   const tierKey = modelTierToKey(tier);
   if (!tierKey) return undefined;
-  return (settings ?? readKanbanModelTierSettings())[tierKey]?.reasoningEffort;
+  const entry = (settings ?? readKanbanModelTierSettings())[tierKey];
+  if (!entry || (entry.provider ?? KANBAN_MODEL_TIER_PROVIDER_ID) !== providerId) return undefined;
+  return entry.reasoningEffort;
 }
 
 export interface KanbanModelTierState {
