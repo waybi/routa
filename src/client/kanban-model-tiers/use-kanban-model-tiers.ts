@@ -20,7 +20,11 @@ export type KanbanModelTierKey = (typeof KANBAN_MODEL_TIER_KEYS)[number];
  * official DeepSeek-V4.1-Flash and DSH starts it through DSH_ACP_PROVIDER, so
  * it is a valid lane model and must stay in the dropdown.
  */
-export const LANE_MODEL_GROUP_LABELS = ["DeepSeek", "deepseek-official", "Local 7357", "local-7357", "opencode-go"];
+// Every provider the agent actually advertises is assignable: the catalog only
+// lists models DSH can start. A hardcoded allow-list silently dropped providers
+// added later (WorkBuddy, 银河, fcc-local ...), so the lane picker keeps
+// everything except groups explicitly excluded here.
+export const LANE_MODEL_EXCLUDED_GROUPS: string[] = [];
 
 export interface KanbanModelTierState {
   override: string | null;
@@ -135,10 +139,11 @@ export function useKanbanModelTiers(locale: string): {
   return { data, error, setData: replace };
 }
 
-/** Local 7357 models only: lane agents fail on any other group. */
+/** Lane models: the whitelisted DSH groups, plus every Routa-owned custom alias. */
 export function filterLaneModelChoices(models: ModelEffortChoice[] | undefined): ModelEffortChoice[] {
   return (models ?? []).filter((choice) => (
-    choice.group !== undefined && LANE_MODEL_GROUP_LABELS.includes(choice.group)
+    choice.source === "custom"
+    || (choice.group !== undefined && !LANE_MODEL_EXCLUDED_GROUPS.includes(choice.group))
   ));
 }
 

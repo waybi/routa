@@ -72,8 +72,13 @@ export function SpecialistsTab({ modelDefs }: SpecialistsTabProps) {
     [providerChoices],
   );
   const customModelDefs = useMemo(() => {
+    // The catalog already carries every server-side custom alias, so the browser
+    // cache is only a fallback for an unreachable catalog.
+    if (providerModelChoices.some((choice) => choice.source === "custom")) return [];
     const providerValues = new Set(providerModelChoices.map((choice) => choice.value));
-    return modelDefs.filter((definition) => !providerValues.has(definition.alias));
+    return modelDefs.filter((definition) => (
+      !providerValues.has(definition.alias) && !providerValues.has(definition.modelName)
+    ));
   }, [modelDefs, providerModelChoices]);
   const loadFailedMessage = t.errors.loadFailed;
   const requiresPostgresMessage = t.specialists.requiresPostgres;

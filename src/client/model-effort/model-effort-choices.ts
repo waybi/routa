@@ -23,14 +23,87 @@ export interface ModelEffortChoice {
   label: string;
   /** Display name of the config-options group the value came from (models only). */
   group?: string;
+  /** `custom` marks a Routa-owned alias; `provider` items come from the agent probe. */
+  source?: "provider" | "custom";
 }
 
 export interface ModelEffortChoices {
   models: ModelEffortChoice[];
   reasoningEfforts: ModelEffortChoice[];
+  /** Set when both the catalog and the direct probe failed; explains an empty picker. */
+  error?: string;
 }
 
 export const EMPTY_MODEL_EFFORT_CHOICES: ModelEffortChoices = { models: [], reasoningEfforts: [] };
+
+export interface CatalogChoiceEntry {
+  value: string;
+  rawValue?: string;
+  label?: string;
+  group?: string;
+  source?: "provider" | "custom";
+}
+
+/**
+ * Parse `GET /api/models/catalog` into the same shape as config-options.
+ *
+ * A custom entry is an alias for a real model id, so the selectable value is
+ * always its `rawValue`: Kanban/session/new only understand the real id. When
+ * an alias shadows an advertised model, the alias wins and the advertised row
+ * is hidden, so the same model never appears twice.
+ */
+export function parseCatalogChoices(
+  payload: unknown,
+  { keepRawModelValues = true }: ParseModelEffortChoicesOptions = {},
+): ModelEffortChoices {
+  const record = (payload ?? {}) as { entries?: unknown; reasoningEfforts?: unknown };
+  const rawEntries = Array.isArray(record.entries) ? record.entries : [];
+
+  const customModelIds = new Set<string>();
+  for (const raw of rawEntries) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as CatalogChoiceEntry;
+    if (entry.source !== "custom") continue;
+    const modelId = entry.rawValue?.trim();
+    if (modelId) customModelIds.add(modelId);
+  }
+
+  const models: ModelEffortChoice[] = [];
+  const seenModels = new Set<string>();
+  for (const raw of rawEntries) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as CatalogChoiceEntry;
+    const custom = entry.source === "custom";
+    if (!custom && customModelIds.has(entry.value)) continue;
+    const rawValue = entry.rawValue?.trim();
+    // Custom aliases always resolve to the real id; provider rows keep their raw
+    // select value only when the caller needs it (live-session POST).
+    const value = custom || keepRawModelValues ? (rawValue || entry.value) : entry.value;
+    if (!value || seenModels.has(value)) continue;
+    seenModels.add(value);
+    models.push({
+      value,
+      label: entry.label?.trim() || value,
+      source: custom ? "custom" : "provider",
+      ...(entry.group ? { group: entry.group } : {}),
+    });
+  }
+
+  const reasoningEfforts: ModelEffortChoice[] = [];
+  const seenEfforts = new Set<string>();
+  const rawEfforts = Array.isArray(record.reasoningEfforts) ? record.reasoningEfforts : [];
+  for (const raw of rawEfforts) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as { value?: unknown; label?: unknown };
+    const value = typeof entry.value === "string" ? entry.value.trim() : "";
+    if (!value || seenEfforts.has(value)) continue;
+    seenEfforts.add(value);
+    const label = typeof entry.label === "string" && entry.label.trim() ? entry.label.trim() : value;
+    reasoningEfforts.push({ value, label });
+  }
+
+  return { models, reasoningEfforts };
+}
 
 /** First non-blank provider id, else `dsh`. */
 export function resolveModelOptionsProviderId(
@@ -55,7 +128,7 @@ export interface ParseModelEffortChoicesOptions {
 /** Parse a config-options response body into deduplicated model / effort choices. */
 export function parseModelEffortChoices(
   payload: unknown,
-  { keepRawModelValues = false }: ParseModelEffortChoicesOptions = {},
+  { keepRawModelValues = true }: ParseModelEffortChoicesOptions = {},
 ): ModelEffortChoices {
   const options = extractConfigOptions(payload);
   const modelOption = findOption(options, MODEL_CONFIG_ID);

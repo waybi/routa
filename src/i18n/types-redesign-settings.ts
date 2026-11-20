@@ -145,6 +145,20 @@ export interface RedesignSettingsTranslationDictionarySections {
     tierTooltipOthers: string;
     tierTooltipNone: string;
     noModels: string;
+    loadingModels: string;
+    probeFailedModels: string;
+    /** Footer line naming where the choice list comes from. */
+    choicesSource: string;
+    /** Button that forces one fresh probe of the agent's advertised models. */
+    refreshModels: string;
+    refreshingModels: string;
+    /** {time} = clock time of the last successful read. */
+    refreshedAt: string;
+    refreshFailed: string;
+    /** Group heading for a stored model the agent no longer lists. */
+    groupCurrent: string;
+    /** Group heading for Routa-owned custom models (no agent group). */
+    groupOther: string;
     saving: string;
     saved: string;
     saveFailed: string;

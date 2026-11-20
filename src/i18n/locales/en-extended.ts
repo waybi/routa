@@ -1444,6 +1444,17 @@ export const enExtended: ExtendedTranslationDictionarySections = {
     placeholderApiKey: "sk-…",
     placeholderBaseUrl: "https://api.deepseek.com/anthropic",
     placeholderModelName: "deepseek-chat",
+    serverCatalog: "Server model catalog",
+    syncFailed: "Cannot reach the server model catalog — showing the local browser cache",
+    migrated: "Local models migrated to the server catalog",
+    savedToServer: "Saved to server",
+    apiKeyLocalOnly: "API keys stay in this browser and are never uploaded; re-enter them on another browser or machine.",
+    localOnly: "Local only",
+    retry: "Retry",
+    empty: "No custom models yet — add the first one with the form above.",
+    canStart: "DSH can start it",
+    cannotStart: "Not advertised by DSH",
+    executableHint: "DSH only starts models it advertises; an alias marked \"not advertised\" fails when a session starts.",
   },
 
   schedules: {

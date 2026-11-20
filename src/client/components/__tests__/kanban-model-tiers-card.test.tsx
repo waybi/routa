@@ -95,7 +95,7 @@ describe("KanbanModelTiersCard", () => {
     await waitFor(() => expect(select.options.length).toBe(4));
     expect(select.options[0]).toMatchObject({ value: "" });
     expect(select.options[0].textContent).toContain("claude-opus-5-5");
-    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", "deepseek-flash", "claude-opus-5-5", "claude-sonnet-5-5"]);
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", mv("deepseek-official", "deepseek-flash"), mv("local-7357", "claude-opus-5-5"), mv("local-7357", "claude-sonnet-5-5")]);
   });
 
   it("explains on hover which Kanban specialists use each tier", async () => {
@@ -114,11 +114,11 @@ describe("KanbanModelTiersCard", () => {
     const select = await screen.findByTestId("kanban-model-tier-smart-select") as HTMLSelectElement;
     await waitFor(() => expect(select.options.length).toBe(4));
 
-    fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
+    fireEvent.change(select, { target: { value: mv("local-7357", "claude-sonnet-5-5") } });
     await waitFor(() => expect(screen.getByTestId("kanban-model-tier-smart").textContent).toContain("claude-sonnet-5-5"));
     const put = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
-    expect(JSON.parse(String((put![1] as RequestInit).body))).toEqual({ smart: "claude-sonnet-5-5" });
-    expect(select.value).toBe("claude-sonnet-5-5");
+    expect(JSON.parse(String((put![1] as RequestInit).body))).toEqual({ smart: mv("local-7357", "claude-sonnet-5-5") });
+    expect(select.value).toBe(mv("local-7357", "claude-sonnet-5-5"));
 
     fireEvent.change(select, { target: { value: "" } });
     await waitFor(() => expect(select.value).toBe(""));
@@ -205,7 +205,7 @@ describe("KanbanModelTiersCard", () => {
     expect(tier.getAttribute("data-overridden")).toBe("false");
     expect(screen.getByTestId("kanban-model-tier-smart-source").textContent).toBe(copy.sourceCode);
 
-    fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
+    fireEvent.change(select, { target: { value: mv("local-7357", "claude-sonnet-5-5") } });
     await waitFor(() => expect(tier.getAttribute("data-overridden")).toBe("true"));
     expect(screen.getByTestId("kanban-model-tier-smart-source").textContent).toBe(copy.sourceGlobal);
 
@@ -229,7 +229,7 @@ describe("KanbanModelTiersCard", () => {
       expect(screen.getByTestId(`kanban-model-tier-${tier}-status`).textContent).toBe("");
     }
     fetchMock.mockImplementationOnce(async () => new Response("boom", { status: 500 }));
-    fireEvent.change(select, { target: { value: "claude-sonnet-5-5" } });
+    fireEvent.change(select, { target: { value: mv("local-7357", "claude-sonnet-5-5") } });
     const status = screen.getByTestId("kanban-model-tier-smart-status");
     await waitFor(() => expect(status.className).toContain("text-danger"));
     expect(status.className).not.toContain("text-red-600");

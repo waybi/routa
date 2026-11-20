@@ -17,8 +17,8 @@ const payload = {
 describe("parseModelEffortChoices groups and raw values", () => {
   it("carries the group display name, falling back to the group id", () => {
     expect(parseModelEffortChoices(payload).models).toEqual([
-      { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro", group: "DeepSeek" },
-      { value: "claude-opus-5-5", label: "Claude Opus 5.5", group: "local-7357" },
+      { value: '["deepseek","deepseek-v4-pro"]', label: "DeepSeek V4 Pro", group: "DeepSeek" },
+      { value: '["local-7357","claude-opus-5-5"]', label: "Claude Opus 5.5", group: "local-7357" },
     ]);
   });
 
@@ -41,7 +41,7 @@ describe("findChoiceLabel", () => {
   const choices = parseModelEffortChoices(payload).models;
 
   it("returns the display name when a choice lists the value", () => {
-    expect(findChoiceLabel(choices, "claude-opus-5-5")).toBe("Claude Opus 5.5");
+    expect(findChoiceLabel(choices, '["local-7357","claude-opus-5-5"]')).toBe("Claude Opus 5.5");
   });
 
   it("falls back to the raw id when no choice lists it", () => {

@@ -464,7 +464,7 @@ describe("HomeInput", () => {
       await waitFor(() => expect(createSessionMock).toHaveBeenCalledTimes(1));
       const args = createSessionMock.mock.calls[0];
       expect(args[1]).toBe("provider-default");
-      expect(args[5]).toBe("gpt-6.1-sol");
+      expect(args[5]).toBe(JSON.stringify(["local-7357", "gpt-6.1-sol"]));
       expect(args[19]).toBe("high");
       // The three positions in between keep their previous (unset) behavior.
       expect(args.slice(16, 19)).toEqual([undefined, undefined, undefined]);

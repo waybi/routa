@@ -10,7 +10,7 @@ import { Fragment, useId, useMemo, useState } from "react";
 import { ChevronRight, Cpu, Info } from "lucide-react";
 
 import { useTranslation } from "@/i18n";
-import { useModelEffortChoices } from "@/client/model-effort/use-model-effort-choices";
+import { useModelEffortChoices, refreshModelEffortChoices } from "@/client/model-effort/use-model-effort-choices";
 import { withStoredChoice, type ModelEffortChoice } from "@/client/model-effort/model-effort-choices";
 import {
   filterLaneModelChoices,
@@ -45,13 +45,40 @@ export function KanbanModelTiersCard() {
   const copy = t.kanbanModelTiers;
   const specialistLocale = toSpecialistLocale(locale);
   const { data, error, setData } = useKanbanModelTiers(specialistLocale);
-  const choices = useModelEffortChoices([data?.providerId ?? "dsh"]);
+  const choicesProviderId = data?.providerId ?? "dsh";
+  const choices = useModelEffortChoices([choicesProviderId]);
+  const choicesForProvider = choices[choicesProviderId];
   const laneModels = useMemo(
-    () => filterLaneModelChoices(choices[data?.providerId ?? "dsh"]?.models),
-    [choices, data?.providerId],
+    () => filterLaneModelChoices(choicesForProvider?.models),
+    [choicesForProvider],
   );
-  const efforts = choices[data?.providerId ?? "dsh"]?.reasoningEfforts;
+  const efforts = choicesForProvider?.reasoningEfforts;
   const [saveState, setSaveState] = useState<SaveState>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  // Explicit only: a catalog refresh re-probes the agent on the server, which
+  // starts one agent process. Never wire this to an effect or a poll.
+  const handleRefreshChoices = async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const next = await refreshModelEffortChoices(choicesProviderId);
+      if (next.error) {
+        setRefreshError(next.error);
+      } else {
+        setRefreshedAt(new Date().toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }));
+      }
+    } catch (reason) {
+      setRefreshError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleChange = async (tier: KanbanModelTierKey, value: string, field: "model" | "effort") => {
     setSaveState({ tier, status: "saving" });
@@ -119,8 +146,35 @@ export function KanbanModelTiersCard() {
           ))}
         </div>
 
-        {data && laneModels.length === 0 ? (
-          <p className="mt-2 text-[11px] text-desktop-text-muted">{copy.noModels}</p>
+        {data && !choicesForProvider ? (
+          <p className="mt-2 text-[11px] text-desktop-text-muted">{copy.loadingModels}</p>
+        ) : null}
+
+        {data && choicesForProvider && laneModels.length === 0 ? (
+          <p className="mt-2 text-[11px] text-desktop-text-muted">
+            {choicesForProvider.error
+              ? copy.probeFailedModels.replace("{error}", choicesForProvider.error)
+              : copy.noModels}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-desktop-border bg-desktop-bg-secondary/40 px-4 py-2">
+        <span className="text-[11px] text-desktop-text-muted">
+          {copy.choicesSource}
+          {refreshedAt ? ` · ${copy.refreshedAt.replace("{time}", refreshedAt)}` : null}
+        </span>
+        <button
+          type="button"
+          onClick={() => void handleRefreshChoices()}
+          disabled={refreshing}
+          className="rounded border border-desktop-accent/50 bg-desktop-accent/10 px-2 py-0.5 text-[11px] font-medium text-desktop-accent transition-colors hover:bg-desktop-accent/15 disabled:opacity-60"
+          data-testid="kanban-model-tiers-refresh"
+        >
+          {refreshing ? copy.refreshingModels : copy.refreshModels}
+        </button>
+        {refreshError ? (
+          <span className="text-[11px] text-danger">{copy.refreshFailed.replace("{error}", refreshError)}</span>
         ) : null}
       </div>
     </section>
@@ -138,7 +192,7 @@ function TierRow({
 }: {
   tier: KanbanModelTierKey;
   data: KanbanModelTiersData | null;
-  laneModels: Array<{ value: string; label: string }>;
+  laneModels: ModelEffortChoice[];
   efforts: ModelEffortChoice[] | undefined;
   saveState: SaveState;
   onChange: (value: string) => void;
@@ -150,12 +204,36 @@ function TierRow({
   const state = data?.tiers[tier];
   const value = state?.override ?? "";
   const tooltip = useMemo(() => buildTierTooltip(copy, tier, data), [copy, tier, data]);
-  const options = useMemo(() => {
-    const list = laneModels.map((model) => ({ value: model.value, label: `${model.label} · ${model.value}` }));
-    // Keep a stored value visible even if the agent stops listing it.
-    if (value && !list.some((option) => option.value === value)) list.unshift({ value, label: value });
-    return list;
-  }, [laneModels, value]);
+  // Advertised models are grouped by the provider the agent listed them under
+  // (DeepSeek / Local 7357 / opencode-go ...), so a name served by two routes is
+  // distinguishable before you pick it. A stored value the agent no longer lists
+  // gets its own group at the top instead of being merged into a real one.
+  const { legacyOption, modelGroups } = useMemo(() => {
+    // The raw select value is a provider tuple; the optgroup already names the
+    // provider, so the option text stays the model's display name.
+    const listed = laneModels.map((model) => ({
+      value: model.value,
+      label: model.label,
+      group: model.group ?? copy.groupOther,
+    }));
+    const legacy = value && !listed.some((option) => option.value === value)
+      ? (() => {
+          const bare = value.includes("/") ? value.slice(value.lastIndexOf("/") + 1) : value;
+          const match = laneModels.find((model) => model.value === bare);
+          return { value, label: match ? match.label : value };
+        })()
+      : null;
+    const groups = new Map<string, Array<{ value: string; label: string }>>();
+    for (const option of listed) {
+      const bucket = groups.get(option.group);
+      if (bucket) bucket.push({ value: option.value, label: option.label });
+      else groups.set(option.group, [{ value: option.value, label: option.label }]);
+    }
+    return {
+      legacyOption: legacy,
+      modelGroups: Array.from(groups, ([label, items]) => ({ label, items })),
+    };
+  }, [laneModels, value, copy.groupOther]);
   const effortValue = state?.reasoningEffort?.override ?? "";
   // Keep a stored effort visible even if the agent stops listing it.
   const effortOptions = useMemo(() => withStoredChoice(efforts ?? [], effortValue), [efforts, effortValue]);
@@ -235,8 +313,17 @@ function TierRow({
               data-testid={`kanban-model-tier-${tier}-select`}
             >
               <option value="">{copy.followCodeDefault.replace("{model}", state?.codeDefault ?? "…")}</option>
-              {options.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+              {legacyOption ? (
+                <optgroup label={copy.groupCurrent}>
+                  <option value={legacyOption.value}>{legacyOption.label}</option>
+                </optgroup>
+              ) : null}
+              {modelGroups.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.items.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </optgroup>
               ))}
             </Select>
           </div>

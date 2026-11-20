@@ -164,7 +164,9 @@ describe("KanbanCardDetail model and reasoning effort override", () => {
     expect(screen.getByText("Model / reasoning effort override")).toBeTruthy();
     expect(screen.queryByTestId("kanban-detail-override-model")).toBeNull();
     expect(pickerLabel()).toBe("Use lane default · Use lane default");
-    await waitFor(() => expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/providers/codex/config-options"));
+    await waitFor(() => expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes("/api/providers/codex/config-options")),
+    ).toBe(true));
 
     fireEvent.click(picker());
     fireEvent.click(await screen.findByRole("option", { name: "GPT 6.1 Sol" }));

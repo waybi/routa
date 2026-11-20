@@ -1056,6 +1056,18 @@ export interface ExtendedTranslationDictionarySections extends TailTranslationDi
     placeholderApiKey: string;
     placeholderBaseUrl: string;
     placeholderModelName: string;
+    // Server-backed model catalog
+    serverCatalog: string;
+    syncFailed: string;
+    migrated: string;
+    savedToServer: string;
+    apiKeyLocalOnly: string;
+    localOnly: string;
+    retry: string;
+    empty: string;
+    canStart: string;
+    cannotStart: string;
+    executableHint: string;
   };
 
   // Schedules

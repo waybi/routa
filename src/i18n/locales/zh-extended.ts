@@ -1444,6 +1444,17 @@ export const zhExtended: ExtendedTranslationDictionarySections = {
     placeholderApiKey: "sk-…",
     placeholderBaseUrl: "https://api.deepseek.com/anthropic",
     placeholderModelName: "deepseek-chat",
+    serverCatalog: "服务端模型目录",
+    syncFailed: "连不上服务端模型目录，当前显示本机缓存",
+    migrated: "已把本机旧模型迁移到服务端目录",
+    savedToServer: "已保存到服务端",
+    apiKeyLocalOnly: "API 密钥只留在本机浏览器，不上传服务端；换浏览器或换机器要重新填。",
+    localOnly: "仅本机",
+    retry: "重试",
+    empty: "还没有自定义模型，用上面的表单添加第一个。",
+    canStart: "DSH 可启动",
+    cannotStart: "DSH 未广告",
+    executableHint: "DSH 只接受它自己广告过的模型；标「未广告」的别名选中后会启动失败。",
   },
 
   schedules: {

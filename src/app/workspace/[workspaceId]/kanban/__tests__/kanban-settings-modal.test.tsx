@@ -852,7 +852,7 @@ describe("KanbanSettingsModal", () => {
       const onSave = renderModal({ review: { enabled: true, steps: [{ id: "step-1", role: "GATE" }] } });
 
       const picker = await screen.findByTestId("kanban-settings-step-1-model-effort");
-      expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/providers/dsh/config-options");
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/providers/dsh/config-options"))).toBe(true);
       // One combined field in the step row, not two selects.
       expect(screen.getByText("Model / reasoning effort")).toBeTruthy();
       expect(screen.queryByTestId("kanban-settings-step-1-model")).toBeNull();

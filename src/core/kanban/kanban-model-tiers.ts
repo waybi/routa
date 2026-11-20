@@ -69,7 +69,21 @@ export function isValidKanbanTierProviderId(value: string): boolean {
 }
 
 export function isValidKanbanTierModelId(value: string): boolean {
-  return MODEL_ID_PATTERN.test(value);
+  if (MODEL_ID_PATTERN.test(value)) return true;
+  // DSH advertises its select values as `["provider","model"]` tuples. Keep the
+  // tuple so two providers offering the same bare id stay distinct; a bare id
+  // alone cannot say which upstream the lane must start.
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      && parsed.length === 2
+      && typeof parsed[0] === "string"
+      && isValidKanbanTierProviderId(parsed[0])
+      && typeof parsed[1] === "string"
+      && MODEL_ID_PATTERN.test(parsed[1]);
+  } catch {
+    return false;
+  }
 }
 
 export function isValidKanbanTierReasoningEffort(value: string): boolean {
