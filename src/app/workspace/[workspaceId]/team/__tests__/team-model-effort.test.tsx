@@ -259,6 +259,7 @@ describe("C3 capsule is always shown; disabled when the provider lists no models
 });
 
 describe("C4 the pick travels with the create-session request", () => {
+  const mv = (m: string) => JSON.stringify(["local-7357", m]);
   const sentModelEffort = () => {
     const args = h.createSession.mock.calls[0];
     return { provider: args[1], model: args[5], reasoningEffort: args[19] };
@@ -275,7 +276,7 @@ describe("C4 the pick travels with the create-session request", () => {
     fireEvent.click(within(panel).getByRole("option", { name: "GPT 6.1 Sol" }));
     fireEvent.click(within(panel).getByRole("radio", { name: "高" }));
     await send();
-    expect(sentModelEffort()).toEqual({ provider: "dsh", model: "gpt-6.1-sol", reasoningEffort: "high" });
+    expect(sentModelEffort()).toEqual({ provider: "dsh", model: mv("gpt-6.1-sol"), reasoningEffort: "high" });
   });
 
   it("② nothing picked → neither model nor effort", async () => {
@@ -306,7 +307,7 @@ describe("C4 the pick travels with the create-session request", () => {
     const panel = await openReadyPanel();
     fireEvent.click(within(panel).getByRole("option", { name: "DeepSeek V4 Local" }));
     await send();
-    expect(sentModelEffort()).toEqual({ provider: "dsh", model: "deepseek-v4-local", reasoningEffort: undefined });
+    expect(sentModelEffort()).toEqual({ provider: "dsh", model: mv("deepseek-v4-local"), reasoningEffort: undefined });
   });
 });
 

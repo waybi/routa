@@ -172,7 +172,7 @@ describe("new-card modal model · effort picker (AC6 / C6)", () => {
 
   it("posts assignedModel and assignedReasoningEffort for a pick", async () => {
     const body = await submitWith(true);
-    expect(body.assignedModel).toBe("claude-opus-5-5");
+    expect(body.assignedModel).toBe(JSON.stringify(["local-7357", "claude-opus-5-5"]));
     expect(body.assignedReasoningEffort).toBe("medium");
     expect(body).toMatchObject({ title: "Demo card", objective: "Demo objective", creationSource: "manual" });
   });

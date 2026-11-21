@@ -7,7 +7,7 @@ import {
 } from "../kanban-model-effort-options";
 
 describe("kanban model / effort options", () => {
-  it("parses grouped DSH model values into plain model ids and drops the empty effort", () => {
+  it("parses grouped DSH model values keeping the (provider, model) tuple and drops the empty effort", () => {
     const choices = parseModelEffortChoices({
       configOptions: [
         {
@@ -21,7 +21,8 @@ describe("kanban model / effort options", () => {
       ],
     });
     expect(choices.models).toEqual([
-      { value: "m1", label: "Model One", group: "a" },
+      { value: JSON.stringify(["a", "m1"]), label: "Model One", group: "a" },
+      { value: JSON.stringify(["b", "m1"]), label: "Model One (b)", group: "b" },
       { value: "m2", label: "m2", group: "b" },
     ]);
     expect(choices.reasoningEfforts).toEqual([{ value: "high", label: "High" }]);

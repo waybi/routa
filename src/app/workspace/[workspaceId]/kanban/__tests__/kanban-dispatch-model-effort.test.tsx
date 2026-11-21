@@ -174,7 +174,7 @@ describe("dispatch bar model · effort picker (AC2)", () => {
     fireEvent.click(screen.getByTestId("kanban-agent-submit"));
     await waitFor(() => expect(onAgentPrompt).toHaveBeenCalledTimes(1));
     const options = onAgentPrompt.mock.calls[0][1];
-    expect(options?.model).toBe("claude-opus-5-5");
+    expect(options?.model).toBe(JSON.stringify(["local-7357", "claude-opus-5-5"]));
     expect(options?.reasoningEffort).toBe("high");
     expect(options?.provider).toBe("dsh");
   });

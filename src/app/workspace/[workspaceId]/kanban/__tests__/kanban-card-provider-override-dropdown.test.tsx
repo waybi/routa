@@ -170,7 +170,7 @@ describe("KanbanCardDetail model and reasoning effort override", () => {
 
     fireEvent.click(picker());
     fireEvent.click(await screen.findByRole("option", { name: "GPT 6.1 Sol" }));
-    await waitFor(() => expect(onPatchTask).toHaveBeenCalledWith("task-model", { assignedModel: "gpt-6.1-sol" }));
+    await waitFor(() => expect(onPatchTask).toHaveBeenCalledWith("task-model", { assignedModel: JSON.stringify(["local-7357", "gpt-6.1-sol"]) }));
     expect(onPatchTask).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("radio", { name: "High" }));
@@ -183,7 +183,7 @@ describe("KanbanCardDetail model and reasoning effort override", () => {
     );
     renderDetail(createTask("task-model", "Story Model", {
       columnId: "dev",
-      assignedModel: "claude-opus-5-5",
+      assignedModel: JSON.stringify(["local-7357", "claude-opus-5-5"]),
       assignedReasoningEffort: "low",
     }), onPatchTask);
 

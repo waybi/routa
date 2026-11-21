@@ -876,7 +876,7 @@ describe("KanbanSettingsModal", () => {
           expect.anything(),
           {
             review: expect.objectContaining({
-              steps: [expect.objectContaining({ id: "step-1", model: "gpt-6.1-sol", reasoningEffort: "high" })],
+              steps: [expect.objectContaining({ id: "step-1", model: JSON.stringify(["local-7357", "gpt-6.1-sol"]), reasoningEffort: "high" })],
             }),
           },
           expect.anything(),
