@@ -11,6 +11,7 @@
  */
 
 import { resolveWorkflowOrchestratorSingletonModuleAsync } from "../kanban/resolve-orchestrator-module";
+import { auditCardObjective } from "../kanban/card-template";
 import { v4 as uuidv4 } from "uuid";
 import { KanbanBoardStore } from "../store/kanban-board-store";
 import { TaskStore } from "../store/task-store";
@@ -252,9 +253,17 @@ export class KanbanTools {
     await this.triggerCreatedCardAutomation(board, column, task);
     this.notifyWorkspaceChanged(task.workspaceId, "task", "created", task.id);
 
+    // Empty bodies are allowed at backlog stage (the body is filled later via
+    // update_card/update_task); only audit a body that was actually written.
+    const audit = params.description?.trim()
+      ? auditCardObjective(task.objective)
+      : { warnings: [] as string[] };
     return successResult({
       ...this.taskToCard(task),
-      warnings: filteredContextSearchSpec.warning ? [filteredContextSearchSpec.warning] : [],
+      warnings: [
+        ...(filteredContextSearchSpec.warning ? [filteredContextSearchSpec.warning] : []),
+        ...audit.warnings,
+      ],
     });
   }
 

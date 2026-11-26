@@ -12,6 +12,7 @@ import { KanbanTools } from "../tools/kanban-tools";
 import { NoteTools } from "../tools/note-tools";
 import { WorkspaceTools } from "../tools/workspace-tools";
 import { ToolResult } from "../tools/tool-result";
+import { registerGetCardTemplateTool } from "./card-template-tool";
 import {
   CONFIRM_FEATURE_TREE_STORY_CONTEXT_TOOL_NAME,
   LOAD_FEATURE_TREE_CONTEXT_TOOL_NAME,
@@ -269,6 +270,7 @@ export class RoutaMcpToolManager {
     register("list_boards", () => this.registerListBoards(server));
     register("get_board", () => this.registerGetBoard(server));
     register("create_card", () => this.registerCreateCard(server));
+    register("get_card_template", () => registerGetCardTemplateTool(server));
     register("move_card", () => this.registerMoveCard(server));
     register("update_card", () => this.registerUpdateCard(server));
     register(GET_TASK_TOOL_NAME, () => registerGetTaskTool(server, () => this.kanbanTools, this.workspaceId, () => this.sessionId, (result) => this.toMcpResult(result)));
@@ -308,10 +310,10 @@ export class RoutaMcpToolManager {
   private registerCreateTask(server: McpServer) {
     server.tool(
       "create_task",
-      "Create a new task in the task store. Returns the taskId for later delegation.",
+      "Create a new task in the task store. Returns the taskId for later delegation. Write `objective` with the canonical body from get_card_template.",
       {
         title: z.string().describe("Task title"),
-        objective: z.string().describe("What this task should achieve"),
+        objective: z.string().describe("Task body. Use get_card_template: 摘要 / 执行计划 / 关键文件 / 风险提示 / 验收契约 / 必做·抽查·不适用 / 反向测试"),
         workspaceId: z.string().optional().describe("Workspace ID (uses default if omitted)"),
         scope: z.string().optional().describe("What files/areas are in scope"),
         acceptanceCriteria: z.array(z.string()).optional().describe("List of acceptance criteria / definition of done"),
@@ -1151,13 +1153,13 @@ Note: taskId must be a UUID from create_task, not a task name.`,
   private registerCreateCard(server: McpServer) {
     server.tool(
       "create_card",
-      "Create a new card in a column",
+      "Create a new card in a column. Write `description` with the canonical 9-section body returned by get_card_template; the response lists required sections that are still missing (advisory, the card is still created).",
       {
         boardId: z.string().optional().describe("Board ID (defaults to the workspace default board)"),
         columnId: z.string().optional().describe("Column ID"),
         column: z.string().optional().describe("Column ID alias"),
         title: z.string().describe("Card title"),
-        description: z.string().optional().describe("Card description"),
+        description: z.string().optional().describe("Card body. Use get_card_template: 摘要 / 执行计划 / 关键文件 / 风险提示 / 验收契约 / 必做·抽查·不适用 / 反向测试"),
         contextSearchSpec: taskContextSearchSpecSchema.optional().describe("Confirmed retrieval hints for JIT Context and history search. In backlog planning, omit this until repo inspection or load_feature_tree_context confirms the feature/files."),
         priority: z.enum(["low", "medium", "high", "urgent"]).optional().describe("Card priority"),
         labels: z.array(z.string()).optional().describe("Card labels"),

@@ -12,6 +12,7 @@ const KANBAN_PLANNING_TOOL_NAMES = [
   "save_feature_retrospective_memory",
   "save_reasoning_memory",
   "create_card",
+  "get_card_template",
   "decompose_tasks",
   "search_cards",
   "list_cards_by_column",
