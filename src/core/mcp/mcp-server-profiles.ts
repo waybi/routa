@@ -40,6 +40,7 @@ const TEAM_COORDINATION_TOOL_NAMES = [
   "save_feature_retrospective_memory",
   "save_reasoning_memory",
   "create_task",
+  "get_card_template",
   "list_agents",
   "read_agent_conversation",
   "set_agent_name",

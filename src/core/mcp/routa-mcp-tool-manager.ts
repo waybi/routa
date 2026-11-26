@@ -182,6 +182,7 @@ export class RoutaMcpToolManager {
     if (this.toolMode === "essential") {
       // Task tools (1) - needed so delegate_task_to_agent has a taskId to work with
       register("create_task", () => this.registerCreateTask(server));
+      register("get_card_template", () => registerGetCardTemplateTool(server));
       register("list_agents", () => this.registerListAgents(server));
       register("read_agent_conversation", () => this.registerReadAgentConversation(server));
       register("create_agent", () => this.registerCreateAgent(server));
